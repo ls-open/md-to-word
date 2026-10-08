@@ -159,6 +159,18 @@ if ! command -v quarto &>/dev/null; then
     exit 1
 fi
 
+# 检测 Python 依赖：缺了要给可操作的提示，而不是把 ModuleNotFoundError 回溯甩给用户
+if ! command -v python3 &>/dev/null; then
+    echo "错误: 未找到 python3（本技能的脚本都是 Python 3 写的）"
+    exit 1
+fi
+MISSING_DEPS="$(python3 -c "import importlib.util as u; print('、'.join(m for m in ('docx', 'lxml', 'yaml') if u.find_spec(m) is None))")"
+if [[ -n "$MISSING_DEPS" ]]; then
+    echo "错误: 缺少 Python 依赖（$MISSING_DEPS）。先安装再导出："
+    echo "      pip install -r \"$(cd "$SCRIPT_DIR/.." && pwd)/requirements.txt\""
+    exit 1
+fi
+
 # ── 临时文件统一注册与清理陷阱（覆盖正常退出与异常中断）──
 CLEANUP_FILES=()
 cleanup_export_artifacts() {

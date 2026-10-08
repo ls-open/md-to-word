@@ -8,7 +8,7 @@
     {{< section 页码=小写罗马 起始=1 >}}  在此收尾的**这一节**的页码设置
 
 分节符与目录域都不是 Pandoc 语法，但 `{=openxml}` 围栏块会被 Quarto 原样写进
-`word/document.xml`，故停在标记层就能表达（机制见 design.md §2.15.1）。`{{< section >}}`
+`word/document.xml`，故停在标记层就能表达（机制见 design.md §1.8.2）。`{{< section >}}`
 的参数描述**它结束的那一节**（OOXML 里 sectPr 归属前一节）；正文节的页码仍由 requirements
 的 `页码：` 走模板 sectPr。
 
