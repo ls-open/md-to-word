@@ -15,6 +15,146 @@
 - **标准槽位注册**：在纯净文档中预先注册 Word 365 核心根样式与全部标准学术样式 ID（如 `Title`, `Abstract`, `Heading 1..9`, `BodyText`, `Compact`, `TableCaption`, `TableNote`, `Bibliography`, `Table` 等），与 Quarto / Pandoc 内部解析器 100% 精确对接；
 - **现代数学支持**：原生写入现代 OMML 数学公式配置，支持 Cambria Math 居中渲染。
 
+### 1.2 主题属性工作原理与三重净化
+
+在 Word 的 OOXML 规范中，**主题属性（Theme Attributes）优先级高于显式字体指定**：
+
+```xml
+<!-- 显式指定 → 会被主题覆盖 -->
+<w:rFonts w:ascii="Times New Roman"/>
+
+<!-- 主题引用 → 优先级更高，若残留会强制覆盖显式字体 -->
+<w:rFonts w:asciiTheme="majorHAnsi"/>
+```
+
+为杜绝"设置了样式却不生效"的隐蔽 Bug，框架实行**三重纵深防御机制**：
+1. **底模生成阶段（源头零污染）**：`create_pure_modern_base.py` 构建 `styles.xml` 时不写入任何 `asciiTheme`、`eastAsiaTheme`、`themeColor` 属性或非黑颜色；
+2. **模板刷样阶段（过程净化）**：`generate_template.py` 保存时刻对 `styles.xml` 再次执行递归清理；
+3. **最终导出阶段（末端兜底与防御）**：`fix_docx_equations.py` 在后处理公式的同时对最终 docx 再次执行样式净化。**此步的双重必要性**：
+   - **第三方模板兜底**：用户直接使用期刊官方现有 `.docx` 模板（非脚本生成）时，也能自动拔除其中残留的主题属性；
+   - **编译器隐式注入拦截**：Quarto 编译过程中若动态补齐某些特定样式节点，可能会自动带上系统默认主题标记，末端扫描可确保交到作者手中的 Word 终稿 100% 纯净。
+
+### 1.3 学术公式居中与编号靠右对齐引擎
+
+**靠右没有任何原生路径**：Pandoc 把编号塞在公式对象内部（`m:oMath` 末尾），OMML 没有
+"对齐到右边"这个概念；Quarto 官方给的方案（`quarto-dev#2618`）也是自己写 filter。
+本技能走渲染后重构——把带编号公式改成 **1 行 3 列无边框表格**：左右两列等宽（公式因此
+能整页居中），右列放编号。
+
+两个改代码前要知道的点：
+
+- **列宽按编号实际宽度算**（`_eq_number_pct`），不能用固定百分比：固定 12% 时
+  「（式 5-1）」这类中文编号会折成两行。
+- **必须 `tblLayout type="fixed"`**：不写时 Word 走 autofit 重算列宽，把编号列压到约 40pt。
+
+**编号来源与编号外观分属两层**：
+
+| | 谁定 | 在哪 |
+|:--|:--|:--|
+| 数字本身 | Quarto crossref：`{#eq-x}` → `(1)`；配 `crossref: chapters: true` → 按章 `(5.1)` | 稿件 + YAML |
+| 括号与分隔符 | `--eq-number-style`：`asis` 保持原生 / `cjk` 改写成 `（5-1）` | `format_eq_number()` |
+
+### 1.4 工作流程图
+
+```
+格式要求.txt → parse_requirements() → 属性字典列表
+                                               │
+纯净 Word 365 底模 pure_modern_base.docx → Document(tmp.docx) │
+                          ↓                    ↓
+                   modify_style() ←────────────┘
+                          │
+                    设置字体/字号/行距/缩进
+                    清除主题属性（关键！）
+                          │
+                   Table 三线表边框
+                   Hyperlink 黑色
+                   清理 Char 样式
+                   Caption 基样式斜体清除
+                   页面尺寸 pgSz + pgMar（修复图片宽度）
+                   Captioned Figure 居中（原生图语法）
+                          │
+                   保存 → 模板.docx
+```
+
+### 1.5 页面尺寸与图片宽度（pgSz + pgMar）
+
+Pandoc 的 docx writer 在确定图片显示宽度时，会从模板的 `sectPr` 中读取 `pgSz`（页面尺寸）和 `pgMar`（页边距），计算内容宽度 `envPrintWidth = pgSz.w - pgMar.left - pgMar.right`。**如果 pgSz 或 pgMar 任一缺失**，Pandoc 回退到默认值 420pt（≈14.817cm = 5,334,000 EMU）。
+
+**`{width=15cm}` 被静默截断为 14.82cm 的根因**——Pandoc 默认 reference.docx 的 sectPr 不含 pgSz/pgMar。
+
+`generate_template.py` 现在在保存模板前自动设置：
+- `section.page_width` / `section.page_height`（写入 `<w:pgSz>`）
+- `section.left_margin` 等（写入 `<w:pgMar>`，默认 2.54cm）
+- 纸张尺寸由 requirements 文件的 `纸张：A4|Letter` 行设定（不写默认 A4，见 reference.md §1.5）
+
+设置后，A4 页面内容宽度 = 21.0 - 2.54 - 2.54 = 15.92cm，`{width=15cm}` 可正确生效。
+
+### 1.6 原生图语法居中
+
+原生图语法 `![caption](path){width=Xcm}`（alt 非空）时，Pandoc 将图片段落映射为 Captioned Figure 样式，模板中已设为居中。
+
+### 1.7 缩进单位换算技术细节
+
+`generate_template.py` 的缩进子句支持两种单位（单写法收敛，厘米单位已移除）：
+
+| 单位 | OOXML 属性 | 换算关系 | 用途 |
+|------|-----------|---------|------|
+| 字符 | `firstLineChars` / `hangingChars` + `leftChars` | Word **根据段落字号自动计算**实际缩进量 | 中文正文首行缩进（`首行缩进2字符`）|
+| 英寸 | `firstLine` / `hanging` | 1 inch = 72 pt | 英文首行缩进（`首行缩进0.5英寸`）与参考文献悬挂缩进（`悬挂缩进0.5英寸`）|
+
+**字符单位的优势**：12pt 字号下 2 字符 = 24pt = 0.85cm；10.5pt 字号下 2 字符 = 21pt = 0.74cm。字号变化时缩进比例自动保持，比固定 pt 值更准确。
+
+**关键数值对照**：
+- 中文正文 `首行缩进2字符`（12pt 字号下 = 24pt = 0.85cm）
+- 参考文献 `悬挂缩进0.5英寸`（= 36pt = 1.27cm，APA/MLA/Chicago/Vancouver 国际标准）
+- **⚠️ 2 字符 ≠ 0.5 inch**：APA 标准的 0.5 inch = 36pt = 1.27cm，中文排版的 2 字符在 12pt 字号下 = 24pt = 0.85cm，两者是不同体系的数值，不能混用。英文论文用 `首行缩进0.5英寸`，中文论文用 `首行缩进2字符`。
+
+### 1.8 参考文档被带走了什么（**改模板前必读**）
+
+pandoc 只从参考文档拿走三类东西，其余一概忽略：
+
+| 会被带走 | 不会被带走 |
+|:--|:--|
+| `word/styles.xml` 样式表 | 正文内容（`document.xml` 的段落一概忽略） |
+| 文档属性：页面尺寸、页边距、**页眉、页脚** | 多节结构（见 §1.8.1） |
+| `word/header*.xml`、`word/footer*.xml` 全部部件 | 域的计算结果（域由 Word 更新） |
+
+> 官方手册：*"The contents of the reference docx are ignored, but its stylesheets and
+> document properties (including margins, page size, header, and footer) are used."*
+
+所以**页眉 / 页脚 / 页码是模板能力，不是导出后手工补的活**——`reference.md §1.4` 把它列进
+「完全支持」的理由就在这里。
+
+#### 1.8.1 参考模板只能单节，多节由标记在渲染层插入
+
+**pandoc 取参考文档的第一个 `sectPr`，只用它的页眉页脚与页面几何。**
+
+实测：两节模板导出后只剩节 0 的那个 `sectPr`。
+
+- 单节内能做的全都能做：奇偶页不同页眉页脚（`evenAndOddHeaders` + `default`/`even`
+  两个 `headerReference`）、首页不同、起始页码与页码格式；
+- **跨节切换页码格式**（前置罗马 → 正文阿拉伯）不在模板里做，改由正文的 `{{< section >}}`
+  标记在渲染前展开成 OOXML 分节符（§2.15.1）：它整段继承参考模板正文节的页面几何与页脚
+  引用，只改分节类型与页码格式——所以参考模板仍须是单节。
+
+`generate_template.py` 生成后强制校验单节，多节直接报错——多节模板会让页眉页脚错位且无人察觉。
+
+### 1.9 requirements.txt 是一门**封闭**的小语言
+
+它是本技能唯一的用户界面，只有两级语法，两级各由**一张表**实现（都在 `generate_template.py`）：
+
+| 层级 | 例子 | 表 |
+|:--|:--|:--|
+| **行级键** | `纸张：A4`、`页边距：上2.4cm …`、`页眉内容：{页码}` | `_LINE_KEYS`：键 → 消费者，值落到 spec 的某个字段 |
+| **样式行子句** | `正文：宋体 小四 行距1.5倍 首行缩进2字符` | `_CLAUSE_TABLE`：按空格切词，最长优先整词消费 |
+
+**规矩只有一条：认不出的东西一律报错**（行号 + 原词 + 应写形式）。没有"静默忽略"这第三种
+结果——写上去等于没写、导出还全绿，是这类工具最贵的失败模式（§2.10 记的都是实例）。
+
+**为什么封闭**：用法是 AI 读要求原文 → 转写成 requirements.txt → 解析器严格校验。"严格校验"
+成立的前提就是词表封闭：转写要么整行被接受、要么当场报错。多收一个同义写法看着只是"宽容
+一点"，实际是取消了对转写的唯一验证手段。
+
 **增补一个写法 = 两处同步**：① `generate_template.py` 加一行（`_LINE_KEYS` 或 `_CLAUSE_TABLE`）；
 ② `reference.md §1.5` 加一行（唯一写法 + 示例 + 错误写法），保持代码词表与文档速查表一致。
 

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-create_pure_modern_base.py — 构建现代 Word 365 (16.0) 学术基础模板
+create_pure_modern_base.py — 构建现代 Word 365 (AppVersion 16.0000) 学术基础模板
 
 直接按 ISO/IEC 29500 与 Word 365 (AppVersion 16.0000) 规范生成 pure_modern_base.docx：
 1. 原生包含 Word 365 核心根样式与 Pandoc / Quarto 全部学术排版样式槽位；
 2. 默认 A4 页面 (21cm × 29.7cm)、2.54cm 页边距、Cambria Math 居中公式及中西文字体表；
-3. 样式表零主题属性引用、纯黑字色 (000000)、零段前段后默认间距与单倍基准行距。
+3. 样式表零主题属性引用、纯黑字色 (000000)、零段前段后默认间距与单倍基准行距；
+4. `compatibilityMode=15`——真实 Word 365 新建文档自己写的值（合法值 11/12/14/15，没有 16）；
+   `w:compat` 里那 8 个旧式开关同样照抄真实 Word，它们**会**影响断行与字宽，不要随手删。
 """
 
 import os
@@ -251,7 +253,7 @@ def _build_styles_xml() -> bytes:
 
 
 def create_pure_modern_base(output_path: str = "pure_modern_base.docx") -> None:
-    print("🌟 正在构建现代 Word 365 (16.0) 基础模板...")
+    print("🌟 正在构建现代 Word 365 (AppVersion 16.0000) 基础模板...")
     tmp_out = output_path + ".tmp"
     with zipfile.ZipFile(tmp_out, "w", compression=zipfile.ZIP_DEFLATED) as zout:
         for arcname, xml_text in STATIC_PARTS.items():
