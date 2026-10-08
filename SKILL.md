@@ -1,6 +1,7 @@
 ---
 name: md-to-word
 description: "Exports Markdown documents, reports, and academic papers to publication-ready Word (.docx) files with modern Word 365 styles, custom typography, three-line tables, equation right-alignment, figure/table cross-referencing, and optional CSL bibliography formatting. Use when user asks to export Markdown to Word, generate docx, convert md/txt/text to docx, 导出Word, 文档转Word, 报告转Word, 论文转Word, 期刊排版, Word排版, 公文排版, or prepare submission docx."
+license: MIT
 compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml。"
 ---
 
@@ -34,8 +35,22 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 ### 2. 识别格式需求 → 直接生成 `requirements.txt`（无需另建需求文档）
 不要单独创建额外的需求说明文档，直接在稿件同目录编写 `<名称>_requirements.txt`（文件内支持用 `# 注释` 记录格式来源或分块说明）。格式要求有三种获取路径：
 - **路径 A：用户提供了参考 `.docx` 模板/样例文件（最准确）**
-  Agent 直接用 Python 的 `python-docx` 库（本技能自带必装依赖）编写几行脚本读取该参考 `.docx` 的页面尺寸、页边距及各样式（`Title`、`Heading 1..3`、`Normal`、`Body Text` 等）的中西文字体、字号、对齐、行距、段前段后、首行缩进，直接转写为 `requirements.txt`。
-  ⚠ **行距要读 XML，不能只读 `line_spacing`**：行距有三种写法（倍数 / 固定值 / 最小值），`python-docx` 只能分出"倍数 vs 磅值"——固定值与最小值读回来都是 `Length`（实测 `25.0pt` 一模一样），而两者的差别在内容更高时才会显形（固定值会把超高内容**裁掉**）。要准确转写就读样式的 `w:spacing/@w:lineRule`（`auto` / `exact` / `atLeast`）；拿不准时写「行距最小值N磅」，那是不会裁内容的那一侧。
+  直接跑本技能自带的读取脚本，把参考文件的格式读成一份 `requirements.txt` 草稿：
+
+  ```bash
+  python3 <本技能目录>/scripts/read_reference_docx.py 参考.docx -o <名称>_requirements.txt
+  ```
+
+  读出的内容：页面尺寸 / 页边距 / 页眉页脚距边界 / 页码格式与起始、各样式的中西文字体与字号、
+  加粗倾斜、对齐、行距（倍数 / 固定值 / 最小值）、段前段后、缩进（字符 / 英寸）、段落下边框、
+  表格边框与表头行、页眉页脚内容与域。**读不出来的项会列在草稿末尾的注释块里**——照着核一遍，
+  别把草稿直接当成品。
+
+  ⚠ **不要自己拿 `python-docx` 的 API 读**：它读不到中文字体（宋体在 `w:rFonts/@w:eastAsia`，
+  `font.name` 只有西文槽）、会把「首行缩进2字符」读成 `None`（那在 `w:ind/@w:firstLineChars`）、
+  还分不出行距的固定值与最小值（两者在 API 层都是 Length，要靠 `w:spacing/@w:lineRule`）。
+  段落下边框、页码格式、表格边框、校对语言更是没有 API。这些脚本里都处理了。
+
 - **路径 B：用户提供了文字/PDF 格式说明或口头要求（最常见）**
   用户的要求通常很粗糙（例如只说“正文宋体小四、1.5倍行距”，没提段前段后、没提表内字号）。Agent **将用户明文指定的属性填入，未提及的同套必填字段按配对推导原则补齐**（例如不需额外段间距就显式写 `段前0磅 段后0磅`，不需缩进就写 `首行缩进0字符`，表内文字比正文小 1.5~2pt；推导规则见 `references/reference.md §1.6`）。
 - **路径 C：用户未指定具体格式**
