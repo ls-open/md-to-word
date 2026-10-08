@@ -234,7 +234,7 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 
 症状：Table 样式 tblPr 中有 jc 元素，但表格仍左对齐，Word 忽略了 jc。
 原因：`jc` 元素必须在 `tblBorders` **之前**（OOXML schema 顺序：`tblStyle → tblW → jc → tblInd → tblBorders → tblLayout → tblLook`）。如果 jc 在 tblBorders 之后，Word 会忽略 jc。
-解决：`generate_template.py` 已按正确顺序插入（用 `tbl_pr.insert(0, jc_el)` 插入到最前面）。
+解决：`generate_template.py` 按 OOXML schema 顺序插入（`ensure_ordered_child(tbl_pr, 'jc', _TBLPR_ORDER)`，`jc` 排在 `tblBorders` 之前）——不是 append/insert(0)：`w:tblPr` 的顺序错了 Word 会整段忽略。
 
 ### 2.13 First Paragraph 必填原理
 

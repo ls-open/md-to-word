@@ -290,7 +290,7 @@ if ! (cd "$TARGET_DIR" && "${RENDER_CMD[@]}"); then
 fi
 
 # 后处理：学术公式居中 + 编号靠右排版优化与样式深度净化
-# 这一步不是可选修饰：它同时注入现代引擎 compatMode 并清理主题属性。缺脚本 = 技能
+# 这一步不是可选修饰：它清理主题属性并重构公式排版。缺脚本 = 技能
 # 装坏了；静默跳过会导出一个"看着正常"的不合格 docx，链路上不报任何错。
 if [[ ! -f "$SCRIPT_DIR/fix_docx_equations.py" ]]; then
     echo "❌ 缺少 $SCRIPT_DIR/fix_docx_equations.py（技能安装不完整），导出中止。" >&2

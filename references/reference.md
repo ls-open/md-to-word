@@ -34,7 +34,8 @@ Pandoc 在 reference.docx 中识别的样式名是固定的，不能擅自改名
 
 > **Pandoc 样式匹配规则**：按**样式名**或**styleId**匹配 `custom-style="X"`（表注写「Table Note」或「TableNote」都认）。两者都不存在时，Pandoc 会**静默**建一个空壳样式（继承 Normal/Body Text）——格式不生效且没有警告，`check_md.py` 能在导出前检出。
 
-> `Keywords` 和 `Table Note` 在 Pandoc 默认模板中不存在，`generate_template.py` 会自动创建。
+> `Keywords`、`Table Note` 这类样式**已预置在底模里**——Pandoc 自带的参考文档没有它们，
+> 不预置就会静默建出空壳样式（继承 `Normal` 的格式，看不出对错）。
 
 ### 1.2 多套正文样式的说明
 
@@ -372,9 +373,9 @@ $$Y = a + bX$$ {#eq-model1}
 **关键行为**：
 - 自动处理工作目录与相对路径（确保 `.bib` 及图片路径正确解析）
 - **图片路径**：绝对路径与相对路径都支持。导出时自动追加
-  `--resource-path "<输入目录>:<git 项目根>:<../results/figures>:/"`——根目录 `/` 让绝对路径
-  （`/Users/...`）直接解析（否则会被当成 `./Users/...`），项目根让 `results/figures/x.png` 这类
-  相对项目根的路径可用，跨级 `../../` 也可解析。**无需在 YAML 里配 `resource-path`**
+  `--resource-path "<输入目录>:<git 项目根>:/"`——根目录 `/` 让绝对路径（`/Users/...`）直接解析
+  （否则会被当成 `./Users/...`），git 项目根让「相对项目根」的路径（如 `figs/x.png`）也可解析。
+  **无需在 YAML 里配 `resource-path`**
 - 原生由 Quarto 渲染，支持 `{width=Xcm}` 属性语法与现代学术扩展
 - 支持 `.markdown` 后缀（与 `.md` 同等待遇）
 - **内置 CSL 自动寻路**：若 YAML `csl:` 填写本技能 `resources/csl/` 下的文件名（如 `apa.csl`），脚本自动解析并挂载技能内置 CSL 绝对路径，无需手动拷贝 `.csl` 文件
@@ -391,7 +392,7 @@ $$Y = a + bX$$ {#eq-model1}
   亲眼确认版式时出（如首次套用新模板、改了样式、要核对目录/页眉章名/页码这些**域**）。
   日常改字改句的重导出不必加它。
   **macOS 专用**——非 macOS 或未装 Word 时只打印一行提示并跳过，**docx 不受影响**；
-  PDF 渲染本身失败才返回非零码
+  PDF **跳过与失败都返回退出码 3**（成功为 0）——调用方据此判断 PDF 到底有没有产出
 
 ### 2.2 scripts/generate_template.py
 
