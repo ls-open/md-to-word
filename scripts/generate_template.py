@@ -628,6 +628,8 @@ _CLAUSE_TABLE: list = [
                                                             float(m.group('v')))),
     (_T, re.compile(r'单元格垂直(?P<k>居中|顶端|底端)'),
      lambda p, m, d: _set_once(p, 'valign', TABLE_VALIGN_MAP[m.group('k')], '单元格垂直对齐', d)),
+    (_T, re.compile(r'单元格内边距(?P<v>\d+(?:\.\d+)?)cm'),
+     lambda p, m, d: _set_once(p, 'cell_margin_cm', float(m.group('v')), '单元格内边距', d)),
 ]
 
 
@@ -667,6 +669,7 @@ _HINTS = [
     (re.compile(r'斜体'), '「倾斜」（开）或「不倾斜」（关）'),
     (re.compile(r'中等倾斜'), '「倾斜」'),
     (re.compile(r'悬挂缩进\d+字符'), '「悬挂缩进0.5英寸」（悬挂缩进只用英寸单位）'),
+    (re.compile(r'^(?:单元格(?:内|左右)?|内)边距'), '「单元格内边距0.19cm」（单位用 cm，不写即 0）'),
     (re.compile(r'下划线'), '「下边框单线」（段落下边框；下划线是字符属性，本技能不支持）'),
     # 兜底放最后（提示表按顺序取第一个命中，具体的放前面）：`宋体 12 两端对齐` 里那个 `12`
     # 想写的是字号。以前它在字体段内部被静默滤掉（`parse_font_name` 拒绝数字开头的候选，
@@ -1458,11 +1461,14 @@ TABLE_DEFAULT_WIDTHS = {
 
 TABLE_BORDER_SIDES = ('top', 'left', 'bottom', 'right', 'insideH', 'insideV')
 
-# ── 表格单元格左右内边距（twips，108 ≈ 0.19cm）──
-# 显式写出来，不让它从 Table 样式的 basedOn 链上继承：继承来的值没人声明过，却实实在在
-# 决定产物长相（谁都不知道它从哪来、改了会怎样）。0.19cm 即 Word 建表的观感（文字不贴框线）；
-# 格式要求里没有这一项，要微调导出后在 Word 里调。
-TABLE_CELL_MARGIN_TWIPS = 108
+# ── 表格单元格左右内边距：**声明项**，不写即 0 ──
+# 要求文件写「单元格内边距0.19cm」即生效；不写时用 0，且**显式写进产物**——
+# 不能让底模的 Table→Normal Table 继承值替我们决定（继承来的值没人声明过，却实实在在
+# 决定产物长相）。默认 0 不是审美选择：渲染器把 `tblW` 写成 100%、`tblLayout` 写成 fixed，
+# 列宽由 Markdown 分隔行的比例决定，**列宽之和恒等于版心宽度**——内边距没有"额外空间"
+# 可占，只能从列里扣。默认取 0，"分隔行的比例"才等于"文字实际能用的宽度"；要留白就写出来，
+# 那时少掉的那点宽度是声明过的、可追责的。
+TABLE_CELL_MARGIN_DEFAULT_CM = 0.0
 
 
 def table_border_widths(style: str, declared: dict) -> dict:
@@ -1618,13 +1624,18 @@ def apply_table_format(doc, spec, default_latin=None):
         print(' ✓ Table: 已设置表头行格式'
               + ('（含跨页重复标题行）' if props.get('repeat_header') else ''))
 
-    # 单元格内边距：显式声明（见 TABLE_CELL_MARGIN_TWIPS）。写在最后，四种表格样式都适用。
+    # 单元格内边距：要求文件写「单元格内边距Ncm」才生效，不写用 0。四种表格样式都适用。
+    # 无论声明与否都要**写进产物**：底模的 Table→Normal Table 继承链里有 0.19cm，
+    # 不写就等于默认被它决定（见 TABLE_CELL_MARGIN_DEFAULT_CM）。
+    margin_twips = int(round(table.get('cell_margin_cm', TABLE_CELL_MARGIN_DEFAULT_CM) * _TWIPS_PER_CM))
     cell_mar = ensure_ordered_child(tbl_pr, 'tblCellMar', _TBLPR_ORDER)
-    for side, twips in (('top', 0), ('left', TABLE_CELL_MARGIN_TWIPS),
-                        ('bottom', 0), ('right', TABLE_CELL_MARGIN_TWIPS)):
+    for side, twips in (('top', 0), ('left', margin_twips),
+                        ('bottom', 0), ('right', margin_twips)):
         el = ensure_ordered_child(cell_mar, side, ('top', 'left', 'bottom', 'right'))
         el.set(W('w'), str(twips))
         el.set(W('type'), 'dxa')
+    if 'cell_margin_cm' in table:
+        print(f' ✓ Table: 单元格内边距={table["cell_margin_cm"]}cm')
 
     if table.get('valign'):
         tsp = _get_tbl_style_pr(style_el, 'wholeTable')
