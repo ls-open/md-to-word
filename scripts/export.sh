@@ -86,6 +86,16 @@ if [[ "$EQ_NUMBER_STYLE" != "asis" && "$EQ_NUMBER_STYLE" != "cjk" ]]; then
     exit 1
 fi
 
+# 按章编号 + 编号外观仍是默认 → 多半是漏带了 --eq-number-style cjk。
+# **这一项没有任何闸门能发现**：漏了就是静默产出 (5.1)（点号、半角括号），
+# check_md / post_flight / audit 三道闸门全部照绿——正是本工具最怕的那种失败。
+# 只提醒、不阻断：英文稿开了 chapters 而用 (5.1) 是合法的。
+if [[ "$EQ_NUMBER_STYLE" == "asis" ]] && grep -qE 'chapters:[[:space:]]*true' "$INPUT" \
+        && grep -q '{#eq-' "$INPUT"; then
+    echo "提示: 稿件 YAML 开了 crossref.chapters（按章编号），但公式编号外观是默认的 (5.1)。" >&2
+    echo "      中文学位论文通常写作 （5-1）——需要的话加 --eq-number-style cjk。" >&2
+fi
+
 if [[ -n "$REQUIREMENTS" && ! -f "$REQUIREMENTS" ]]; then
     echo "❌ -r 指定的格式要求文件不存在: $REQUIREMENTS" >&2
     exit 1
