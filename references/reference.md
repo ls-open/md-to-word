@@ -18,7 +18,7 @@ Pandoc 在 reference.docx 中识别的样式名是固定的，不能擅自改名
 | Abstract | 摘要 | `doc.styles['Abstract']` |
 | First Paragraph | 章节首段 | `doc.styles['First Paragraph']` |
 | Body Text | 正文 | `doc.styles['Body Text']` |
-| Normal | 默认段落/列表项 | `doc.styles['Normal']` |
+| Normal | 其余样式的**继承源头**（段落不直接用它；列表项走 `Compact`） | `doc.styles['Normal']` |
 | Compact | 紧凑正文 | `doc.styles['Compact']` |
 | Heading 1—9 | 标题 | `doc.styles['Heading X']` |
 | Table Caption | 表名 | `doc.styles['Table Caption']` |
@@ -84,6 +84,7 @@ Pandoc 内部使用启发式规则将不同段落映射到不同样式：
 - 下划线、删除线、字符间距（`下边框` 是**段落**的下边框，不是字符下划线——两者字形相近，写错了会被逐字报错，见 §1.5）
 - 制表位、编号列表、项目符号（`点线制表位` 是唯一的例外，目录条目靠它把页码顶到版心右边界）
 - 底纹 / 背景色
+- 脚注的字体字号（`[^1]` 脚注由渲染器写进 `FootnoteText` 样式，本技能的词表里没有这条，想改就在 Word 里改样式）
 - 孤行控制（跨页控制只有两处：`与下段同页` 与表头的 `跨页重复`）
 - 分栏排版与图片文字环绕
 - 字体颜色（模板统一强制黑色，不能要求彩色文字）
@@ -372,6 +373,7 @@ $$Y = a + bX$$ {#eq-model1}
   导出完即清理——配置一改模板自动跟着变，二进制模板不必入库。显式传 `-t`
   则以那一份为准（目标方自己发的 `.docx` 走这条）。两者都没有才报错退出，绝不退回渲染器内置模板
 - 依赖 Quarto 渲染器（要求 >= 1.4）
+- 其余参数见 `bash scripts/export.sh --help`：`--strip-comments` 先去 HTML 注释再导出；`--no-check` / `--no-postflight` / `--no-audit` 分别关掉三道闸门（**不推荐**——关掉等于把静默失败的判读交回人眼）；`--eq-number-style cjk` 用中文编号写法。
 - **产物完整性闸门（默认开）**：稿件里每个三位以上小数都必须出现在 docx 里，缺一个即
   阻断导出（`post_flight_check.py`）。这是导出链上唯一的数据丢失守护——后处理
   （公式重构）历史上丢过段。逃逸 `--no-postflight`（不推荐）
@@ -490,6 +492,7 @@ bash scripts/export.sh 稿.md -o 正文.docx --pdf    # 同目录唯一 .txt 即
 | MDPI | MDPI 旗下所有 OA 期刊 | `multidisciplinary-digital-publishing-institute.csl` | 数字编号 |
 | Frontiers | Frontiers 系列期刊 | `frontiers.csl` | 数字编号 |
 | SAGE Vancouver | SAGE 期刊 | `sage-vancouver.csl` | 数字编号上标 |
+| Elsevier Harvard | Elsevier 期刊（作者-年份制） | `elsevier-harvard.csl` | 作者-年份 |
 | Emerald Harvard | Emerald 期刊（OIR 等） | `emerald-harvard.csl` | 作者-年份 |
 
 ### 3.3 顶级期刊专用
