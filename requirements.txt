@@ -1,0 +1,8 @@
+# Python 依赖：pip install -r requirements.txt
+python-docx>=0.8    # 生成与改写 .docx 模板
+lxml>=4.0           # 直接读写 OOXML（样式 / 边框 / 页眉页脚）
+PyYAML>=6.0         # 校验稿件 frontmatter（check_md.py 缺它会明确报错）
+
+# 非 pip 依赖（脚本会自行检测，缺了会给出安装提示）：
+#   Quarto >= 1.4            渲染引擎，唯一必需的外部工具（自带 pandoc）→ brew install quarto
+#   macOS + Microsoft Word   仅 `--pdf`（渲染 PDF 核对目录 / 页眉章名 / 页码等动态域）需要
