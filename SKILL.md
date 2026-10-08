@@ -11,6 +11,8 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 
 > **统一入口**：`bash <本技能目录>/scripts/export.sh <稿件.md> [-r <格式要求.txt>] [-o <输出.docx>]`（若稿件同目录有唯一的 `.txt`，`-r` 可省略，模板每次导出实时生成）
 > **核心引擎**：Quarto 现代渲染 + 纯净 Word 365 底模 (`resources/pure_modern_base.docx`) + 公式居中与编号靠右对齐引擎 + 自动质量门禁（导前预检 / 导后防丢数 / XML 样式对账）
+>
+> **首次使用前**：装好渲染引擎与 Python 依赖——`pip install -r requirements.txt`，并确认本机有 Quarto ≥ 1.4（`quarto --version` 能查；没有则 `brew install quarto`）。两者缺任一，导出会在第一步就停下并给出提示。
 
 **技能目录结构与文档路由**：
 
