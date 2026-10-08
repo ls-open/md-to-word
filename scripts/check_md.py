@@ -26,7 +26,10 @@ import argparse
 import os
 import re
 import sys
+import zipfile
 from pathlib import Path
+
+from lxml import etree
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from skill_utils import (  # noqa: E402
@@ -47,6 +50,8 @@ except ImportError:  # pragma: no cover - 环境缺 pyyaml 时给出明确错误
     raise RuntimeError("缺少 PyYAML 依赖，请先安装: pip install pyyaml")
 
 sys.path.pop(0)
+W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+
 logger = get_logger(__name__)
 
 
@@ -109,21 +114,26 @@ def parse_yaml(md_text):
 
 
 def get_template_styles(template_path):
-    """从模板 docx 读取所有样式名和 styleId 集合"""
+    """从模板 docx 读取所有样式名（`w:name`）与 styleId 集合。
+
+    直接读 `word/styles.xml`（zipfile + lxml），**不依赖 python-docx**：只枚举样式名
+    用不着那个库，而依赖它的代价是——缺库时这里返回 (None, None)，custom-style 那道
+    检查会被**静默跳过**（只剩一行 INFO）。读模板是纯 XML 的活，没有任何理由降级。
+    """
+    names, ids = set(), set()
     try:
-        from docx import Document
-    except ImportError:
-        logger.info(' (需 python-docx 才能校验模板样式：pip install python-docx)')
+        with zipfile.ZipFile(template_path) as z:
+            root = etree.fromstring(z.read('word/styles.xml'))
+    except (KeyError, zipfile.BadZipFile, etree.XMLSyntaxError) as e:
+        logger.warning(f' 读不出模板样式（{e}）：{template_path}')
         return None, None
-    doc = Document(template_path)
-    names = set()
-    ids = set()
-    for s in doc.styles:
-        try:
-            names.add(s.name)
-            ids.add(s.style_id)
-        except (AttributeError, KeyError):
-            pass
+    for style in root.findall(f'{W}style'):
+        sid = style.get(f'{W}styleId')
+        if sid:
+            ids.add(sid)
+        name = style.find(f'{W}name')
+        if name is not None and name.get(f'{W}val'):
+            names.add(name.get(f'{W}val'))
     return names, ids
 
 
