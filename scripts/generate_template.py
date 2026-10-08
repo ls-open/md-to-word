@@ -824,8 +824,6 @@ def parse_requirements(text):
 
         key = parts[0].strip()
         desc = parts[1].strip()
-        if key not in DECOR_CONTENT_KEYS:
-            desc = re.sub(r'\s+#.*$', '', desc).strip()
         if not desc:
             raise ValueError(
                 f'第 {lineno} 行的「{key}」没有给值：{line!r}\n'
