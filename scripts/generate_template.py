@@ -1283,7 +1283,8 @@ def _check_required_fields(spec) -> bool:
 
 
 def upgrade_settings_xml(settings_xml_content: bytes) -> bytes:
-    """升级 settings.xml：注入 Word 16.0 (compatMode 16) 与居中公式配置"""
+    """升级 settings.xml：注入兼容模式与居中公式配置。compatMode 写 15：这是**真实 Word 365 新建文档**
+    自己写的值（公开文档记载的合法值也只有 11/12/14/15，没有 16）。"""
     root = etree.fromstring(settings_xml_content)
     
     compat = root.find(W('compat'))
@@ -1297,7 +1298,7 @@ def upgrade_settings_xml(settings_xml_content: bytes) -> bytes:
     cs = etree.SubElement(compat, W('compatSetting'))
     cs.set(W('name'), 'compatibilityMode')
     cs.set(W('uri'), 'http://schemas.microsoft.com/office/word')
-    cs.set(W('val'), '16')
+    cs.set(W('val'), '15')
     
     math_pr = root.find(M('mathPr'))
     if math_pr is None:
@@ -1487,6 +1488,13 @@ TABLE_DEFAULT_WIDTHS = {
 
 TABLE_BORDER_SIDES = ('top', 'left', 'bottom', 'right', 'insideH', 'insideV')
 
+# ── 表格单元格左右内边距（twips，108 ≈ 0.19cm）──
+# 这个值原先是**继承来的**：Table 样式 basedOn「Normal Table」时顺带拿到它的 tblCellMar。
+# 后果是换一次底模，表格里所有文字整体挪了 10.8pt（表格左移 + 单元格内缩各 5.4pt）——
+# 谁也没声明过它，却实实在在改了产物。显式写出来之后它是产物的一部分，可核对、可追责，
+# 也不再受底模影响。0.19cm 就是 Word 建表时的观感（文字不贴框线）。
+TABLE_CELL_MARGIN_TWIPS = 108
+
 
 def table_border_widths(style: str, declared: dict) -> dict:
     """表格样式 + 要求文件声明的线宽 → {边: 磅值，None = 不画线}。
@@ -1640,6 +1648,14 @@ def apply_table_format(doc, spec, default_latin=None):
             ensure_ordered_child(tr_pr, 'tblHeader', _TRPR_ORDER)
         print(' ✓ Table: 已设置表头行格式'
               + ('（含跨页重复标题行）' if props.get('repeat_header') else ''))
+
+    # 单元格内边距：显式声明（见 TABLE_CELL_MARGIN_TWIPS）。写在最后，四种表格样式都适用。
+    cell_mar = ensure_ordered_child(tbl_pr, 'tblCellMar', _TBLPR_ORDER)
+    for side, twips in (('top', 0), ('left', TABLE_CELL_MARGIN_TWIPS),
+                        ('bottom', 0), ('right', TABLE_CELL_MARGIN_TWIPS)):
+        el = ensure_ordered_child(cell_mar, side, ('top', 'left', 'bottom', 'right'))
+        el.set(W('w'), str(twips))
+        el.set(W('type'), 'dxa')
 
     if table.get('valign'):
         tsp = _get_tbl_style_pr(style_el, 'wholeTable')
@@ -1891,6 +1907,7 @@ def generate_template(requirements_text, output_path, margins=None):
         with zipfile.ZipFile(output_path, 'r') as zin:
             settings_xml = zin.read('word/settings.xml')
             styles_xml = zin.read('word/styles.xml')
+            has_styles_with_effects = 'word/stylesWithEffects.xml' in zin.namelist()
             other_items = {item.filename: zin.read(item.filename) for item in zin.infolist() if item.filename not in ('word/settings.xml', 'word/styles.xml', 'word/stylesWithEffects.xml')}
 
         upgraded_settings = upgrade_settings_xml(settings_xml)
@@ -1900,7 +1917,8 @@ def generate_template(requirements_text, output_path, margins=None):
         with zipfile.ZipFile(tmp_out, 'w', compression=zipfile.ZIP_DEFLATED) as zout:
             zout.writestr('word/settings.xml', upgraded_settings)
             zout.writestr('word/styles.xml', cleaned_styles_xml)
-            zout.writestr('word/stylesWithEffects.xml', cleaned_styles_xml)
+            if has_styles_with_effects:
+                zout.writestr('word/stylesWithEffects.xml', cleaned_styles_xml)
             for fname, fcontent in other_items.items():
                 zout.writestr(fname, fcontent)
         os.replace(tmp_out, output_path)
@@ -1908,7 +1926,7 @@ def generate_template(requirements_text, output_path, margins=None):
         raise RuntimeError(
             f'模板已写出，但「现代引擎注入 + 主题清理」失败，产物不合格：{e}') from e
 
-    print(f'\n✅ 模板已生成: {output_path} (现代 Word 365 引擎，compatMode=16)')
+    print(f'\n✅ 模板已生成: {output_path} (现代 Word 365 引擎，compatMode=15)')
     print()
     print('使用方法:')
     print(f' quarto render input.md --to docx --reference-doc="{output_path}"')
