@@ -80,7 +80,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
    - **包裹块内部严禁写 `#`/`##`**（Quarto 会将其识别为 Heading 从而覆盖自定义样式）；
    - 所有块级元素（`$$` 公式、`:::` 围栏首行、表格首行、独立图片行、短代码）与相邻正文之间**必须隔开空行**。
 3. **公式与图表**：
-   - 带编号公式：`$$Y = \beta_0 + \beta_1 X + \epsilon$$ {#eq-model1}`（严禁写 `\tag{}`），正文引用写 `@eq-model1`；无编号公式直接写 `$$...$$`；
+   - 带编号公式：`$$Y = \beta_0 + \beta_1 X + \epsilon$$ {#eq-model1}`（严禁写 `\tag{}`），正文引用写 `@eq-model1`；**中文文档必须在 YAML 里设交叉引用前缀**——`crossref: {eq-prefix: "式", fig-prefix: "图", tbl-prefix: "表"}`，不设会渲染成 `Equation 1`（中英混排）；无编号公式直接写 `$$...$$`；
    - 图片：使用原生语法 `![图片题注文字](path/to/img.png){#fig-1 width=14cm}`（**严禁在外层套 `:::` 围栏**，否则图片居中失效）；
    - 表格：上方表题用 `::: {custom-style="Table Caption"}` 包裹，下方表注用 `::: {custom-style="Table Note"}` 包裹。
 4. **标准短代码（仅限三种，独占一行且后接空行）**：
