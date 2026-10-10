@@ -1,137 +1,150 @@
-# md-to-word
+# md-to-word：Markdown 规范 Word 导出工具与 AI 排版技能
 
-基于声明式中文格式配置（`requirements.txt`）与 Quarto 渲染引擎的 **Markdown 转规范 Word（`.docx`）工具与 AI Agent Skill**，专为中文/英文学术期刊论文、硕博学位论文、长文报告与规范公文设计。
-
-无需打开 Microsoft Word 手工点选修改样式面板：只需一份纯文本格式要求（或由脚本从现有参考 `.docx` 自动提取），即可动态生成纯净 Word 365 样式模板，并通过三道自动化质量门禁（导前语法预检、导后防丢数检查、OOXML 样式逐项对账）一键导出可直接交付的 `.docx` 文档。
-
----
-
-## 核心特性
-
-- **纯中文声明式样式编译（零 GUI 手调）**
-  用直观的受控词表（如 `正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符`）动态编译 `.docx` 参考模板；也支持用 `scripts/read_reference_docx.py` 从学校/期刊现有的 `.docx` 模板反向提取配置草稿。
-- **纯净现代 Word 365 底模**
-  底层采用无主题字体锁（`asciiTheme` / `eastAsiaTheme`）的原生 Word 365（`compatMode=15`）底模，中文字体（`w:eastAsia`）与西文字体（`w:ascii` / `w:hAnsi`）独立绑定，彻底解决 Pandoc 默认模板“改了字体不生效、标题带蓝底线、正文首行缩进污染图表与题注”等顽疾。
-- **学术排版细节全覆盖**
-  - **数学公式**：自动将带编号公式重构为三列固定布局无边框表格，实现**公式整页居中 + 编号严格靠右对齐**（支持 `(1)`、按章 `(5.1)` 及中文习惯 `（5-1）`）；
-  - **三线表与网格表**：原生写入 `Table` 样式条件格式与单元格级边框，支持三线表、全网格线、顶底线、表头跨页重复与单元格垂直对齐；
-  - **分节、目录与页眉页脚**：支持 `{{< toc >}}` 自动目录、`{{< section >}}` 分节独立页码（前置罗马页码 `I, II` + 正文阿拉伯页码从 `1` 起算）、奇偶页/首页不同页眉页脚，以及 `STYLEREF` 动态章标题域；
-  - **内置 20 种规范化 CSL 引用样式**：涵盖 `GB/T 7714-2015`（顺序编码制 / 作者-年份制）、`APA`、`IEEE`、`Nature`、`Science`、`Cell`、`Lancet`、`AMA`、`Vancouver` 等，已预先剥离会破坏 Word 悬挂缩进的 CSL 布局标签。
-- **三道确定性质量门禁**
-  1. **导前预检（`scripts/check_md.py`）**：拦截标题跳级、围栏缺空行、`\tag{}` 误用、未声明的深层结构样式；
-  2. **导后防丢数（`scripts/post_flight_check.py`）**：确定性比对源稿与导出 `.docx`（含 OMML 公式节点）中的所有高精度小数，零容忍后处理丢段；
-  3. **OOXML 样式对账（`scripts/audit_export.py`）**：沿 `basedOn` 继承链逐条核对产物 `.docx` 的字体、字号、粗斜体、对齐、行距、缩进、边框、纸张边距与页码设置，不符即阻断。
+> **告别手动调 Word 样式的繁琐与痛苦！**  
+> 一行命令，或让 AI 全自动代办，将 Markdown 秒级转换为符合**中国高校硕博学位论文、中文核心学术期刊、企业级技术白皮书与规范公文**要求的出版级 Word（`.docx`）文档。
 
 ---
 
-## 环境要求与安装
+## 📸 排版效果直观展示
 
-1. **安装 Python 依赖**（需 Python 3.9+）：
+无论是严谨繁琐的**学术学位论文**，还是干练高信息密度的**商业技术报告**，均可实现像素级排版规范：
+
+### 样例一：中文硕博学位论文 / 核心期刊（全要素学术排版）
+> 前置罗马页码（`i, ii`）、Word 原生动态目录、双线动态章名页眉、三线表跨页重复表头、公式居中且编号靠右、GB/T 7714-2015 引用。
+
+| 开篇与摘要（居中大标题/无页眉） | Word 动态目录（点线制表位/小写罗马页码） | 动态章名页眉与纯原生居中图 |
+| :---: | :---: | :---: |
+| ![论文开篇](demo/01_chinese_thesis/page-1.png) | ![论文目录](demo/01_chinese_thesis/page-2.png) | ![正文图表](demo/01_chinese_thesis/page-3.png) |
+
+| 公式居中编号靠右与跨页三线表 | 跨页重复表头与 GB/T 7714 参考文献 |
+| :---: | :---: |
+| ![公式与三线表](demo/01_chinese_thesis/page-4.png) | ![参考文献与尾页](demo/01_chinese_thesis/page-5.png) |
+
+---
+
+### 样例二：现代企业级技术白皮书 / 商业研究报告
+> 扁平单节结构、开门见山执行摘要、单线现代极简页眉、紧凑数据网格表、APA 7th 作者-年份制引用。
+
+| 执行摘要与正文第一章 | 现代效能公式与基准柱状图 | 紧凑商务表格与 APA 参考文献 |
+| :---: | :---: | :---: |
+| ![报告首页](demo/02_modern_report/page-1.png) | ![效能公式与图表](demo/02_modern_report/page-2.png) | ![数据表与参考文献](demo/02_modern_report/page-3.png) |
+
+---
+
+## 💡 为什么需要它？传统方式 vs md-to-word
+
+| 排版要素 | 传统 Pandoc 导出 / 手动调整 | 🌟 md-to-word 自动化方案 |
+| :--- | :--- | :--- |
+| **整体字型** | 标题经常变成蓝色、中文字体莫名回退、西文混杂 | **纯净原生 Word 365 模板**：中文字体（宋体/黑体）与西文字体（Times）独立绑定，绝不串样。 |
+| **数学公式** | 公式编号乱跳，只能靠手动狂按空格硬凑对齐 | **自动无边框三列固定对齐**：公式本体绝对居中，编号 `(1)` 或 `(1.1)` 自动死钉在最右侧。 |
+| **表格边框** | 默认全黑框线，无法做三线表；换页后没有表头 | **声明式专业三线表**：顶底粗线、栏目细线；表格超长跨页时**表头行自动重复**。 |
+| **目录与分节** | Markdown 无法生成真实页码目录；封面正文无法独立编号 | **原生动态域与分节符**：支持 `{{< toc >}}` 动态目录，前置目录（罗马数字）与正文（阿拉伯数字）自动分节。 |
+| **图片伪影** | 加了标签后图片外层被套进表格，上下出现莫名黑粗线 | **纯原生居中图段**：彻底消灭表格容器伪影，图名居中清晰，自动避免断层大面积留白。 |
+| **质量安全** | 格式没生效静默失败，稍不留神后处理还可能吞文字丢数据 | **三道确定性自动化门禁**：导前拦截跳级语法、导后精确对账高精度小数（防丢数）、底层 XML 样式逐项审计。 |
+
+---
+
+## 🚀 分层使用指南：适合不同需求的用户
+
+我们为不同技术背景和排版需求的用户提供了由浅入深的三层使用姿势：
+
+### 姿势一：零门槛（AI 助手全自动代办，推荐 ✨）
+如果您使用 Claude Code、Cursor、Antigravity 或类似 AI 编程/工作助手：
+1. 将本项目安装为 Skill（克隆到相应技能目录）；
+2. 直接在对话中对 AI 说：
+   > “帮我把这份 Markdown 内容按某某学校（或某某期刊）的格式要求导出为 Word 文档。”
+3. AI 将全自动代劳：识别格式要求、整理标准 Markdown、自动编译生成模板、执行导出并完成多道门禁校验，直接将最终 `.docx` 交付给您。
+
+---
+
+### 姿势二：轻量日常使用（普通报告、公文、方案）
+如果您的文档不需要复杂的参考文献（`.bib`）和高级分节，只需普通图文表格：
+1. 编写最简 Markdown，章与章之间用 `{{< pagebreak >}}` 翻页；
+2. 运行一键导出（无需指定参数，自动采用官方推荐的现代优雅版式）：
+   ```bash
+   bash scripts/export.sh 你的文档.md -o 输出文档.docx
+   ```
+
+---
+
+### 姿势三：专业高阶定制（硕博学位论文、期刊投稿）
+如果您需要针对特定学术机构进行毫米级精准格式定制：
+1. **编写一份纯中文声明式要求文件（`requirements.txt`）**（语法如同日常说话，绝无复杂代码）：
+   ```text
+   纸张：A4
+   页边距：上2.54cm 下2.54cm 左2.54cm 右2.54cm
+   页码：阿拉伯 起始1
+   页眉：宋体/Times New Roman 小五 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 下边框双线
+   页眉内容：{样式标题:Heading 1}
+   正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符
+   表格：居中 三线表 线宽上1.5磅 线宽底1.5磅 线宽表头下0.75磅 单元格垂直居中
+   表头：宋体/Times New Roman 五号 加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 跨页重复
+   ```
+2. **在 Markdown 头部指定参考文献 CSL**（内置 20 种国际与国标规范，直接写文件名即可）：
+   ```yaml
+   ---
+   title: "论文大标题"
+   bibliography: references.bib
+   csl: chinese-gb7714-2015-numeric.csl
+   ---
+   ```
+3. **一键生成并对账校验**：
+   ```bash
+   bash scripts/export.sh 你的论文.md -r requirements.txt -o 论文.docx
+   ```
+
+---
+
+## 📂 两个开箱即用的标杆 Demo
+
+仓库的 `demo/` 目录下提供了两套经过严格验证的真实范文，可直接查看源码并一键复现：
+
+1. **[中文学位论文 / 期刊范文 (`demo/01_chinese_thesis/`)](demo/01_chinese_thesis/README.md)**
+   * **特色**：前置小写罗马页码（`i, ii`）、Word 动态目录 `{{< toc 2 >}}`、双线动态章名页眉、带编号公式绝对居中靠右、跨页三线表表头重复、GB/T 7714-2015 顺序编码。
+   * **运行体验**：
+     ```bash
+     cd demo/01_chinese_thesis
+     bash ../../scripts/export.sh thesis_sample.md -r requirements.txt -o thesis_sample.docx
+     ```
+
+2. **[现代企业级技术白皮书 (`demo/02_modern_report/`)](demo/02_modern_report/README.md)**
+   * **特色**：扁平单节、开门见山执行摘要、单线轻量页眉、紧凑数据表、纯原生居中图、APA 7th 作者-年份制引用。
+   * **运行体验**：
+     ```bash
+     cd demo/02_modern_report
+     bash ../../scripts/export.sh report_sample.md -r requirements.txt -o report_sample.docx
+     ```
+
+---
+
+## 🛠️ 环境准备与安装
+
+运行本工具只需两项基础环境：
+
+1. **安装 Python 依赖**（Python 3.9+）：
    ```bash
    pip install -r requirements.txt
    ```
-2. **安装 Quarto**（需 Quarto $\ge 1.4$，内嵌 Pandoc）：
+2. **安装渲染引擎 Quarto**（Quarto $\ge 1.4$，内嵌 Pandoc）：
    ```bash
    # macOS
    brew install quarto
-   ```
-3. **作为 AI Agent Skill 安装（Claude Code / Cursor / Antigravity 等）**：
-   将本仓库克隆至 Agent 的技能目录即可自动识别：
-   ```bash
-   git clone https://github.com/ls18166407597-design/md-to-word.git ~/.claude/skills/md-to-word
+
+   # Linux / Windows：请访问 https://quarto.org/docs/get-started/ 下载官方安装包
    ```
 
 ---
 
-## 快速使用
+## 📖 技能路由与文档速查
 
-### 方式一：通过 AI Agent 自动代办（推荐）
-
-安装为 Skill 后，直接在对话中告诉 AI：
-> “把 `paper.md` 按附件这份格式要求（或参考模板 `sample.docx`）导出为 Word 文档。”
-
-Agent 会自动参照 [`SKILL.md`](SKILL.md) 完成格式提取、`requirements.txt` 组装、Markdown 契约规范化与全流程导出校验。
-
-### 方式二：命令行直接调用
-
-#### 1. 编写或提取格式要求文件（`requirements.txt`）
-
-如果你手头有现成的参考 `.docx` 样张，可先一键提取草稿：
-```bash
-python3 scripts/read_reference_docx.py 参考样张.docx -o requirements.txt
-```
-
-或者直接编写 `requirements.txt`（完整语法与受控词表见 [`references/reference.md`](references/reference.md)）：
-```text
-纸张：A4
-页边距：上2.54cm 下2.54cm 左2.54cm 右2.54cm
-校对语言：zh-CN
-页码：阿拉伯 起始1
-页脚：宋体/Times New Roman 小五 不加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符
-页脚内容：{页码}
-
-论文标题：黑体/Times New Roman 小二 加粗 不倾斜 居中 行距1.5倍 段前0磅 段后18磅 首行缩进0字符
-摘要标题：黑体/Times New Roman 小三 加粗 不倾斜 居中 行距1.5倍 段前0磅 段后12磅 首行缩进0字符
-摘要：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符
-关键词：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前6磅 段后12磅 首行缩进0字符
-一级标题：黑体/Times New Roman 三号 加粗 不倾斜 左对齐 行距1.5倍 段前18磅 段后12磅 首行缩进0字符
-二级标题：黑体/Times New Roman 四号 加粗 不倾斜 左对齐 行距1.5倍 段前12磅 段后6磅 首行缩进0字符
-正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符
-首段：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符
-普通：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进0字符
-图片题注：黑体/Times New Roman 五号 加粗 不倾斜 居中 行距1.0倍 段前6磅 段后12磅 首行缩进0字符
-图：居中 行距1.0倍 段前6磅 段后6磅
-表格题注：黑体/Times New Roman 五号 加粗 不倾斜 居中 行距1.0倍 段前12磅 段后6磅 首行缩进0字符
-表头：宋体/Times New Roman 五号 加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 跨页重复
-紧凑：宋体/Times New Roman 五号 不加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符
-表注：宋体/Times New Roman 小五 不加粗 不倾斜 左对齐 行距1.0倍 段前3磅 段后6磅 首行缩进0字符
-表格：居中 三线表 线宽上1.5磅 线宽底1.5磅 线宽表头下0.75磅 单元格垂直居中
-参考文献标题：黑体/Times New Roman 三号 加粗 不倾斜 左对齐 行距1.5倍 段前18磅 段后12磅 首行缩进0字符
-参考文献：宋体/Times New Roman 五号 不加粗 不倾斜 两端对齐 行距1.25倍 段前0磅 段后3磅 悬挂缩进0.5英寸
-```
-
-#### 2. 一键渲染导出并过检
-
-```bash
-# 标准导出（自动生成模板 → 导前预检 → Quarto 渲染 → 公式重构与主题净化 → 导后防丢数 → 样式对账）
-bash scripts/export.sh paper.md -r requirements.txt -o paper.docx
-
-# 中文学位论文按章公式编号改写为（1-1）样式
-bash scripts/export.sh thesis.md -r requirements.txt -o thesis.docx --eq-number-style cjk
-```
+| 路径 | 适合人群与用途 |
+| :--- | :--- |
+| [`SKILL.md`](SKILL.md) | **AI Agent 必读**：包含 Agent 代办工作流、Markdown 语法排版契约与常见避坑指南。 |
+| [`references/reference.md`](references/reference.md) | **进阶定制查阅**：`requirements.txt` 完整合法中文词表、默认值推导原则、内置 20 种 CSL 清单与视觉核验规范。 |
+| [`references/design.md`](references/design.md) | **开发者与极客查阅**：深入了解纯净底模、三列无边框公式重构、OOXML 底层机制与架构设计。 |
 
 ---
 
-## 仓库目录结构
+## 📄 开源协议
 
-```text
-md-to-word/
-├── SKILL.md                        # AI Agent 技能主入口与分步工作流说明
-├── requirements.txt                # Python 依赖声明 (python-docx, lxml)
-├── LICENSE                         # MIT 开源协议
-├── references/
-│   ├── reference.md                # requirements.txt 完整受控词表、默认值推导规则与内置 CSL 清单
-│   └── design.md                   # 内部架构原理（Word 365 底模、公式表格重构、OOXML 故障排查）
-├── resources/
-│   ├── pure_modern_base.docx       # 纯净现代 Word 365 基础母版
-│   └── csl/                        # 20 个已去除布局干扰标签的内置学术引用样式 (.csl)
-└── scripts/
-    ├── export.sh                   # 一键导出与全链路门禁主入口
-    ├── generate_template.py        # 声明式 requirements.txt → Word 模板编译器
-    ├── read_reference_docx.py      # 现有参考 .docx → requirements.txt 反向提取器
-    ├── check_md.py                 # 门禁 1：Markdown 排版契约与结构样式预检
-    ├── expand_markers.py           # 目录 {{< toc >}} 与分节 {{< section >}} OpenXML 展开器
-    ├── fix_docx_equations.py       # 公式居中+右编号重构与末端主题属性净化
-    ├── post_flight_check.py        # 门禁 2：导后高精度数值完整性检查
-    ├── audit_export.py             # 门禁 3：产物 .docx 与 requirements.txt 逐项对账
-    ├── normalize_csl.py            # CSL 样式布局属性清洗工具
-    ├── create_pure_modern_base.py  # 纯净 Word 365 底模从零构建脚本
-    ├── render_via_word.sh          # macOS Microsoft Word 域更新与 PDF 渲染辅助脚本
-    └── skill_utils.py              # 公共解析与 XML 主题清洗工具库
-```
-
----
-
-## 开源协议
-
-本项目基于 [MIT License](LICENSE) 开源。
+本项目基于 [MIT License](LICENSE) 开源，欢迎自由使用、集成与改进。
