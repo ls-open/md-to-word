@@ -29,18 +29,26 @@ Layout rules live in `requirements.txt` — **one per line, diffable in Git**, n
 
 ```markdown
 ---
-title: "我的第一份规范 Word 文档"
+title: "我的第一份规范 Word 文档"   # "My first properly formatted Word document"
+crossref:
+  tbl-prefix: "表"                  # table numbering prefix
 ---
 
 # 引言
 
-这是正文。
+这是一份最小样例：一页纸、三十几行 Markdown。中文首行缩进两个字符、西文用
+Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在 Word 里点。
 
-| 指标 | 方案 A | 方案 B |
-|:---|---:|---:|
-| 首次排版耗时（秒） | 1.10 | 1.04 |
+# 一个三线表
 
-…(table caption, table note and the crossref prefix are elided here — see the source file)
+| 样例 | 篇幅 | 稳定耗时 | 主要演示的排版要素 |
+|:------|:--|:---|:--------------|
+| 最小样例（本文） | 1 页 | 0.95 s | 中西文字体、首行缩进、多级标题、三线表 |
+| 技术白皮书样例 | 3 页 | 1.03 s | 全网格数据表、APA 引用、单线极简页眉 |
+| 学位论文样例 | 8 页 | 1.15 s | 目录、分节页码、双线章名页眉、跨页表头 |
+```
+
+…(the table-caption wrapper and the surrounding prose are elided — see the source file)
 ```
 
 **You run**:
@@ -66,8 +74,8 @@ A line whose **first character** is `#` is a comment (useful for recording where
 from). An inline `#` is *not* a comment — it is an unknown word and gets rejected, like any
 other typo.
 
-Here is [`demo/00_quickstart/requirements.txt`](demo/00_quickstart/requirements.txt), all 16
-lines, glossed:
+Here is [`demo/00_quickstart/requirements.txt`](demo/00_quickstart/requirements.txt) — all 16
+lines, of which 14 carry a rule (the rest are blank) — glossed:
 
 | Line as written | What it says |
 |:--|:--|
@@ -168,15 +176,15 @@ Ground rules: every tool is judged on its **default output** (no custom template
 | **Chinese document basics** | | | | |
 | Separate CJK and Latin fonts (SimSun + Times New Roman) | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per paragraph | `正文：宋体/Times New Roman 小四 …` |
 | Chinese font sizes + 2-character first-line indent | ❌ | ❌ | ⚠️ Per paragraph | `… 首行缩进2字符` |
-| Document proofing language (CJK text not flagged) | ❌ | ❌ | ⚠️ Set manually | `校对语言：zh-CN` |
+| Document proofing language (CJK text not flagged) | ✅ On by default | ✅ On by default | ⚠️ Set manually | `校对语言：zh-CN` (pinned, not left to the renderer) |
 | **Academic typesetting** | | | | |
 | Three-line tables with adjustable rules | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per table | `表格：居中 三线表 线宽上1.5磅 线宽表头下0.75磅` |
 | Header row repeats across pages | ✅ On by default | ✅ On by default | ⚠️ Per table, tick a box | `表头：… 跨页重复` |
 | Centered display math, equation number hard right | ❌ No numbering (`{#eq-x}` leaks into the text) | ⚠️ Equation centres, number trails it | ⚠️ Manual 3-column tab stops | `$$…$$ {#eq-x}` handles both |
 | Dynamic chapter-name header (double rule) | ❌ Edit template + insert field | ❌ Edit template + insert field | ⚠️ Break sections + insert field | `页眉内容：{样式标题:Heading 1}` |
 | Roman front matter / Arabic body pagination | ❌ | ❌ | ⚠️ Insert section break by hand | `{{< section 页码=小写罗马 起始=1 >}}` |
-| Native dynamic table of contents | ⚠️ A real field, but styling needs the base template | ⚠️ A real field, but styling needs the base template | ⚠️ Insert field by hand | `{{< toc 2 >}}` + 4 style lines |
-| Figure/equation cross-references with CJK prefixes | ❌ | ✅ | ❌ | Three `crossref:` lines in YAML |
+| Native dynamic table of contents | ⚠️ A real field, but styling needs the base template | ⚠️ A real field, but styling needs the base template | ⚠️ Insert field by hand | `{{< toc 2 >}}` (entry appearance is Word's own — see `references/reference.md §1.5`) |
+| Equation cross-references with a CJK prefix (`式 1`) | ❌ No numbering (`{#eq-x}` leaks into the text) | ✅ Numbered, but the prefix is English `Equation 1` | ❌ | `{#eq-x}` + `crossref:` in YAML (**figure/table numbers are still written by hand in the caption**) |
 | Formatted bibliography (GB/T 7714, APA, …) | ✅ citeproc | ✅ citeproc | ❌ | `csl: apa.csl` + `[@key]` in prose |
 | **Built for AI and automation** | | | | |
 | Layout rules declared in text, reviewable in Git | ❌ Buried in XML and manual steps | ❌ | ❌ | One `requirements.txt` states it all |
