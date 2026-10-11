@@ -1911,7 +1911,18 @@ def generate_template(requirements_text, output_path, margins=None):
         if spec.doc_grid_lines:
             # 注意：python-docx 里 Length - Length 会退化成 int，不能连着取 .twips
             body_h = pg_h.twips - Cm(margins['top']).twips - Cm(margins['bottom']).twips
-            pitch = int(body_h / spec.doc_grid_lines)
+            # **行距的「倍数」会把网格间距再乘一遍**：声明 每页22行 时，配 1.5 倍行距
+            # 实测只落 14 行、配 2.0 倍只落 11 行（正好是 22÷倍数）。作者要的是「每页 N 行」，
+            # 那就把这个倍数除掉，让**结果**真的是 N 行——而不是反过来要求他改行距。
+            # 固定值行距（`行距20磅`）不参与相乘，Word 只把行高向上取整到网格，故不除。
+            mult = 1.0
+            for st in spec.styles:
+                if st.get('style_name') in ('BodyText', 'Normal'):
+                    ls = st.get('line_spacing')
+                    if isinstance(ls, float) and ls > 0:
+                        mult = ls
+                        break
+            pitch = int(body_h / spec.doc_grid_lines / mult)
             grid = ensure_ordered_child(section._sectPr, 'docGrid', _SECTPR_ORDER)
             grid.set(W('type'), 'lines')
             grid.set(W('linePitch'), str(pitch))
