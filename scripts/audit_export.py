@@ -13,6 +13,7 @@
 退出码: 0=全部对上 / 1=有对不上的（逐条打印）/ 2=用法或读取错误
 """
 import argparse
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -20,7 +21,7 @@ from pathlib import Path
 from lxml import etree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from generate_template import (ALIGN_VAL, BOTTOM_BORDER_STYLE,
+from generate_template import (ALIGN_VAL, BOTTOM_BORDER_STYLE, CJK_FONTS,
                                TABLE_CELL_MARGIN_DEFAULT_CM, TABLE_BORDER_SIDES,
                                TABLE_DEFAULT_WIDTHS, MinLineSpacing, _TWIPS_PER_CM,
                                _pt_to_border_sz, doc_grid_pitch, page_size_twips,
@@ -314,6 +315,16 @@ def audit(docx: Path, req_path: Path) -> list:
             bot = pbdr.find(W + 'bottom') if pbdr is not None else None
             if bot is not None and bot.get(W + 'val') not in (None, 'none', 'nil'):
                 problems.append(('边框', f'{name}：要求无下边框，产物仍残留 bottom={bot.get(W + "val")}'))
+
+        # 西文字体（全局默认 `西文字体：X`）：**自己没指定西文的样式**，西文槽应落它。
+        # 判定与写入侧的 split_fonts 同一把尺子（字体名里有没有非中日韩的那个）。
+        if spec.default_latin and r.get('font_name') is not None:
+            names = r['font_name']
+            if not any(not (f in CJK_FONTS or re.search(r'[\u4e00-\u9fff]', f)) for f in names):
+                got_ascii = _rfonts(styles, name)[1]
+                if got_ascii != spec.default_latin:
+                    problems.append(('西文字体', f'{name}：要求全局西文字体 {spec.default_latin}，'
+                                                 f'产物 ascii={got_ascii}'))
 
         # 字符间距（`字距<N>磅`）：rPr/spacing 的 val 是二十分之一磅
         if r.get('char_spacing_pt') is not None:
