@@ -20,10 +20,11 @@ from pathlib import Path
 from lxml import etree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from generate_template import (ALIGN_VAL, BOTTOM_BORDER_STYLE, TABLE_BORDER_SIDES,
-                               TABLE_DEFAULT_WIDTHS, MinLineSpacing, _pt_to_border_sz,
-                               page_size_twips, parse_requirements,
-                               table_border_widths)  # noqa: E402
+from generate_template import (ALIGN_VAL, BOTTOM_BORDER_STYLE,
+                               TABLE_CELL_MARGIN_DEFAULT_CM, TABLE_BORDER_SIDES,
+                               TABLE_DEFAULT_WIDTHS, MinLineSpacing, _TWIPS_PER_CM,
+                               _pt_to_border_sz, doc_grid_pitch, page_size_twips,
+                               parse_requirements, table_border_widths)  # noqa: E402
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 
@@ -314,6 +315,30 @@ def audit(docx: Path, req_path: Path) -> list:
             if bot is not None and bot.get(W + 'val') not in (None, 'none', 'nil'):
                 problems.append(('边框', f'{name}：要求无下边框，产物仍残留 bottom={bot.get(W + "val")}'))
 
+        # 字符间距（`字距<N>磅`）：rPr/spacing 的 val 是二十分之一磅
+        if r.get('char_spacing_pt') is not None:
+            want_v = str(int(round(r['char_spacing_pt'] * 20)))
+            rpr = st.find(W + 'rPr')
+            e = rpr.find(W + 'spacing') if rpr is not None else None
+            got_v = e.get(W + 'val') if e is not None else None
+            if got_v != want_v:
+                problems.append(('字距', f'{name}：要求 {r["char_spacing_pt"]}磅(val={want_v})，产物 {got_v}'))
+
+        # 换行与分页的三个复选框：keepLines / pageBreakBefore / widowControl
+        # （「与下段同页」keepNext 在上一段单独查）
+        for key, tag, cn in (('keep_lines', 'keepLines', '段中不分页'),
+                             ('page_break_before', 'pageBreakBefore', '段前分页')):
+            if r.get(key) and _pelement(styles, name, tag) is None:
+                problems.append((cn, f'{name}：要求{cn}（{tag}），产物未设置'))
+        if r.get('widow_control') is not None:
+            # OOXML 里 widowControl **缺省为开**，故"要求开、产物没写"是合规的；
+            # 反过来"要求关、产物没写"等于没关，得报。
+            got_wc = _pattr(styles, name, 'widowControl', W + 'val')
+            is_on = got_wc not in _OFF_VALUES      # None 也算开（缺省）
+            if is_on != bool(r['widow_control']):
+                problems.append(('孤行控制', f'{name}：要求 {"开" if r["widow_control"] else "关"}'
+                                             f'（val={1 if r["widow_control"] else 0}），产物 {got_wc or "缺省(开)"}'))
+
     # ── 1b. 校对语言：写了 zh-CN 而产物仍是 en-US 时，Word 拿英文校对器查中文 ──
     if spec.proofing_lang:
         st_root = etree.fromstring(z.read('word/styles.xml'))
@@ -350,6 +375,17 @@ def audit(docx: Path, req_path: Path) -> list:
                 got_tw = int(pgmar.get(W + en) or 0) if pgmar is not None else 0
                 if abs(got_tw - want_tw) > 2:                  # 容忍 2 twips 取整
                     problems.append(('页边距', f'{cn}边：要求 {expect[en]}cm({want_tw})，产物 {got_tw}'))
+
+        # 文档网格：linePitch 由版心高 ÷ 行数 ÷ 正文行距倍数算出。
+        # 这里**直接调写入侧那个函数**——两边各算一遍的话，算法一漂移就互相看不出来
+        # （「每页几行」正是靠这条 pitch 兑现的，pitch 错了页面就是错的，而它看不见）。
+        if spec.doc_grid_lines and spec.margins:
+            grid = sect.find(W + 'docGrid')
+            got_pitch = grid.get(W + 'linePitch') if grid is not None else None
+            want_pitch = str(doc_grid_pitch(spec, spec.margins))
+            if got_pitch != want_pitch:
+                problems.append(('文档网格', f'要求每页 {spec.doc_grid_lines} 行'
+                                            f'(linePitch={want_pitch})，产物 {got_pitch}'))
 
         # 页眉/页脚距边界（与页边距是 pgMar 上的两组属性，别混）
         for cn, attr, key in (('页眉', 'header', 'header_distance'), ('页脚', 'footer', 'footer_distance')):
@@ -432,6 +468,19 @@ def audit(docx: Path, req_path: Path) -> list:
                 got_va = va.get(W + 'val') if va is not None else None
                 if got_va != want_va:
                     problems.append(('表格', f'单元格垂直对齐：要求 {want_va}，产物 {got_va}'))
+
+            # 单元格内边距：左右两栏由 `单元格内边距Ncm` 定，上下恒为 0。
+            # **不写也要对账**——底模的继承链里有个默认值，它不落进 Table 样式就等于由
+            # 继承链说了算，而要求文件里写着"不写即 0"。
+            want_cm = spec.table.get('cell_margin_cm', TABLE_CELL_MARGIN_DEFAULT_CM)
+            want_lr = str(int(round(want_cm * _TWIPS_PER_CM)))
+            cell_mar = tbl_pr.find(W + 'tblCellMar') if tbl_pr is not None else None
+            for side, want_w in (('top', '0'), ('left', want_lr),
+                                 ('bottom', '0'), ('right', want_lr)):
+                e = cell_mar.find(W + side) if cell_mar is not None else None
+                got_w = e.get(W + 'w') if e is not None else None
+                if got_w != want_w:
+                    problems.append(('表格', f'单元格内边距{side}：要求 {want_w}(twips)，产物 {got_w}'))
 
     # ── 5. 表头跨页重复 ──
     if (spec.table_header or {}).get('repeat_header'):
