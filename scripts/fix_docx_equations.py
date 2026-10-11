@@ -81,6 +81,127 @@ def format_eq_number(num: str, style: str) -> str:
     return f'（{m.group(1).replace(".", "-")}）' if m else num
 
 
+_CJK_CHAR = re.compile(r'[⺀-鿿豈-﫿＀-￯　-〿]')
+# tblPr 子元素的 schema 顺序（我们只可能插 tblW / tblLayout，其余按原样保留）
+_TBLPR_ORDER = ('tblStyle', 'tblpPr', 'tblOverlap', 'bidiVisual', 'tblStyleRowBandSize',
+                'tblStyleColBandSize', 'tblW', 'jc', 'tblCellSpacing', 'tblInd', 'tblBorders',
+                'shd', 'tblLayout', 'tblCellMar', 'tblLook')
+
+
+def _cell_units(tc) -> int:
+    """单元格内容的宽度权重：中日韩与全角标点按 2 计，其余按 1。"""
+    text = ''.join(t.text or '' for t in tc.xpath('.//w:t', namespaces={'w': NS_W}))
+    return sum(2 if _CJK_CHAR.match(c) else 1 for c in text)
+
+
+def _put_ordered(parent, el, tag_local) -> None:
+    """按 _TBLPR_ORDER 的顺序把 el 插到 parent 里（顺序错了 Word 判文档损坏）。"""
+    rank = _TBLPR_ORDER.index(tag_local)
+    for i, child in enumerate(parent):
+        local = etree.QName(child).localname
+        if local not in _TBLPR_ORDER or _TBLPR_ORDER.index(local) > rank:
+            parent.insert(i, el)
+            return
+    parent.append(el)
+
+
+_MD_TABLE_ROW = re.compile(r'^\s*\|.*\|\s*$')
+_MD_SEP_CELL = re.compile(r'^:?-+:?$')
+
+
+def md_table_width_ratios(md_text: str):
+    """从 Markdown 里取每张 pipe 表的列宽比例 → [[比例, …] 或 None, …]。
+
+    **分隔行的短横线写得不均匀，就是用户在指定列宽**（pandoc 自己不认这个，
+    我们在后处理里兑现）。写成一模一样的，返回 None——走「按各列文字量分配」。
+    认不出来的表一律 None，不猜。
+    """
+    ratios = []
+    lines = md_text.split('\n')
+    for i in range(len(lines) - 1):
+        if not _MD_TABLE_ROW.match(lines[i]):
+            continue
+        cells = [c.strip() for c in lines[i + 1].strip().strip('|').split('|')]
+        if not cells or not all(_MD_SEP_CELL.match(c) for c in cells):
+            continue
+        dashes = [len(re.findall(r'-', c)) for c in cells]
+        # 表头列数要和分隔行一致，否则不是我们认得的表
+        head = [c for c in lines[i].strip().strip('|').split('|')]
+        if len(head) != len(dashes) or min(dashes) <= 0:
+            continue
+        ratios.append(None if len(set(dashes)) == 1 else dashes)
+    return ratios
+
+
+def apply_table_width(root, nsmap, ratios=None, skip_ids=()) -> int:
+    """分配列宽并让表格撑满版心 → 改动的表格数。
+
+    pandoc 给的是等宽列 + `tblW auto`（Word 按内容自适应）：内容短的表缩成窄窄
+    一条，列宽还与内容多少无关——短列空一大片，长列被挤到换行。这里按每列的最大
+    文字量分配 `gridCol`，`tblLayout` 钉成 fixed（不钉的话 Word 存盘时会按自己的
+    算法重算，我们设的列宽等于没设）。
+
+    `ratios` 是用户在 Markdown 分隔行里写下的列宽比例（见 md_table_width_ratios），
+    给了就听他的。总宽一律撑满版心。
+    """
+    text_w = _text_width_pt(root) * 20.0
+    changed = 0
+    idx = 0
+    for tbl in root.xpath('//w:tbl', namespaces=nsmap):
+        if id(tbl) in skip_ids:
+            continue  # 公式三列网格表的列宽是算出来的，压扁了编号会折行
+        rows = tbl.xpath('./w:tr', namespaces=nsmap)
+        if not rows:
+            continue
+        widths: list[int] = []
+        for tr in rows:
+            for i, tc in enumerate(tr.xpath('./w:tc', namespaces=nsmap)):
+                u = _cell_units(tc)
+                if i >= len(widths):
+                    widths.append(u)
+                else:
+                    widths[i] = max(widths[i], u)
+        if not widths or sum(widths) == 0:
+            continue
+        # 用户用分隔行的短横线指定了比例就听他的，否则按各列文字量分配
+        given = ratios[idx] if ratios and idx < len(ratios) else None
+        raw = ([float(d) for d in given]
+               if given and len(given) == len(widths)
+               else [w / sum(widths) for w in widths])
+        floor = 0.05  # 每列至少 5%，免得某列被压到几乎看不见
+        raw = [max(r, floor) for r in raw]
+        share = [r / sum(raw) for r in raw]
+
+        total = text_w
+
+        grid = tbl.find(W('tblGrid'))
+        if grid is None:
+            continue
+        cols = grid.findall(W('gridCol'))
+        if len(cols) != len(share):
+            continue
+        idx += 1
+        for col, s in zip(cols, share):
+            col.set(W('w'), str(int(round(total * s))))
+
+        tbl_pr = tbl.find(W('tblPr'))
+        if tbl_pr is None:
+            continue
+        for tag in ('tblW', 'tblLayout'):
+            old = tbl_pr.find(W(tag))
+            if old is not None:
+                tbl_pr.remove(old)
+        tw = etree.Element(W('tblW'))
+        tw.set(W('type'), 'dxa')
+        tw.set(W('w'), str(int(round(total))))
+        _put_ordered(tbl_pr, tw, 'tblW')
+        layout = etree.Element(W('tblLayout'))
+        layout.set(W('type'), 'fixed')
+        _put_ordered(tbl_pr, layout, 'tblLayout')
+        changed += 1
+    return changed
+
+
 def _text_width_pt(root) -> float:
     """正文可用宽度（pt）：pgSz - pgMar。取不到时按 A4 + 2.4cm 边距估。
 
@@ -204,7 +325,8 @@ def rewrite_eq_references(root, nsmap) -> int:
     return changed
 
 
-def fix_equations_in_xml(doc_xml_bytes: bytes, eq_number_style: str = 'asis') -> bytes:
+def fix_equations_in_xml(doc_xml_bytes: bytes, eq_number_style: str = 'asis',
+                         table_ratios=None) -> bytes:
     root = etree.fromstring(doc_xml_bytes)
     nsmap = {'w': NS_W, 'm': NS_M}
     text_w_pt = _text_width_pt(root)
@@ -380,6 +502,12 @@ def fix_equations_in_xml(doc_xml_bytes: bytes, eq_number_style: str = 'asis') ->
     # CJK 编号还要把正文里的引用一起改，否则一份文档里会同时出现 （2-1） 与 式 2.1
     ref_count = rewrite_eq_references(root, nsmap) if eq_number_style == 'cjk' else 0
 
+    # 表格列宽按内容分配（跳过本轮刚生成的公式网格表，它们的列宽是算好的）
+    tbl_count = apply_table_width(root, nsmap, ratios=table_ratios,
+                                  skip_ids={id(t) for t in created_tables})
+
+    if tbl_count:
+        print(f"📏 调整 {tbl_count} 张表格的列宽（按各列文字量分配）")
     if modified_count > 0:
         print(f"✨ 成功优化 {modified_count} 个公式的排版（公式居中，编号靠右）")
     if ref_count:
@@ -395,14 +523,14 @@ def fix_equations_in_xml(doc_xml_bytes: bytes, eq_number_style: str = 'asis') ->
     return etree.tostring(root, xml_declaration=True, encoding='UTF-8', standalone='yes')
 
 
-def process_docx(docx_path: str, eq_number_style: str = 'asis'):
+def process_docx(docx_path: str, eq_number_style: str = 'asis', table_ratios=None):
     with zipfile.ZipFile(docx_path, 'r') as zin:
         doc_xml = zin.read('word/document.xml')
         styles_xml = zin.read('word/styles.xml') if 'word/styles.xml' in zin.namelist() else None
         styles_with_effects_xml = zin.read('word/stylesWithEffects.xml') if 'word/stylesWithEffects.xml' in zin.namelist() else None
         other_files = {item.filename: zin.read(item.filename) for item in zin.infolist() if item.filename not in ('word/document.xml', 'word/styles.xml', 'word/stylesWithEffects.xml')}
 
-    new_doc_xml = fix_equations_in_xml(doc_xml, eq_number_style)
+    new_doc_xml = fix_equations_in_xml(doc_xml, eq_number_style, table_ratios)
     cleaned_styles_xml = strip_theme_attrs_from_xml(styles_xml) if styles_xml else None
 
     tmp_path = docx_path + ".tmp"
@@ -431,11 +559,25 @@ if __name__ == '__main__':
     if style not in ('asis', 'cjk'):
         print(f"错误: --eq-number-style 只接受 asis | cjk，收到: {style}")
         sys.exit(1)
+    manuscript = None
+    if '--manuscript' in args:
+        i = args.index('--manuscript')
+        if i + 1 >= len(args):
+            print("错误: --manuscript 需要给稿件路径")
+            sys.exit(1)
+        manuscript = args[i + 1]
+        del args[i:i + 2]
     if len(args) < 1:
-        print("用法: python3 fix_docx_equations.py <target.docx> [--eq-number-style asis|cjk]")
+        print("用法: python3 fix_docx_equations.py <target.docx> "
+              "[--eq-number-style asis|cjk] [--manuscript 稿件.md]")
         sys.exit(1)
     target = args[0]
     if not os.path.exists(target):
         print(f"错误: 文件不存在: {target}")
         sys.exit(1)
-    process_docx(target, style)
+    # 用户可以在 Markdown 分隔行里用短横线指定列宽比例，这里读出来带给后处理
+    ratios = None
+    if manuscript and os.path.exists(manuscript):
+        with open(manuscript, encoding='utf-8') as f:
+            ratios = md_table_width_ratios(f.read())
+    process_docx(target, style, ratios)

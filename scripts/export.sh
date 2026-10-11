@@ -328,7 +328,10 @@ if [[ ! -f "$OUTPUT_ABS" ]]; then
     exit 1
 fi
 echo "📐 自动优化公式排版（居中公式 + 靠右对齐编号）与主题深度净化..."
-python3 "$SCRIPT_DIR/fix_docx_equations.py" "$OUTPUT_ABS" --eq-number-style "$EQ_NUMBER_STYLE"
+# 表格的列宽由后处理按稿件里分隔行的短横线（写得不均匀时）或各列文字量来定，
+# 总宽一律撑满版心。所以要把它连稿件一起交给它。
+python3 "$SCRIPT_DIR/fix_docx_equations.py" "$OUTPUT_ABS" \
+    --eq-number-style "$EQ_NUMBER_STYLE" --manuscript "$INPUT"
 
 # Post-flight 完整性检查：导出链上唯一的数据丢失守护。
 # 稿件里的每个三位以上小数都必须出现在 docx 里，缺一个即阻断（确定性比对，无阈值）。

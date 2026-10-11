@@ -80,7 +80,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
    - 带编号公式：`$$Y = \beta_0 + \beta_1 X + \epsilon$$ {#eq-model1}`，正文引用写 `@eq-model1`；**中文文档要在 YAML 里设交叉引用前缀**——`crossref: {eq-prefix: "式", fig-prefix: "图", tbl-prefix: "表"}`；**学位论文要按章编号**（`(2.1)` 而非 `(1)`）再加一行 `chapters: true`；无编号公式直接写 `$$...$$`；
    - 图片：用纯原生语法 `![图片题注文字](path/to/img.png){width=14cm}`，题注与内联格式直接写在括号内，**外层不要再套 `:::` 围栏**；
    - **图片不要加 `{#fig-xxx}` 标签**：加了 Quarto 会为「图 + 题注」生成一个单格表格保持同页，而该表格走「表格：」那行声明的 `Table` 样式——**图片上下于是被套上三线表的框线**，图片段落同时失去 `CaptionedFigure`（不再居中）。图号手写在题注文字里即可。（这两条预检看不出，请照此写。）
-   - 表格：上方表题用 `::: {custom-style="Table Caption"}` 包裹，下方表注用 `::: {custom-style="Table Note"}` 包裹。
+   - 表格：上方表题用 `::: {custom-style="Table Caption"}` 包裹，下方表注用 `::: {custom-style="Table Note"}` 包裹。表格一律撑满版心，列宽默认按各列文字量分配；**要自己定列宽比例，就把分隔行的短横线写得长短不一**（`|:--|:--|:------|` → 列宽约 2:2:6），写成一模一样就仍按内容分。
 4. **标准短代码（仅限三种，独占一行且前后留空行）**：
    - 分页：`{{< pagebreak >}}`；
    - 目录：`{{< toc >}}`（默认收 1~3 级）或 `{{< toc 2 >}}`；
