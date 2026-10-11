@@ -114,7 +114,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 📁 源码、格式规则与一键复现命令 → **[demo/01_chinese_thesis](demo/01_chinese_thesis/README.md)**
 
-| 论文开篇与摘要（居中大标题/无页眉） | Word 动态目录（点线制表位/小写罗马页码） | 动态章名页眉与架构流程图 |
+| 论文开篇与摘要（居中大标题/无页眉） | Word 动态目录（点线引导、小写罗马页码） | 动态章名页眉与架构流程图 |
 | :---: | :---: | :---: |
 | ![论文开篇](demo/01_chinese_thesis/page-1.png) | ![论文目录](demo/01_chinese_thesis/page-2.png) | ![正文图表](demo/01_chinese_thesis/page-3.png) |
 
