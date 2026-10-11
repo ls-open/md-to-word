@@ -254,9 +254,49 @@ BOTTOM_BORDER_DEFAULT_PT = {'single': 0.5, 'double': 1.5}
 _FALLBACK_CONTENT_WIDTH_TWIPS = int(round((PAGE_SIZES_CM['a4'][0] - 2.54 * 2) * _TWIPS_PER_CM))
 
 
-def _content_width_twips(page_size, margins) -> int:
+def _content_width_twips(page_size, margins, gutter_cm=None) -> int:
+    """正文可用宽度（twips）。装订线是折进**左**边距写的，所以要一起减掉。"""
     width_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])[0]
-    return int(round((width_cm - margins['left'] - margins['right']) * _TWIPS_PER_CM))
+    left = margins['left'] + (gutter_cm or 0)
+    return int(round((width_cm - left - margins['right']) * _TWIPS_PER_CM))
+
+
+def body_line_spacing_multiple(styles) -> float:
+    """正文的行距**倍数**——文档网格补偿按它算。
+
+    `styles` 是任一含 `style_name` / `line_spacing` 的序列（写入侧是 `spec.styles`，
+    读取侧是解析出来的样式行）。优先「正文」，退回「普通」；固定值行距（`行距20磅`）
+    不是倍数、不参与相乘（Word 只把行高向上取整到网格），故返回 1.0。
+    """
+    for st in styles:
+        if st.get('style_name') in ('Body Text', 'Normal'):
+            ls = st.get('line_spacing')
+            if isinstance(ls, float) and ls > 0:
+                return ls
+    return 1.0
+
+
+def _body_height_twips(page_size, margins) -> int:
+    _, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
+    return int(round((h_cm - margins['top'] - margins['bottom']) * _TWIPS_PER_CM))
+
+
+def doc_grid_pitch(spec, margins) -> int:
+    """`文档网格：每页N行` → `w:docGrid/@w:linePitch`（每行多少 twips）。
+
+    写入侧、导出后对账侧共用这一份，免得两边各算一遍、算法漂移还看不出来。
+    """
+    # **行距的「倍数」会把网格间距再乘一遍**：声明 每页22行 时，配 1.5 倍行距实测只落
+    # 14 行、配 2.0 倍只落 11 行（正好是 22÷倍数）。作者要的是「每页 N 行」，就把这个
+    # 倍数除掉，让**结果**真的是 N 行——而不是反过来要求他改行距。
+    return int(_body_height_twips(spec.page_size, margins)
+               / spec.doc_grid_lines / body_line_spacing_multiple(spec.styles))
+
+
+def doc_grid_lines_from_pitch(pitch: int, line_multiple: float, page_size, margins) -> int:
+    """`w:docGrid/@linePitch` → 声明的「每页 N 行」。是 `doc_grid_pitch` 的逆，
+    读参考 .docx 时用（把别人模板里的网格反推成本技能的写法）。"""
+    return max(1, int(round(_body_height_twips(page_size, margins) / pitch / line_multiple)))
 
 # python-docx 枚举 → OOXML 值（由上面那张中文表派生）
 _ALIGN_VAL = {enum: val for enum, val in _ALIGN.values()}
@@ -1983,23 +2023,9 @@ def generate_template(requirements_text, output_path, margins=None):
             section.footer_distance = Cm(spec.footer_distance)
         # 文档网格：每页 N 行 → 每行占多少 twips，由版心高度除以行数算
         if spec.doc_grid_lines:
-            # 注意：python-docx 里 Length - Length 会退化成 int，不能连着取 .twips
-            body_h = pg_h.twips - Cm(margins['top']).twips - Cm(margins['bottom']).twips
-            # **行距的「倍数」会把网格间距再乘一遍**：声明 每页22行 时，配 1.5 倍行距
-            # 实测只落 14 行、配 2.0 倍只落 11 行（正好是 22÷倍数）。作者要的是「每页 N 行」，
-            # 那就把这个倍数除掉，让**结果**真的是 N 行——而不是反过来要求他改行距。
-            # 固定值行距（`行距20磅`）不参与相乘，Word 只把行高向上取整到网格，故不除。
-            mult = 1.0
-            for st in spec.styles:
-                if st.get('style_name') in ('BodyText', 'Normal'):
-                    ls = st.get('line_spacing')
-                    if isinstance(ls, float) and ls > 0:
-                        mult = ls
-                        break
-            pitch = int(body_h / spec.doc_grid_lines / mult)
             grid = ensure_ordered_child(section._sectPr, 'docGrid', _SECTPR_ORDER)
             grid.set(W('type'), 'lines')
-            grid.set(W('linePitch'), str(pitch))
+            grid.set(W('linePitch'), str(doc_grid_pitch(spec, margins)))
         w_cm = round(pg_w.inches * 2.54, 1)
         h_cm = round(pg_h.inches * 2.54, 1)
         content_w = round(w_cm - eff_left - margins['right'], 1)
