@@ -353,6 +353,10 @@ def write_run_props(rpr, props, cjk=None, latin=None):
         el = rpr.find(W(tag))
         if el is not None:
             rpr.remove(el)
+    # 作者写了「字距N磅」才写回去（val 单位是 1/20 磅）
+    if props.get('char_spacing_pt'):
+        sp = ensure_ordered_child(rpr, 'spacing', _RPR_ORDER)
+        sp.set(W('val'), str(int(round(props['char_spacing_pt'] * 20))))
 
 
 def write_para_props(ppr, props):
@@ -618,6 +622,11 @@ _CLAUSE_TABLE: list = [
                                '边框', d)),
     (_S, re.compile(r'边框粗(?P<v>\d+(?:\.\d+)?)磅'),
      lambda p, m, d: _set_once(p, 'border_width_pt', float(m.group('v')), '边框粗', d)),
+    # 字符间距（Word「字体 → 高级 → 字符间距」）。正数加宽、负数紧缩，单位磅。
+    # rPr/spacing 的 val 是二十分之一磅，所以乘 20。原先这段代码只**清除**底模残留的
+    # spacing，从没给过设置入口——文档里也因此把它列进了「不支持」，其实一直是能做的。
+    (_S, re.compile(r'字距(?P<v>-?\d+(?:\.\d+)?)磅'),
+     lambda p, m, d: _set_once(p, 'char_spacing_pt', float(m.group('v')), '字距', d)),
     (_S, re.compile(r'点线制表位'), lambda p, m, d: _set_once(p, 'dot_leader_tab', True, '点线制表位', d)),
     (_S, re.compile(r'加入目录'), lambda p, m, d: _set_once(p, 'join_toc', True, '加入目录', d)),
     (_S, re.compile(r'与下段同页'), lambda p, m, d: _set_once(p, 'keep_next', True, '与下段同页', d)),
@@ -807,6 +816,8 @@ class TemplateSpec:
     decor: dict = field(default_factory=dict)          # (header|footer, default|even|first) → 内容串
     page_number: Optional[tuple] = None                # (fmt, start)
     page_size: str = 'a4'                              # 纸张：a4|letter
+    gutter_cm: Optional[float] = None                  # 装订线：左侧额外留出的装订距离
+    doc_grid_lines: Optional[int] = None               # 文档网格：每页多少行
     proofing_lang: Optional[str] = None                # 校对语言（zh-CN 等）
     header_distance: Optional[float] = None            # 页眉距边界（cm）
     footer_distance: Optional[float] = None            # 页脚距边界（cm）
@@ -898,6 +909,31 @@ def _line_distance(field, key):
     return handler
 
 
+def _line_gutter(spec, desc, lineno):
+    """装订线：整行一个 cm 值。"""
+    m = re.fullmatch(r'(\d+(?:\.\d+)?)cm', desc)
+    if not m:
+        raise _bad_value(lineno, '装订线', desc, '1cm', why='整行只写一个值，单位用 cm（无空格）')
+    spec.gutter_cm = float(m.group(1))
+
+
+def _line_doc_grid(spec, desc, lineno):
+    """文档网格：`每页22行`。
+
+    中文学位论文与公文常按「每页 N 行」规定版式（GB/T 9704 就是每页 22 行）。
+    Word 里对应「页面设置 → 文档网格 → 指定行网格」，写的是 `w:docGrid` 的
+    `linePitch`——每行占多少 twips，由版心高度除以行数算出。
+    """
+    m = re.fullmatch(r'每页(\d+)行', desc)
+    if not m:
+        raise _bad_value(lineno, '文档网格', desc, '每页22行',
+                         why='只支持按行数指定；「每行多少字」得靠字号与字距自己凑')
+    n = int(m.group(1))
+    if not 1 <= n <= 200:
+        raise _bad_value(lineno, '文档网格', desc, '每页22行', why='行数要在 1–200 之间')
+    spec.doc_grid_lines = n
+
+
 def _line_paper(spec, desc, lineno):
     if desc not in PAGE_SIZE_MAP:
         raise _bad_value(lineno, '纸张', desc, 'A4|Letter')
@@ -932,6 +968,8 @@ _LINE_KEYS = {
     '页眉距边界': _line_distance('header_distance', '页眉距边界'),
     '页脚距边界': _line_distance('footer_distance', '页脚距边界'),
     '纸张': _line_paper,
+    '装订线': _line_gutter,
+    '文档网格': _line_doc_grid,
     '页码': _line_page_number,
     '表格': _line_table,
     '表头': _line_table_header,
@@ -1108,6 +1146,8 @@ def missing_styles_for_body(masked_body: str, declared: set, start_line: int = 1
     return issues
 
 _PARA = ['font_name', 'font_size', 'alignment', 'line_spacing', 'space_before', 'space_after']
+# 「字距」是可选的字符级属性，**不进下面的必填表**——列进去就等于逼每个样式行都写它，
+# 现有格式要求文件会全部判为缺字段。
 _TITLE = _PARA + ['bold', 'italic']   # 标题类：加粗/倾斜状态必须显式，否则继承底模设定
 
 REQUIRED_FIELDS_BY_STYLE = {
@@ -1664,7 +1704,7 @@ def _props_from_req(req, page_size, margins):
         'indent_unit': req.get('indent_unit', 'pt'),
     }
     for key in ('space_before', 'space_after', 'no_border', 'bottom_border',
-                'border_width_pt', 'left_indent_chars'):
+                'border_width_pt', 'left_indent_chars', 'char_spacing_pt'):
         if key in req:
             props[key] = req[key]
     if req.get('dot_leader_tab'):
@@ -1862,13 +1902,31 @@ def generate_template(requirements_text, output_path, margins=None):
             section.header_distance = Cm(spec.header_distance)
         if spec.footer_distance is not None:
             section.footer_distance = Cm(spec.footer_distance)
+        # 装订线：写 pgMar/@w:gutter——Word 会把它额外加在**左**边距之外
+        if spec.gutter_cm:
+            pg_mar = section._sectPr.find(W('pgMar'))
+            if pg_mar is not None:
+                pg_mar.set(W('gutter'), str(int(Cm(spec.gutter_cm).twips)))
+        # 文档网格：每页 N 行 → 每行占多少 twips，由版心高度除以行数算
+        if spec.doc_grid_lines:
+            # 注意：python-docx 里 Length - Length 会退化成 int，不能连着取 .twips
+            body_h = pg_h.twips - Cm(margins['top']).twips - Cm(margins['bottom']).twips
+            pitch = int(body_h / spec.doc_grid_lines)
+            grid = ensure_ordered_child(section._sectPr, 'docGrid', _SECTPR_ORDER)
+            grid.set(W('type'), 'lines')
+            grid.set(W('linePitch'), str(pitch))
         w_cm = round(pg_w.inches * 2.54, 1)
         h_cm = round(pg_h.inches * 2.54, 1)
         content_w = round(w_cm - margins['left'] - margins['right'], 1)
         decor_cm = ''
         if spec.header_distance is not None or spec.footer_distance is not None:
             decor_cm = (f'，页眉距边界 {spec.header_distance}cm 页脚距边界 {spec.footer_distance}cm')
-        print(f' ✓ 页面: {page_size} ({w_cm}×{h_cm}cm)，边距 上{margins["top"]}cm 下{margins["bottom"]}cm 左{margins["left"]}cm 右{margins["right"]}cm，内容宽 {content_w}cm{decor_cm}')
+        extra = ''
+        if spec.gutter_cm:
+            extra += f'，装订线 {spec.gutter_cm}cm'
+        if spec.doc_grid_lines:
+            extra += f'，文档网格 每页 {spec.doc_grid_lines} 行'
+        print(f' ✓ 页面: {page_size} ({w_cm}×{h_cm}cm)，边距 上{margins["top"]}cm 下{margins["bottom"]}cm 左{margins["left"]}cm 右{margins["right"]}cm，内容宽 {content_w}cm{decor_cm}{extra}')
 
     try:
         doc.styles['Block Text']
