@@ -189,7 +189,7 @@ Running this skill requires only two lightweight prerequisites:
 
 | Path | Purpose & Target Audience |
 | :--- | :--- |
-| [`demo/00_quickstart/`](demo/00_quickstart/) | **Smallest runnable sample** (1 page): an 18-line manuscript plus a 14-line `requirements.txt` (blank lines excluded). Use it to grasp input vs. output in 30 seconds, and to verify the install. |
+| [`demo/00_quickstart/`](demo/00_quickstart/) | **Smallest runnable sample** (1 page): a 26-line manuscript plus a 14-line `requirements.txt` (blank lines excluded). Use it to grasp input vs. output in 30 seconds, and to verify the install. |
 | [`SKILL.md`](SKILL.md) | **Must-read for AI Agents**: Agent automation workflows, Markdown syntax contracts, and best practices. |
 | [`references/reference.md`](references/reference.md) | **Advanced Customization**: Complete vocabulary for `requirements.txt`, default inference rules, and the 20 built-in CSL styles. |
 | [`references/design.md`](references/design.md) | **Developers & Hackers**: In-depth architecture, pure Word 365 base template, 3-column equation alignment, and OpenXML internals. |

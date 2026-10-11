@@ -193,7 +193,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 | 路径 | 适合人群与用途 |
 | :--- | :--- |
-| [`demo/00_quickstart/`](demo/00_quickstart/) | **最小可跑样例**（1 页）：一份 18 行稿件 + 一份 14 行 `requirements.txt`（均不含空行），用来 30 秒看懂输入与输出，也用来验证装好了没。 |
+| [`demo/00_quickstart/`](demo/00_quickstart/) | **最小可跑样例**（1 页）：一份 26 行稿件 + 一份 14 行 `requirements.txt`（均不含空行），用来 30 秒看懂输入与输出，也用来验证装好了没。 |
 | [`SKILL.md`](SKILL.md) | **AI Agent 必读**：包含 Agent 全自动代办工作流、Markdown 语法排版契约与常见避坑指南。 |
 | [`references/reference.md`](references/reference.md) | **进阶定制查阅**：`requirements.txt` 完整合法中文词表、默认值推导原则、内置 20 种 CSL 清单与视觉核验规范。 |
 | [`references/design.md`](references/design.md) | **开发者与极客查阅**：深入了解纯净底模、三列无边框公式重构、OOXML 底层机制与架构设计。 |
