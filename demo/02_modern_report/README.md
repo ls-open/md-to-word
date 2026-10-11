@@ -26,7 +26,7 @@ demo/02_modern_report/
 ├── report_sample.md       # 现代报告 Markdown 源码
 ├── requirements.txt       # 商业报告样式规则（字体、行距、单线页眉、紧凑表）
 ├── references.bib         # BibTeX 参考文献数据
-├── figures/               # 样例柱状对比图（跨行业 Benchmark 对比）
+├── figures/               # 样例图表（端到端导出耗时实测）
 ├── report_sample.docx     # 导出的 Word 商业交付物
 ├── report_sample.pdf      # 对照 PDF 样张
 └── page-*.png             # 高清导出页面渲染预览图
