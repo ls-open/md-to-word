@@ -74,6 +74,10 @@ def toc_block(depth: int) -> str:
     `docPartGallery=Table of Contents` 让 Word 认它是目录内容控件（右键有"更新域"）。
     `w:dirty="true"` 让 Word 打开文档时自动更新一次（实测有效）；中间那串占位文字只在
     更新前可见。
+
+    **代价是有意接受的**：脏域会让 Word 每次打开都弹「该文档包含的域可能引用了其他文件。
+    是否更新该文档中的这些域？」（安全提示，点过「是」也不记住，保存过照问）。去掉这个
+    属性就不再弹窗，但目录只剩上面那串占位文字、必须手动 F9。两者取其轻，保留弹窗。
     """
     instr = f' TOC \\o "1-{depth}" \\h \\z \\u '
     return _openxml_block(
