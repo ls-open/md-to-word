@@ -25,7 +25,7 @@ When writing academic theses, technical reports, and corporate proposals, teams 
 
 Layout rules live in `requirements.txt` — **one per line, diffable in Git**, no clicking around in Word.
 
-**You write** ([`demo/00_quickstart/hello.md`](demo/00_quickstart/hello.md), 24 lines total):
+**You write** ([`demo/00_quickstart/hello.md`](demo/00_quickstart/hello.md), excerpt):
 
 ```markdown
 ---
@@ -39,6 +39,8 @@ title: "我的第一份规范 Word 文档"
 | 指标 | 方案 A | 方案 B |
 |:---|---:|---:|
 | 首次排版耗时（秒） | 1.10 | 1.04 |
+
+…(table caption, table note and the crossref prefix are elided here — see the source file)
 ```
 
 **You run**:
@@ -52,6 +54,17 @@ bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
 [![Output of the 30-second example](demo/00_quickstart/page-1.png)](demo/00_quickstart/hello.docx)
 
 Two-character first-line indent, Times New Roman for Latin, a three-line table with caption and note — **none of it clicked together by hand**.
+
+## 📄 Already have a template? (from your school, journal, or employer)
+
+No need to transcribe its formatting by hand. Hand the `.docx` to your assistant and have it reverse-engineer a `requirements.txt` draft:
+
+```bash
+python3 scripts/read_reference_docx.py school_template.docx -o thesis_requirements.txt
+```
+
+It reads page size, margins, header/footer distances, page-number format and start, per-style CJK and Latin fonts, sizes, bold/italic, alignment, line spacing (**distinguishing multiple / exact / at-least**), space before/after, indentation (**including character units**), paragraph bottom borders, table borders and header rows, and header/footer content and fields. **Anything it cannot read is listed as a to-confirm list** — it does not pretend.
+
 
 ## 🚀 Install It: three steps, all handed to your AI assistant
 
@@ -77,6 +90,8 @@ This skill is tuned for **AI agents** — you never touch a terminal; hand the r
 
 > 💡 **CLI / CI**: you can also call it directly:
 > `bash scripts/export.sh input.md [-r requirements.txt] -o output.docx`
+>
+> Add `--pdf` to also render a PDF through the local Word — **the only way to actually expand the table-of-contents page numbers and chapter-name headers**, and the most direct way to check the finished document.
 
 ## 📸 Typesetting Showcase (Self-Documenting Demos)
 
@@ -121,7 +136,7 @@ Ground rules: every tool is judged on its **default output** (no custom template
 | **Academic typesetting** | | | | |
 | Three-line tables with adjustable rules | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per table | `表格：居中 三线表 线宽上1.5磅 线宽表头下0.75磅` |
 | Header row repeats across pages | ✅ On by default | ✅ On by default | ⚠️ Per table, tick a box | `表头：… 跨页重复` |
-| Centered display math, equation number hard right | ❌ Number not right-aligned | ⚠️ Number trails the equation | ⚠️ Manual 3-column tab stops | `$$…$$ {#eq-x}` handles both |
+| Centered display math, equation number hard right | ❌ No numbering (`{#eq-x}` leaks into the text) | ⚠️ Equation centres, number trails it | ⚠️ Manual 3-column tab stops | `$$…$$ {#eq-x}` handles both |
 | Dynamic chapter-name header (double rule) | ❌ Edit template + insert field | ❌ Edit template + insert field | ⚠️ Break sections + insert field | `页眉内容：{样式标题:Heading 1}` |
 | Roman front matter / Arabic body pagination | ❌ | ❌ | ⚠️ Insert section break by hand | `{{< section 页码=小写罗马 起始=1 >}}` |
 | Native dynamic table of contents | ⚠️ A real field, but styling needs the base template | ⚠️ A real field, but styling needs the base template | ⚠️ Insert field by hand | `{{< toc 2 >}}` + 4 style lines |
@@ -174,9 +189,9 @@ Running this skill requires only two lightweight prerequisites:
 
 | Path | Purpose & Target Audience |
 | :--- | :--- |
-| [`demo/00_quickstart/`](demo/00_quickstart/) | **Smallest runnable sample** (1 page): a 24-line manuscript plus a 16-line `requirements.txt`. Use it to grasp input vs. output in 30 seconds, and to verify the install. |
+| [`demo/00_quickstart/`](demo/00_quickstart/) | **Smallest runnable sample** (1 page): an 18-line manuscript plus a 14-line `requirements.txt` (blank lines excluded). Use it to grasp input vs. output in 30 seconds, and to verify the install. |
 | [`SKILL.md`](SKILL.md) | **Must-read for AI Agents**: Agent automation workflows, Markdown syntax contracts, and best practices. |
-| [`references/reference.md`](references/reference.md) | **Advanced Customization**: Complete vocabulary for `requirements.txt`, default inference rules, and built-in CSL list. |
+| [`references/reference.md`](references/reference.md) | **Advanced Customization**: Complete vocabulary for `requirements.txt`, default inference rules, and the 20 built-in CSL styles. |
 | [`references/design.md`](references/design.md) | **Developers & Hackers**: In-depth architecture, pure Word 365 base template, 3-column equation alignment, and OpenXML internals. |
 
 ---

@@ -25,7 +25,7 @@
 
 排版规则写在 `requirements.txt` 里——**一行一条，进 Git 能 diff**，不用在 Word 里点。
 
-**你写的**（[`demo/00_quickstart/hello.md`](demo/00_quickstart/hello.md)，全文 24 行）：
+**你写的**（[`demo/00_quickstart/hello.md`](demo/00_quickstart/hello.md)，节选）：
 
 ```markdown
 ---
@@ -39,6 +39,8 @@ title: "我的第一份规范 Word 文档"
 | 指标 | 方案 A | 方案 B |
 |:---|---:|---:|
 | 首次排版耗时（秒） | 1.10 | 1.04 |
+
+…（此处省略三线表题注、表注与交叉引用前缀，全文见源文件）
 ```
 
 **你跑的**：
@@ -54,6 +56,17 @@ bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
 中文首行缩进两个字符、西文 Times New Roman、三线表带表题表注——**没有一步是在 Word 里点的**。
 
 ---
+
+## 📄 手上有现成的模板？（学校 / 期刊 / 单位发的 `.docx`）
+
+不用对着模板一条条抄格式要求。把模板交给助手，让它跑这个脚本反推出一份 `requirements.txt` 草稿：
+
+```bash
+python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.txt
+```
+
+读出来的是：页面尺寸、页边距、页眉页脚距边界、页码格式与起始、各样式的中西文字体与字号、加粗倾斜、对齐、行距（**分得清倍数 / 固定值 / 最小值**）、段前段后、缩进（**字符单位也读得到**）、段落下边框、表格边框与表头行、页眉页脚内容与域。**读不出来的项会列成待确认清单**，不会假装读到了。
+
 
 ## 🚀 装上它：三步，全交给你的 AI 助手
 
@@ -79,6 +92,8 @@ bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
 
 > 💡 **命令行 / CI 也可直接用**：
 > `bash scripts/export.sh 你的文档.md [-r 格式要求.txt] -o 输出文档.docx`
+>
+> 加 `--pdf` 还能顺带用本机 Word 渲染一份 PDF——**这是唯一能把目录页码、页眉章名这些「域」真正展开的方式**，用它核对成品最直接。
 
 ---
 
@@ -125,7 +140,7 @@ bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
 | **学术排版要素** | | | | |
 | 学术三线表 + 线宽可调 | ⚠️ 改底模 | ⚠️ 改底模 | ⚠️ 逐表设边框 | `表格：居中 三线表 线宽上1.5磅 线宽表头下0.75磅` |
 | 跨页自动重复表头 | ✅ 默认就有 | ✅ 默认就有 | ⚠️ 逐表勾「重复标题行」 | `表头：… 跨页重复` |
-| 数学公式居中 + 编号靠右 | ❌ 编号不靠右 | ⚠️ 编号紧跟在公式尾部 | ⚠️ 手设三列制表位 | `$$…$$ {#eq-x}` 自动居中靠右 |
+| 数学公式居中 + 编号靠右 | ❌ 无编号（`{#eq-x}` 原样漏成正文文字） | ⚠️ 公式居中但编号紧跟在尾部 | ⚠️ 手设三列制表位 | `$$…$$ {#eq-x}` 自动居中靠右 |
 | 双线动态章名页眉 | ❌ 须改底模并插域 | ❌ 须改底模并插域 | ⚠️ 逐节断开 + 插域 | `页眉内容：{样式标题:Heading 1}` |
 | 前置小写罗马 / 正文阿拉伯分节 | ❌ | ❌ | ⚠️ 手工插分节符 | `{{< section 页码=小写罗马 起始=1 >}}` |
 | Word 原生动态目录 | ⚠️ 有域，但样式要改底模 | ⚠️ 有域，但样式要改底模 | ⚠️ 手工插入域 | `{{< toc 2 >}}` + 4 行目录样式 |
@@ -178,7 +193,7 @@ bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
 
 | 路径 | 适合人群与用途 |
 | :--- | :--- |
-| [`demo/00_quickstart/`](demo/00_quickstart/) | **最小可跑样例**（1 页）：一份 24 行稿件 + 一份 16 行 `requirements.txt`，用来 30 秒看懂输入与输出，也用来验证装好了没。 |
+| [`demo/00_quickstart/`](demo/00_quickstart/) | **最小可跑样例**（1 页）：一份 18 行稿件 + 一份 14 行 `requirements.txt`（均不含空行），用来 30 秒看懂输入与输出，也用来验证装好了没。 |
 | [`SKILL.md`](SKILL.md) | **AI Agent 必读**：包含 Agent 全自动代办工作流、Markdown 语法排版契约与常见避坑指南。 |
 | [`references/reference.md`](references/reference.md) | **进阶定制查阅**：`requirements.txt` 完整合法中文词表、默认值推导原则、内置 20 种 CSL 清单与视觉核验规范。 |
 | [`references/design.md`](references/design.md) | **开发者与极客查阅**：深入了解纯净底模、三列无边框公式重构、OOXML 底层机制与架构设计。 |

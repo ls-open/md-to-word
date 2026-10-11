@@ -432,7 +432,7 @@ python3 scripts/generate_template.py requirements.txt -o template.docx
 
 导出前校验脚本：检查 MD 中可能导致"静默失败"的写法。由 export.sh 在导出前自动执行（`--no-check` 可跳过，不推荐）。
 
-**校验项**（11 项）：
+**校验项**（13 项）：
 - YAML 中 bibliography / csl 路径是否存在（`csl` 支持自动回退匹配本技能 `resources/csl/` 目录）
 - 标准 Markdown `![]()` 和 `[]()` 中路径是否含空格（空格违反 URL 规范，Pandoc 静默失败）
 - `![](path)` 图片文件是否存在（Pandoc 静默失败，图不会出现在 docx 中）
@@ -444,6 +444,8 @@ python3 scripts/generate_template.py requirements.txt -o template.docx
 - **白名单外的短代码**（Quarto 只打一行 WARNING 便把整段标记丢弃，标记凭空消失）
 - **标题层级与包裹规范**（拦截 `::: {custom-style}` 内误写 `#`、首个标题非 1 级、标题跳级、章节编号深度与 `#` 数量不匹配）
 - **稿件用到、格式要求却没声明的深层样式**（三~六级标题／目录／引用块——不声明就静默回退底模默认，只有给了 `-r` 才查）
+- **分节标记之后紧跟 `{{< pagebreak >}}`**（分节符已自带下一页，会多顶出一页）
+- **中文稿用了 `{#eq-/fig-/tbl-}` 交叉引用、YAML 却没写对应的 `crossref` 前缀**（会渲染成中英混排的 `Equation 1`）
 
 **调用方式**：
 ```bash
