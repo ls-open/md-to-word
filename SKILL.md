@@ -1,6 +1,6 @@
 ---
 name: md-to-word
-description: "Exports Markdown documents, reports, and academic papers to publication-ready Word (.docx) files with modern Word 365 styles, custom typography, three-line tables, equation right-alignment, figure/table cross-referencing, and optional CSL bibliography formatting. Use when user asks to export Markdown to Word, generate docx, convert md/txt/text to docx, 导出Word, 文档转Word, 报告转Word, 论文转Word, 期刊排版, Word排版, 公文排版, or prepare submission docx."
+description: "Exports Markdown documents, reports, and academic papers to standard, professional Word (.docx) files with modern Word 365 styles, custom typography, three-line tables, equation right-alignment, figure/table cross-referencing, and optional CSL bibliography formatting. Use when user asks to export Markdown to Word, generate docx, convert md/txt/text to docx, 导出Word, 文档转Word, 报告转Word, 论文转Word, 期刊排版, Word排版, 公文排版, or prepare submission docx."
 license: MIT
 compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml。"
 ---
@@ -9,6 +9,10 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 
 本技能提供一套从文本/Markdown 到现代 Word (`.docx`) 的标准化排版与导出管线，既适用于**通用正式文档、研究报告、技术方案、公文**（无需摘要或参考文献），也适用于**期刊论文、学位论文**（含摘要、公式编号右对齐、三线表、CSL 参考文献与动态目录）。
 
+> **核心设计哲学**：
+> 1. **内容与排版解耦**：坚持以纯文本 Markdown 作为内容源。这使得文档既能被 AI 高效读写与批处理，又能无缝纳入 **Git 版本管理**（清晰追踪差异、分支协作，告别 Word 二进制黑盒与命名为 `最终版_v3_定稿.docx` 的混乱管理），而复杂的格式规范全交由本技能自动化编译。
+> 2. **AI 全流程代办**：技能专为 AI Agent 打造。用户只需自然语言提出需求，由 Agent 全程代劳格式提取、Markdown 规范化改造、样式装配与质量闭环。
+>
 > **统一入口**：`bash <本技能目录>/scripts/export.sh <稿件.md> [-r <格式要求.txt>] [-o <输出.docx>]`（若稿件同目录有唯一的 `.txt`，`-r` 可省略，模板每次导出实时生成）
 > **核心引擎**：Quarto 现代渲染 + 纯净 Word 365 底模 (`resources/pure_modern_base.docx`) + 公式居中与编号靠右对齐引擎 + 自动质量门禁（导前预检 / 导后防丢数 / XML 样式对账）
 >
