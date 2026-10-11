@@ -252,8 +252,10 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         if kind is None:
             doubt.append(f'下边框样式「{bottom.get(q("val"))}」不认识，已按单线处理')
             kind = '单线'
-        out.append(f'下边框{kind}')
-        if bottom.get(q('sz')):
+        # 参考文件显式写了「无下边框」→ 折算成「无边框」。两者在本技能里产物一致
+        # （都清掉整段 pBdr），只保留一种写法。
+        out.append('无边框' if kind == '无' else f'下边框{kind}')
+        if kind != '无' and bottom.get(q('sz')):
             out.append(f'边框粗{int(bottom.get(q("sz"))) / 8:g}磅')
     return out, doubt, defined
 

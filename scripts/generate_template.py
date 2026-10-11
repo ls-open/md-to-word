@@ -623,9 +623,12 @@ _CLAUSE_TABLE: list = [
     (_S, re.compile(r'左缩进(?P<v>\d+(?:\.\d+)?)字符'),
      lambda p, m, d: _set_once(p, 'left_indent_chars', float(m.group('v')), '左缩进', d)),
     (_S, re.compile(r'无边框'), lambda p, m, d: _set_once(p, 'no_border', True, '边框', d)),
-    (_S, re.compile(r'下边框(?P<k>单线|双线|无)'),
+    # 「下边框无」曾与「无边框」并存，但两者产物**逐字节相同**（都走
+    # _write_para_props 里那个 `no_border or bottom_border == 'none'` 分支），
+    # 属于同一效果两种写法，故只留「无边框」。
+    (_S, re.compile(r'下边框(?P<k>单线|双线)'),
      lambda p, m, d: _set_once(p, 'bottom_border',
-                               {'单线': 'single', '双线': 'double', '无': 'none'}[m.group('k')],
+                               {'单线': 'single', '双线': 'double'}[m.group('k')],
                                '边框', d)),
     (_S, re.compile(r'边框粗(?P<v>\d+(?:\.\d+)?)磅'),
      lambda p, m, d: _set_once(p, 'border_width_pt', float(m.group('v')), '边框粗', d)),
@@ -696,6 +699,7 @@ _HINTS = [
     (re.compile(r'悬挂缩进\d+字符'), '「悬挂缩进0.5英寸」（悬挂缩进只用英寸单位）'),
     (re.compile(r'^(?:单元格(?:内|左右)?|内)边距'), '「单元格内边距0.19cm」（单位用 cm，不写即 0）'),
     (re.compile(r'下划线'), '「下边框单线」（段落下边框；下划线是字符属性，本技能不支持）'),
+    (re.compile(r'下边框无'), '「无边框」（「下边框无」与它效果完全相同，只保留一种写法）'),
     # 兜底放最后（提示表按顺序取第一个命中，具体的放前面）：`宋体 12 两端对齐` 里那个 `12`
     # 想写的是字号。以前它在字体段内部被静默滤掉（`parse_font_name` 拒绝数字开头的候选，
     # 那条护栏是防"字号被当成字体名"，但**滤掉就滤掉了**），于是等于没写。
@@ -706,7 +710,7 @@ _HINTS = [
 def _unknown_word_msg(word, name, desc, lineno):
     where = f'第 {lineno} 行 ' if lineno else ''
     hint = next((f'（是不是想写 {right}？）' for pat, right in _HINTS if pat.search(word)), '')
-    return (f'{where}{name}: 不认识属性词「{word}」{hint}\n'
+    return (f'{where}{STYLE_CN.get(name, name)}: 不认识属性词「{word}」{hint}\n'
             f'  每个属性须按标准唯一写法书写（词内不加空格，词间空格分隔，详见 references/reference.md §1.5）。\n'
             f'  原文：{desc.strip()}')
 
@@ -745,7 +749,7 @@ def _split_font(words, name, desc, lineno):
     font_text = ' '.join(font_words)
     if font_words and (_CLAUSE_WORD_HINT.search(font_text) or _SIZE_RE.search(font_text)):
         raise ValueError(
-            f'{name}: 字体段「{font_text}」里混进了属性词。\n'
+            f'{STYLE_CN.get(name, name)}: 字体段「{font_text}」里混进了属性词。\n'
             f'  字体与后面的字号/属性之间必须留空格（如 `宋体/Times New Roman 小四 …`）。\n  原文：{desc.strip()}')
     font = parse_font_name(font_text)
     if font_words and not font:
@@ -757,6 +761,38 @@ def _consumable_word(word: str) -> bool:
     return any(m_mode == _S and pat.fullmatch(word) for m_mode, pat, _ in _CLAUSE_TABLE)
 
 
+# 「加入目录」是给**标题类**样式挂大纲级别（outlineLvl=0）的。挂在正文类样式上不是
+# 报错而是灾难：Word 的目录域按大纲级别收集条目，于是每一段正文都变成一条目录。
+_TOC_INELIGIBLE = {'Body Text': '正文', 'First Paragraph': '首段',
+                   'Normal': '普通', 'Compact': '紧凑'}
+
+# 只在**别的写法已写**时才有意义的子句。写了它却没有前提 = 写了等于没写，
+# 且 Word 那边看不出来（属性根本没落进 XML），只能在这里拦。
+# 实测：`文档标题：… 边框粗1.5磅`（无下边框）→ 产物 pPr 里连 w:pBdr 都没有；
+# `正文：… 跨页重复` → 与不写它的产物逐字节相同。
+def _check_clause_preconditions(props, style_name, desc, lineno):
+    """写法之间的**前提**：某子句依赖别的子句、或只能在某一行出现。"""
+    where = f'第 {lineno} 行 ' if lineno else ''
+    who = STYLE_CN.get(style_name, style_name)
+    tail = f'\n  原文：{desc.strip()}'
+
+    if 'border_width_pt' in props and props.get('bottom_border') not in ('single', 'double'):
+        raise ValueError(
+            f'{where}{who}: 写了「边框粗」，却没写「下边框单线」或「下边框双线」。\n'
+            f'  「边框粗」只改那一条下框线的粗细，没有下边框时无处可落（静默无效）。{tail}')
+
+    if props.get('repeat_header') and style_name != '表头':
+        raise ValueError(
+            f'{where}{who}: 「跨页重复」只能写在「表头：」那一行。\n'
+            f'  它描述的是表头行（w:tblHeader），写在别的样式上不会生效。{tail}')
+
+    if props.get('join_toc') and style_name in _TOC_INELIGIBLE:
+        raise ValueError(
+            f'{where}{who}: 「加入目录」只能写在标题类样式上。\n'
+            f'  它给样式挂大纲级别，而 Word 的目录域按大纲级别收集条目——挂在'
+            f'「{_TOC_INELIGIBLE[style_name]}」上会让**每一段正文都变成目录条目**。{tail}')
+
+
 def parse_style_props(style_name, desc, lineno=None):
     """解析一条样式行/表头行的**属性部分** → props 字典。"""
     words = desc.split()
@@ -765,6 +801,7 @@ def parse_style_props(style_name, desc, lineno=None):
     if font_names:
         props['font_name'] = font_names
     _consume(props, rest, _S, style_name, desc, lineno)
+    _check_clause_preconditions(props, style_name, desc, lineno)
     return props
 
 
@@ -962,10 +999,8 @@ def _line_table(spec, desc, lineno):
 
 
 def _line_table_header(spec, desc, lineno):
-    props = parse_style_props('表头', desc, lineno)
-    if '跨页重复' in desc:
-        props['repeat_header'] = True
-    spec.table_header = props
+    # 「跨页重复」由子句表消费（_check_clause_preconditions 里限定它只能出现在这一行）
+    spec.table_header = parse_style_props('表头', desc, lineno)
 
 
 def _line_decor(container, key):
@@ -1481,9 +1516,30 @@ def apply_page_decorations(doc, spec):
     for nm in collect_styleref_names(spec):
         if ensure_style_alias(doc, nm, nm):
             print(f' ✓ 页眉/页脚域: 已把「{nm}」注册为样式别名（STYLEREF 才能解析）')
-        else:
-            print(f' ⚠ 页眉/页脚域: 模板中找不到样式「{nm}」——'
-                  f'若 Word 显示"错误!未找到引用源"，请核对样式名')
+            continue
+        # STYLEREF 只认 **Word 样式名**（Heading 1 这种），中文写法（一级标题）不是样式名，
+        # 写进去 Word 会在页眉显示「错误!未找到引用源」。这里是导出最后一道能拦的地方。
+        cn = STYLE_MAP.get(nm)
+        hint = (f'\n  「{nm}」是本技能的中文写法，对应 Word 样式名「{cn}」——'
+                f'域里要写后者：{{样式标题:{cn}}}') if cn else ''
+        logger.error(
+            f'错误: 页眉/页脚域 {{样式标题:{nm}}} 指向的样式在模板里不存在。\n'
+            f'  STYLEREF 只认 Word 样式名（如 Heading 1），写错时 Word 会显示'
+            f'「错误!未找到引用源」。{hint}\n'
+            f'  样式名速查见 SKILL.md §2.1。')
+        sys.exit(1)
+
+    # 「页码：」只往 sectPr 写编号格式与起始值；页码要真的印在纸上，得有一行页眉/页脚
+    # 内容带 {页码} 域。写了「页码：」却没有 {页码} 域 = 写了等于没写，且三道闸门全绿。
+    if spec.page_number and not any(
+            kind == 'field' and val.split()[0] == 'PAGE'
+            for parts in spec.decor.values() for kind, val in parts):
+        logger.error(
+            '错误: 写了「页码：」，但没有任何页眉/页脚内容带 {页码} 域。\n'
+            '  「页码：」只定编号的格式与起始值，真正把页码画到纸上的是 {页码} 域。\n'
+            '  补一行「页脚内容：{页码}」（要放页眉就写「页眉内容：{页码}」）；'
+            '不想要页码就删掉「页码：」那一行。')
+        sys.exit(1)
 
     if spec.page_number:
         fmt, start = spec.page_number
