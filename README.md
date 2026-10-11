@@ -66,7 +66,21 @@
 
 本项目作为专门面向 AI 智能体（Claude Code、Cursor、Antigravity 等）深度调优的 Skill，**无需您在终端手敲复杂的命令**：
 
-1. **接入技能**：将本项目克隆到您的 AI 助手技能目录；
+1. **接入技能——让 AI 自己装**：把下面这句话原样发给你的 AI 助手即可。Claude Code、Cursor、Codex 各自的技能目录不一样，不同系统也不一样，**这些交给它自己判断，你不用操心**：
+
+   > 帮我安装这个技能：https://github.com/ls18166407597-design/md-to-word
+   > 克隆到你的技能目录，装好后读一遍 SKILL.md，告诉我它能做什么、怎么触发。
+
+   <details>
+   <summary>想自己动手装？</summary>
+
+   ```bash
+   git clone https://github.com/ls18166407597-design/md-to-word.git ~/.claude/skills/md-to-word
+   ```
+
+   装完确认 `~/.claude/skills/md-to-word/SKILL.md` 存在即可。
+   </details>
+
 2. **自然语言对话**：直接把您的 Markdown 文件发给 AI，并告诉它您的排版目标：
    > *“帮我把这份《智能系统设计.md》按照某某大学研究生学位论文（或某某期刊/某某企业报告）的格式要求导出为 Word。”*
 3. **全自动闭环交付**：

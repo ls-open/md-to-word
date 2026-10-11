@@ -66,7 +66,21 @@ The two built-in showcase demos are written directly about md-to-word's engineer
 
 Designed as a specialized skill for AI coding assistants (Claude Code, Cursor, Antigravity, etc.), **you do not need to memorize or run command lines**:
 
-1. **Install Skill**: Clone this repository into your AI assistant's skills directory;
+1. **Install — let your AI assistant do it**: just paste the line below into your assistant. Claude Code, Cursor and Codex each keep skills in a different place, and so does every OS — **let the assistant work that out for itself**:
+
+   > Install this skill for me: https://github.com/ls18166407597-design/md-to-word
+   > Clone it into your skills directory, then read SKILL.md and tell me what it can do and how it is triggered.
+
+   <details>
+   <summary>Prefer to install it yourself?</summary>
+
+   ```bash
+   git clone https://github.com/ls18166407597-design/md-to-word.git ~/.claude/skills/md-to-word
+   ```
+
+   Verify that `~/.claude/skills/md-to-word/SKILL.md` exists afterwards.
+   </details>
+
 2. **Natural Language Request**: Provide your Markdown draft and describe your target format:
    > *"Export this Markdown document to Word (.docx) according to my university's master's thesis (or target journal) formatting guidelines."*
 3. **Closed-Loop Autonomous Delivery**:
