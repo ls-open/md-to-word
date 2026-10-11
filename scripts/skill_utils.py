@@ -215,6 +215,34 @@ def block_marker_issues(text: str) -> list:
     return issues
 
 
+_IMG_WIDTH_CM_RE = re.compile(r'!\[[^\]]*\]\([^)]+\)\s*\{[^}]*\bwidth\s*=\s*([\d.]+)cm')
+
+
+def image_width_issues(text: str, content_cm: float) -> list[tuple[int, str]]:
+    """图片声明宽度超过版心 → [(行号, 说明)]。`content_cm` 是版心宽度（cm）。
+
+    **写超了不会报错，会被静默改小**：实测 A4 + 2.54cm 边距下写 `{width=25cm}`，
+    产物里是 15.90cm（pandoc 按 `pgSz - pgMar` 钳的，与本技能算版心同一条公式）。
+    作者以为排的是 25cm，拿到的是别的数——所以写超了就是写错，拦下让他改。
+    """
+    if not text:
+        return []
+    issues = []
+    for i, line in enumerate(mask_code_fences(text).split("\n")):
+        if line.lstrip().startswith("|"):        # 表格行里的 `|` 不是图片语法
+            continue
+        for m in _IMG_WIDTH_CM_RE.finditer(line):
+            w = float(m.group(1))
+            if w > content_cm + 0.01:
+                issues.append((
+                    i + 1,
+                    f"图片声明宽 {w:g}cm，超过版心 {content_cm:.2f}cm——"
+                    f"导出时会被**静默钳成版心宽**（不报错、也没有警告），"
+                    f"实际拿到的不是 {w:g}cm。改成 {content_cm:.2f}cm 以内，或调小页边距",
+                ))
+    return issues
+
+
 def malformed_table_issues(text: str) -> list[tuple[int, str]]:
     """Markdown 表格各行列数不一致 → [(行号, 说明)]。
 

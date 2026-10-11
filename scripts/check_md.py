@@ -38,6 +38,7 @@ from skill_utils import (  # noqa: E402
     crossref_prefix_issues,
     get_logger,
     heading_and_div_issues,
+    image_width_issues,
     malformed_table_issues,
     mask_code_fences,
     resolve_manuscript_path,
@@ -286,6 +287,23 @@ def check_manuscript_required_styles(md_text, req_path, fm_data=None):
     return issues
 
 
+def content_width_cm(req_path):
+    """版心宽度（cm）= 纸张宽 - 左页边距 - 右页边距 - 装订线。
+
+    装订线要减：它是折进左边距写的（见 design.md §1.5）。取不到要求文件时返回 None。
+    """
+    skill_dir = os.path.dirname(os.path.abspath(__file__))
+    if skill_dir not in sys.path:
+        sys.path.insert(0, skill_dir)
+    from generate_template import PAGE_SIZES_CM, parse_requirements
+
+    spec = parse_requirements(Path(req_path).read_text(encoding='utf-8'))
+    if not spec.margins:
+        return None
+    w_cm = PAGE_SIZES_CM.get(spec.page_size, PAGE_SIZES_CM['a4'])[0]
+    return w_cm - spec.margins['left'] - spec.margins['right'] - (spec.gutter_cm or 0)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='导出前校验 MD：检查 custom-style 缺失、YAML 路径、文件名空格、图片存在性、wikilink、LaTeX 分页符等静默失败项',
@@ -438,6 +456,18 @@ def main():
         for line_no, why in tbl_issues:
             print(f' ⚠ 行 {line_no}: {why}')
             problems += 1
+
+    # ── 5h. 图片声明宽度超过版心（导出时会被静默钳成版心宽，不报错）──
+    if args.requirements and os.path.exists(args.requirements):
+        width_cm = content_width_cm(args.requirements)
+        if width_cm:
+            img_issues = image_width_issues(md_text, width_cm)
+            if img_issues:
+                print(f'\n[图片宽度] 声明宽度超过版心 {width_cm:.2f}cm'
+                      f'（导出时会被静默改小到版心宽，不报错）:')
+                for line_no, why in img_issues:
+                    print(f' ⚠ 行 {line_no}: {why}')
+                    problems += 1
 
     # ── 6. 公式编号写法检查（\tag{} 不是 Pandoc 语法）──
     tag_issues = check_latex_tag(md_text)
