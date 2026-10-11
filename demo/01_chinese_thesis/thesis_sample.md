@@ -4,6 +4,7 @@ bibliography: references.bib
 csl: chinese-gb7714-2015-numeric.csl
 crossref:
   eq-prefix: "式"
+  chapters: true          # 公式按章编号（第 2 章第 1 式 → 2.1），学位论文的通行要求
 ---
 
 ::: {custom-style="Abstract Title"}
