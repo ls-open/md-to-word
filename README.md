@@ -56,22 +56,26 @@
 ### 样例一：中文硕博学位论文 / 核心期刊（全要素学术排版）
 > 前置独立小写罗马页码（`i, ii`）、Word 原生动态目录、双线动态章名页眉、三线表跨页重复表头、带编号公式绝对居中靠右、GB/T 7714-2015 顺序编码文献。
 
+📁 源码、格式规则与一键复现命令 → **[demo/01_chinese_thesis](demo/01_chinese_thesis/README.md)**
+
 | 论文开篇与摘要（居中大标题/无页眉） | Word 动态目录（点线制表位/小写罗马页码） | 动态章名页眉与架构流程图 |
 | :---: | :---: | :---: |
 | ![论文开篇](demo/01_chinese_thesis/page-1.png) | ![论文目录](demo/01_chinese_thesis/page-2.png) | ![正文图表](demo/01_chinese_thesis/page-3.png) |
 
-| 公式居中编号靠右与质量收敛图 | 规范学术三线表与 GB/T 7714 参考文献 |
+| 公式居中编号靠右与门禁流程图 | 规范学术三线表与 GB/T 7714 参考文献 |
 | :---: | :---: |
-| ![公式与收敛图](demo/01_chinese_thesis/page-4.png) | ![三线表与尾页](demo/01_chinese_thesis/page-5.png) |
+| ![公式与门禁流程图](demo/01_chinese_thesis/page-4.png) | ![三线表与尾页](demo/01_chinese_thesis/page-5.png) |
 
 ---
 
 ### 样例二：现代企业级技术白皮书 / 商业研究报告
 > 扁平单节结构、开门见山执行摘要、单线现代极简页眉、全网格线数据表、APA 7th 作者-年份制引用。
 
-| 执行摘要与正文第一章 | 效能推导公式与综合基准图 | 全网格线数据表与 APA 参考文献 |
+📁 源码、格式规则与一键复现命令 → **[demo/02_modern_report](demo/02_modern_report/README.md)**
+
+| 执行摘要与正文第一章 | 效能推导公式与耗时实测图 | 全网格线数据表与 APA 参考文献 |
 | :---: | :---: | :---: |
-| ![报告首页](demo/02_modern_report/page-1.png) | ![效能公式与图表](demo/02_modern_report/page-2.png) | ![全网格表与参考文献](demo/02_modern_report/page-3.png) |
+| ![报告首页](demo/02_modern_report/page-1.png) | ![效能公式与耗时实测图](demo/02_modern_report/page-2.png) | ![全网格表与参考文献](demo/02_modern_report/page-3.png) |
 
 ---
 
@@ -105,9 +109,9 @@
   `.bib`（BibTeX）是全球学术界通用的**纯文本结构化参考文献数据库**。每一条文献包含条目类别、作者、篇名、期刊、出版年份等字段。
 * **如何获取？完全不需要手动敲代码，两大傻瓜获取方式**：
   1. **各大检索网站一键导出（知网 / 百度学术 / 谷歌学术）**：  
-     在知网（CNKI）、百度学术或 Google Scholar 搜索到目标论文后，点击文献下方的**“引用”**按钮 $\to$ 选择**“导出 BibTeX”**，将弹出的文本复制保存为 `references.bib` 即可。
+     在知网（CNKI）、百度学术或 Google Scholar 搜索到目标论文后，点击文献下方的“**引用**”按钮 → 选择“**导出 BibTeX**”，将弹出的文本复制保存为 `references.bib` 即可。
   2. **文献管理软件批量导出（Zotero / EndNote / Mendeley）**：  
-     在 Zotero 或 EndNote 中选中所需文献，右键选择**“导出文献库”**，导出格式选择 **BibTeX**。
+     在 Zotero 或 EndNote 中选中所需文献，右键选择“**导出文献库**”，导出格式选择 **BibTeX**。
 * **如何在正文中使用？**  
   在 Markdown 中只需写 `[@文献key]`（例如 `[@vaswani2017]`），导出时系统将根据指定的 CSL 样式表（如国标 `chinese-gb7714-2015-numeric.csl` 或 `apa.csl`）在文末自动生成严整规范的参考文献列表。
 
@@ -121,7 +125,7 @@
    ```bash
    pip install -r requirements.txt
    ```
-2. **渲染引擎 Quarto**（Quarto $\ge 1.4$，内嵌 Pandoc）：
+2. **渲染引擎 Quarto**（Quarto ≥ 1.4，内嵌 Pandoc）：
    ```bash
    # macOS
    brew install quarto

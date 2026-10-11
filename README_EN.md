@@ -56,6 +56,8 @@ The two built-in showcase demos are written directly about md-to-word's engineer
 ### Showcase 1: Academic Thesis & Journal Paper (Full Elements)
 > Independent lowercase Roman front-matter page numbers (`i, ii`), native dynamic TOC, dual-line chapter headers, three-line tables with repeating headers, centered equations with right-aligned numbering, and GB/T 7714-2015 numeric citations.
 
+📁 Source, formatting rules and one-command reproduction → **[demo/01_chinese_thesis](demo/01_chinese_thesis/README.md)**
+
 | Title & Abstract (Centered Title / No Header) | Dynamic TOC (Dot Leaders / Roman Page Numbers) | Dynamic Chapter Header & Architecture Chart |
 | :---: | :---: | :---: |
 | ![Thesis Title](demo/01_chinese_thesis/page-1.png) | ![Thesis TOC](demo/01_chinese_thesis/page-2.png) | ![Figures and Text](demo/01_chinese_thesis/page-3.png) |
@@ -68,6 +70,8 @@ The two built-in showcase demos are written directly about md-to-word's engineer
 
 ### Showcase 2: Modern Enterprise Whitepaper & Research Report
 > Flat single-section structure, executive summary, sleek single-line header, full-grid data tables, and APA 7th author-date citation style.
+
+📁 Source, formatting rules and one-command reproduction → **[demo/02_modern_report](demo/02_modern_report/README.md)**
 
 | Executive Summary & Section 1 | Efficiency Model & Benchmark Chart | Full-Grid Data Table & APA References |
 | :---: | :---: | :---: |
@@ -105,9 +109,9 @@ For users unfamiliar with academic bibliography workflows:
   `.bib` (BibTeX) is the global standard plain-text format for structured reference databases. Each entry includes publication type, authors, title, journal, volume, and year.
 * **How to Obtain It? (No Manual Coding Required)**:
   1. **One-Click Web Export (Google Scholar, CNKI, Baidu Scholar)**:  
-     Search for the paper $\to$ click the **"Cite"** button $\to$ select **"BibTeX"** $\to$ copy the text into `references.bib`.
+     Search for the paper → click the **"Cite"** button → select **"BibTeX"** → copy the text into `references.bib`.
   2. **Batch Export from Reference Managers (Zotero, EndNote, Mendeley)**:  
-     Select papers in your library $\to$ right click **"Export Library / Items"** $\to$ choose **BibTeX** format.
+     Select papers in your library → right click **"Export Library / Items"** → choose **BibTeX** format.
 * **How to Cite in Markdown?**  
   Simply write `[@citekey]` (e.g., `[@vaswani2017]`) in your prose. The compiler will automatically format in-text citations and generate the end-of-document bibliography according to your chosen CSL style (e.g., `chinese-gb7714-2015-numeric.csl` or `apa.csl`).
 
@@ -121,7 +125,7 @@ Running this skill requires only two lightweight prerequisites:
    ```bash
    pip install -r requirements.txt
    ```
-2. **Quarto Engine** (Quarto $\ge 1.4$, includes Pandoc):
+2. **Quarto Engine** (Quarto ≥ 1.4, includes Pandoc):
    ```bash
    # macOS
    brew install quarto
