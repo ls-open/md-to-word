@@ -20,6 +20,7 @@
 以及段落下边框 / 页码格式 / 表格边框 / 校对语言这些 API 根本没有的属性。
 """
 import argparse
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -57,8 +58,14 @@ class Ref:
         for st in self.styles.findall(q('style')):
             self.by_id[(st.get(q('styleId')) or '').replace(' ', '').lower()] = st
         self.theme = self._theme_fonts()
-        self.sect = etree.fromstring(self.parts['word/document.xml']).find(
-            f'.//{q("sectPr")}')
+        # 页面设置一律取 **body 末尾那个 sectPr**（正文节），与 audit_export / expand_markers /
+        # fix_docx_equations 同一口径。多节文档里第一个 sectPr 是**前置节**（目录、摘要），
+        # 按"第一个"取会把前置节的小写罗马页码当成正文的页码读出来。
+        doc_root = etree.fromstring(self.parts['word/document.xml'])
+        body = doc_root.find(q('body'))
+        self.all_sects = doc_root.findall(f'.//{q("sectPr")}')
+        self.sect = (body.find(q('sectPr')) if body is not None
+                     else (self.all_sects[0] if self.all_sects else None))
         self.base_borders = self._base_border_styles()
 
     def _base_border_styles(self) -> set:
@@ -257,6 +264,14 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         out.append('无边框' if kind == '无' else f'下边框{kind}')
         if kind != '无' and bottom.get(q('sz')):
             out.append(f'边框粗{int(bottom.get(q("sz"))) / 8:g}磅')
+
+    # 字符间距（Word「字体 → 高级 → 字符间距」）：rPr/spacing 的 val 是二十分之一磅。
+    # 注意别拿成 pPr/spacing——那是行距，同名不同容器（`.//` 会先撞上 pPr 那个）。
+    rsp = ref.eff(chain, 'rPr/spacing')
+    if rsp is not None and rsp.get(q('val')):
+        pt = int(rsp.get(q('val'))) / 20
+        if pt:
+            out.append(f'字距{pt:g}磅')
     return out, doubt, defined
 
 
@@ -323,15 +338,40 @@ def read_table(ref: Ref) -> tuple:
                                                 and fr[0].find(f'{q("trPr")}/{q("tblHeader")}') is not None
                                                 else ''))
         doubt += [f'表头行：{d}' for d in hd]
-    del ref.by_id['__firstrow__']
+        ref.by_id.pop('__firstrow__', None)     # 只在真的塞进去过时才清
     return out, doubt
 
 
-def read_page(ref: Ref) -> tuple:
+def body_line_multiple(ref: Ref) -> float:
+    """正文的行距**倍数**——把参考文件里的 `linePitch` 反推成「每页 N 行」要用它。
+
+    复用样式读取那一套（不另写一遍 XML 解析），优先级与写入侧
+    `generate_template.body_line_spacing_multiple` 一致：先「正文」，退回「普通」。
+    """
+    from generate_template import STYLE_MAP
+    sid_of = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
+    for cn in ('正文', '普通'):
+        sid = next((s for s, c in sid_of.items() if c == cn), None)
+        if sid is None or sid not in ref.by_id:
+            continue
+        cs, _, _ = clauses_for(ref, sid)          # 丢弃 doubt：主流程还会再读一次
+        for t in cs:
+            m = re.fullmatch(r'行距(\d+(?:\.\d+)?)倍', t)
+            if m:
+                return float(m.group(1))
+    return 1.0
+
+
+def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
     out, doubt = [], []
     sect = ref.sect
     if sect is None:
         return out, ['找不到 sectPr，页面设置读不出来']
+    if len(ref.all_sects) > 1:
+        doubt.append(f'参考文件是 {len(ref.all_sects)} 节的，页面设置只读了**正文节**那一份'
+                     f'（与导出侧同一口径）；前置节（目录/摘要）的页码、页边距没读，需要的话自己补')
+    paper = None
+    top = bottom = left = right = None          # 文档网格要拿它们算版心高，先占位
     sz = sect.find(q('pgSz'))
     if sz is not None and sz.get(q('w')) and sz.get(q('h')):
         cm = (round(int(sz.get(q('w'))) / TWIPS_PER_CM, 2),
@@ -351,6 +391,11 @@ def read_page(ref: Ref) -> tuple:
             v = cm_of(name)
             if v:
                 out.append(f'{label}：{v:g}cm')
+        # 装订线（pgMar/@w:gutter）。本技能自己的产物里不会有它——写入时是**折进左边距**
+        # 写的（理由见 design.md §1.5），故这里读的只可能是别人模板里的。
+        gut = cm_of('gutter')
+        if gut:
+            out.append(f'装订线：{gut:g}cm')
     pn = sect.find(q('pgNumType'))
     if pn is not None and pn.get(q('fmt')):
         fmt = PGNUM_FMT.get(pn.get(q('fmt')))
@@ -359,6 +404,21 @@ def read_page(ref: Ref) -> tuple:
             out.append(f'页码：{fmt}' + (f' 起始{start}' if start else ''))
         else:
             doubt.append(f'页码格式「{pn.get(q("fmt"))}」不在本技能词表里')
+    # 文档网格：`linePitch` 是「每行多少 twips」，本技能的写法是「每页 N 行」，
+    # 中间隔着行距倍数那一步补偿——用写入侧同一个函数反推（doc_grid_lines_from_pitch）。
+    grid = sect.find(q('docGrid'))
+    if grid is not None and grid.get(q('linePitch')):
+        from generate_template import PAGE_SIZE_MAP, doc_grid_lines_from_pitch
+        page_size = PAGE_SIZE_MAP.get(paper) if paper else None
+        if None in (top, bottom, left, right) or page_size is None:
+            doubt.append('读到了文档网格（linePitch），但纸张不是 A4/Letter 或缺页边距，'
+                         '算不出「每页几行」，草稿已跳过这一行')
+        else:
+            n = doc_grid_lines_from_pitch(int(grid.get(q('linePitch'))), line_multiple,
+                                          page_size, dict(top=top, bottom=bottom,
+                                                          left=left, right=right))
+            out.append(f'文档网格：每页{n}行')
+
     lang = ref.eff([ref.doc_defaults] if ref.doc_defaults is not None else [], 'rPrDefault/rPr/lang')
     if lang is not None and lang.get(q('eastAsia')):
         out.append(f'校对语言：{lang.get(q("eastAsia"))}')
@@ -414,7 +474,7 @@ def main(argv=None):
 
     lines = ['# 由 read_reference_docx.py 从参考文件读出的草稿，**请核对**',
              f'# 来源: {Path(args.docx).name}']
-    for part in (read_page(ref), read_table(ref), read_decor(ref)):
+    for part in (read_page(ref, body_line_multiple(ref)), read_table(ref), read_decor(ref)):
         lines += part[0]
         ref.notes += part[1]
 
