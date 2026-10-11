@@ -21,37 +21,66 @@ When writing academic theses, technical reports, and corporate proposals, teams 
 
 ---
 
-## 🔍 Comparison: the same result, and what each tool needs to get there
+## ⚡ 30 seconds: what you write vs. what you get
 
-Ground rules: every tool is judged on its **default output** (no custom template, no filter). ⚠️ = possible, but you hand-edit the base template, set it paragraph-by-paragraph and table-by-table, or write XML yourself; ✅ = comes out of the box; ❌ = not available by default. **The last column is what this skill actually asks you to write.**
+Layout rules live in `requirements.txt` — **one per line, diffable in Git**, no clicking around in Word.
 
-| Typesetting element | Native Pandoc default | Quarto default Word | Manual Word tuning | 🌟 md-to-word: write this |
-|:---|:---:|:---:|:---:|:---|
-| **Chinese document basics** | | | | |
-| Separate CJK and Latin fonts (SimSun + Times New Roman) | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per paragraph | `正文：宋体/Times New Roman 小四 …` |
-| Chinese font sizes + 2-character first-line indent | ❌ | ❌ | ⚠️ Per paragraph | `… 首行缩进2字符` |
-| Document proofing language (CJK text not flagged) | ❌ | ❌ | ⚠️ Set manually | `校对语言：zh-CN` |
-| **Academic typesetting** | | | | |
-| Three-line tables with adjustable rules | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per table | `表格：居中 三线表 线宽上1.5磅 线宽表头下0.75磅` |
-| Header row repeats across pages | ✅ On by default | ✅ On by default | ⚠️ Per table, tick a box | `表头：… 跨页重复` |
-| Centered display math, equation number hard right | ❌ Number not right-aligned | ⚠️ Number trails the equation | ⚠️ Manual 3-column tab stops | `$$…$$ {#eq-x}` handles both |
-| Dynamic chapter-name header (double rule) | ❌ Edit template + insert field | ❌ Edit template + insert field | ⚠️ Break sections + insert field | `页眉内容：{样式标题:Heading 1}` |
-| Roman front matter / Arabic body pagination | ❌ | ❌ | ⚠️ Insert section break by hand | `{{< section 页码=小写罗马 起始=1 >}}` |
-| Native dynamic table of contents | ⚠️ A real field, but styling needs the base template | ⚠️ A real field, but styling needs the base template | ⚠️ Insert field by hand | `{{< toc 2 >}}` + 4 style lines |
-| Figure/equation cross-references with CJK prefixes | ❌ | ✅ | ❌ | Three `crossref:` lines in YAML |
-| Formatted bibliography (GB/T 7714, APA, …) | ✅ citeproc | ✅ citeproc | ❌ | `csl: apa.csl` + `[@key]` in prose |
-| **Built for AI and automation** | | | | |
-| Layout rules declared in text, reviewable in Git | ❌ Buried in XML and manual steps | ❌ | ❌ | One `requirements.txt` states it all |
-| Failure mode: error, or silent drift? | ⚠️ Mostly silent | ⚠️ Mostly silent | ❌ Eyes only | Pre-flight check, reported by line number |
-| Quality gates before delivery | ❌ | ❌ | ❌ | Three: pre-flight / number diff / item-by-item audit |
+**You write** ([`demo/00_quickstart/hello.md`](demo/00_quickstart/hello.md), 24 lines total):
 
-> The ✅ marks under Pandoc and Quarto are **honest** — repeating header rows and citeproc bibliographies, for instance, do come out of the box. The value here isn't that others *can't*; it's that a single `requirements.txt` settles **all of it at once**, with no base-template surgery, no XML, and no per-paragraph clicking.
-
+```markdown
 ---
+title: "我的第一份规范 Word 文档"
+---
+
+# 引言
+
+这是正文。
+
+| 指标 | 方案 A | 方案 B |
+|:---|---:|---:|
+| 首次排版耗时（秒） | 1.10 | 1.04 |
+```
+
+**You run**:
+
+```bash
+bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
+```
+
+**You get** (about one second):
+
+[![Output of the 30-second example](demo/00_quickstart/page-1.png)](demo/00_quickstart/hello.docx)
+
+Two-character first-line indent, Times New Roman for Latin, a three-line table with caption and note — **none of it clicked together by hand**.
+
+## 🚀 Install It: three steps, all handed to your AI assistant
+
+This skill is tuned for **AI agents** — you never touch a terminal; hand the repository to your assistant and it does the rest.
+
+1. **Let the assistant install it** — paste this line verbatim. Every assistant keeps skills somewhere different, and so does every OS; **let it work that out for itself**:
+
+   > Install this skill for me: https://github.com/ls18166407597-design/md-to-word
+   > Clone it into your skills directory, then read SKILL.md and tell me what it can do and how it is triggered.
+
+2. **Verify the install** — ask it to run the smallest sample in the repo. Seeing `✅ Word 文档导出成功` means you are set:
+
+   ```bash
+   cd demo/00_quickstart
+   bash ../../scripts/export.sh hello.md -r requirements.txt -o hello.docx
+   ```
+
+3. **Start using it** — send your Markdown and state the target format:
+
+   > Export this Markdown document to Word (.docx) according to my university's master's thesis formatting guidelines.
+
+   It then handles everything: layout and font requirements, a compliant base template, OOXML cleanup, three quality gates, and the finished `.docx`.
+
+> 💡 **CLI / CI**: you can also call it directly:
+> `bash scripts/export.sh input.md [-r requirements.txt] -o output.docx`
 
 ## 📸 Typesetting Showcase (Self-Documenting Demos)
 
-The two built-in showcase demos are written directly about md-to-word's engineering principles and benchmarks, demonstrating real-world formatting performance:
+Besides the minimal sample above, the repository bundles **two complete demos**, both written about md-to-word's engineering principles and benchmarks, demonstrating real-world formatting performance:
 
 ### Showcase 1: Academic Thesis & Journal Paper (Full Elements)
 > Independent lowercase Roman front-matter page numbers (`i, ii`), native dynamic TOC, dual-line chapter headers, three-line tables with repeating headers, centered equations with right-aligned numbering, and GB/T 7714-2015 numeric citations.
@@ -79,25 +108,31 @@ The two built-in showcase demos are written directly about md-to-word's engineer
 
 ---
 
-## 🚀 Effortless Usage: AI Agent Full Automation (Recommended ✨)
+## 🔍 Comparison: the same result, and what each tool needs to get there
 
-Designed as a specialized skill for AI coding assistants (Claude Code, Cursor, Antigravity, etc.), **you do not need to memorize or run command lines**:
+Ground rules: every tool is judged on its **default output** (no custom template, no filter). ⚠️ = possible, but you hand-edit the base template, set it paragraph-by-paragraph and table-by-table, or write XML yourself; ✅ = comes out of the box; ❌ = not available by default. **The last column is what this skill actually asks you to write.**
 
-1. **Install — let your AI assistant do it**: just paste the line below into your assistant. Every assistant keeps skills somewhere different, and so does every OS — **let the assistant work that out for itself**:
+| Typesetting element | Native Pandoc default | Quarto default Word | Manual Word tuning | 🌟 md-to-word: write this |
+|:---|:---:|:---:|:---:|:---|
+| **Chinese document basics** | | | | |
+| Separate CJK and Latin fonts (SimSun + Times New Roman) | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per paragraph | `正文：宋体/Times New Roman 小四 …` |
+| Chinese font sizes + 2-character first-line indent | ❌ | ❌ | ⚠️ Per paragraph | `… 首行缩进2字符` |
+| Document proofing language (CJK text not flagged) | ❌ | ❌ | ⚠️ Set manually | `校对语言：zh-CN` |
+| **Academic typesetting** | | | | |
+| Three-line tables with adjustable rules | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per table | `表格：居中 三线表 线宽上1.5磅 线宽表头下0.75磅` |
+| Header row repeats across pages | ✅ On by default | ✅ On by default | ⚠️ Per table, tick a box | `表头：… 跨页重复` |
+| Centered display math, equation number hard right | ❌ Number not right-aligned | ⚠️ Number trails the equation | ⚠️ Manual 3-column tab stops | `$$…$$ {#eq-x}` handles both |
+| Dynamic chapter-name header (double rule) | ❌ Edit template + insert field | ❌ Edit template + insert field | ⚠️ Break sections + insert field | `页眉内容：{样式标题:Heading 1}` |
+| Roman front matter / Arabic body pagination | ❌ | ❌ | ⚠️ Insert section break by hand | `{{< section 页码=小写罗马 起始=1 >}}` |
+| Native dynamic table of contents | ⚠️ A real field, but styling needs the base template | ⚠️ A real field, but styling needs the base template | ⚠️ Insert field by hand | `{{< toc 2 >}}` + 4 style lines |
+| Figure/equation cross-references with CJK prefixes | ❌ | ✅ | ❌ | Three `crossref:` lines in YAML |
+| Formatted bibliography (GB/T 7714, APA, …) | ✅ citeproc | ✅ citeproc | ❌ | `csl: apa.csl` + `[@key]` in prose |
+| **Built for AI and automation** | | | | |
+| Layout rules declared in text, reviewable in Git | ❌ Buried in XML and manual steps | ❌ | ❌ | One `requirements.txt` states it all |
+| Failure mode: error, or silent drift? | ⚠️ Mostly silent | ⚠️ Mostly silent | ❌ Eyes only | Pre-flight check, reported by line number |
+| Quality gates before delivery | ❌ | ❌ | ❌ | Three: pre-flight / number diff / item-by-item audit |
 
-   > Install this skill for me: https://github.com/ls18166407597-design/md-to-word
-   > Clone it into your skills directory, then read SKILL.md and tell me what it can do and how it is triggered.
-
-2. **Natural Language Request**: Provide your Markdown draft and describe your target format:
-   > *"Export this Markdown document to Word (.docx) according to my university's master's thesis (or target journal) formatting guidelines."*
-3. **Closed-Loop Autonomous Delivery**:
-   - The AI identifies margins, font styles, line spacing, and table requirements;
-   - Compiles a compliant temporary template and cleanses OOXML attributes;
-   - Executes deterministic audit gates (precision numbers and XML styles);
-   - Delivers the final validated `.docx` file directly to you.
-
-> 💡 **For CI/CD Pipelines**: Developers can also invoke the CLI directly:  
-> `bash scripts/export.sh input.md [-r requirements.txt] -o output.docx`
+> The ✅ marks under Pandoc and Quarto are **honest** — repeating header rows and citeproc bibliographies, for instance, do come out of the box. The value here isn't that others *can't*; it's that a single `requirements.txt` settles **all of it at once**, with no base-template surgery, no XML, and no per-paragraph clicking.
 
 ---
 
@@ -139,6 +174,7 @@ Running this skill requires only two lightweight prerequisites:
 
 | Path | Purpose & Target Audience |
 | :--- | :--- |
+| [`demo/00_quickstart/`](demo/00_quickstart/) | **Smallest runnable sample** (1 page): a 24-line manuscript plus a 16-line `requirements.txt`. Use it to grasp input vs. output in 30 seconds, and to verify the install. |
 | [`SKILL.md`](SKILL.md) | **Must-read for AI Agents**: Agent automation workflows, Markdown syntax contracts, and best practices. |
 | [`references/reference.md`](references/reference.md) | **Advanced Customization**: Complete vocabulary for `requirements.txt`, default inference rules, and built-in CSL list. |
 | [`references/design.md`](references/design.md) | **Developers & Hackers**: In-depth architecture, pure Word 365 base template, 3-column equation alignment, and OpenXML internals. |
