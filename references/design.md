@@ -309,3 +309,14 @@ Word 见到脏域就询问一次，点「是」当场把页码算好。
 
 去掉 `dirty` 就不再弹窗，代价是目录只剩占位文字「（打开文档后目录会自动生成）」，
 必须手动 `Ctrl+A` → `F9` 才有内容。两害相权，保留弹窗。
+
+### 2.21 读参考 .docx 为什么不能直接用 python-docx
+
+`read_reference_docx.py` 走纯 XML，是因为这些格式在 python-docx 的 API 层够不着：
+
+| 格式 | 真实位置 | API 读成什么 |
+|:--|:--|:--|
+| 中文字体 | `w:rFonts/@w:eastAsia` | `font.name` 只有西文槽 |
+| 首行缩进 2 字符 | `w:ind/@w:firstLineChars` | `None` |
+| 行距固定值 / 最小值 | `w:spacing/@lineRule` | 两者都是 Length，分不开 |
+| 段落下边框、页码格式、表格边框、校对语言 | 各自的 XML 节点 | 没有 API |
