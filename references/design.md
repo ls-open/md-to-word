@@ -323,14 +323,13 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 ### 2.8 CSL direct formatting 属性覆盖模板样式
 
 症状：同一个 requirements.txt 在不同 CSL 下，参考文献的悬挂缩进、行距、段间距行为不一致。
-原因：CSL 规范定义了两种悬挂缩进机制——`hanging-indent="true"`（Pandoc 直接设置段落 direct formatting）和 `second-field-align="flush"`（Pandoc 应输出 Tab 但实际输出空格，是已知实现缺陷）。两种机制行为不一致，且都会绕过模板控制，覆盖 requirements.txt 中 Bibliography 样式的设置。
-解决：所有 CSL 的 `<bibliography>` 标签均已去掉 `hanging-indent`、`second-field-align`、`line-spacing` 等 direct formatting 属性（运行 `scripts/normalize_csl.py` 自动处理）。悬挂缩进由 requirements.txt 中 Bibliography 样式的"悬挂缩进0.5英寸"控制，所有 CSL 行为一致，AI 可预测。新增 CSL 必须运行 `python3 scripts/normalize_csl.py resources/csl/新期刊.csl` 规范化。
+原因：CSL 有两种悬挂缩进机制——`hanging-indent="true"`（Pandoc 设成段落 direct formatting）与 `second-field-align="flush"`（该输出 Tab，实际输出空格，已知缺陷）。两者行为不一致，且都绕过模板，覆盖 Bibliography 样式的设置。
+解决：内置 CSL 都已用 `scripts/normalize_csl.py` 去掉 `<bibliography>` 上的 `hanging-indent`、`second-field-align`、`line-spacing` 等 direct formatting 属性，悬挂缩进改由 requirements.txt 的 Bibliography 样式（`悬挂缩进0.5英寸`）统一控制。**新增 CSL 必须跑一次**：`python3 scripts/normalize_csl.py resources/csl/新期刊.csl`。
 
 ### 2.9 参考文献 Tab 残留导致悬挂失效
 
-症状：参考文献列表中每一行内容都跑到 left_indent 处，看起来像没有悬挂，实际上连首行都缩进了。
-原因：CSL 含 `second-field-align="flush"`（未规范化），Pandoc 在编号 "1." 后插入 Tab，Tab 跳到 `left_indent` 位置，导致每一行内容都跑到 left_indent 处。
-解决：运行 `scripts/normalize_csl.py` 规范化技能文件夹的 CSL（去掉 `second-field-align="flush"`）。
+症状：每行内容都跑到 `left_indent` 处，看着像没有悬挂，其实连首行也缩进了。
+原因与解决同 §2.8：CSL 里残留 `second-field-align="flush"`，Pandoc 在「1.」后插的 Tab 跳到了 `left_indent`。
 
 ### 2.10 静默失败防护（字号无单位、行距变体）
 
