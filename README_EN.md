@@ -21,18 +21,31 @@ When writing academic theses, technical reports, and corporate proposals, teams 
 
 ---
 
-## 🔍 Objective Comparison with Mainstream Tools
+## 🔍 Comparison: the same result, and what each tool needs to get there
 
-| Feature & Capability | Native Pandoc CLI | Quarto (Default Word) | Markdown Editors (Typora, etc.) | Manual Word Tuning | 🌟 md-to-word Automated Solution |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Git Line-by-Line Diff & Merge** | Supported | Supported | Supported | ❌ **Binary file; corrupts on merge** | ** Native Git diff support** |
-| **Dynamic Chapter Headers** | ❌ Unsupported | ❌ Unsupported | ❌ Unsupported | ⚠️ Supported (manual per section) | ** Native `STYLEREF` tracking** |
-| **Independent Roman/Arabic Pagination** | ❌ Requires manual XML hacking | ❌ Unsupported | ❌ Unsupported | ⚠️ Supported (manual break) | ** Declarative independent sections** |
-| **Academic Three-Line Tables** | ❌ Plain black grid only | ⚠️ Needs manual template | ❌ Plain black grid | ⚠️ Supported (manual borders) | ** Configurable; auto-repeating headers** |
-| **Grid Tables (Inner/Outer Borders)** | ⚠️ Basic grid | ⚠️ Basic grid | ⚠️ Basic grid | ⚠️ Supported (manual widths) | ** Precise border width controls** |
-| **Centered Math with Right-Aligned No.** | ❌ Number breaks onto new line | ⚠️ Basic support | ❌ Uncontrollable | ⚠️ Supported (manual tab stops) | ** 3-column borderless alignment** |
-| **Native Dynamic Table of Contents** | ❌ Static text without page numbers | ❌ Static text list | ❌ Static text list | ⚠️ Supported (manual field) | ** Native TOC field with dot leaders** |
-| **Quality & Number Audit Gates** | ❌ No validation | ❌ No validation | ❌ No validation | ❌ **Manual checks; error-prone** | ** 3 deterministic audit gates** |
+Ground rules: every tool is judged on its **default output** (no custom template, no filter). ⚠️ = possible, but you hand-edit the base template, set it paragraph-by-paragraph and table-by-table, or write XML yourself; ✅ = comes out of the box; ❌ = not available by default. **The last column is what this skill actually asks you to write.**
+
+| Typesetting element | Native Pandoc default | Quarto default Word | Manual Word tuning | 🌟 md-to-word: write this |
+|:---|:---:|:---:|:---:|:---|
+| **Chinese document basics** | | | | |
+| Separate CJK and Latin fonts (SimSun + Times New Roman) | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per paragraph | `正文：宋体/Times New Roman 小四 …` |
+| Chinese font sizes + 2-character first-line indent | ❌ | ❌ | ⚠️ Per paragraph | `… 首行缩进2字符` |
+| Document proofing language (CJK text not flagged) | ❌ | ❌ | ⚠️ Set manually | `校对语言：zh-CN` |
+| **Academic typesetting** | | | | |
+| Three-line tables with adjustable rules | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per table | `表格：居中 三线表 线宽上1.5磅 线宽表头下0.75磅` |
+| Header row repeats across pages | ✅ On by default | ✅ On by default | ⚠️ Per table, tick a box | `表头：… 跨页重复` |
+| Centered display math, equation number hard right | ❌ Number not right-aligned | ⚠️ Number trails the equation | ⚠️ Manual 3-column tab stops | `$$…$$ {#eq-x}` handles both |
+| Dynamic chapter-name header (double rule) | ❌ Edit template + insert field | ❌ Edit template + insert field | ⚠️ Break sections + insert field | `页眉内容：{样式标题:Heading 1}` |
+| Roman front matter / Arabic body pagination | ❌ | ❌ | ⚠️ Insert section break by hand | `{{< section 页码=小写罗马 起始=1 >}}` |
+| Native dynamic table of contents | ⚠️ A real field, but styling needs the base template | ⚠️ A real field, but styling needs the base template | ⚠️ Insert field by hand | `{{< toc 2 >}}` + 4 style lines |
+| Figure/equation cross-references with CJK prefixes | ❌ | ✅ | ❌ | Three `crossref:` lines in YAML |
+| Formatted bibliography (GB/T 7714, APA, …) | ✅ citeproc | ✅ citeproc | ❌ | `csl: apa.csl` + `[@key]` in prose |
+| **Built for AI and automation** | | | | |
+| Layout rules declared in text, reviewable in Git | ❌ Buried in XML and manual steps | ❌ | ❌ | One `requirements.txt` states it all |
+| Failure mode: error, or silent drift? | ⚠️ Mostly silent | ⚠️ Mostly silent | ❌ Eyes only | Pre-flight check, reported by line number |
+| Quality gates before delivery | ❌ | ❌ | ❌ | Three: pre-flight / number diff / item-by-item audit |
+
+> The ✅ marks under Pandoc and Quarto are **honest** — repeating header rows and citeproc bibliographies, for instance, do come out of the box. The value here isn't that others *can't*; it's that a single `requirements.txt` settles **all of it at once**, with no base-template surgery, no XML, and no per-paragraph clicking.
 
 ---
 
