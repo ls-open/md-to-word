@@ -504,6 +504,22 @@ def fix_equations_in_xml(doc_xml_bytes: bytes, eq_number_style: str = 'asis',
     return etree.tostring(root, xml_declaration=True, encoding='UTF-8', standalone='yes')
 
 
+# 固定时间戳：见 process_docx 里的说明。zip 用 1980-01-01（DOS 时间的起点），
+# dcterms 用 Unix 纪元——两者都一眼看得出是"钉死的"，不是真实时间。
+_FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
+_FIXED_ISO = '1970-01-01T00:00:00Z'
+_CORE_TS = re.compile(rb'<dcterms:(created|modified)[^>]*>[^<]*</dcterms:\1>')
+
+
+def _pin_core_timestamps(xml_bytes: bytes) -> bytes:
+    """把 docProps/core.xml 的 dcterms:created / modified 换成固定值。"""
+    def sub(m):
+        tag = m.group(1).decode()
+        return ('<dcterms:%s xsi:type="dcterms:W3CDTF">%s</dcterms:%s>'
+                % (tag, _FIXED_ISO, tag)).encode()
+    return _CORE_TS.sub(sub, xml_bytes)
+
+
 def process_docx(docx_path: str, eq_number_style: str = 'asis', table_ratios=None):
     with zipfile.ZipFile(docx_path, 'r') as zin:
         doc_xml = zin.read('word/document.xml')
@@ -514,15 +530,25 @@ def process_docx(docx_path: str, eq_number_style: str = 'asis', table_ratios=Non
     new_doc_xml = fix_equations_in_xml(doc_xml, eq_number_style, table_ratios)
     cleaned_styles_xml = strip_theme_attrs_from_xml(styles_xml) if styles_xml else None
 
+    # ── 把时间戳钉死 ──
+    # 同一份稿件重复导出应当字节一致，否则 Git 里每次都是一堆"什么都没改却变了"的
+    # 二进制 diff。两个来源都要钉：docProps/core.xml 里的 dcterms（Word 显示的
+    # 创建/修改时间），以及 zip 每个条目的时间（默认取当前时刻）。
+    other_files = {k: (_pin_core_timestamps(v) if k == 'docProps/core.xml' else v)
+                   for k, v in other_files.items()}
+
     tmp_path = docx_path + ".tmp"
     with zipfile.ZipFile(tmp_path, 'w', compression=zipfile.ZIP_DEFLATED) as zout:
-        zout.writestr('word/document.xml', new_doc_xml)
-        if cleaned_styles_xml:
-            zout.writestr('word/styles.xml', cleaned_styles_xml)
-            if styles_with_effects_xml:
-                zout.writestr('word/stylesWithEffects.xml', cleaned_styles_xml)
-        for fname, fbytes in other_files.items():
-            zout.writestr(fname, fbytes)
+        for arcname, payload in (
+                [('word/document.xml', new_doc_xml)]
+                + ([('word/styles.xml', cleaned_styles_xml)] if cleaned_styles_xml else [])
+                + ([('word/stylesWithEffects.xml', cleaned_styles_xml)]
+                   if cleaned_styles_xml and styles_with_effects_xml else [])
+                + list(other_files.items())):
+            info = zipfile.ZipInfo(arcname, date_time=_FIXED_ZIP_TIME)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.external_attr = 0o600 << 16
+            zout.writestr(info, payload)
 
     os.replace(tmp_path, docx_path)
     print(f"✅ 已写入更新与主题深度清理: {docx_path}")

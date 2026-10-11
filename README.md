@@ -110,8 +110,8 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 | :---: | :---: | :---: |
 | ![论文开篇](demo/01_chinese_thesis/page-1.png) | ![论文目录](demo/01_chinese_thesis/page-2.png) | ![正文图表](demo/01_chinese_thesis/page-3.png) |
 
-| 公式按章编号与质量门禁流程 | **表跨页后自动重现表头**与国标参考文献 |
-| :---: | :---: |
+|                 公式按章编号与质量门禁流程                  |            **表跨页后自动重现表头**与国标参考文献             |
+| :--------------------------------------------: | :------------------------------------------: |
 | ![公式与门禁流程图](demo/01_chinese_thesis/page-4.png) | ![跨页重复表头](demo/01_chinese_thesis/page-6.png) |
 
 ---
@@ -121,8 +121,8 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 📁 源码、格式规则与一键复现命令 → **[demo/02_modern_report](demo/02_modern_report/README.md)**
 
-| 执行摘要与正文第一章 | 效能推导公式与耗时实测图 | 全网格线数据表与 APA 参考文献 |
-| :---: | :---: | :---: |
+|                执行摘要与正文第一章                 |                  效能推导公式与耗时实测图                   |               全网格线数据表与 APA 参考文献                |
+| :---------------------------------------: | :---------------------------------------------: | :--------------------------------------------: |
 | ![报告首页](demo/02_modern_report/page-1.png) | ![效能公式与耗时实测图](demo/02_modern_report/page-2.png) | ![全网格表与参考文献](demo/02_modern_report/page-3.png) |
 
 ---
