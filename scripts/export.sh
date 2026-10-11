@@ -328,8 +328,9 @@ if [[ ! -f "$OUTPUT_ABS" ]]; then
     exit 1
 fi
 echo "📐 自动优化公式排版（居中公式 + 靠右对齐编号）与主题深度净化..."
-# 表格的列宽由后处理按稿件里分隔行的短横线（写得不均匀时）或各列文字量来定，
-# 总宽一律撑满版心。所以要把它连稿件一起交给它。
+# 表格列宽：作者在 Markdown 分隔行里把短横线写成长短不一时，按该比例分配并按版心
+# 铺开；写成一模一样或没写就完全不动（pandoc/Word 按内容排）。要读稿件才知道比例，
+# 所以连稿件一起交给后处理。
 python3 "$SCRIPT_DIR/fix_docx_equations.py" "$OUTPUT_ABS" \
     --eq-number-style "$EQ_NUMBER_STYLE" --manuscript "$INPUT"
 

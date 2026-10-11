@@ -215,6 +215,42 @@ def block_marker_issues(text: str) -> list:
     return issues
 
 
+def malformed_table_issues(text: str) -> list[tuple[int, str]]:
+    """Markdown 表格各行列数不一致 → [(行号, 说明)]。
+
+    **这不是排版问题，是丢内容**：列数对不上时 pandoc 不报错，直接把多出来的单元格
+    连同里面的字一起丢掉（实测：表头 3 列、分隔行 2 格、数据行 3 格 → 产物只剩前两列，
+    第三列的字一个不剩，全程零告警）。所以必须在导出前拦下。
+    """
+    if not text:
+        return []
+    lines = mask_code_fences(text).split("\n")
+    issues: list[tuple[int, str]] = []
+    i = 0
+    while i < len(lines):
+        if not _TABLE_ROW_RE.match(lines[i]):
+            i += 1
+            continue
+        # 一块连续的表格行
+        block = []
+        while i < len(lines) and _TABLE_ROW_RE.match(lines[i]):
+            block.append((i + 1, lines[i]))
+            i += 1
+        if len(block) < 2:
+            continue
+        counts = [(no, len(line.strip().strip('|').split('|'))) for no, line in block]
+        expect = counts[0][1]
+        bad = [(no, n) for no, n in counts[1:] if n != expect]
+        if bad:
+            first_bad, n = bad[0]
+            issues.append((
+                first_bad,
+                f"表格第 1 行有 {expect} 列，第 {first_bad} 行是 {n} 列——"
+                f"列数对不上时 pandoc 会静默丢掉多出来的单元格（连字一起丢）",
+            ))
+    return issues
+
+
 def section_pagebreak_issues(text: str) -> list[tuple[int, str]]:
     """`{{< section … >}}` 后面紧跟 `{{< pagebreak >}}` → [(行号, 说明)]。
 

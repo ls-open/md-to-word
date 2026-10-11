@@ -38,6 +38,7 @@ from skill_utils import (  # noqa: E402
     crossref_prefix_issues,
     get_logger,
     heading_and_div_issues,
+    malformed_table_issues,
     mask_code_fences,
     resolve_manuscript_path,
     section_pagebreak_issues,
@@ -429,6 +430,14 @@ def main():
         print('     fig-prefix: "图"')
         print('     tbl-prefix: "表"')
         print(' （想用英文前缀就显式写 "Equation"/"Figure"/"Table"）')
+
+    # ── 5g. 表格列数不一致（pandoc 会静默丢列连内容一起丢）──
+    tbl_issues = malformed_table_issues(md_text)
+    if tbl_issues:
+        print('\n[表格] 各行列数不一致（pandoc 不报错，直接把多出来的单元格丢掉）:')
+        for line_no, why in tbl_issues:
+            print(f' ⚠ 行 {line_no}: {why}')
+            problems += 1
 
     # ── 6. 公式编号写法检查（\tag{} 不是 Pandoc 语法）──
     tag_issues = check_latex_tag(md_text)

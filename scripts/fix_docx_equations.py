@@ -149,18 +149,24 @@ def apply_table_width(root, nsmap, ratios=None, skip_ids=()) -> int:
     if not ratios or not any(r for r in ratios):
         return 0
     text_w = _text_width_pt(root) * 20.0
+    # 先把「与稿件里那几张表一一对应」的表挑出来，再按位置配比例。
+    # **不能边遍历边跳**：单列表也要占一个位置，否则它后面所有表都会错位一格
+    # （实测：一列小表在前时，后面写了比例的表被静默忽略）。
+    # 排除两类不是从稿件表格来的：公式三列网格表（列宽是算好的，压扁了编号会折行）
+    # 与图片包装表（`{#fig-x}` 生成的单格表，里面是 drawing）。
+    candidates = [t for t in root.xpath('//w:tbl', namespaces=nsmap)
+                  if id(t) not in skip_ids
+                  and not t.xpath('.//w:drawing | .//w:pict', namespaces=nsmap)]
+    if ratios and len(candidates) != len(ratios):
+        # 对不上号就别猜——宁可一张都不调，也不把甲表的比例套到乙表上
+        return 0
     changed = 0
-    idx = 0
-    for tbl in root.xpath('//w:tbl', namespaces=nsmap):
-        if id(tbl) in skip_ids:
-            continue  # 公式三列网格表的列宽是算出来的，压扁了编号会折行
-        cols = tbl.xpath('./w:tblGrid/w:gridCol', namespaces=nsmap)
-        if len(cols) < 2:
-            continue  # 图片包装表是单格表，没有列宽可言
-        given = ratios[idx] if idx < len(ratios) else None
-        idx += 1
-        if not given or len(given) != len(cols):
+    for tbl, given in zip(candidates, ratios or []):
+        if not given:
             continue  # 这张表作者没指定，保持原样
+        cols = tbl.xpath('./w:tblGrid/w:gridCol', namespaces=nsmap)
+        if len(given) != len(cols):
+            continue
         share = [max(float(d), 1.0) for d in given]
         share = [x / sum(share) for x in share]
         for col, s in zip(cols, share):
