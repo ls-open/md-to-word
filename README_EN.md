@@ -46,7 +46,6 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 | 最小样例（本文） | 1 页 | 0.95 s | 中西文字体、首行缩进、多级标题、三线表 |
 | 技术白皮书样例 | 3 页 | 1.03 s | 全网格数据表、APA 引用、单线极简页眉 |
 | 学位论文样例 | 8 页 | 1.15 s | 目录、分节页码、双线章名页眉、跨页表头 |
-```
 
 …(the table-caption wrapper and the surrounding prose are elided — see the source file)
 ```
@@ -135,7 +134,7 @@ This skill is tuned for **AI agents** — you never touch a terminal; hand the r
 > 💡 **CLI / CI**: you can also call it directly:
 > `bash scripts/export.sh input.md [-r requirements.txt] -o output.docx`
 >
-> Add `--pdf` to also render a PDF through the local Word — **the only way to actually expand the table-of-contents page numbers and chapter-name headers**, and the most direct way to check the finished document.
+> Add `--pdf` to also render a PDF through the local Word — **the only way to actually expand the table-of-contents page numbers and chapter-name headers**, and the most direct way to check the finished document (**macOS only**, and it needs Word installed and launched at least once; when unavailable it is skipped and the `.docx` is unaffected).
 
 ## 📸 Typesetting Showcase (Self-Documenting Demos)
 
