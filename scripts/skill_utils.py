@@ -243,6 +243,19 @@ def image_width_issues(text: str, content_cm: float) -> list[tuple[int, str]]:
     return issues
 
 
+def has_declared_image_width(text: str) -> bool:
+    """稿件里有没有写过 `{width=Ncm}`——决定上面那条门禁有没有活要干。
+
+    没给格式要求文件时算不出版心，门禁只能跳过；但该被跳过的是**有宽度可查**的稿件，
+    一张宽度都没声明的稿子不必为它多出一行「未校验」。
+    """
+    if not text:
+        return False
+    return any(_IMG_WIDTH_CM_RE.search(line)
+               for line in mask_code_fences(text).split("\n")
+               if not line.lstrip().startswith("|"))
+
+
 def malformed_table_issues(text: str) -> list[tuple[int, str]]:
     """Markdown 表格各行列数不一致 → [(行号, 说明)]。
 

@@ -37,6 +37,7 @@ from skill_utils import (  # noqa: E402
     configure_logging,
     crossref_prefix_issues,
     get_logger,
+    has_declared_image_width,
     heading_and_div_issues,
     image_width_issues,
     malformed_table_issues,
@@ -326,6 +327,9 @@ def main():
         md_text = f.read()
 
     problems = 0
+    # 因缺输入（没给 -r/-t）而**整条没跑**的检查。与 problems 分开记：它们不是问题，
+    # 但也不是通过——不列出来，结论行那句「未发现静默失败风险」就是假话。
+    skipped: list[str] = []
     md_path = Path(args.md).resolve()
     md_dir = str(md_path.parent)
     extra_dirs = [d for d in args.resource_dirs.split(':') if d]
@@ -458,6 +462,7 @@ def main():
             problems += 1
 
     # ── 5h. 图片声明宽度超过版心（导出时会被静默钳成版心宽，不报错）──
+    wants_width_check = has_declared_image_width(md_text)
     if args.requirements and os.path.exists(args.requirements):
         width_cm = content_width_cm(args.requirements)
         if width_cm:
@@ -468,6 +473,10 @@ def main():
                 for line_no, why in img_issues:
                     print(f' ⚠ 行 {line_no}: {why}')
                     problems += 1
+        elif wants_width_check:
+            skipped.append('图片宽度是否超过版心（要求文件没写页边距，算不出版心）')
+    elif wants_width_check:
+        skipped.append('图片宽度是否超过版心（没给格式要求文件，算不出版心）')
 
     # ── 6. 公式编号写法检查（\tag{} 不是 Pandoc 语法）──
     tag_issues = check_latex_tag(md_text)
@@ -491,8 +500,15 @@ def main():
             else:
                 names, ids = get_template_styles(args.template)
                 if names is None:
+                    # 模板明确给了却读不出：这是「能确定」的事，必须拦。原先只打一行「未校验模板」
+                    # 就放行，与上面「模板不存在」的分支自相矛盾——两者都是模板不可用。
+                    print(f' ⚠ 模板存在但读不出样式表: {args.template}')
+                    print(f'   以下 {len(styles_used)} 个 custom-style 无法校验'
+                          f'（Quarto 遇到模板里没有的样式会静默建空壳，格式不生效）:')
                     for name, lines in sorted(styles_used.items()):
-                        print(f' - {name} (行 {lines[0]}…) — 未校验模板')
+                        print(f' - {name} (行 {lines[0]}…)')
+                    print(' 建议: 换一份本技能生成的模板，或修好这份 .docx（须含 word/styles.xml）。')
+                    problems += 1
                 else:
                     for name, lines in sorted(styles_used.items()):
                         matched = (name in names) or (name in ids)
@@ -508,6 +524,7 @@ def main():
             for name, lines in sorted(styles_used.items()):
                 print(f' - {name} (行 {lines[0]}…) — 未指定模板，跳过校验')
             print(' (提示: 加 -t 模板.docx 可校验样式是否存在，避免静默失败)')
+            skipped.append(f'custom-style 是否存在（没指定 -t 模板，{len(styles_used)} 个）')
 
     # ── 7b. 稿件结构触发的条件必填样式检查 ──
     if args.requirements and os.path.exists(args.requirements):
@@ -518,14 +535,23 @@ def main():
                 label = f'「{cn_name}：...」配置行' if en_name.startswith('__ROW_') else f'「{cn_name}」（{en_name}）定义'
                 print(f' ✗ 行 {line_no} 用到了 {feat_desc}，要求文件缺少 {label}')
                 problems += 1
+    else:
+        skipped.append('稿件用到的结构是否已声明样式（没给格式要求文件，无法比对）')
 
     # ── 汇总 ──
+    # 有跳过项时不打「未发现静默失败风险」：那句只有在全部都跑过时才成立，
+    # 否则就是一边说「跳过校验」、一边宣称没风险。
     logger.info('\n' + '─' * 50)
-    if problems == 0:
-        print('✅ 校验通过，未发现静默失败风险。')
-    else:
+    if problems != 0:
         print(f'❌ 发现 {problems} 个问题，已终止（请按上方提示修复后重新导出）。')
         sys.exit(1)
+    if skipped:
+        print('✅ 已跑的检查全部通过。')
+        print(f'⚠ 但另有 {len(skipped)} 项**未校验**（未校验 ≠ 通过）:')
+        for s in skipped:
+            print(f' - {s}')
+    else:
+        print('✅ 校验通过，未发现静默失败风险。')
 
 
 if __name__ == '__main__':
