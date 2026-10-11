@@ -115,7 +115,7 @@ This skill is tuned for **AI agents** — you never touch a terminal; hand the r
 
 1. **Let the assistant install it** — paste this line verbatim. Every assistant keeps skills somewhere different, and so does every OS; **let it work that out for itself**:
 
-   > Install this skill for me: https://github.com/ls18166407597-design/md-to-word
+   > Install this skill for me: https://github.com/ls-open/md-to-word
    > Clone it into your skills directory, then read SKILL.md and tell me what it can do and how it is triggered.
 
 2. **Verify the install** — ask it to run the smallest sample in the repo. Seeing `✅ Word 文档导出成功` means you are set:

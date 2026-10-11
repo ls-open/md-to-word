@@ -102,7 +102,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 1. **让助手自己装**：把下面这句话原样发给它。各家助手的技能目录位置不同、系统之间也不同，**交给它自己判断，你不用操心**：
 
-   > 帮我安装这个技能：https://github.com/ls18166407597-design/md-to-word
+   > 帮我安装这个技能：https://github.com/ls-open/md-to-word
    > 克隆到你的技能目录，装好后读一遍 SKILL.md，告诉我它能做什么、怎么触发。
 
 2. **验证装好了**：让助手跑一遍仓库里最小的一份样例，看到 `✅ Word 文档导出成功` 就算装成了：
