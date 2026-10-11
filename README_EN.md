@@ -36,7 +36,7 @@ crossref:
 
 # 引言
 
-这是一份最小样例：一页纸、三十几行 Markdown。中文首行缩进两个字符、西文用
+这是一份最小样例：一页纸、二十六行 Markdown。中文首行缩进两个字符、西文用
 Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在 Word 里点。
 
 # 一个三线表
@@ -243,4 +243,4 @@ Running this skill requires only two lightweight prerequisites:
 
 ## 📄 License
 
-Open-sourced under the [MIT License](LICENSE). Contributions and feedback are welcome!
+Open-sourced under the [MIT License](LICENSE) — free to use, modify and distribute, **commercial use included**.
