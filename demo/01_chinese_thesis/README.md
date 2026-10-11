@@ -27,7 +27,7 @@ demo/01_chinese_thesis/
 ├── thesis_sample.md       # 标准全要素 Markdown 稿件（可直接看源码语法）
 ├── requirements.txt       # 声明式中文格式规范（字体、字号、边框、页码等）
 ├── references.bib         # BibTeX 参考文献库
-├── figures/               # 样例图表（系统架构图、收敛曲线图）
+├── figures/               # 样例图表（系统架构图、质量门禁流程图）
 ├── thesis_sample.docx     # 一键导出的 Word 交付物（可直接用 Word 打开看效果）
 ├── thesis_sample.pdf      # 通过 Microsoft Word 打印导出的对照 PDF
 └── page-*.png             # 高清导出页面渲染预览图
@@ -52,7 +52,7 @@ bash ../../scripts/export.sh thesis_sample.md -r requirements.txt -o thesis_samp
 ## 四、 给 AI Agent 的语法模仿指引
 
 如果您是 AI 编码/写作助手，在为用户生成类似的学位论文或学术稿件时，请参照本样例中的以下黄金契约：
-1. **分节符位置**：`{{< section 页码=小写罗马 起始=1 >}}` 必须独占一行且前后留空行，紧跟在目录后、第一章 `#` 之前；**切勿重复添加 `{{< pagebreak >}}`**；
+1. **分节符位置与语义**：`{{< section 页码=小写罗马 起始=1 >}}` 必须独占一行且前后留空行，紧跟在目录后、第一章 `#` 之前；**它描述的是它上面那一节（前置件），不是后面的正文**——正文页码由 `requirements.txt` 的 `页码：` 决定；**切勿重复添加 `{{< pagebreak >}}`**；
 2. **公式写法**：带编号公式统一用 `$$...$$ {#eq-xxx}`，正文中用 `@eq-xxx` 引用；
 3. **表格题注**：上方表题用 `::: {custom-style="Table Caption"}`，下方表注用 `::: {custom-style="Table Note"}`；
 4. **图片语法**：使用纯原生语法 `![**图 1** 题注](path){width=13cm}`，题注内联加粗，不带 `{#fig-xxx}` 标签以避免继承表格边框。
