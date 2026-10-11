@@ -294,6 +294,11 @@ if [[ -n "$BUILTIN_CSL" ]]; then
     RENDER_CMD+=(-M "csl=$BUILTIN_CSL")
 fi
 
+# 正文引用直接跳到文末对应条目（docx 里落成内部书签链接 w:hyperlink w:anchor="ref-<key>"）。
+# 默认打开：稿件用了 .bib 就有用，没用就是空转，不值得为它去解析一遍 YAML。
+# **稿件 YAML 里写 link-citations: false 可以关掉**——实测 YAML 覆盖 -M，命令行只是默认值。
+RENDER_CMD+=(-M "link-citations=true")
+
 # --resource-path：让图片在多种路径写法下都能解析。
 # 不含该参数时 Quarto 会把绝对路径（/Users/...）误解析成 ./Users/... 相对路径，
 # 导致图片被静默丢弃（只有 warning 不报错）。追加根 "/" 以支持绝对路径。

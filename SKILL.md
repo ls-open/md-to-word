@@ -68,6 +68,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
   - **转换引用格式**：若用户要求统一转为 APA 或 GB/T 7714 等特定格式，由 Agent 根据手写文献在同目录生成 `references.bib`，并在正文填入引用键后按场景 3 导出。
 - **场景 3：使用 `.bib` 文献库与 CSL 自动排版**
   - YAML 中配置 `bibliography: refs.bib` 和 `csl: <文件名.csl>`（**直接写本技能 `resources/csl/` 下的内置文件名即可**，如 `csl: apa.csl` 或 `csl: chinese-gb7714-2015-numeric.csl`，脚本会自动寻路挂载）；
+  - 正文引用**默认就是可点击的**（跳到文末对应条目），不用配什么；不要这个效果才在 YAML 里写 `link-citations: false`；
   - **正文引用写法（只有两种标准形式）**：
     - **括号引用 `[@key]`**（多篇用分号隔开：`[@zhang2024; @smith2023]`）：在作者-年份制（APA）下渲染为 `(Zhang, 2024; Smith, 2023)`，在数字顺序编码制（GB/T 7714 / IEEE）下渲染为 `[1, 2]`；
     - **叙述引用 `@key`**（适合将作者作为句子主语）：例如 `正如 @zhang2024 所指出`，在作者-年份制下渲染为 `正如 Zhang (2024) 所指出`，在数字制下渲染为 `正如 [1] 所指出`。
