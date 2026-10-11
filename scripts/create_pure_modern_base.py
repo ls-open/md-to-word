@@ -177,7 +177,14 @@ def _build_styles_xml() -> bytes:
       <w:style w:type="table" w:customStyle="1" w:styleId="Table"><w:name w:val="Table"/><w:basedOn w:val="TableNormal"/></w:style>
     </w:styles>""".encode("utf-8"))
 
-    def add_style(stype, sid, name, based="Normal", next_s=None, link=None, jc=None, ol=None, b=False, i=False, sz=None, va=None, u_none=False):
+    def add_style(stype, sid, name, based="Normal", next_s=None, link=None, jc=None, ol=None, b=False, i=False, sz=None, va=None, u_none=False,
+                  fonts=None, no_indent=False, tight=False):
+        """fonts=(西文, 中文)；no_indent 清零缩进；tight 单倍行距、段前后 0。
+
+        **子元素顺序按 OOXML schema 来**（错了 Word 会判定文档损坏）：
+        pPr 里 keepNext/keepLines → spacing → ind → jc → outlineLvl；
+        rPr 里 rFonts 必须排在 b/i/color/sz 之前。
+        """
         st = etree.SubElement(root, W("style"), {W("type"): stype, W("styleId"): sid})
         etree.SubElement(st, W("name"), {W("val"): name})
         if based:
@@ -187,17 +194,29 @@ def _build_styles_xml() -> bytes:
         if link:
             etree.SubElement(st, W("link"), {W("val"): link})
         etree.SubElement(st, W("qFormat"))
-        if jc or ol is not None:
+        if jc or ol is not None or no_indent or tight:
             ppr = etree.SubElement(st, W("pPr"))
             if ol is not None:
                 etree.SubElement(ppr, W("keepNext"))
                 etree.SubElement(ppr, W("keepLines"))
+            if tight:
+                etree.SubElement(ppr, W("spacing"), {
+                    W("before"): "0", W("after"): "0", W("line"): "240", W("lineRule"): "auto"})
+            if no_indent:
+                # 必须显式写：本样式 basedOn Normal，而「普通：」那行会给 Normal 写
+                # 首行缩进 2 字符，不在这里覆盖掉，代码块的第一行就会被顶进去。
+                etree.SubElement(ppr, W("ind"), {
+                    W("firstLineChars"): "0", W("firstLine"): "0", W("left"): "0", W("right"): "0"})
             if jc:
                 etree.SubElement(ppr, W("jc"), {W("val"): jc})
             if ol is not None:
                 etree.SubElement(ppr, W("outlineLvl"), {W("val"): str(ol)})
-        if b or i or sz or va or u_none:
+        if b or i or sz or va or u_none or fonts:
             rpr = etree.SubElement(st, W("rPr"))
+            if fonts:
+                latin, ea = fonts
+                etree.SubElement(rpr, W("rFonts"), {
+                    W("ascii"): latin, W("hAnsi"): latin, W("eastAsia"): ea, W("cs"): latin})
             if b:
                 etree.SubElement(rpr, W("b"))
                 etree.SubElement(rpr, W("bCs"))
@@ -235,7 +254,7 @@ def _build_styles_xml() -> bytes:
         ("Abstract", "Abstract", "Normal", "both"), ("Keywords", "Keywords", "Normal", None),
         ("FirstParagraph", "First Paragraph", "BodyText", None), ("Compact", "Compact", "Normal", None),
         ("ListParagraph", "List Paragraph", "Normal", None), ("BlockText", "Block Text", "Normal", None),
-        ("SourceCode", "Source Code", "Normal", None), ("TOCHeading", "TOC Heading", "Normal", None),
+        ("TOCHeading", "TOC Heading", "Normal", None),
         ("Caption", "caption", "Normal", None), ("TableCaption", "Table Caption", "Normal", "center"),
         ("ImageCaption", "Image Caption", "Normal", "center"), ("Figure", "Figure", "Normal", "center"),
         ("CaptionedFigure", "Captioned Figure", "Normal", "center"), ("TableNote", "Table Note", "Normal", None),
@@ -245,7 +264,13 @@ def _build_styles_xml() -> bytes:
     ):
         add_style("paragraph", sid, name, based=based, jc=jc)
 
-    add_style("character", "VerbatimChar", "Verbatim Char", based="DefaultParagraphFont")
+    # 代码块（``` 围栏）落 SourceCode，行内代码落 VerbatimChar。两者都要**显式**给等宽字体
+    # 并清掉缩进——只注册空壳的话它们 basedOn Normal，会继承正文的宋体与首行缩进 2 字符，
+    # 代码块看起来就跟正文一样，而且第一行被顶进去、第二行贴左边，同一个块两行对不齐。
+    add_style("paragraph", "SourceCode", "Source Code", based="Normal",
+              fonts=("Consolas", "宋体"), no_indent=True, tight=True)
+    add_style("character", "VerbatimChar", "Verbatim Char", based="DefaultParagraphFont",
+              fonts=("Consolas", "宋体"))
     add_style("character", "SectionNumber", "Section Number", based="DefaultParagraphFont")
     add_style("character", "FootnoteReference", "Footnote Reference", based="DefaultParagraphFont", va="superscript")
     add_style("character", "Strong", "Strong", based="DefaultParagraphFont", b=True)
