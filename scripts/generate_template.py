@@ -1961,22 +1961,26 @@ def generate_template(requirements_text, output_path, margins=None):
     w_cm, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
     pg_w, pg_h = Cm(w_cm), Cm(h_cm)
 
+    # 装订线**折进左边距**，不写 pgMar/@w:gutter。
+    # Word 打印时两者等效（单节、不开镜像页边距时，"装订线"就是在装订侧多留空白）；
+    # 但 pandoc 以及本技能自己算正文宽度，用的都是 `pgSz - pgMar(left/right)`，
+    # **都不认 w:gutter**：实测 A4 + 2.54cm 边距 + 装订线1cm，`{width=25cm}` 被钳成
+    # 15.90cm（本应是 14.92cm），而文字起点已右移 1cm，于是图片压出右边距 **0.98cm**
+    # （在 Word 渲染的 PDF 上量出来的）。折进去之后，图片宽度、公式网格表、点线制表位
+    # 的落点全跟着对，且都是"算得对"而不是"再补一刀"。
+    eff_left = margins['left'] + (spec.gutter_cm or 0)
+
     for section in doc.sections:
         section.page_width = pg_w
         section.page_height = pg_h
         section.top_margin = Cm(margins['top'])
         section.bottom_margin = Cm(margins['bottom'])
-        section.left_margin = Cm(margins['left'])
+        section.left_margin = Cm(eff_left)
         section.right_margin = Cm(margins['right'])
         if spec.header_distance is not None:
             section.header_distance = Cm(spec.header_distance)
         if spec.footer_distance is not None:
             section.footer_distance = Cm(spec.footer_distance)
-        # 装订线：写 pgMar/@w:gutter——Word 会把它额外加在**左**边距之外
-        if spec.gutter_cm:
-            pg_mar = section._sectPr.find(W('pgMar'))
-            if pg_mar is not None:
-                pg_mar.set(W('gutter'), str(int(Cm(spec.gutter_cm).twips)))
         # 文档网格：每页 N 行 → 每行占多少 twips，由版心高度除以行数算
         if spec.doc_grid_lines:
             # 注意：python-docx 里 Length - Length 会退化成 int，不能连着取 .twips
@@ -1998,16 +2002,18 @@ def generate_template(requirements_text, output_path, margins=None):
             grid.set(W('linePitch'), str(pitch))
         w_cm = round(pg_w.inches * 2.54, 1)
         h_cm = round(pg_h.inches * 2.54, 1)
-        content_w = round(w_cm - margins['left'] - margins['right'], 1)
+        content_w = round(w_cm - eff_left - margins['right'], 1)
         decor_cm = ''
         if spec.header_distance is not None or spec.footer_distance is not None:
             decor_cm = (f'，页眉距边界 {spec.header_distance}cm 页脚距边界 {spec.footer_distance}cm')
         extra = ''
+        left_note = ''
         if spec.gutter_cm:
             extra += f'，装订线 {spec.gutter_cm}cm'
+            left_note = f'（{margins["left"]}+装订线{spec.gutter_cm}）'
         if spec.doc_grid_lines:
             extra += f'，文档网格 每页 {spec.doc_grid_lines} 行'
-        print(f' ✓ 页面: {page_size} ({w_cm}×{h_cm}cm)，边距 上{margins["top"]}cm 下{margins["bottom"]}cm 左{margins["left"]}cm 右{margins["right"]}cm，内容宽 {content_w}cm{decor_cm}{extra}')
+        print(f' ✓ 页面: {page_size} ({w_cm}×{h_cm}cm)，边距 上{margins["top"]}cm 下{margins["bottom"]}cm 左{eff_left}cm{left_note} 右{margins["right"]}cm，内容宽 {content_w}cm{decor_cm}{extra}')
 
     try:
         doc.styles['Block Text']

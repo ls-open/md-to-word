@@ -338,13 +338,18 @@ def audit(docx: Path, req_path: Path) -> list:
                 problems.append(('纸张', f'要求 {spec.page_size}{want}，产物 {got}'))
         if spec.margins:
             pgmar = sect.find(W + 'pgMar')
+            # 「装订线」是折进**左**边距写的（理由见 generate_template 里那段注释：
+            # pandoc 算正文宽度不认 w:gutter，图片会压出右边距），故左边的期望值要加它。
+            expect = dict(spec.margins)
+            if spec.gutter_cm:
+                expect['left'] = expect['left'] + spec.gutter_cm
             for cn, en in (('上', 'top'), ('下', 'bottom'), ('左', 'left'), ('右', 'right')):
-                if en not in spec.margins:
+                if en not in expect:
                     continue
-                want_tw = int(round(spec.margins[en] * 567))   # cm → twips
+                want_tw = int(round(expect[en] * 567))   # cm → twips
                 got_tw = int(pgmar.get(W + en) or 0) if pgmar is not None else 0
                 if abs(got_tw - want_tw) > 2:                  # 容忍 2 twips 取整
-                    problems.append(('页边距', f'{cn}边：要求 {spec.margins[en]}cm({want_tw})，产物 {got_tw}'))
+                    problems.append(('页边距', f'{cn}边：要求 {expect[en]}cm({want_tw})，产物 {got_tw}'))
 
         # 页眉/页脚距边界（与页边距是 pgMar 上的两组属性，别混）
         for cn, attr, key in (('页眉', 'header', 'header_distance'), ('页脚', 'footer', 'footer_distance')):
