@@ -406,6 +406,13 @@ def write_para_props(ppr, props):
 
     if props.get('keep_next'):
         ensure_ordered_child(ppr, 'keepNext', _PPR_ORDER)
+    if props.get('keep_lines'):
+        ensure_ordered_child(ppr, 'keepLines', _PPR_ORDER)
+    if props.get('page_break_before'):
+        ensure_ordered_child(ppr, 'pageBreakBefore', _PPR_ORDER)
+    if props.get('widow_control') is not None:
+        wc = ensure_ordered_child(ppr, 'widowControl', _PPR_ORDER)
+        wc.set(W('val'), '1' if props['widow_control'] else '0')
 
     if props.get('no_border') or props.get('bottom_border') == 'none':
         p_bdr = ppr.find(W('pBdr'))
@@ -630,6 +637,12 @@ _CLAUSE_TABLE: list = [
     (_S, re.compile(r'点线制表位'), lambda p, m, d: _set_once(p, 'dot_leader_tab', True, '点线制表位', d)),
     (_S, re.compile(r'加入目录'), lambda p, m, d: _set_once(p, 'join_toc', True, '加入目录', d)),
     (_S, re.compile(r'与下段同页'), lambda p, m, d: _set_once(p, 'keep_next', True, '与下段同页', d)),
+    # 分页控制的另外三种（Word「段落 → 换行和分页」里的复选框）。
+    # 「段前分页」比手写 {{< pagebreak >}} 稳：内容增删后仍自动从新页开始，不用去挪标记。
+    (_S, re.compile(r'段中不分页'), lambda p, m, d: _set_once(p, 'keep_lines', True, '段中不分页', d)),
+    (_S, re.compile(r'段前分页'), lambda p, m, d: _set_once(p, 'page_break_before', True, '段前分页', d)),
+    (_S, re.compile(r'取消孤行控制'), lambda p, m, d: _set_once(p, 'widow_control', False, '孤行控制', d)),
+    (_S, re.compile(r'(?<!取消)孤行控制'), lambda p, m, d: _set_once(p, 'widow_control', True, '孤行控制', d)),
     (_S, re.compile(r'跨页重复'), lambda p, m, d: _set_once(p, 'repeat_header', True, '跨页重复', d)),
     (_T, re.compile(r'居中|左对齐|右对齐'),
      lambda p, m, d: _set_once(p, 'align', TABLE_ALIGN_MAP[m.group(0)], '表格对齐', d)),
@@ -718,7 +731,7 @@ def _consume(props, words, mode, name, desc, lineno):
 # 字体名是唯一的自由文本，靠位置定界：字号之前的词都是字体。若字号写丢了，
 # 退到第一个能认出的属性词之前。字体段里若混进属性词（如 `宋体小四` 忘了空格），直接报错。
 _CLAUSE_WORD_HINT = re.compile(
-    r'行距|段前|段后|缩进|加粗|倾斜|对齐|居中|边框|制表位|加入目录|与下段同页|跨页重复')
+    r'行距|段前|段后|缩进|加粗|倾斜|对齐|居中|边框|制表位|加入目录|与下段同页|跨页重复|段中不分页|段前分页|孤行控制')
 
 
 def _split_font(words, name, desc, lineno):
@@ -1704,7 +1717,8 @@ def _props_from_req(req, page_size, margins):
         'indent_unit': req.get('indent_unit', 'pt'),
     }
     for key in ('space_before', 'space_after', 'no_border', 'bottom_border',
-                'border_width_pt', 'left_indent_chars', 'char_spacing_pt'):
+                'border_width_pt', 'left_indent_chars', 'char_spacing_pt',
+                'keep_lines', 'page_break_before', 'widow_control'):
         if key in req:
             props[key] = req[key]
     if req.get('dot_leader_tab'):
