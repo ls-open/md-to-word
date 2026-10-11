@@ -134,56 +134,37 @@ def md_table_width_ratios(md_text: str):
 
 
 def apply_table_width(root, nsmap, ratios=None, skip_ids=()) -> int:
-    """分配列宽并让表格撑满版心 → 改动的表格数。
+    """只在用户显式写了列宽比例时才动表格 → 改动的表格数。
 
-    pandoc 给的是等宽列 + `tblW auto`（Word 按内容自适应）：内容短的表缩成窄窄
-    一条，列宽还与内容多少无关——短列空一大片，长列被挤到换行。这里按每列的最大
-    文字量分配 `gridCol`，`tblLayout` 钉成 fixed（不钉的话 Word 存盘时会按自己的
-    算法重算，我们设的列宽等于没设）。
+    **没写就完全不动**：pandoc 给什么就是什么（`tblW auto` + 等宽列，Word 自己
+    按内容排），表格该宽就宽、该窄就窄——让内容说话，不由我们替它做主。
 
-    `ratios` 是用户在 Markdown 分隔行里写下的列宽比例（见 md_table_width_ratios），
-    给了就听他的。总宽一律撑满版心。
+    写了（Markdown 分隔行的短横线长短不一，见 md_table_width_ratios）就按那个
+    比例分配列宽，并把表格铺满版心：既然作者在管这张表的列宽，就按版心铺开。
+
+    两个必须一起做的动作：
+    - 写 `gridCol`：pandoc 一律均分，与内容多少无关；
+    - 钉 `tblLayout=fixed`：不钉的话 Word 存盘时会按自己的算法重算，列宽等于没设。
     """
+    if not ratios or not any(r for r in ratios):
+        return 0
     text_w = _text_width_pt(root) * 20.0
     changed = 0
     idx = 0
     for tbl in root.xpath('//w:tbl', namespaces=nsmap):
         if id(tbl) in skip_ids:
             continue  # 公式三列网格表的列宽是算出来的，压扁了编号会折行
-        rows = tbl.xpath('./w:tr', namespaces=nsmap)
-        if not rows:
-            continue
-        widths: list[int] = []
-        for tr in rows:
-            for i, tc in enumerate(tr.xpath('./w:tc', namespaces=nsmap)):
-                u = _cell_units(tc)
-                if i >= len(widths):
-                    widths.append(u)
-                else:
-                    widths[i] = max(widths[i], u)
-        if not widths or sum(widths) == 0:
-            continue
-        # 用户用分隔行的短横线指定了比例就听他的，否则按各列文字量分配
-        given = ratios[idx] if ratios and idx < len(ratios) else None
-        raw = ([float(d) for d in given]
-               if given and len(given) == len(widths)
-               else [w / sum(widths) for w in widths])
-        floor = 0.05  # 每列至少 5%，免得某列被压到几乎看不见
-        raw = [max(r, floor) for r in raw]
-        share = [r / sum(raw) for r in raw]
-
-        total = text_w
-
-        grid = tbl.find(W('tblGrid'))
-        if grid is None:
-            continue
-        cols = grid.findall(W('gridCol'))
-        if len(cols) != len(share):
-            continue
+        cols = tbl.xpath('./w:tblGrid/w:gridCol', namespaces=nsmap)
+        if len(cols) < 2:
+            continue  # 图片包装表是单格表，没有列宽可言
+        given = ratios[idx] if idx < len(ratios) else None
         idx += 1
+        if not given or len(given) != len(cols):
+            continue  # 这张表作者没指定，保持原样
+        share = [max(float(d), 1.0) for d in given]
+        share = [x / sum(share) for x in share]
         for col, s in zip(cols, share):
-            col.set(W('w'), str(int(round(total * s))))
-
+            col.set(W('w'), str(int(round(text_w * s))))
         tbl_pr = tbl.find(W('tblPr'))
         if tbl_pr is None:
             continue
@@ -193,7 +174,7 @@ def apply_table_width(root, nsmap, ratios=None, skip_ids=()) -> int:
                 tbl_pr.remove(old)
         tw = etree.Element(W('tblW'))
         tw.set(W('type'), 'dxa')
-        tw.set(W('w'), str(int(round(total))))
+        tw.set(W('w'), str(int(round(text_w))))
         _put_ordered(tbl_pr, tw, 'tblW')
         layout = etree.Element(W('tblLayout'))
         layout.set(W('type'), 'fixed')
@@ -507,7 +488,7 @@ def fix_equations_in_xml(doc_xml_bytes: bytes, eq_number_style: str = 'asis',
                                   skip_ids={id(t) for t in created_tables})
 
     if tbl_count:
-        print(f"📏 调整 {tbl_count} 张表格的列宽（按各列文字量分配）")
+        print(f"📏 按稿件里写的比例调整 {tbl_count} 张表格的列宽")
     if modified_count > 0:
         print(f"✨ 成功优化 {modified_count} 个公式的排版（公式居中，编号靠右）")
     if ref_count:
