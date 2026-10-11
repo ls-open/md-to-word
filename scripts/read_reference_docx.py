@@ -162,6 +162,25 @@ class Ref:
                                                   or pick('hAnsi', 'hAnsiTheme'))
 
 
+def _content_width_twips(ref: Ref):
+    """正文可用宽度（twips），取自参考文件的正文节。取不全返回 None。
+
+    与写入侧 `generate_template._content_width_twips` 同一条公式（含减掉装订线）——
+    判断"这个制表位是不是落在版心右边界"要用它。
+    """
+    sect = ref.sect
+    if sect is None:
+        return None
+    sz, mar = sect.find(q('pgSz')), sect.find(q('pgMar'))
+    if sz is None or mar is None or not sz.get(q('w')):
+        return None
+
+    def tw(el, name, default=0):
+        v = el.get(q(name))
+        return int(v) if v is not None else default
+    return tw(sz, 'w') - tw(mar, 'left') - tw(mar, 'right') - tw(mar, 'gutter')
+
+
 def clauses_for(ref: Ref, sid: str) -> tuple:
     """把一份参考样式的生效属性翻译成本技能的子句串。→ (子句列表, 该样式的疑问)"""
     chain = ref.chain(sid)
@@ -230,23 +249,36 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
     twips_to_pt('after', 'afterLines', '段后')
 
     ind = ref.eff(chain, 'pPr/ind')
-    if ind is not None and ind.get(q('firstLineChars')):
+    # **悬挂缩进要先判**。写悬挂缩进时会同时写 `firstLineChars="0"` 去中和继承来的首行缩进
+    # （见 generate_template 的 _neutralize_inherited_first_line），而 `"0"` 是个真值字符串，
+    # 先判 firstLineChars 那一支就永远命中——实测写「悬挂缩进0.5英寸」读回来变成
+    # 「首行缩进0字符 左缩进3.4字符」，悬挂整个丢掉。
+    def ind_int(name):
+        return int(ind.get(q(name)) or 0) if ind is not None else 0
+
+    hang_chars, hang_tw = ind_int('hangingChars'), ind_int('hanging')
+    if hang_chars or hang_tw:
+        if hang_chars:
+            doubt.append('悬挂缩进原文件用「字符」为单位，本技能只支持英寸，已换算')
+            out.append(f'悬挂缩进{hang_chars / 100:g}字符')
+        else:
+            out.append(f'悬挂缩进{hang_tw / 1440:g}英寸')
+    elif ind is not None and ind.get(q('firstLineChars')):
         out.append(f'首行缩进{int(ind.get(q("firstLineChars"))) / 100:g}字符')
     elif ind is not None and ind.get(q('firstLine')):
         out.append(f'首行缩进{int(ind.get(q("firstLine"))) / 1440:g}英寸')
-    elif ind is not None and ind.get(q('hangingChars')):
-        doubt.append('悬挂缩进原文件用「字符」为单位，本技能只支持英寸，已换算')
-        out.append(f'悬挂缩进{int(ind.get(q("hangingChars"))) / 100:g}字符')
-    elif ind is not None and ind.get(q('hanging')):
-        out.append(f'悬挂缩进{int(ind.get(q("hanging"))) / 1440:g}英寸')
     else:
         out.append('首行缩进0字符')
-    if ind is not None and ind.get(q('leftChars')):
-        out.append(f'左缩进{int(ind.get(q("leftChars"))) / 100:g}字符')
-    elif ind is not None and ind.get(q('left')):
+    # 悬挂缩进在 Word 里就写作 `left` + `hanging` 一对（生成器也是这么写的：两者取同一个值）。
+    # 左缩进等于悬挂值时，它是悬挂缩进的另一半，不是独立的左缩进——重复报出来会让草稿多一条
+    # 本来就由悬挂缩进决定的值（读回来是「悬挂缩进0.5英寸 左缩进3.4字符」）。
+    left_chars, left_tw = ind_int('leftChars'), ind_int('left')
+    if left_chars and left_chars != hang_chars:
+        out.append(f'左缩进{left_chars / 100:g}字符')
+    elif left_tw and left_tw != hang_tw:
         doubt.append('左缩进原文件用绝对值（磅）而非「字符」，本技能只支持字符，已按字号折算')
         base = int(sz.get(q('val'))) / 2 if sz is not None else 12
-        out.append(f'左缩进{round(int(ind.get(q("left"))) / 20 / base, 1):g}字符')
+        out.append(f'左缩进{round(left_tw / 20 / base, 1):g}字符')
 
     # 段落下边框：底模自带下边框（如 Word 的 Title）时，参考文件没写就得**显式去掉**
     # ——但底模本来就没有的样式不必挂一句多余的「无边框」（对参考文件不忠实）
@@ -264,6 +296,28 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         out.append('无边框' if kind == '无' else f'下边框{kind}')
         if kind != '无' and bottom.get(q('sz')):
             out.append(f'边框粗{int(bottom.get(q("sz"))) / 8:g}磅')
+
+    # 制表位：本技能只能声明**一种**（`点线制表位`，右对齐 + 点线、落在版心右边界，
+    # 目录条目靠它顶页码）。参考文件里别的制表位表达不了——**要说出来**，不能静默丢：
+    # 用户拿学校模板来读，草稿少一条却毫无提示，正是这个技能一直在防的那种失败。
+    tabs = ref.eff(chain, 'pPr/tabs')
+    tab_list = tabs.findall(q('tab')) if tabs is not None else []
+    if tab_list:
+        cw = _content_width_twips(ref)
+        t0 = tab_list[0]
+        canonical = (len(tab_list) == 1 and t0.get(q('val')) == 'right'
+                     and t0.get(q('leader')) == 'dot'
+                     and cw is not None and abs(int(t0.get(q('pos')) or 0) - cw) <= 20)
+        if canonical:
+            out.append('点线制表位')
+        else:
+            where = '、'.join(f"{t.get(q('val')) or 'left'} "
+                              f"{int(t.get(q('pos')) or 0) / TWIPS_PER_CM:.2f}cm"
+                              f"{'点线' if t.get(q('leader')) == 'dot' else ''}"
+                              for t in tab_list)
+            doubt.append(f'用了 {len(tab_list)} 个制表位（{where}）——本技能的 `点线制表位` 只能'
+                         f'表达「右对齐 + 点线 + 落在版心右边界」那一种，其余的草稿里没法表达，'
+                         f'需要在 Word 里手工设（任意制表位见 reference.md §1.4）')
 
     # 字符间距（Word「字体 → 高级 → 字符间距」）：rPr/spacing 的 val 是二十分之一磅。
     # 注意别拿成 pPr/spacing——那是行距，同名不同容器（`.//` 会先撞上 pPr 那个）。
