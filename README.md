@@ -102,7 +102,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 除上面那份最小样例外，仓库还内置**两套完整样例**，均基于 md-to-word 本身的设计原理与工程实践撰写，真正实现“以身说法”：
 
 ### 样例一：中文硕博学位论文 / 核心期刊（全要素学术排版）
-> 前置独立小写罗马页码（`i, ii`）、Word 原生动态目录、双线动态章名页眉、三线表跨页重复表头、带编号公式绝对居中靠右、GB/T 7714-2015 顺序编码文献。
+> 前置独立小写罗马页码（`i, ii`）、Word 原生动态目录（收到二级）、双线动态章名页眉、**三线表跨页时自动重现表头**、公式按章编号（`(2.1)`）且绝对居中靠右、GB/T 7714-2015 顺序编码文献。
 
 📁 源码、格式规则与一键复现命令 → **[demo/01_chinese_thesis](demo/01_chinese_thesis/README.md)**
 
@@ -110,9 +110,9 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 | :---: | :---: | :---: |
 | ![论文开篇](demo/01_chinese_thesis/page-1.png) | ![论文目录](demo/01_chinese_thesis/page-2.png) | ![正文图表](demo/01_chinese_thesis/page-3.png) |
 
-| 公式居中编号靠右与门禁流程图 | 规范学术三线表与 GB/T 7714 参考文献 |
+| 公式按章编号与质量门禁流程 | **表跨页后自动重现表头**与国标参考文献 |
 | :---: | :---: |
-| ![公式与门禁流程图](demo/01_chinese_thesis/page-4.png) | ![三线表与尾页](demo/01_chinese_thesis/page-5.png) |
+| ![公式与门禁流程图](demo/01_chinese_thesis/page-4.png) | ![跨页重复表头](demo/01_chinese_thesis/page-6.png) |
 
 ---
 

@@ -98,7 +98,7 @@ This skill is tuned for **AI agents** — you never touch a terminal; hand the r
 Besides the minimal sample above, the repository bundles **two complete demos**, both written about md-to-word's engineering principles and benchmarks, demonstrating real-world formatting performance:
 
 ### Showcase 1: Academic Thesis & Journal Paper (Full Elements)
-> Independent lowercase Roman front-matter page numbers (`i, ii`), native dynamic TOC, dual-line chapter headers, three-line tables with repeating headers, centered equations with right-aligned numbering, and GB/T 7714-2015 numeric citations.
+> Independent lowercase Roman front-matter page numbers (`i, ii`), a native dynamic TOC (down to level 2), dual-line chapter headers, **a three-line table whose header row repeats when it spans pages**, chapter-scoped equation numbers (`(2.1)`) centred with the number hard right, and GB/T 7714-2015 numeric citations.
 
 📁 Source, formatting rules and one-command reproduction → **[demo/01_chinese_thesis](demo/01_chinese_thesis/README.md)**
 
@@ -108,7 +108,7 @@ Besides the minimal sample above, the repository bundles **two complete demos**,
 
 | Centered Math Equations & Convergence Chart | Three-Line Academic Table & GB/T 7714 References |
 | :---: | :---: |
-| ![Math and Convergence](demo/01_chinese_thesis/page-4.png) | ![Table and Bibliography](demo/01_chinese_thesis/page-5.png) |
+| ![Equation and QA Pipeline](demo/01_chinese_thesis/page-4.png) | ![Header Row Repeating Across Pages](demo/01_chinese_thesis/page-6.png) |
 
 ---
 
