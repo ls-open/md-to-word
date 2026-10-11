@@ -98,7 +98,7 @@ This skill is tuned for **AI agents** — you never touch a terminal; hand the r
 Besides the minimal sample above, the repository bundles **two complete demos**, both written about md-to-word's engineering principles and benchmarks, demonstrating real-world formatting performance:
 
 ### Showcase 1: Academic Thesis & Journal Paper (Full Elements)
-> Independent lowercase Roman front-matter page numbers (`i, ii`), a native dynamic TOC (down to level 2), dual-line chapter headers, **a three-line table whose header row repeats when it spans pages**, chapter-scoped equation numbers (`(2.1)`) centred with the number hard right, and GB/T 7714-2015 numeric citations.
+> Independent lowercase Roman front-matter page numbers (`i, ii`), a native dynamic TOC (down to level 2), dual-line chapter headers, **a three-line table whose header row repeats when it spans pages**, chapter-scoped equation numbers (`（2-1）`, the CJK thesis form) centred with the number hard right, and GB/T 7714-2015 numeric citations.
 
 📁 Source, formatting rules and one-command reproduction → **[demo/01_chinese_thesis](demo/01_chinese_thesis/README.md)**
 
@@ -147,6 +147,8 @@ Ground rules: every tool is judged on its **default output** (no custom template
 | Failure mode: error, or silent drift? | ⚠️ Mostly silent | ⚠️ Mostly silent | ❌ Eyes only | Pre-flight check, reported by line number |
 | Quality gates before delivery | ❌ | ❌ | ❌ | Three: pre-flight / number diff / item-by-item audit |
 
+> **Not listed in the table above** — footnotes (`[^1]`), odd/even and first-page headers and footers plus the `{总页数}` field, four table border styles (three-line / full grid / top-and-bottom / none), using an existing `.docx` as the base template (`-t`), and stripping HTML comments from the manuscript before export (`--strip-comments`).
+>
 > The ✅ marks under Pandoc and Quarto are **honest** — repeating header rows and citeproc bibliographies, for instance, do come out of the box. The value here isn't that others *can't*; it's that a single `requirements.txt` settles **all of it at once**, with no base-template surgery, no XML, and no per-paragraph clicking.
 
 ---
