@@ -126,6 +126,10 @@ _SHORTCODE_MARKERS = {
     "toc": (TOC_MARKER_RE, "目录"),
     "section": (_SECTION_RE, "分节"),
 }
+_CROSSREF_LABEL_RE = re.compile(r"\{#(?P<kind>eq|fig|tbl)-")
+# crossref 标签种类 → YAML 里对应的前缀字段
+CROSSREF_PREFIX_FIELDS = {"eq": "eq-prefix", "fig": "fig-prefix", "tbl": "tbl-prefix"}
+_CJK_RE = re.compile(r"[㐀-鿿豈-﫿]")
 _SHORTCODE_RE = re.compile(r"\{\{<\s*([A-Za-z][\w-]*)")
 _DIV_OPEN_RE = re.compile(r"^\s*:::\s*\{.*\}\s*$")
 _TABLE_ROW_RE = re.compile(r"^\s*\|")
@@ -208,6 +212,65 @@ def block_marker_issues(text: str) -> list:
         elif _TABLE_ROW_RE.match(line) and not (i and _TABLE_ROW_RE.match(lines[i - 1])):
             if before_glued(i):
                 issues.append((no, "表格首行前无空行"))
+    return issues
+
+
+def section_pagebreak_issues(text: str) -> list[tuple[int, str]]:
+    """`{{< section … >}}` 后面紧跟 `{{< pagebreak >}}` → [(行号, 说明)]。
+
+    分节标记底层已自带「下一页」分节符，后面再加一个分页符会多顶出一页
+    （实测：论文样例 5 页 → 6 页）。**只查这一个方向**——反过来（分页符写在
+    分节标记之前）实测不产生多余页，5 页仍是 5 页，所以不报。
+    """
+    if not text:
+        return []
+    lines = mask_code_fences(text).split("\n")
+    issues: list[tuple[int, str]] = []
+    for i, line in enumerate(lines):
+        if not _SECTION_RE.match(line):
+            continue
+        for j in range(i + 1, len(lines)):
+            if not lines[j].strip():
+                continue
+            if _PAGEBREAK_RE.match(lines[j]):
+                issues.append((j + 1, f"分节标记（行 {i + 1}）之后紧跟分页短代码，会多顶出一页"))
+            break
+    return issues
+
+
+def crossref_prefix_issues(text: str, fm_data) -> list[tuple[int, str]]:
+    """中文稿件用了交叉引用标签、YAML 却没设中文字前缀 → [(行号, 说明)]。
+
+    不设前缀时 Quarto 渲染成 `Equation 1` / `Figure 1`，与正文中文混排。
+    判定条件都是硬事实，不做任何猜测：**正文含中日韩字符** + **出现 `{#eq-/fig-/tbl-}` 标签**
+    + **该标签在 YAML `crossref:` 下没有对应前缀**。三样都成立才报。
+
+    想要英文前缀就在 YAML 里显式写明（`eq-prefix: "Equation"`），一样能过。
+    """
+    if not text:
+        return []
+    body_lines = mask_code_fences(text).split("\n")
+    crossref = {}
+    if isinstance(fm_data, dict):
+        raw = fm_data.get("crossref")
+        if isinstance(raw, dict):
+            crossref = raw
+
+    issues: list[tuple[int, str]] = []
+    reported: set[str] = set()
+    for i, line in enumerate(body_lines):
+        for m in _CROSSREF_LABEL_RE.finditer(line):
+            kind = m.group("kind")
+            if kind in reported or CROSSREF_PREFIX_FIELDS[kind] in crossref:
+                continue
+            if not _CJK_RE.search(text):
+                continue  # 非中文稿件保持 Quarto 默认，不算问题
+            reported.add(kind)
+            issues.append((
+                i + 1,
+                f"中文稿件用了 {kind} 交叉引用（{m.group(0)}…），"
+                f"但 YAML 的 crossref 下没写 {CROSSREF_PREFIX_FIELDS[kind]}",
+            ))
     return issues
 
 

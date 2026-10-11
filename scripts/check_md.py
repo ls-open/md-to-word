@@ -35,10 +35,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from skill_utils import (  # noqa: E402
     block_marker_issues,
     configure_logging,
+    crossref_prefix_issues,
     get_logger,
     heading_and_div_issues,
     mask_code_fences,
     resolve_manuscript_path,
+    section_pagebreak_issues,
     split_frontmatter,
     unknown_shortcode_issues,
 )
@@ -403,6 +405,30 @@ def main():
         for line_no, why in hd_issues:
             print(f' ⚠ 行 {line_no}: {why}')
             problems += 1
+
+    # ── 5e. 分节标记后紧跟分页符（多顶出一页）──
+    sp_issues = section_pagebreak_issues(md_text)
+    if sp_issues:
+        print('\n[分节与分页] 分节标记之后又写了分页短代码（会多出一页空白）:')
+        for line_no, why in sp_issues:
+            print(f' ⚠ 行 {line_no}: {why}')
+            problems += 1
+        print(' 分节标记底层已自带「下一页」分节符，删掉它后面的 {{< pagebreak >}} 即可。')
+        print(' （写在分节标记**之前**不产生多余页，不必改）')
+
+    # ── 5f. 中文稿件没设交叉引用前缀（会渲染成 Equation 1）──
+    cr_issues = crossref_prefix_issues(md_text, fm_data)
+    if cr_issues:
+        print('\n[交叉引用] 中文稿件用了交叉引用标签，但 YAML 没设中文字前缀（会渲染成中英混排）:')
+        for line_no, why in cr_issues:
+            print(f' ⚠ 行 {line_no}: {why}')
+            problems += 1
+        print(' 在 YAML 里补上，例如：')
+        print('   crossref:')
+        print('     eq-prefix: "式"')
+        print('     fig-prefix: "图"')
+        print('     tbl-prefix: "表"')
+        print(' （想用英文前缀就显式写 "Equation"/"Figure"/"Table"）')
 
     # ── 6. 公式编号写法检查（\tag{} 不是 Pandoc 语法）──
     tag_issues = check_latex_tag(md_text)
