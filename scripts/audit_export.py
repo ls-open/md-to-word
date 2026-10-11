@@ -29,8 +29,7 @@ from generate_template import (ALIGN_VAL, BOTTOM_BORDER_STYLE, CJK_FONTS,
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 
-# 纸张与对齐表都从生成器 import：同一件事不在这里再写一份（原先各写一遍，
-# 改纸张或加对齐写法时要记得改两处）。
+# 纸张与对齐表都从生成器 import：同一件事不写两份——写两份，改一处就会漏另一处。
 
 
 

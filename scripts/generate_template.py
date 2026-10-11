@@ -188,8 +188,8 @@ _RE_DECOR_TOKEN = re.compile(r'\{([^{}]*)\}')
 _RE_STYLEREF = re.compile(r'^样式标题\s*[:：]\s*(.+?)\s*$')
 
 # ── 对齐方式（唯一写法：居中/左对齐/右对齐/两端对齐）──
-# **唯一一张表**：中文写法 → (python-docx 枚举, OOXML 值)。下面两个视图都是派生的——
-# 原先枚举表、OOXML 表、表格行子集、以及 audit_export 里那份，是四张各写一遍的表。
+# **唯一一张表**：中文写法 → (python-docx 枚举, OOXML 值)。下面两个视图与
+# audit_export 里那份都从这里派生，不再各写一遍。
 _ALIGN = {
     '居中': (WD_ALIGN_PARAGRAPH.CENTER, 'center'),
     '左对齐': (WD_ALIGN_PARAGRAPH.LEFT, 'left'),
@@ -673,8 +673,7 @@ _CLAUSE_TABLE: list = [
     (_S, re.compile(r'边框粗(?P<v>\d+(?:\.\d+)?)磅'),
      lambda p, m, d: _set_once(p, 'border_width_pt', float(m.group('v')), '边框粗', d)),
     # 字符间距（Word「字体 → 高级 → 字符间距」）。正数加宽、负数紧缩，单位磅。
-    # rPr/spacing 的 val 是二十分之一磅，所以乘 20。原先这段代码只**清除**底模残留的
-    # spacing，从没给过设置入口——文档里也因此把它列进了「不支持」，其实一直是能做的。
+    # rPr/spacing 的 val 是二十分之一磅，所以乘 20。
     (_S, re.compile(r'字距(?P<v>-?\d+(?:\.\d+)?)磅'),
      lambda p, m, d: _set_once(p, 'char_spacing_pt', float(m.group('v')), '字距', d)),
     (_S, re.compile(r'点线制表位'), lambda p, m, d: _set_once(p, 'dot_leader_tab', True, '点线制表位', d)),
@@ -2056,8 +2055,8 @@ def generate_template(requirements_text, output_path, margins=None):
     doc.save(output_path)
 
     # 保存后重新打包：只做一件事——清除 styles.xml 里的全部主题字体/颜色属性。
-    # settings.xml 不在这里动：compatMode 与 mathPr 由底模写好，这里"再注入一遍"是
-    # 同一个事实写两处（原先确实如此，已删）。
+    # settings.xml 不在这里动：compatMode 与 mathPr 由底模写好，再注入一遍就是
+    # 同一个事实写两处。
     try:
         import zipfile
         with zipfile.ZipFile(output_path, 'r') as zin:

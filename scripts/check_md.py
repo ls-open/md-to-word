@@ -85,10 +85,10 @@ def extract_custom_styles(md_text):
 def parse_yaml(md_text):
     """解析 YAML 前置区为 dict。
 
-    走 PyYAML `safe_load` + `skill_utils.split_frontmatter`（BOM/CRLF/EOF 兼容），
-    取代旧版手写正则 `re.match(r'^(\\w[\\w-]*):\\s*(.*)$', line)` —— 后者把
-    嵌套/块标量/带特殊字符的 YAML 静默吞掉，是 BUG-4（YAML 损坏导致 docx
-    标题缺失 + 损坏行泄漏到正文）的根因。
+    走 PyYAML `safe_load` + `skill_utils.split_frontmatter`（BOM/CRLF/EOF 兼容）。
+    **别退回手写正则**：`^(\\w[\\w-]*):\\s*(.*)$` 这类写法会把嵌套映射、块标量、
+    带特殊字符的值静默吞掉；YAML 一坏，Quarto 就当正文渲染，docx 表现为标题缺失
+    加损坏行泄漏到正文。
 
     无 frontmatter 时返回 `{}`；frontmatter 存在但 YAML 非法抛 `yaml.YAMLError`
     由调用方捕获并计入 problems，使 export.sh 的 check_md 预检能阻断后续 Quarto 编译，
@@ -96,8 +96,8 @@ def parse_yaml(md_text):
 
     触发 `yaml.YAMLError` 的三种情形：
       1. PyYAML 解析器报错（缺引号、缩进错、重复文档分隔符等）
-      2. frontmatter 文本解析为非 dict（如裸字符串 `title "no colon"` —
-         BUG-4 原始触发；或裸列表）—— Pandoc 期望键值对，非 dict 视为损坏
+      2. frontmatter 文本解析为非 dict（如裸字符串 `title "no colon"`，或裸列表）
+         —— Pandoc 期望键值对，非 dict 视为损坏
       3. frontmatter 文本为空（仅有 `---` 边界，无内容）—— 不算错误，返回 `{}`
     """
     fm_text, _ = split_frontmatter(md_text)
@@ -338,8 +338,8 @@ def main():
     logger.info('─' * 50)
 
     # ── 1. YAML 路径检查 ──
-    # 损坏 YAML 必须计入 problems（→ exit 1 → export.sh 阻断），
-    # 不能像旧版那样 silent skip：Quarto 会把损坏行当正文，docx 静默损坏（BUG-4 根因）。
+    # 损坏 YAML 必须计入 problems（→ exit 1 → export.sh 阻断）：Quarto 会把损坏行
+    # 当正文渲染，docx 静默损坏——标题缺失、损坏行泄漏到正文。
     fm_data = None
     try:
         fm_data = parse_yaml(md_text)
@@ -500,8 +500,8 @@ def main():
             else:
                 names, ids = get_template_styles(args.template)
                 if names is None:
-                    # 模板明确给了却读不出：这是「能确定」的事，必须拦。原先只打一行「未校验模板」
-                    # 就放行，与上面「模板不存在」的分支自相矛盾——两者都是模板不可用。
+                    # 模板明确给了却读不出 → 拦。与上面「模板不存在」同为模板不可用，
+                    # 两者都该是硬失败。
                     print(f' ⚠ 模板存在但读不出样式表: {args.template}')
                     print(f'   以下 {len(styles_used)} 个 custom-style 无法校验'
                           f'（Quarto 遇到模板里没有的样式会静默建空壳，格式不生效）:')
