@@ -55,6 +55,42 @@ bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
 
 Two-character first-line indent, Times New Roman for Latin, a three-line table with caption and note — **none of it clicked together by hand**.
 
+### Reading that `requirements.txt`
+
+It is the skill's only user-facing language, and it holds two kinds of lines:
+
+- a **document setting** — `<key>：<value>`, e.g. page size, margins, page numbering;
+- a **style definition** — `<style name>：<font> <size> <attributes…>`, one line per Word style.
+
+A line whose **first character** is `#` is a comment (useful for recording where a rule came
+from). An inline `#` is *not* a comment — it is an unknown word and gets rejected, like any
+other typo.
+
+Here is [`demo/00_quickstart/requirements.txt`](demo/00_quickstart/requirements.txt), all 16
+lines, glossed:
+
+| Line as written | What it says |
+|:--|:--|
+| `纸张：A4` | Paper size — `A4` or `Letter` (A4 if omitted) |
+| `页边距：上2.54cm 下2.54cm 左2.54cm 右2.54cm` | Margins — top / bottom / left / right. All four required, cm only |
+| `西文字体：Times New Roman` | Global Latin font, used by any style that does not name its own |
+| `校对语言：zh-CN` | Proofing language — without it Word flags the whole document as misspelled |
+| `文档标题：黑体/Times New Roman 二号 加粗 不倾斜 居中 行距1.5倍 段前0磅 段后12磅 首行缩进0字符 无边框` | **Title**: Chinese / Latin font, `二号` (22pt), **bold**, *not* italic, centered, 1.5× line spacing, 0pt before / 12pt after, 0 first-line indent, no border |
+| `一级标题：… 与下段同页` | **Heading 1** — same field order, ending in "keep with next paragraph" |
+| `正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符` | **Body Text**: SimSun / Times New Roman, `小四` (12pt), **not** bold, **not** italic, justified, 1.5× spacing, 0pt/0pt, 2-character first-line indent |
+| `首段：…` | **First Paragraph** — the paragraph right after a heading; spelled out in full, same as Body Text here |
+| `普通：…` | **Normal** — the inheritance root; must be spelled out or the base template's values propagate to every style derived from it |
+| `紧凑：宋体/Times New Roman 五号 … 行距1.0倍 段前0磅 段后0磅 首行缩进0字符` | **Compact** — every table cell *and* every Markdown list item: one size down (`五号` = 10.5pt), single spacing, no indent |
+| `表格：居中 三线表 线宽上1.5磅 线宽底1.5磅 线宽表头下0.75磅 单元格垂直居中` | **Table**: centered, three-line layout, 1.5pt top and bottom rules, 0.75pt under the header row, cells vertically centered |
+| `表头：… 跨页重复` | **Header row** — its own font/size/bold, plus "repeat on every page" |
+| `表格题注：…` / `表注：…` | **Table Caption** / **Table Note** |
+
+**Every attribute has exactly one accepted spelling.** Anything outside the vocabulary is a
+hard error that names the line, the word and the expected form — never a silent fallback to
+some default. That is the whole point: a rule that is *written but ignored* produces a
+document that looks fine and is wrong. The complete vocabulary is
+[`references/reference.md §1.5`](references/reference.md).
+
 ## 📄 Already have a template? (from your school, journal, or employer)
 
 No need to transcribe its formatting by hand. Hand the `.docx` to your assistant and have it reverse-engineer a `requirements.txt` draft:
