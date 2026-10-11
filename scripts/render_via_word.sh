@@ -59,7 +59,7 @@ trap cleanup EXIT INT TERM HUP QUIT
 cp "$IN_ABS" "$CIN"
 rm -f "$COUT"
 
-# 「打开 → 重排版 → 另存 PDF → 关闭」。save as 是另存，**不改动原 docx**。
+# 「打开 → 重排版 → 更新域 → 另存 PDF → 关闭」。save as 是另存，**不改动原 docx**。
 # with timeout：osascript 平时会一直等 Word 应答；Word 一旦弹出任何模态框
 # （首次运行、登录、恢复文档、宏安全提示），这里就**永久挂死**，无人值守时
 # 整条流水线卡住。给 Apple 事件加超时，超时即报错退出，由调用方处置。
@@ -70,7 +70,20 @@ on run argv
     set inName to item 3 of argv
     with timeout of 180 seconds
         tell application "Microsoft Word"
-            set d to open file name inPath with read only
+            -- **必须读写打开**。实测 Word 在 `with read only` 下不执行域更新：
+            -- update 调用照样返回成功，结果却纹丝不动（目录页码全停在 1）。
+            -- 这里打开的是容器里的中转副本（CIN），退出时由 trap 清掉，
+            -- 传出去的 PDF 走 save as 另存，用户拿到的 .docx 一个字都不会变。
+            set d to open file name inPath
+            repaginate d
+            -- 更新域：目录页码与页眉的 STYLEREF 都要 Word 现算。
+            -- **光 repaginate 不够**——它只重算分页，不动域里已存的结果，目录页码会停在
+            -- 插入域那一刻的值（实测：四章全写「1」）。这份 PDF 存在的意义就是核对目录/
+            -- 页眉这类动态域，域没更新等于没核对。
+            -- 用 `update field (every field of d)` 而不是 `update toc`：我们的目录域生在
+            -- pandoc 的 <w:sdt> 内容控件里，Word 不把它归入 table of contents 集合
+            -- （实测 TOC 个数=0），只有按 field 逐个更新才够得着。
+            update field (every field of d)
             repaginate d
             save as d file name outPath file format format PDF
             -- save as 成 PDF 之后，原来的文档引用会失效，close d 会报 -1708；
