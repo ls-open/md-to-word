@@ -173,6 +173,37 @@ def _separator_paragraph():
     return sep
 
 
+_EQ_REF_TAIL = re.compile(r'(\d+(?:\.\d+)?)\s*$')
+_XML_SPACE = '{http://www.w3.org/XML/1998/namespace}space'
+
+
+def rewrite_eq_references(root, nsmap) -> int:
+    """把正文里的公式交叉引用改成与编号一致的 CJK 写法 → 改写条数。
+
+    公式**旁边**的编号由 fix_equations_in_xml 改成 `（2-1）`；正文里**引用**它的地方
+    是 Quarto 生成的超链接（`w:hyperlink w:anchor="eq-xxx"`），显示文字「式 2.1」是
+    普通文本——不跟着改，一份文档里就会同时出现 `（2-1）` 和 `式 2.1`。
+
+    只动锚点以 `eq-` 开头的超链接，所以不会误伤别的文字（靠锚点认，不靠正则猜）。
+    """
+    changed = 0
+    for hl in root.xpath('//w:hyperlink[starts-with(@w:anchor, "eq-")]', namespaces=nsmap):
+        ts = hl.xpath('.//w:t', namespaces=nsmap)
+        if not ts:
+            continue
+        text = ''.join(t.text or '' for t in ts)
+        m = _EQ_REF_TAIL.search(text)
+        if not m:
+            continue
+        # 「式 2.1」→「式（2-1）」：编号换写法，前缀与编号之间的空格按中文惯例去掉
+        ts[0].text = text[:m.start()].rstrip() + '（' + m.group(1).replace('.', '-') + '）'
+        ts[0].set(_XML_SPACE, 'preserve')
+        for t in ts[1:]:
+            t.text = ''
+        changed += 1
+    return changed
+
+
 def fix_equations_in_xml(doc_xml_bytes: bytes, eq_number_style: str = 'asis') -> bytes:
     root = etree.fromstring(doc_xml_bytes)
     nsmap = {'w': NS_W, 'm': NS_M}
@@ -346,8 +377,13 @@ def fix_equations_in_xml(doc_xml_bytes: bytes, eq_number_style: str = 'asis') ->
 
     merged_count = merge_adjacent_equation_tables(created_tables, nsmap)
 
+    # CJK 编号还要把正文里的引用一起改，否则一份文档里会同时出现 （2-1） 与 式 2.1
+    ref_count = rewrite_eq_references(root, nsmap) if eq_number_style == 'cjk' else 0
+
     if modified_count > 0:
         print(f"✨ 成功优化 {modified_count} 个公式的排版（公式居中，编号靠右）")
+    if ref_count:
+        print(f"🔗 同步改写 {ref_count} 处正文公式引用为 CJK 编号写法")
     if merged_count:
         print(f"📐 合并 {merged_count} 处相邻公式表（相邻 w:tbl 本就是一表多行，"
               f"显式并好以免 Word 存盘时替我们改写）")
