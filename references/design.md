@@ -207,8 +207,8 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 ### 2.5 图片宽度被截断为 14.82cm
 
 症状：MD 中写 `{width=15cm}`，导出后图片实际宽度只有 14.817cm。
-原因：模板的 sectPr 中缺少 `pgSz` 或 `pgMar`，Pandoc 算不出内容宽度，回退到 420pt（≈14.817cm）。
-解决：用最新版 `generate_template.py` 重新生成模板（页面尺寸由 requirements 的 `纸张：A4|Letter` 行设定），脚本会自动写入 pgSz + pgMar（2.54cm 边距）。旧模板也可在 Word 中手动设置页面尺寸和页边距。
+原因与解决见 §1.5——模板 sectPr 缺 `pgSz`/`pgMar` 时 Pandoc 回退到 420pt；用
+`generate_template.py` 重新生成模板即可（它按 requirements 的 `纸张：` 行写入这两个元素）。
 
 ### 2.6 图片因文件名空格无法加载
 
