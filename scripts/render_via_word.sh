@@ -86,21 +86,31 @@ on run argv
             update field (every field of d)
             repaginate d
             save as d file name outPath file format format PDF
-            -- save as 成 PDF 之后，原来的文档引用会失效，close d 会报 -1708；
-            -- 按名字找回并关闭，找不到就算了（不能 close every document——那会关掉
-            -- 用户自己开着的其它文档）。
-            try
-                close d saving no
-            on error
+
+            -- 关闭这次打开的文档窗口。
+            -- **必须重试**：save as 刚返回时 Word 还在收尾，此刻访问 documents 会随机
+            -- 抛 -1708（实测：不 delay 直接 repeat 就报「every document 不理解 count」）。
+            -- 原先是 try 一包了事，抛错被静默吞掉，文档窗口就留在屏幕上——连续渲染几次
+            -- 用户屏幕上会攒出一排打开的 Word 窗口。
+            -- 关不掉就复核一次：名字还在说明没关成，隔一秒再来；最多三轮。
+            repeat 3 times
+                delay 1
+                try
+                    close d saving no
+                end try
+                set remaining to 0
                 try
                     repeat with doc in documents
                         if (name of doc as text) contains inName then
-                            close doc saving no
-                            exit repeat
+                            set remaining to remaining + 1
                         end if
                     end repeat
+                on error
+                    -- 读不到文档列表时不敢断定已关掉，再来一轮
+                    set remaining to 1
                 end try
-            end try
+                if remaining is 0 then exit repeat
+            end repeat
         end tell
     end timeout
     return "OK"
