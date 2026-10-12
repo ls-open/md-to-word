@@ -226,6 +226,15 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 ---
 
+## 🤝 推荐上游生态与联动
+
+本项目专注于下游确定性 Word 排版与格式交付，推荐配合以下优秀的学术研究与论文写作 Agent 框架联动使用：
+
+* **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**：由 [@Imbad0202](https://github.com/Imbad0202) 开源的 5 阶段学术研究与论文写作全流程框架。在 Stage 5 (FINALIZE) 产出 Markdown 草稿与参考文献后，可无缝对接 `md-to-word` 直出符合规范的 Word（`.docx`）文档。
+* **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)**：由 [@Yuan1z0825](https://github.com/Yuan1z0825) 开源的高影响力学术论文写作 Agent 技能集，覆盖深度文献综述、实验论证与草稿生成。
+
+---
+
 ## 📄 开源协议
 
 本项目基于 [MIT License](LICENSE) 开源。

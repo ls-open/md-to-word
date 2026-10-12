@@ -237,6 +237,15 @@ Running this skill requires only two lightweight prerequisites:
 
 ---
 
+## 🤝 Recommended Upstream Ecosystem & Workflows
+
+`md-to-word` focuses on deterministic downstream Word layout and delivery. We enthusiastically recommend pairing it with upstream academic research agent frameworks:
+
+* **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**: A comprehensive 5-stage academic research pipeline by [@Imbad0202](https://github.com/Imbad0202). When Stage 5 (FINALIZE) produces manuscript Markdown and bibliographies, `md-to-word` seamlessly handles deterministic `.docx` typesetting.
+* **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)**: A high-impact academic paper crafting skill suite by [@Yuan1z0825](https://github.com/Yuan1z0825).
+
+---
+
 ## 📄 License
 
 Open-sourced under the [MIT License](LICENSE).
