@@ -11,6 +11,7 @@ import logging
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 from lxml import etree
 
 # ══════════════════════════════════════════════════════════════════════
@@ -438,7 +439,7 @@ def heading_and_div_issues(text: str) -> list[tuple[int, str]]:
 def resolve_manuscript_path(
     value: str,
     md_path: Path,
-    skill_csl_dir: Path | None = None,
+    skill_csl_dir: Optional[Path] = None,
 ) -> tuple[Path, str]:
     """解析稿件 YAML 里的路径值（csl / bibliography），返回 (解析到的路径, 命中的写法)。
 

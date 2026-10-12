@@ -19,6 +19,7 @@ import sys
 import zipfile
 from collections import Counter
 from pathlib import Path
+from typing import Optional
 from lxml import etree
 
 _SKILL_DIR = Path(__file__).resolve().parent
@@ -40,7 +41,7 @@ def W(tag): return f'{{{NS_W}}}{tag}'
 def M(tag): return f'{{{NS_M}}}{tag}'
 
 
-def extract_quarto_eq_number(om_para) -> str | None:
+def extract_quarto_eq_number(om_para) -> Optional[str]:
     """从公式里摘出 Quarto 生成的编号（"(1)"、"(5.1)"），并从公式中移除它。
 
     编号是 oMath 尾部的 m:r 运行（em-space + "(" + 数字 + ")"）。
