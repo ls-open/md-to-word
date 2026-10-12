@@ -248,4 +248,11 @@ Running this skill requires only two lightweight prerequisites:
 
 ## 📄 License
 
-Open-sourced under the [MIT License](LICENSE) — free to use, modify and distribute, **commercial use included**.
+Open-sourced under the [MIT License](LICENSE).
+
+### Third-party assets
+
+The citation styles under `resources/csl/` come from
+[citation-style-language/styles](https://github.com/citation-style-language/styles) and are each licensed
+under **CC BY-SA 3.0** (declared in a `<rights>` element inside every file).
+The MIT license covering this project's original code does not apply to those files.

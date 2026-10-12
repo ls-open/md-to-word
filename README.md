@@ -237,4 +237,10 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 ## 📄 开源协议
 
-本项目基于 [MIT License](LICENSE) 开源——**可自由使用、修改、分发，含商业用途**。
+本项目基于 [MIT License](LICENSE) 开源。
+
+### 第三方素材许可
+
+`resources/csl/` 下的引文样式来自 [citation-style-language/styles](https://github.com/citation-style-language/styles)，
+各自遵循 **CC BY-SA 3.0**（每个文件内有 `<rights>` 声明）。
+本仓库的 MIT 许可仅覆盖本项目原创代码，不适用于这些文件。
