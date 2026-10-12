@@ -336,6 +336,11 @@ $$Y = a + bX$$ {#eq-model1}
 
 ### 1.9.1 目录与分节：两个结构标记
 
+> ⚠ **它们借用了 Quarto 的短代码写法，但不是 Quarto 短代码**：`{{< toc >}}` / `{{< section … >}}`
+> 在 `quarto render` 看到它们**之前**就被本技能的 `expand_markers.py` 换成了原生 OOXML。
+> 所以**在普通 Quarto 项目里单独用这两个写法是不生效的**（Quarto 只会当成不认识的 shortcode），
+> 只有走本技能的 `export.sh` 才会被展开。搬到别处时别指望它照常工作。
+
 这两个标记在**渲染前**被展开成 OOXML 块（`expand_markers.py`，接在预检之后、Quarto 之前；
 机制见 `design.md §1.8.2`）。
 
