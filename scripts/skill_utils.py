@@ -316,6 +316,96 @@ def section_pagebreak_issues(text: str) -> list[tuple[int, str]]:
     return issues
 
 
+# ── 引文 key（`[@key]` / `@key`）──
+# 字符集实测而来：首字符是字母数字或 `_`，其后允许 `: . - _ + / % &`（k1:2 / k-2 / k_3 /
+# k.4 / k+5 / k%7 / k/7 / k&7 都被 citeproc 认作引文并能在 .bib 里命中）。
+# `@` 前是词字符则不算引文——正文里的 `user@example.com` 原样输出（实测）。
+# `-@key`（抑制作者）的 `@` 前是 `-`，故 `-` 不能进排除集，否则那种写法会被整条漏掉。
+_CITE_KEY_RE = re.compile(r'(?<![\w@])@(\w[\w:.\-+/%&]*)')
+# .bib 条目头：`@article{key,` / `@book{key,`
+_BIB_ENTRY_RE = re.compile(r'@\w+\s*\{\s*([^,\s}]+)\s*,')
+# 行内代码 `` `...` `` —— mask_code_fences 只管围栏块，行内代码得在这里单独遮掉
+_INLINE_CODE_RE = re.compile(r'`[^`]*`')
+# 稿子里定义过的标签：`{#eq-dynamics}`、`{#tbl-main}`
+_DEFINED_LABEL_RE = re.compile(r'\{#([\w:.\-]+)\}')
+# Quarto 内置的 crossref 标签前缀——`@eq-x` 这类是**交叉引用**，不是文献 key，
+# 当文献 key 去 .bib 里找必然找不到（demo/01 的 `@eq-dynamics` 就是这么被误报的）。
+_CROSSREF_PREFIX_RE = re.compile(r'^(?:eq|fig|tbl|sec|lst)-')
+
+
+def parse_bib_keys(bib_text: str) -> set:
+    """从 .bib 文本里取出全部条目 key。"""
+    return set(_BIB_ENTRY_RE.findall(bib_text or ''))
+
+
+def citation_key_issues(text: str, known_keys: set) -> list[tuple[int, str]]:
+    """正文引用了 `.bib` 里没有的 key → [(行号, 说明)]，每个 key 只报一次。
+
+    属于「能确定」的一类：文献库是纯文本，正文引了哪些 key 也是纯文本，两边取差集即可，
+    不需要渲染。不查的后果实测过——正文里留下 `[nosuchkey2020?]`（citeproc 的占位），
+    参考文献列表里也不会有它，而三道门禁全绿（pandoc 只在自己的输出里打一行 WARNING）。
+
+    **误报比漏报贵**（拦的是合法导出），故末尾的句点要剥掉：`@smith2023.` 处在句末时
+    citeproc 解析出的 key 是 `smith2023`（实测无 WARNING），而字符集含 `.`，不剥就会
+    抽出 `smith2023.` 报一个不存在的 key。
+
+    这里只覆盖**能静态看出**的写法；citeproc 还有边角写法，故 `export.sh` 另有一层以它
+    自己的 WARNING 为准的兜底——两层互补，不是重复。
+    """
+    if not known_keys:
+        return []
+    defined_labels = set(_DEFINED_LABEL_RE.findall(text or ''))
+    issues: list[tuple[int, str]] = []
+    reported: set = set()
+    for i, raw in enumerate(mask_code_fences(text).split("\n"), 1):
+        for m in _CITE_KEY_RE.finditer(_INLINE_CODE_RE.sub(' ', raw)):
+            key = m.group(1).rstrip('.')
+            if not key or key in known_keys or key in reported:
+                continue
+            # `@eq-x` 这类是 Quarto 交叉引用，归 undefined_crossref_issues 管，
+            # 拿到 .bib 里找必然落空。
+            if key in defined_labels or _CROSSREF_PREFIX_RE.match(key):
+                continue
+            reported.add(key)
+            issues.append((i, f'引用了 {key}，但文献库里没有这个条目'))
+    return issues
+
+
+def undefined_crossref_issues(text: str) -> list[tuple[int, str]]:
+    """正文引用了 `@eq-x` / `@fig-x` / `@tbl-x`，但稿子里没有 `{#eq-x}` 定义。
+
+    与引文 key 是同一类失败：实测渲染成 **`?@eq-x`**——残骸直接印在正文里，
+    而 Quarto 只在自己的输出里打一行 `WARNING Unable to resolve crossref`。
+    """
+    defined_labels = set(_DEFINED_LABEL_RE.findall(text or ''))
+    issues: list[tuple[int, str]] = []
+    reported: set = set()
+    for i, raw in enumerate(mask_code_fences(text).split("\n"), 1):
+        for m in _CITE_KEY_RE.finditer(_INLINE_CODE_RE.sub(' ', raw)):
+            key = m.group(1).rstrip('.')
+            if key in defined_labels or key in reported:
+                continue
+            if not _CROSSREF_PREFIX_RE.match(key):
+                continue
+            reported.add(key)
+            issues.append((i, f'引用了 {key}，但稿子里没有 {{#{key}}} 这个标签定义'))
+    return issues
+
+
+def citations_without_bibliography(text: str) -> list[int]:
+    """正文出现引文语法、却无处比对时的行号（已遮掉围栏块与行内代码）。
+
+    实测：YAML 没有 `bibliography:` 时 pandoc **完全不处理引文**——`[@somekey2020]`
+    不是渲染成 `(somekey2020?)` 那种占位符，而是**这七个字符原样印进 docx 正文**，
+    且 citeproc 一声不吭、导出照样报成功。所以这属于「能确定」的一类。
+    """
+    lines: list[int] = []
+    for i, raw in enumerate(mask_code_fences(text).split("\n"), 1):
+        if _CITE_KEY_RE.search(_INLINE_CODE_RE.sub(' ', raw)):
+            lines.append(i)
+    return lines
+
+
 def crossref_prefix_issues(text: str, fm_data) -> list[tuple[int, str]]:
     """中文稿件用了交叉引用标签、YAML 却没设中文字前缀 → [(行号, 说明)]。
 

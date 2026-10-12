@@ -447,7 +447,7 @@ python3 scripts/generate_template.py requirements.txt -o template.docx
 
 导出前校验脚本：检查 MD 中可能导致"静默失败"的写法。由 export.sh 在导出前自动执行（`--no-check` 可跳过，不推荐）。
 
-**校验项**（15 项）：
+**校验项**（18 项）：
 - YAML 中 bibliography / csl 路径是否存在（`csl` 支持自动回退匹配本技能 `resources/csl/` 目录）
 - 标准 Markdown `![]()` 和 `[]()` 中路径是否含空格（空格违反 URL 规范，Pandoc 静默失败）
 - `![](path)` 图片文件是否存在（Pandoc 静默失败，图不会出现在 docx 中）
@@ -463,6 +463,13 @@ python3 scripts/generate_template.py requirements.txt -o template.docx
 - **中文稿用了 `{#eq-/fig-/tbl-}` 交叉引用、YAML 却没写对应的 `crossref` 前缀**（会渲染成中英混排的 `Equation 1`）
 - **表格各行列数不一致**（pandoc 不报错，直接把多出来的单元格连同内容丢掉）
 - **图片声明宽度超过版心**（pandoc 按 `pgSz - pgMar` 静默钳成版心宽，写 `{width=25cm}` 拿到的是 15.92cm）
+- **正文引用的文献 key 在 `.bib` 里找不到**（产物里渲染成 `[key?]`，且该条不进参考文献列表；citeproc 只打一行 WARNING）
+- **正文有引文语法、YAML 却没声明 `bibliography:`**（pandoc 完全不处理引文，`[@key]` 会**原样印进正文**）
+- **正文引用的 crossref 标签没有 `{#标签}` 定义**（产物里渲染成 `?@标签`；Quarto 只打一行 WARNING）
+
+> 后两项 `export.sh` 还各有一层**以渲染器自己的警告为准**的兜底：`Citeproc: citation … not found`
+> 与 `Unable to resolve crossref`。导前预检可用 `--no-check` 跳过，**兜底那层不能**——所以
+> 「跳过预检」不等于「不检查」。
 
 **调用方式**：
 ```bash

@@ -308,11 +308,36 @@ fi
 
 # 渲染失败时 set -e 会中止，但用户只看到 Quarto 自己的原始输出（JS 栈 / GHC 回溯），
 # 看不出"产物没生成、后面的闸门一个都没跑"。补一行结论，把状态说清楚。
-if ! (cd "$TARGET_DIR" && "${RENDER_CMD[@]}"); then
+# 输出同时落一份日志：citeproc 的「citation X not found」是**权威判据**（pandoc 自己解析
+# 出来的引文），下面要查它。不查的后果实测过——正文里留下 `[nosuchkey?]`（citeproc 的占位），
+# 参考文献列表里也没有它，而最后一行仍然盖着 ✅。
+RENDER_LOG="$(temp_path "${TMPDIR:-/tmp}" export_render log)"
+CLEANUP_FILES+=("$RENDER_LOG")
+if ! (cd "$TARGET_DIR" && "${RENDER_CMD[@]}") 2>&1 | tee "$RENDER_LOG"; then
     echo "" >&2
     echo "❌ 渲染失败：Quarto 未产出 docx（上方是它的原始输出）。" >&2
     echo "   后续闸门（公式后处理 / 产物完整性 / 导出后抽查）都没跑。" >&2
     echo "   磁盘上同名文件若还在，那是上一次的旧产物，不是这次的结果。" >&2
+    exit 1
+fi
+
+# ── 引文 key 对账（以 citeproc 自己的判定为准）──
+# check_md 的导前预检已能静态看出常见写法；这里补的是它看不出的边角写法——
+# 两层互补，不是重复。Quarto 对这两种情况都只 WARNING、不失败，产物照出。
+if grep -qE 'Citeproc: citation .* not found' "$RENDER_LOG"; then
+    echo "" >&2
+    echo "❌ 引文 key 对不上：正文引用的条目在 .bib 里找不到（上方 [WARNING] 逐条列出）。" >&2
+    echo "   这些位置在产物里会渲染成「key?」，也不会进参考文献列表。" >&2
+    echo "   核对 key 拼写、或把条目补进 .bib 后重新导出。" >&2
+    exit 1
+fi
+
+# ── 交叉引用标签对账 ──
+if grep -qE 'Unable to resolve crossref' "$RENDER_LOG"; then
+    echo "" >&2
+    echo "❌ 交叉引用对不上：正文引用的标签在稿子里没有定义（上方 [WARNING] 逐条列出）。" >&2
+    echo "   这些位置在产物里会渲染成「?@标签」。" >&2
+    echo "   补上 `{#标签}` 定义、或核对拼写后重新导出。" >&2
     exit 1
 fi
 

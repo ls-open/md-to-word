@@ -34,6 +34,8 @@ from lxml import etree
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from skill_utils import (  # noqa: E402
     block_marker_issues,
+    citation_key_issues,
+    citations_without_bibliography,
     configure_logging,
     crossref_prefix_issues,
     get_logger,
@@ -42,9 +44,11 @@ from skill_utils import (  # noqa: E402
     image_width_issues,
     malformed_table_issues,
     mask_code_fences,
+    parse_bib_keys,
     resolve_manuscript_path,
     section_pagebreak_issues,
     split_frontmatter,
+    undefined_crossref_issues,
     unknown_shortcode_issues,
 )
 
@@ -366,6 +370,55 @@ def main():
                 print('  提示: 可填写绝对路径、相对稿件所在目录的路径，或直接写本技能 resources/csl/ 下的内置文件名（如 apa.csl）。')
             else:
                 print('  提示: 请填写绝对路径，或相对稿件所在目录的路径。')
+            problems += 1
+
+    # ── 1b. 正文引用的 key 是否都在 .bib 里 ──
+    # 与上面同一个 `bibliography:` 路径，只是再往前走一步：把条目读出来对账。
+    # 不做这一步的后果实测过——正文里留下 `[nosuchkey2020?]`（citeproc 的占位），
+    # 参考文献列表里也不会有它，而三道门禁全绿（pandoc 只在自己的输出里打一行 WARNING）。
+    _, body_text = split_frontmatter(md_text)
+    if fm_data and fm_data.get('bibliography'):
+        bib_path, how = resolve_manuscript_path(str(fm_data['bibliography']), md_path)
+        if how:
+            try:
+                known_keys = parse_bib_keys(Path(bib_path).read_text(encoding='utf-8', errors='replace'))
+            except OSError as e:
+                print(f' ⚠ 读不出文献库 {bib_path}（{e}），跳过引文 key 校验')
+                problems += 1
+            else:
+                cite_issues = citation_key_issues(body_text, known_keys)
+                if cite_issues:
+                    print('\n[引文 key] 正文引用的条目在 .bib 里找不到'
+                          '（导出后会渲染成「key?」，且不会进参考文献列表）:')
+                    for line_no, why in cite_issues:
+                        print(f' ⚠ 行 {line_no}: {why}')
+                    print(' 建议: 核对 key 拼写，或把该条目补进 .bib。')
+                    problems += 1
+    elif isinstance(fm_data, dict):
+        # 没声明 bibliography：pandoc 完全不处理引文，`[@key]` 会**原样印进正文**。
+        # 实测：产物里就是 `[@somekey2020]` 这七个字符，citeproc 不报警、导出报成功。
+        bare_cites = citations_without_bibliography(body_text)
+        if bare_cites:
+            shown = '、'.join(f'行 {n}' for n in bare_cites[:5])
+            more = f' 等 {len(bare_cites)} 处' if len(bare_cites) > 5 else ''
+            print('\n[引文] 正文有引文语法，但 YAML 没声明 `bibliography:`'
+                  f'（{shown}{more}）:')
+            print(' 后果: pandoc 不会处理它们，`[@key]` 会**原样印进 docx 正文**，'
+                  '不是渲染成占位符。')
+            print(' 建议: 在 YAML 里加 `bibliography: refs.bib`；'
+                  '若本意就是展示这串字面量，请用反引号包成行内代码。')
+            problems += 1
+
+    # ── 1c. 正文引用的 crossref 标签是否都有定义 ──
+    # 与引文 key 同一类失败：实测未定义的 `@eq-x` 渲染成 `?@eq-x`，残骸直接印在正文里，
+    # 而 Quarto 只在自己的输出里打一行 `WARNING Unable to resolve crossref`。
+    if isinstance(fm_data, dict):
+        xref_issues = undefined_crossref_issues(body_text)
+        if xref_issues:
+            print('\n[交叉引用] 正文引用的标签在稿子里没有定义（会渲染成「?@标签」）:')
+            for line_no, why in xref_issues:
+                print(f' ⚠ 行 {line_no}: {why}')
+            print(' 建议: 补上 `{#标签}` 定义，或核对标签名的拼写。')
             problems += 1
 
     # ── 2. 文件名空格检查 ──
