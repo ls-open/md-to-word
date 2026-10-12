@@ -1,7 +1,7 @@
 # md-to-word: Compliant Word (.docx) Typesetting Skill for AI Agents & Markdown
 
 [![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
-[![Release v1.3.0](https://img.shields.io/badge/Release-v1.3.0-blue.svg)](https://github.com/ls-open/md-to-word/releases/tag/v1.3.0)
+[![Release](https://img.shields.io/github/v/release/ls-open/md-to-word)](https://github.com/ls-open/md-to-word/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-brightgreen.svg)](https://www.python.org/)
 
