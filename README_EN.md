@@ -177,25 +177,16 @@ Ground rules: every tool is judged on its **default output** (no custom template
 
 | Typesetting element | Native Pandoc default | Quarto default Word | Manual Word tuning | 🌟 md-to-word: write this |
 |:---|:---:|:---:|:---:|:---|
-| **Chinese document basics** | | | | |
-| Separate CJK and Latin fonts (SimSun + Times New Roman) | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per paragraph | `正文：宋体/Times New Roman 小四 …` |
-| Chinese font sizes + 2-character first-line indent | ❌ | ❌ | ⚠️ Per paragraph | `… 首行缩进2字符` |
-| Document proofing language (CJK text not flagged) | ✅ On by default | ✅ On by default | ⚠️ Set manually | `校对语言：zh-CN` (pinned, not left to the renderer) |
-| **Academic typesetting** | | | | |
-| Three-line tables with adjustable rules | ⚠️ Edit base template | ⚠️ Edit base template | ⚠️ Per table | `表格：居中 三线表 线宽上1.5磅 线宽表头下0.75磅` |
-| Header row repeats across pages | ✅ On by default | ✅ On by default | ⚠️ Per table, tick a box | `表头：… 跨页重复` |
 | Centered display math, equation number hard right | ❌ No numbering (`{#eq-x}` leaks into the text) | ⚠️ Equation centres, number trails it | ⚠️ Manual 3-column tab stops | `$$…$$ {#eq-x}` handles both |
 | Dynamic chapter-name header (double rule) | ❌ Edit template + insert field | ❌ Edit template + insert field | ⚠️ Break sections + insert field | `页眉内容：{样式标题:Heading 1}` |
 | Roman front matter / Arabic body pagination | ❌ | ❌ | ⚠️ Insert section break by hand | `{{< section 页码=小写罗马 起始=1 >}}` |
-| Native dynamic table of contents | ⚠️ A real field, but styling needs the base template | ⚠️ A real field, but styling needs the base template | ⚠️ Insert field by hand | `{{< toc 2 >}}` (entry appearance is Word's own — see `references/reference.md §1.5`) |
-| Equation cross-references with a CJK prefix (`式 1`) | ❌ No numbering (`{#eq-x}` leaks into the text) | ✅ Numbered, but the prefix is English `Equation 1` | ❌ | `{#eq-x}` + `crossref:` in YAML (**figure/table numbers are still written by hand in the caption**) |
-| Formatted bibliography (GB/T 7714, APA, …) | ✅ citeproc | ✅ citeproc | ❌ | `csl: apa.csl` + `[@key]` in prose |
-| **Built for AI and automation** | | | | |
 | Layout rules declared in text, reviewable in Git | ❌ Buried in XML and manual steps | ❌ | ❌ | One `requirements.txt` states it all |
 | Failure mode: error, or silent drift? | ⚠️ Mostly silent | ⚠️ Mostly silent | ❌ Eyes only | Pre-flight check, reported by line number |
 | Quality gates before delivery | ❌ | ❌ | ❌ | Three: pre-flight / number diff / item-by-item audit |
 
-> **Not listed in the table above** — footnotes (`[^1]`), odd/even and first-page headers and footers plus the `{总页数}` field, four table border styles (three-line / full grid / top-and-bottom / none), using an existing `.docx` as the base template (`-t`), and stripping HTML comments from the manuscript before export (`--strip-comments`).
+> **The table lists only what sets this apart.** Where the default paths already deliver — separated CJK/Latin fonts and first-line indent, three-line tables with adjustable rules, header rows repeating across pages, formatted bibliographies — this skill supports them too, but they are not a differentiator, so they are left out.
+>
+> **Also supported**: footnotes (`[^1]`), Word's native dynamic TOC via `{{< toc 2 >}}`, odd/even and first-page headers and footers plus the `{总页数}` field, four table border styles (three-line / full grid / top-and-bottom / none), using an existing `.docx` as the base template (`-t`), and stripping HTML comments before export (`--strip-comments`).
 >
 > The ✅ marks under Pandoc and Quarto are **honest** — repeating header rows and citeproc bibliographies, for instance, do come out of the box. The value here isn't that others *can't*; it's that a single `requirements.txt` settles **all of it at once**, with no base-template surgery, no XML, and no per-paragraph clicking.
 
