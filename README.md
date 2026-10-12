@@ -1,7 +1,7 @@
 # md-to-word：专为 AI Agent 与 Markdown 打造的规范 Word 排版技能
 
 [![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
-[![Release v1.2.0](https://img.shields.io/badge/Release-v1.2.0-blue.svg)](https://github.com/ls-open/md-to-word/releases/tag/v1.2.0)
+[![Release v1.3.0](https://img.shields.io/badge/Release-v1.3.0-blue.svg)](https://github.com/ls-open/md-to-word/releases/tag/v1.3.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-brightgreen.svg)](https://www.python.org/)
 
