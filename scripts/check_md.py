@@ -386,6 +386,18 @@ def main():
                 print(f' ⚠ 读不出文献库 {bib_path}（{e}），跳过引文 key 校验')
                 problems += 1
             else:
+                # 读到了文件、却一条条目都没解析出来：多半是格式不对（缺逗号、非标准写法）。
+                # 不能静默放行——此时正文的引用会**全部**落空，而我们照样盖 ✅。
+                if not known_keys:
+                    bare = citations_without_bibliography(body_text)
+                    if bare:
+                        print(f'\n[引文 key] 文献库 {Path(bib_path).name} 里一条条目都没有，'
+                              f'但正文有 {len(bare)} 处引用:')
+                        print(' 后果: 这些引用全部落空，产物里渲染成「key?」，'
+                              '参考文献列表会是空的。')
+                        print(' 建议: 检查 .bib 的条目写法（标准形式为 `@article{key,` —— '
+                              '条目头后面要有逗号）。')
+                        problems += 1
                 cite_issues = citation_key_issues(body_text, known_keys)
                 if cite_issues:
                     print('\n[引文 key] 正文引用的条目在 .bib 里找不到'

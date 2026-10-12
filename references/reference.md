@@ -467,9 +467,11 @@ python3 scripts/generate_template.py requirements.txt -o template.docx
 - **正文有引文语法、YAML 却没声明 `bibliography:`**（pandoc 完全不处理引文，`[@key]` 会**原样印进正文**）
 - **正文引用的 crossref 标签没有 `{#标签}` 定义**（产物里渲染成 `?@标签`；Quarto 只打一行 WARNING）
 
-> 后两项 `export.sh` 还各有一层**以渲染器自己的警告为准**的兜底：`Citeproc: citation … not found`
-> 与 `Unable to resolve crossref`。导前预检可用 `--no-check` 跳过，**兜底那层不能**——所以
-> 「跳过预检」不等于「不检查」。
+> **兜底情况不一**，别一概而论：第 1 项与第 3 项 `export.sh` 另有一层以渲染器自己警告为准的
+> 兜底（`Citeproc: citation … not found` / `Unable to resolve crossref`）；**第 2 项没有**——
+> 实测没声明 `bibliography:` 时 citeproc 一声不吭，只有导前预检这一道。
+> 导前预检可用 `--no-check` 跳过，兜底那层不能，所以「跳过预检」不等于「不检查」——
+> 但**跳过预检会丢掉第 2 项这唯一一道防线**。
 
 **调用方式**：
 ```bash

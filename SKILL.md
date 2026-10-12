@@ -67,7 +67,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
     - **叙述引用 `@key`**：把作者当句子主语，`正如 @zhang2024 所指出`；带页码写 `@zhang2024 [p. 33]`；
     - 渲染结果：作者-年份制（APA）下是 `(Zhang, 2024)` / `Zhang (2024)`，数字顺序编码制（GB/T 7714 / IEEE）下是 `[1]`；
     - **`@` 前是字母或数字时不算引用**——正文里的 `user@example.com` 原样输出（实测）；
-    - **导前预检会拦住对不上的 key**：正文引了 `.bib` 里没有的 key、或 YAML 漏写 `bibliography:`，都在导出前报错并指到行号。**漏写 `bibliography:` 时 pandoc 根本不处理引文**，`[@key]` 会原样印进正文，所以这条不是提醒，是硬拦。
+    - **对不上的 key 会被导前预检拦下**：正文引了 `.bib` 里没有的 key，或 YAML 漏写 `bibliography:`，都在导出前报错并指到行号——**别漏写 `bibliography:`**，那一条没有第二道防线（机制见 `reference.md §2.3`）。
 
 ---
 

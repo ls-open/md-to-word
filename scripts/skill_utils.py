@@ -338,6 +338,25 @@ def parse_bib_keys(bib_text: str) -> set:
     return set(_BIB_ENTRY_RE.findall(bib_text or ''))
 
 
+def cited_keys(text: str):
+    """逐行产出 `(行号, key)`——正文里所有 `[@key]` / `@key` 的候选 key。
+
+    已遮掉围栏块与行内代码，已剥掉句末句点。末尾句点必须剥：`@smith2023.` 在句末时
+    citeproc 解析出的 key 是 `smith2023`（实测无 WARNING），而字符集含 `.`，
+    不剥就会抽出 `smith2023.` 去报一个不存在的 key——**误报比漏报贵**，它拦的是合法导出。
+    """
+    for i, raw in enumerate(mask_code_fences(text or '').split("\n"), 1):
+        for m in _CITE_KEY_RE.finditer(_INLINE_CODE_RE.sub(' ', raw)):
+            key = m.group(1).rstrip('.')
+            if key:
+                yield i, key
+
+
+def defined_labels(text: str) -> set:
+    """稿子里定义过的标签（`{#eq-dynamics}` 的 `eq-dynamics`）。"""
+    return set(_DEFINED_LABEL_RE.findall(text or ''))
+
+
 def citation_key_issues(text: str, known_keys: set) -> list[tuple[int, str]]:
     """正文引用了 `.bib` 里没有的 key → [(行号, 说明)]，每个 key 只报一次。
 
@@ -345,29 +364,26 @@ def citation_key_issues(text: str, known_keys: set) -> list[tuple[int, str]]:
     不需要渲染。不查的后果实测过——正文里留下 `[nosuchkey2020?]`（citeproc 的占位），
     参考文献列表里也不会有它，而三道门禁全绿（pandoc 只在自己的输出里打一行 WARNING）。
 
-    **误报比漏报贵**（拦的是合法导出），故末尾的句点要剥掉：`@smith2023.` 处在句末时
-    citeproc 解析出的 key 是 `smith2023`（实测无 WARNING），而字符集含 `.`，不剥就会
-    抽出 `smith2023.` 报一个不存在的 key。
+    `known_keys` 为空时返回空：那种情况下每个被引 key 都会报，是噪声；**「文献库读到了
+    却一条条目都没有」由调用方单独报**（`check_md.py` 的 1b），不在这里静默吞掉。
 
-    这里只覆盖**能静态看出**的写法；citeproc 还有边角写法，故 `export.sh` 另有一层以它
-    自己的 WARNING 为准的兜底——两层互补，不是重复。
+    只覆盖**能静态看出**的写法；citeproc 还有边角写法，故 `export.sh` 另有一层以它自己的
+    WARNING 为准的兜底——两层互补，不是重复。
     """
     if not known_keys:
         return []
-    defined_labels = set(_DEFINED_LABEL_RE.findall(text or ''))
+    labels = defined_labels(text)
     issues: list[tuple[int, str]] = []
     reported: set = set()
-    for i, raw in enumerate(mask_code_fences(text).split("\n"), 1):
-        for m in _CITE_KEY_RE.finditer(_INLINE_CODE_RE.sub(' ', raw)):
-            key = m.group(1).rstrip('.')
-            if not key or key in known_keys or key in reported:
-                continue
-            # `@eq-x` 这类是 Quarto 交叉引用，归 undefined_crossref_issues 管，
-            # 拿到 .bib 里找必然落空。
-            if key in defined_labels or _CROSSREF_PREFIX_RE.match(key):
-                continue
-            reported.add(key)
-            issues.append((i, f'引用了 {key}，但文献库里没有这个条目'))
+    for line_no, key in cited_keys(text):
+        # `@eq-x` 这类是 Quarto 交叉引用，归 undefined_crossref_issues 管，
+        # 拿到 .bib 里找必然落空（demo/01 的 `@eq-dynamics` 就是这么被误报的）。
+        if key in known_keys or key in labels or _CROSSREF_PREFIX_RE.match(key):
+            continue
+        if key in reported:
+            continue
+        reported.add(key)
+        issues.append((line_no, f'引用了 {key}，但文献库里没有这个条目'))
     return issues
 
 
@@ -377,33 +393,31 @@ def undefined_crossref_issues(text: str) -> list[tuple[int, str]]:
     与引文 key 是同一类失败：实测渲染成 **`?@eq-x`**——残骸直接印在正文里，
     而 Quarto 只在自己的输出里打一行 `WARNING Unable to resolve crossref`。
     """
-    defined_labels = set(_DEFINED_LABEL_RE.findall(text or ''))
+    labels = defined_labels(text)
     issues: list[tuple[int, str]] = []
     reported: set = set()
-    for i, raw in enumerate(mask_code_fences(text).split("\n"), 1):
-        for m in _CITE_KEY_RE.finditer(_INLINE_CODE_RE.sub(' ', raw)):
-            key = m.group(1).rstrip('.')
-            if key in defined_labels or key in reported:
-                continue
-            if not _CROSSREF_PREFIX_RE.match(key):
-                continue
-            reported.add(key)
-            issues.append((i, f'引用了 {key}，但稿子里没有 {{#{key}}} 这个标签定义'))
+    for line_no, key in cited_keys(text):
+        if not _CROSSREF_PREFIX_RE.match(key) or key in labels or key in reported:
+            continue
+        reported.add(key)
+        issues.append((line_no, f'引用了 {key}，但稿子里没有 {{#{key}}} 这个标签定义'))
     return issues
 
 
 def citations_without_bibliography(text: str) -> list[int]:
-    """正文出现引文语法、却无处比对时的行号（已遮掉围栏块与行内代码）。
+    """正文里出现引文语法的行号，保序去重。
 
     实测：YAML 没有 `bibliography:` 时 pandoc **完全不处理引文**——`[@somekey2020]`
     不是渲染成 `(somekey2020?)` 那种占位符，而是**这七个字符原样印进 docx 正文**，
     且 citeproc 一声不吭、导出照样报成功。所以这属于「能确定」的一类。
     """
-    lines: list[int] = []
-    for i, raw in enumerate(mask_code_fences(text).split("\n"), 1):
-        if _CITE_KEY_RE.search(_INLINE_CODE_RE.sub(' ', raw)):
-            lines.append(i)
-    return lines
+    seen: set = set()
+    out: list[int] = []
+    for line_no, _ in cited_keys(text):
+        if line_no not in seen:
+            seen.add(line_no)
+            out.append(line_no)
+    return out
 
 
 def crossref_prefix_issues(text: str, fm_data) -> list[tuple[int, str]]:
