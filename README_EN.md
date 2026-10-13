@@ -205,7 +205,7 @@ For users unfamiliar with academic bibliography workflows:
   2. **Batch Export from Reference Managers (Zotero, EndNote, Mendeley)**:  
      Select papers in your library → right click **"Export Library / Items"** → choose **BibTeX** format.
 * **How to Cite in Markdown?**  
-  Simply write `[@citekey]` (e.g., `[@vaswani2017]`) in your prose. The compiler will automatically format in-text citations and generate the end-of-document bibliography according to your chosen CSL style (e.g., `chinese-gb7714-2015-numeric.csl` or `apa.csl`).
+  Simply write `[@citekey]` (e.g., `[@vaswani2017]`) in your prose. The compiler will automatically format in-text citations and generate the end-of-document bibliography according to your chosen CSL style (e.g., `chinese-gb7714-2015-numeric.csl`, the newer `china-national-standard-gb-t-7714-2025-numeric.csl`, or `apa.csl`).
 
 ---
 

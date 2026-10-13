@@ -194,7 +194,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
   2. **文献管理软件批量导出（Zotero / EndNote / Mendeley）**：  
      在 Zotero 或 EndNote 中选中所需文献，右键选择“**导出文献库**”，导出格式选择 **BibTeX**。
 * **如何在正文中使用？**  
-  在 Markdown 中只需写 `[@文献key]`（例如 `[@vaswani2017]`），导出时系统将根据指定的 CSL 样式表（如国标 `chinese-gb7714-2015-numeric.csl` 或 `apa.csl`）在文末自动生成严整规范的参考文献列表。
+  在 Markdown 中只需写 `[@文献key]`（例如 `[@vaswani2017]`），导出时系统将根据指定的 CSL 样式表（如国标 `chinese-gb7714-2015-numeric.csl`、新版国标 `china-national-standard-gb-t-7714-2025-numeric.csl` 或 `apa.csl`）在文末自动生成严整规范的参考文献列表。
 
 ---
 
