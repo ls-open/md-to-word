@@ -1,6 +1,7 @@
 # md-to-word：专为 AI Agent 与 Markdown 打造的规范 Word 排版技能
 
 [![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
+[![Ecosystem: Academic Research Skills](https://img.shields.io/badge/Ecosystem-Academic%20Research%20Skills%20(51k+%E2%98%85)-0969da?logo=github&logoColor=white)](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects)
 [![Release](https://img.shields.io/github/v/release/ls-open/md-to-word)](https://github.com/ls-open/md-to-word/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-brightgreen.svg)](https://www.python.org/)
@@ -230,7 +231,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 本项目专注于下游确定性 Word 排版与格式交付，推荐配合以下优秀的学术研究与论文写作 Agent 框架联动使用：
 
-* **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**：由 [@Imbad0202](https://github.com/Imbad0202) 开源的 5 阶段学术研究与论文写作全流程框架。在 Stage 5 (FINALIZE) 产出 Markdown 草稿与参考文献后，可无缝对接 `md-to-word` 直出符合规范的 Word（`.docx`）文档。
+* **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**（51k+ ★，**已官方收录于其 [`THIRD_PARTY.md`](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects) 生态目录**）：由 [@Imbad0202](https://github.com/Imbad0202) 开源的 5 阶段学术研究与论文写作全流程框架。在 Stage 5 (FINALIZE) 产出 Markdown 草稿与参考文献后，可无缝对接 `md-to-word` 直出符合规范的 Word（`.docx`）文档。
 * **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)**：由 [@Yuan1z0825](https://github.com/Yuan1z0825) 开源的高影响力学术论文写作 Agent 技能集，覆盖深度文献综述、实验论证与草稿生成。
 
 ---

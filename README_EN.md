@@ -1,6 +1,7 @@
 # md-to-word: Compliant Word (.docx) Typesetting Skill for AI Agents & Markdown
 
 [![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
+[![Ecosystem: Academic Research Skills](https://img.shields.io/badge/Ecosystem-Academic%20Research%20Skills%20(51k+%E2%98%85)-0969da?logo=github&logoColor=white)](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects)
 [![Release](https://img.shields.io/github/v/release/ls-open/md-to-word)](https://github.com/ls-open/md-to-word/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-brightgreen.svg)](https://www.python.org/)
@@ -241,7 +242,7 @@ Running this skill requires only two lightweight prerequisites:
 
 `md-to-word` focuses on deterministic downstream Word layout and delivery. We enthusiastically recommend pairing it with upstream academic research agent frameworks:
 
-* **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**: A comprehensive 5-stage academic research pipeline by [@Imbad0202](https://github.com/Imbad0202). When Stage 5 (FINALIZE) produces manuscript Markdown and bibliographies, `md-to-word` seamlessly handles deterministic `.docx` typesetting.
+* **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)** (51k+ ★, **officially listed in its [`THIRD_PARTY.md`](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects) ecosystem directory**): A comprehensive 5-stage academic research pipeline by [@Imbad0202](https://github.com/Imbad0202). When Stage 5 (FINALIZE) produces manuscript Markdown and bibliographies, `md-to-word` seamlessly handles deterministic `.docx` typesetting.
 * **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)**: A high-impact academic paper crafting skill suite by [@Yuan1z0825](https://github.com/Yuan1z0825).
 
 ---
