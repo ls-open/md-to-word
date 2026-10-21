@@ -83,6 +83,8 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
 ```
 
+> 手上没有格式要求文件也能跑：`bash scripts/export.sh hello.md -o hello.docx` 默认用内置中文预设 `presets/zh-academic.txt`；英文期刊投稿加 `--preset en-nature`。
+
 **你得到的**（约 1 秒）：
 
 [![30 秒示例的输出](demo/00_quickstart/page-1.png)](demo/00_quickstart/hello.docx)
@@ -125,7 +127,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
    接下来它全包：识别版面与字体要求 → 生成合规底模 → 编译并净化 OOXML → 跑三道质量门禁 → 把 `.docx` 交给你。
 
 > 💡 **命令行 / CI 也可直接用**：
-> `bash scripts/export.sh 你的文档.md [-r 格式要求.txt] -o 输出文档.docx`
+> `bash scripts/export.sh 你的文档.md [-r 格式要求.txt | --preset zh-academic|en-nature] -o 输出文档.docx`
 >
 > 加 `--pdf` 还能顺带用本机 Word 渲染一份 PDF——**这是唯一能把目录页码、页眉章名这些「域」真正展开的方式**，用它核对成品最直接（**仅 macOS**，且本机装了 Word 并至少启动过一次；不可用时会自动跳过，不影响 `.docx`）。
 
@@ -221,6 +223,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 | 路径 | 适合人群与用途 |
 | :--- | :--- |
 | [`demo/00_quickstart/`](demo/00_quickstart/) | **最小可跑样例**（1 页）：一份 26 行稿件 + 一份 14 行 `requirements.txt`（均不含空行），用来 30 秒看懂输入与输出，也用来验证装好了没。 |
+| [`presets/`](presets/) | **开箱即用的格式预设**：`zh-academic.txt`（中文学术/通用报告，未指定格式时的默认）与 `en-nature.txt`（英文期刊投稿）。直接 `--preset` 选用，也可复制一份改。 |
 | [`SKILL.md`](SKILL.md) | **AI Agent 必读**：包含 Agent 全自动代办工作流、Markdown 语法排版契约与常见避坑指南。 |
 | [`references/reference.md`](references/reference.md) | **进阶定制查阅**：`requirements.txt` 完整合法中文词表、默认值推导原则、内置 20 种 CSL 清单与视觉核验规范。 |
 | [`references/design.md`](references/design.md) | **开发者与极客查阅**：深入了解纯净底模、三列无边框公式重构、OOXML 底层机制与架构设计。 |

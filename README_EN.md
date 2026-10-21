@@ -62,6 +62,8 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
 ```
 
+> No requirements file? `bash scripts/export.sh hello.md -o hello.docx` falls back to the built-in Chinese preset `presets/zh-academic.txt`; add `--preset en-nature` for an English journal manuscript.
+
 **You get** (about one second):
 
 [![Output of the 30-second example](demo/00_quickstart/page-1.png)](demo/00_quickstart/hello.docx)
@@ -138,7 +140,7 @@ This skill is tuned for **AI agents** — you never touch a terminal; hand the r
    It then handles everything: layout and font requirements, a compliant base template, OOXML cleanup, three quality gates, and the finished `.docx`.
 
 > 💡 **CLI / CI**: you can also call it directly:
-> `bash scripts/export.sh input.md [-r requirements.txt] -o output.docx`
+> `bash scripts/export.sh input.md [-r requirements.txt | --preset zh-academic|en-nature] -o output.docx`
 >
 > Add `--pdf` to also render a PDF through the local Word — **the only way to actually expand the table-of-contents page numbers and chapter-name headers**, and the most direct way to check the finished document (**macOS only**, and it needs Word installed and launched at least once; when unavailable it is skipped and the `.docx` is unaffected).
 
@@ -232,6 +234,7 @@ Running this skill requires only two lightweight prerequisites:
 | Path | Purpose & Target Audience |
 | :--- | :--- |
 | [`demo/00_quickstart/`](demo/00_quickstart/) | **Smallest runnable sample** (1 page): a 26-line manuscript plus a 14-line `requirements.txt` (blank lines excluded). Use it to grasp input vs. output in 30 seconds, and to verify the install. |
+| [`presets/`](presets/) | **Ready-made format presets**: `zh-academic.txt` (Chinese academic/report, the default when no spec is given) and `en-nature.txt` (English journal submission). Use via `--preset`, or copy one and edit. |
 | [`SKILL.md`](SKILL.md) | **Must-read for AI Agents**: Agent automation workflows, Markdown syntax contracts, and best practices. |
 | [`references/reference.md`](references/reference.md) | **Advanced Customization**: Complete vocabulary for `requirements.txt`, default inference rules, and the 20 built-in CSL styles. |
 | [`references/design.md`](references/design.md) | **Developers & Hackers**: In-depth architecture, pure Word 365 base template, 3-column equation alignment, and OpenXML internals. |

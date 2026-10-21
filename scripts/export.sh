@@ -7,6 +7,7 @@ set -euo pipefail
 # 用法:
 #   bash export.sh input.md -t template.docx -o out.docx
 #   bash export.sh input.md -t template.docx --strip-comments # 去注释后导出
+#   bash export.sh input.md --preset zh-academic|en-nature    # 走内置预设
 #
 # 退出码: 0=全部完成 / 1=闸门未通过或技能安装不完整
 #         3=docx 已生成，但 --pdf 没能渲染（附一行 MD2WORD_SKIP，见文末）
@@ -29,7 +30,8 @@ STRIP_COMMENTS=false
 CHECK_MD=true   # 导出前硬闸门：默认开启 check_md 严格预检
 POSTFLIGHT=true # 产物完整性闸门：默认开（见文末）。逃逸 --no-postflight
 AUDIT=true      # 导出后抽查：产物 ↔ 格式要求文件逐条对账。逃逸 --no-audit
-REQUIREMENTS=""  # 格式要求文件；不给则从模板同目录自动找唯一的 .txt
+REQUIREMENTS=""  # 格式要求文件；不给则从稿件同目录自动找唯一的 .txt，再退回内置预设
+PRESET=""        # 内置格式预设名：zh-academic / en-nature（见 presets/）
 MAKE_PDF=false  # 可选：导出后再渲染一份 PDF 供核对（macOS + 本机 Word；见文末）。非日常必跑
 EQ_NUMBER_STYLE=asis  # 公式编号外观：asis=Quarto 原生 (1)/(1.1)；cjk=中文学位论文 （5-1）
 
@@ -42,11 +44,13 @@ while [[ $# -gt 0 ]]; do
         --no-postflight) POSTFLIGHT=false; shift ;;
         --no-audit)      AUDIT=false; shift ;;
         -r|--requirements) REQUIREMENTS="$2"; shift 2 ;;
+        --preset)        PRESET="$2"; shift 2 ;;
         --pdf)           MAKE_PDF=true; shift ;;
         --eq-number-style) EQ_NUMBER_STYLE="$2"; shift 2 ;;
         -h|--help)
-            echo "用法: bash export.sh input.md [-r 格式要求.txt] [-t template.docx] [-o out.docx] [--strip-comments] [--pdf] [--eq-number-style asis|cjk] [--no-check] [--no-postflight] [--no-audit]"
-            echo "  -r, --requirements     格式要求文件（默认：稿件或模板同目录下唯一的 .txt）；用于导出后对账，未传 -t 时据它实时生成临时模板"
+            echo "用法: bash export.sh input.md [-r 格式要求.txt | --preset zh-academic|en-nature] [-t template.docx] [-o out.docx] [--strip-comments] [--pdf] [--eq-number-style asis|cjk] [--no-check] [--no-postflight] [--no-audit]"
+            echo "  -r, --requirements     格式要求文件（默认：稿件或模板同目录下唯一的 .txt，都没有则用内置预设）；用于导出后对账，未传 -t 时据它实时生成临时模板"
+            echo "  --preset               内置格式预设：zh-academic（默认）或 en-nature；传了 -r 时以 -r 为准"
             echo "  -t, --template         可选：指定现成 Word 样式模板；传了就以它为准（不再实时生成，--reference-doc 用这一份）"
             echo "  --pdf                  导出后用本机 Word 再渲染一份 PDF（macOS 专用，用于核对效果）"
             echo "  --eq-number-style      公式编号外观：asis=Quarto 原生 (1)/(1.1)（默认）；"
@@ -122,8 +126,28 @@ temp_path() {
     echo "${1}/.${2}_$$.${3}"
 }
 
-# 解析格式要求文件 REQ：显式 -r 优先；否则在模板同目录（或未传 -t 时在稿件同目录）找唯一的 .txt
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 解析格式要求文件 REQ，优先级从高到低：
+#   1. -r 显式指定
+#   2. --preset 显式指定（presets/<name>.txt）
+#   3. 稿件同目录唯一的 .txt（旧行为；有多个就报错，不猜）
+#   4. 内置默认预设 presets/zh-academic.txt（未传 -t 时）
+# 传了 -t 就不套预设：现成模板自带样式，要求文件只用于导出后对账。
 REQ="$REQUIREMENTS"
+if [[ -z "$REQ" && -n "$PRESET" ]]; then
+    if [[ "$TEMPLATE_GIVEN" == true ]]; then
+        echo "提示: 已传 -t，--preset 不生效（现成模板自带样式）。" >&2
+    else
+        _preset_file="$SCRIPT_DIR/../presets/${PRESET}.txt"
+        if [[ ! -f "$_preset_file" ]]; then
+            echo "错误: --preset 不认识: $PRESET（找不到 presets/${PRESET}.txt）"
+            echo "  可用预设: $(cd "$SCRIPT_DIR/../presets" 2>/dev/null && ls *.txt 2>/dev/null | sed 's/\.txt$//' | tr '\n' ' ')"
+            exit 1
+        fi
+        REQ="$_preset_file"
+    fi
+fi
 if [[ -z "$REQ" ]]; then
     _search_dir=""
     if [[ -n "$TEMPLATE" ]]; then
@@ -135,7 +159,26 @@ if [[ -z "$REQ" ]]; then
         _txts=("$_search_dir"/*.txt)          # 无匹配时保持字面量，靠 -f 过滤
         if [[ ${#_txts[@]} -eq 1 && -f "${_txts[0]}" ]]; then
             REQ="${_txts[0]}"
+        elif [[ ${#_txts[@]} -gt 1 ]]; then
+            # 传了 -t 时要求文件只是「用于导出后对账」的可选项：多个 .txt 就不猜，
+            # 留给用户 -r 指定；没传 -t 时要求文件决定模板长什么样，缺了就出不了活，必须拦住。
+            if [[ "$TEMPLATE_GIVEN" == true ]]; then
+                echo "提示: $_search_dir 下有多个 .txt，未自动选作格式要求；本次只做模板导出、跳过导出后对账。要指定请加 -r。" >&2
+            else
+                echo "错误: $_search_dir 下有多个 .txt，无法判断哪份是格式要求（找到 ${#_txts[@]} 份）"
+                echo "  建议: 用 -r 指定其中一份，或删掉无关的 .txt；也可以 --preset zh-academic|en-nature 明确走内置预设。"
+                exit 1
+            fi
         fi
+    fi
+fi
+
+# 既无 -r/--preset、同目录也没有 .txt：用内置中文预设兜底（仍是显式可覆盖的默认值）
+if [[ -z "$REQ" && "$TEMPLATE_GIVEN" == false ]]; then
+    REQ="$SCRIPT_DIR/../presets/zh-academic.txt"
+    if [[ ! -f "$REQ" ]]; then
+        echo "错误: 内置预设缺失: $REQ（技能安装不完整，应包含 presets/zh-academic.txt）" >&2
+        exit 1
     fi
 fi
 
@@ -147,16 +190,6 @@ if [[ "$TEMPLATE_GIVEN" == true && ( -z "$TEMPLATE" || ! -f "$TEMPLATE" ) ]]; th
     echo "  用法: bash export.sh input.md [-t template.docx] [-r 格式要求.txt] -o out.docx"
     exit 1
 fi
-
-# 既无格式要求文件、又无现成模板文件时报错阻断（不退回渲染器内置默认模板）
-if [[ -z "$REQ" && -z "$TEMPLATE" ]]; then
-    echo "错误: 模板不存在或未指定: 未传 -t，且同目录未找到唯一的格式要求 .txt"
-    echo "  用法: bash export.sh input.md [-r 格式要求.txt] [-t template.docx] -o out.docx"
-    echo "  日常导出只需同目录放唯一的格式要求 .txt（或传 -r），每次导出会自动实时生成临时模板。"
-    exit 1
-fi
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 输出路径默认值
 if [[ -z "$OUTPUT" ]]; then

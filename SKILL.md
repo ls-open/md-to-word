@@ -11,7 +11,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 
 > **核心设计哲学**：内容与排版解耦（Markdown 为源，格式全交给本技能编译，于是文档能进 Git 做行级 diff）；AI 全流程代办（用户提需求，Agent 包办格式提取、稿件改造、样式装配与质量闭环）。
 >
-> **统一入口**：`bash <本技能目录>/scripts/export.sh <稿件.md> [-r <格式要求.txt>] [-o <输出.docx>]`（若稿件同目录有唯一的 `.txt`，`-r` 可省略，模板每次导出实时生成）
+> **统一入口**：`bash <本技能目录>/scripts/export.sh <稿件.md> [-r <格式要求.txt> | --preset zh-academic|en-nature] [-o <输出.docx>]`（若稿件同目录有唯一的 `.txt`，`-r` 可省略；两者都没有时默认用内置预设 `presets/zh-academic.txt`，模板每次导出实时生成）
 > **核心引擎**：Quarto 现代渲染 + 纯净 Word 365 底模 (`resources/pure_modern_base.docx`) + 公式居中与编号靠右对齐引擎 + 自动质量门禁（导前预检 / 导后防丢数 / XML 样式对账）
 >
 > **首次使用前**：`pip install -r requirements.txt`，并确认本机有 Quarto（`quarto --version` 能查到即可，不卡版本号；没有则 `brew install quarto`）。缺任一个，导出第一步就会停下并提示。
@@ -25,12 +25,21 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 | `references/design.md` | **导出行为不符合预期**时（先看其 §2 故障排查找根因）；或**需要修改 `scripts/` 下的脚本**时查阅 |
 | `scripts/` | 导出与校验全链路脚本（主入口 `scripts/export.sh`） |
 | `resources/` | 纯净 Word 365 底模 `pure_modern_base.docx` 与内置规范化引用样式库 `resources/csl/*.csl` |
+| `presets/` | 开箱即用的格式预设：`zh-academic.txt`（中文学术/通用报告，默认）与 `en-nature.txt`（英文期刊投稿）。用户没给格式要求时直接用这两份 |
 
 ---
 
 ## 〇、 Agent 核心代办工作流（面向任意输入与零基础用户）
 
 用户的原始诉求通常是“把这份内容按某种格式要求导出为 Word”。**Agent 应全程代劳格式提取、标准 Markdown 转换与配置生成，遵循「先快速跑通导出让用户看到 `.docx`，再按反馈微调」的原则**：
+
+**先判断用户属于哪种场景，再决定要不要追问格式**——大多数用户只是想先看到成品：
+
+| 场景 | 用户大概率怎么说 | 怎么做 |
+|:--|:--|:--|
+| **只想先看看 / 发给别人看** | “转成 Word 我看看”“导出来发给我” | **不要追问格式**，直接用内置预设导出（中文默认 `zh-academic`，英文 `--preset en-nature`），先交付 `.docx`；用户提了要求再改 |
+| **有明确格式要求** | “按学校 / 期刊的格式排” | 用户给了参考 `.docx` → 走下方路径 A 反推；只给了文字要求 → 走路径 B 填字段 |
+| **手上有现成要求文件** | “这是我们实验室的排版要求” | `-r <文件>` 直接指定，不改一个字 |
 
 ### 1. 任意来源输入 → 标准化导出 `.md`
 - 用户的源材料可能是**对话刚生成的文本、`.txt`、普通 `.md`、旧 `.docx` 或 `.pdf`**。
@@ -51,7 +60,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 - **路径 B：用户提供了文字/PDF 格式说明或口头要求（最常见）**
   用户的要求通常很粗糙（例如只说“正文宋体小四、1.5倍行距”，没提段前段后、没提表内字号）。Agent **将用户明文指定的属性填入，未提及的同套必填字段按配对推导原则补齐**（例如不需额外段间距就显式写 `段前0磅 段后0磅`，不需缩进就写 `首行缩进0字符`，表内文字比正文小 1.5~2pt；推导规则见 `references/reference.md §1.6`）。
 - **路径 C：用户未指定具体格式**
-  Agent 直接采用 §2.3 的兜底基准（中文默认宋体/黑体小四，英文默认 Times New Roman 12pt），先快速导出一版标准 `.docx` 交付用户，再根据用户反馈调整。
+  **不要现场手写一份 requirements.txt**：直接用内置预设——中文稿 `--preset zh-academic`（不传也是它），英文稿 `--preset en-nature`，先快速导出一版标准 `.docx` 交付用户，再根据反馈调整。预设的完整参数见 `presets/*.txt`；用户后续提了具体属性时，把那几行改到自己的 `.txt` 里再用 `-r` 指定（§2.3 的兜底基准就是 `zh-academic.txt` 的内容）。
 
 ### 3. 灵活处理参考文献（无文献 / 手写文献 / `.bib` 三种场景）
 - **场景 1：普通文档 / 报告（无参考文献）**
@@ -210,27 +219,18 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 
 ### 2.3 兜底基准（**仅当用户完全没提格式要求时**）
 
-只在 §〇 路径 C 下用（用户既没给参考 `.docx`、也没提任何格式要求）时照这套填。
+**不用现场手写一份**：直接用内置预设——中文稿 `presets/zh-academic.txt`（不传 `-r` 时就是它），英文稿 `presets/en-nature.txt`（`--preset en-nature`）。两份文件本身就是完整可跑的要求文件，也是一切默认值的唯一真相源。
 
-**用户只要提了一条，就把 §2.2 骨架里对应字段换成他说的，其余按本表兜底——不要整套照抄。**（英文稿：字体 `Times New Roman`、正文 `12pt`、缩进 `首行缩进0.5英寸`；学位论文章节标题多居中，通用文档用左对齐。）
+**用户只要提了一条，就把预设里对应字段换成他说的，其余沿用预设**：把预设复制到稿件旁另存一份 `.txt`，改完用 `-r` 指定，不要整套重写。
 
-```text
-文档标题：黑体/Times New Roman 二号 加粗 不倾斜 居中 行距1.5倍 段前0磅 段后12磅 首行缩进0字符 无边框
-一级标题：黑体/Times New Roman 三号 加粗 不倾斜 左对齐 行距1.5倍 段前12磅 段后6磅 首行缩进0字符 与下段同页
-二级标题：黑体/Times New Roman 四号 加粗 不倾斜 左对齐 行距1.5倍 段前6磅 段后6磅 首行缩进0字符 与下段同页
-三级标题：黑体/Times New Roman 小四 加粗 不倾斜 左对齐 行距1.5倍 段前6磅 段后0磅 首行缩进0字符 与下段同页
-正文/首段/普通：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符
-表格：居中 三线表 线宽上1.5磅 线宽底1.5磅 线宽表头下0.75磅 单元格垂直居中
-```
-
-> 两套**完整可跑**的取值范例见 `demo/01_chinese_thesis/requirements.txt`（学位论文）与 `demo/02_modern_report/requirements.txt`（现代报告）。
+> 更贴近具体文体的取值范例：`demo/01_chinese_thesis/requirements.txt`（学位论文，含双线页眉、分节页码）与 `demo/02_modern_report/requirements.txt`（现代报告）。
 
 ---
 
 ## 三、 执行导出与质量核验
 
 ### 1. 一键导出（自带 XML 静态对账与防丢数门禁）
-将 `requirements.txt` 放在导出稿同目录（保持该目录下只有这一个 `.txt` 文件，或用 `-r` 显式指定），执行：
+格式要求三选一：稿件同目录放唯一的 `.txt`、`-r` 显式指定、或什么都不给（走内置预设 `zh-academic`，英文稿加 `--preset en-nature`）。执行：
 ```bash
 bash <本技能目录>/scripts/export.sh 稿件_export.md -o 输出.docx
 ```

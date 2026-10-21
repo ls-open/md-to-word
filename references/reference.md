@@ -413,11 +413,11 @@ $$Y = a + bX$$ {#eq-model1}
 - 支持 `.markdown` 后缀（与 `.md` 同等待遇）
 - **内置 CSL 自动寻路**：若 YAML `csl:` 填写本技能 `resources/csl/` 下的文件名（如 `apa.csl`），脚本自动解析并挂载技能内置 CSL 绝对路径，无需手动拷贝 `.csl` 文件
 - **引用默认可点击**：`export.sh` 会给每篇稿件带上 `-M link-citations=true`，正文引用在 docx 里落成指向文末条目的内部书签链接。稿件 YAML 里写 `link-citations: false` 可关掉（实测 YAML 覆盖命令行，命令行只是默认值）
-- **模板从哪来**：默认拿同目录唯一的格式要求 `.txt`（`-r` 可显式指定，见 §2.2）**当场生成临时模板**，
-  导出完即清理——配置一改模板自动跟着变，二进制模板不必入库。显式传 `-t`
-  则以那一份为准（目标方自己发的 `.docx` 走这条）。两者都没有才报错退出，绝不退回渲染器内置模板
+- **模板从哪来**：优先级 `-r` 显式指定 → `--preset` 显式指定 → 同目录唯一的 `.txt` → 内置默认预设
+  `presets/zh-academic.txt`（见 §2.2）。拿到要求文件后**当场生成临时模板**，导出完即清理——配置一改模板自动跟着变，二进制模板不必入库。显式传 `-t`
+  则以那一份为准（目标方自己发的 `.docx` 走这条），此时不套预设。同目录有多个 `.txt` 时直接报错，不替你猜
 - 依赖 Quarto 渲染器（要求 >= 1.4）
-- 其余参数见 `bash scripts/export.sh --help`：`--strip-comments` 先去 HTML 注释再导出；`--no-check` / `--no-postflight` / `--no-audit` 分别关掉三道闸门（**不推荐**——关掉等于把静默失败的判读交回人眼）；`--eq-number-style cjk` 用中文编号写法。
+- 其余参数见 `bash scripts/export.sh --help`：`--preset zh-academic|en-nature` 选内置预设（`-r` 优先）；`--strip-comments` 先去 HTML 注释再导出；`--no-check` / `--no-postflight` / `--no-audit` 分别关掉三道闸门（**不推荐**——关掉等于把静默失败的判读交回人眼）；`--eq-number-style cjk` 用中文编号写法。
 - **产物完整性闸门（默认开）**：稿件里每个三位以上小数都必须出现在 docx 里，缺一个即
   阻断导出（`post_flight_check.py`）。这是导出链上唯一的数据丢失守护——后处理
   （公式重构）历史上丢过段。逃逸 `--no-postflight`（不推荐）

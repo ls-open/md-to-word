@@ -338,18 +338,21 @@ def parse_bib_keys(bib_text: str) -> set:
     return set(_BIB_ENTRY_RE.findall(bib_text or ''))
 
 
-def cited_keys(text: str):
+def cited_keys(text: str, line_offset: int = 0):
     """逐行产出 `(行号, key)`——正文里所有 `[@key]` / `@key` 的候选 key。
 
     已遮掉围栏块与行内代码，已剥掉句末句点。末尾句点必须剥：`@smith2023.` 在句末时
     citeproc 解析出的 key 是 `smith2023`（实测无 WARNING），而字符集含 `.`，
     不剥就会抽出 `smith2023.` 去报一个不存在的 key——**误报比漏报贵**，它拦的是合法导出。
+
+    `line_offset` 是给「只拿到去掉 frontmatter 的正文」的调用方补行号用的：
+    不补，报出来的行号会比稿件实际行号少掉 frontmatter 的行数，用户照着找必然错位。
     """
     for i, raw in enumerate(mask_code_fences(text or '').split("\n"), 1):
         for m in _CITE_KEY_RE.finditer(_INLINE_CODE_RE.sub(' ', raw)):
             key = m.group(1).rstrip('.')
             if key:
-                yield i, key
+                yield i + line_offset, key
 
 
 def defined_labels(text: str) -> set:
@@ -357,7 +360,7 @@ def defined_labels(text: str) -> set:
     return set(_DEFINED_LABEL_RE.findall(text or ''))
 
 
-def citation_key_issues(text: str, known_keys: set) -> list[tuple[int, str]]:
+def citation_key_issues(text: str, known_keys: set, line_offset: int = 0) -> list[tuple[int, str]]:
     """正文引用了 `.bib` 里没有的 key → [(行号, 说明)]，每个 key 只报一次。
 
     属于「能确定」的一类：文献库是纯文本，正文引了哪些 key 也是纯文本，两边取差集即可，
@@ -375,7 +378,7 @@ def citation_key_issues(text: str, known_keys: set) -> list[tuple[int, str]]:
     labels = defined_labels(text)
     issues: list[tuple[int, str]] = []
     reported: set = set()
-    for line_no, key in cited_keys(text):
+    for line_no, key in cited_keys(text, line_offset):
         # `@eq-x` 这类是 Quarto 交叉引用，归 undefined_crossref_issues 管，
         # 拿到 .bib 里找必然落空（demo/01 的 `@eq-dynamics` 就是这么被误报的）。
         if key in known_keys or key in labels or _CROSSREF_PREFIX_RE.match(key):
@@ -387,7 +390,7 @@ def citation_key_issues(text: str, known_keys: set) -> list[tuple[int, str]]:
     return issues
 
 
-def undefined_crossref_issues(text: str) -> list[tuple[int, str]]:
+def undefined_crossref_issues(text: str, line_offset: int = 0) -> list[tuple[int, str]]:
     """正文引用了 `@eq-x` / `@fig-x` / `@tbl-x`，但稿子里没有 `{#eq-x}` 定义。
 
     与引文 key 是同一类失败：实测渲染成 **`?@eq-x`**——残骸直接印在正文里，
@@ -396,7 +399,7 @@ def undefined_crossref_issues(text: str) -> list[tuple[int, str]]:
     labels = defined_labels(text)
     issues: list[tuple[int, str]] = []
     reported: set = set()
-    for line_no, key in cited_keys(text):
+    for line_no, key in cited_keys(text, line_offset):
         if not _CROSSREF_PREFIX_RE.match(key) or key in labels or key in reported:
             continue
         reported.add(key)
@@ -404,7 +407,7 @@ def undefined_crossref_issues(text: str) -> list[tuple[int, str]]:
     return issues
 
 
-def citations_without_bibliography(text: str) -> list[int]:
+def citations_without_bibliography(text: str, line_offset: int = 0) -> list[int]:
     """正文里出现引文语法的行号，保序去重。
 
     实测：YAML 没有 `bibliography:` 时 pandoc **完全不处理引文**——`[@somekey2020]`
@@ -413,7 +416,7 @@ def citations_without_bibliography(text: str) -> list[int]:
     """
     seen: set = set()
     out: list[int] = []
-    for line_no, _ in cited_keys(text):
+    for line_no, _ in cited_keys(text, line_offset):
         if line_no not in seen:
             seen.add(line_no)
             out.append(line_no)

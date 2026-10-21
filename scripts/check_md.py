@@ -377,6 +377,9 @@ def main():
     # 不做这一步的后果实测过——正文里留下 `[nosuchkey2020?]`（citeproc 的占位），
     # 参考文献列表里也不会有它，而三道门禁全绿（pandoc 只在自己的输出里打一行 WARNING）。
     _, body_text = split_frontmatter(md_text)
+    # 下面几条检查只看正文（YAML 里的 `@` 不该被当引文），但报错要给**稿件实际行号**：
+    # 正文行号 + frontmatter 行数 = 用户在编辑器里看到的行号。
+    fm_offset = md_text.count('\n') - body_text.count('\n')
     if fm_data and fm_data.get('bibliography'):
         bib_path, how = resolve_manuscript_path(str(fm_data['bibliography']), md_path)
         if how:
@@ -389,7 +392,7 @@ def main():
                 # 读到了文件、却一条条目都没解析出来：多半是格式不对（缺逗号、非标准写法）。
                 # 不能静默放行——此时正文的引用会**全部**落空，而我们照样盖 ✅。
                 if not known_keys:
-                    bare = citations_without_bibliography(body_text)
+                    bare = citations_without_bibliography(body_text, fm_offset)
                     if bare:
                         print(f'\n[引文 key] 文献库 {Path(bib_path).name} 里一条条目都没有，'
                               f'但正文有 {len(bare)} 处引用:')
@@ -398,7 +401,7 @@ def main():
                         print(' 建议: 检查 .bib 的条目写法（标准形式为 `@article{key,` —— '
                               '条目头后面要有逗号）。')
                         problems += 1
-                cite_issues = citation_key_issues(body_text, known_keys)
+                cite_issues = citation_key_issues(body_text, known_keys, fm_offset)
                 if cite_issues:
                     print('\n[引文 key] 正文引用的条目在 .bib 里找不到'
                           '（导出后会渲染成「key?」，且不会进参考文献列表）:')
@@ -409,7 +412,7 @@ def main():
     elif isinstance(fm_data, dict):
         # 没声明 bibliography：pandoc 完全不处理引文，`[@key]` 会**原样印进正文**。
         # 实测：产物里就是 `[@somekey2020]` 这七个字符，citeproc 不报警、导出报成功。
-        bare_cites = citations_without_bibliography(body_text)
+        bare_cites = citations_without_bibliography(body_text, fm_offset)
         if bare_cites:
             shown = '、'.join(f'行 {n}' for n in bare_cites[:5])
             more = f' 等 {len(bare_cites)} 处' if len(bare_cites) > 5 else ''
@@ -425,7 +428,7 @@ def main():
     # 与引文 key 同一类失败：实测未定义的 `@eq-x` 渲染成 `?@eq-x`，残骸直接印在正文里，
     # 而 Quarto 只在自己的输出里打一行 `WARNING Unable to resolve crossref`。
     if isinstance(fm_data, dict):
-        xref_issues = undefined_crossref_issues(body_text)
+        xref_issues = undefined_crossref_issues(body_text, fm_offset)
         if xref_issues:
             print('\n[交叉引用] 正文引用的标签在稿子里没有定义（会渲染成「?@标签」）:')
             for line_no, why in xref_issues:
