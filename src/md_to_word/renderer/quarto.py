@@ -71,8 +71,9 @@ class QuartoRenderer(BaseRenderer):
             res_paths.append(str(resource_path))
         # 默认加上稿件所在目录和根目录支持
         res_paths.append(str(in_p.parent))
-        res_paths.append("/")
-        cmd.extend(["--resource-path", ":".join(res_paths)])
+        if os.name != "nt":
+            res_paths.append("/")
+        cmd.extend(["--resource-path", os.pathsep.join(res_paths)])
 
         result = subprocess.run(
             cmd,

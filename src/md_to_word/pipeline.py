@@ -25,7 +25,7 @@ from md_to_word.spec.presets import read_preset_content
 from md_to_word.template.builder import build_template
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
-from skill_utils import split_frontmatter
+from md_to_word.utils.skill_utils import split_frontmatter, resolve_manuscript_path
 
 logger = logging.getLogger("md2word")
 
@@ -152,7 +152,6 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 fm_data = yaml.safe_load(fm_raw)
                 if isinstance(fm_data, dict) and fm_data.get("csl"):
                     from md_to_word.config import get_csl_dir
-                    from skill_utils import resolve_manuscript_path
                     p, how = resolve_manuscript_path(
                         str(fm_data["csl"]), in_p, skill_csl_dir=get_csl_dir()
                     )

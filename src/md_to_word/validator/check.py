@@ -17,8 +17,8 @@ from md_to_word.config import get_csl_dir
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_requirements
 
-# 复用 skill_utils 中的基础文本解析工具
-from skill_utils import (
+# 复用 utils 中的基础文本解析工具
+from md_to_word.utils.skill_utils import (
     block_marker_issues,
     citation_key_issues,
     citations_without_bibliography,
@@ -65,52 +65,107 @@ def extract_custom_styles(md_text: str) -> dict[str, list[int]]:
 def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
     """检查表格题注与图片题注是否紧邻其实体（表格/图片），防止孤立题注。"""
     masked = mask_code_fences(md_text)
-    lines = masked.split("\n")
+
+    # 屏蔽多行 HTML 注释（用等量换行符保持行号对齐）
+    def _repl_comment(m: re.Match) -> str:
+        return "\n" * m.group(0).count("\n")
+
+    cleaned = re.sub(r"<!--.*?-->", _repl_comment, masked, flags=re.DOTALL)
+    lines = cleaned.split("\n")
     n = len(lines)
     issues: list[tuple[int, str]] = []
 
-    def look_back(start_idx: int, max_steps: int = 6) -> tuple[bool, bool]:
+    def is_table_row(line: str) -> bool:
+        s = line.strip()
+        return (s.startswith("|") and s.endswith("|")) or s.startswith("|---") or bool(re.match(r"^\+[-=+]+\+$", s))
+
+    def is_image_entity(line: str) -> bool:
+        s = line.strip()
+        return bool(re.search(r"!\[.*?\]\(.*?\)", s) or re.search(r"<img\s+[^>]*src=", s, re.I))
+
+    def is_structural_wrapper(line: str) -> bool:
+        s = line.strip()
+        if not s or s == ":::":
+            return True
+        if re.match(r"^:::\s*\{.*\}$", s):
+            return True
+        if re.match(r"^\{#tbl-[^}]+\}$", s) or re.match(r"^\{#fig-[^}]+\}$", s):
+            return True
+        return False
+
+    def skip_table_note_backward(curr_idx: int) -> int:
+        idx = curr_idx
+        if lines[idx].strip() == ":::":
+            k = idx - 1
+            while k >= 0:
+                l_str = lines[k].strip()
+                if "Table Note" in l_str or "表注" in l_str or "表格附注" in l_str:
+                    return k - 1
+                if l_str.startswith("#") or is_table_row(l_str):
+                    break
+                k -= 1
+        return curr_idx
+
+    def skip_table_note_forward(curr_idx: int) -> int:
+        l_str = lines[curr_idx].strip()
+        if "Table Note" in l_str or "表注" in l_str or "表格附注" in l_str:
+            k = curr_idx + 1
+            while k < n:
+                if lines[k].strip() == ":::":
+                    return k + 1
+                k += 1
+        return curr_idx
+
+    def look_back(start_idx: int) -> tuple[bool, bool]:
         found_table = False
         found_image = False
-        steps = 0
         i = start_idx - 1
-        while i >= 0 and steps < max_steps:
+        while i >= 0:
             line = lines[i].strip()
-            if not line or line.startswith("<!--"):
+            if not line:
                 i -= 1
                 continue
-            steps += 1
-            if line.startswith("|") or re.search(r"^::: \{#tbl-", line):
+            new_i = skip_table_note_backward(i)
+            if new_i != i:
+                i = new_i
+                continue
+            if is_table_row(line):
                 found_table = True
                 break
-            if re.search(r"!\[.*?\]\(.*?\)", line) or re.search(r"^::: \{#fig-", line):
+            if is_image_entity(line):
                 found_image = True
                 break
-            if line.startswith("#"):
-                break
-            i -= 1
+            if is_structural_wrapper(line):
+                i -= 1
+                continue
+            # 普通正文/标题等非容器结构，立即停止，严禁穿透正文
+            break
         return found_table, found_image
 
-    def look_forward(end_idx: int, max_steps: int = 6) -> tuple[bool, bool]:
+    def look_forward(end_idx: int) -> tuple[bool, bool]:
         found_table = False
         found_image = False
-        steps = 0
         i = end_idx + 1
-        while i < n and steps < max_steps:
+        while i < n:
             line = lines[i].strip()
-            if not line or line.startswith("<!--"):
+            if not line:
                 i += 1
                 continue
-            steps += 1
-            if line.startswith("|") or re.search(r"^::: \{#tbl-", line):
+            new_i = skip_table_note_forward(i)
+            if new_i != i:
+                i = new_i
+                continue
+            if is_table_row(line):
                 found_table = True
                 break
-            if re.search(r"!\[.*?\]\(.*?\)", line) or re.search(r"^::: \{#fig-", line):
+            if is_image_entity(line):
                 found_image = True
                 break
-            if line.startswith("#"):
-                break
-            i += 1
+            if is_structural_wrapper(line):
+                i += 1
+                continue
+            # 普通正文/标题等非容器结构，立即停止
+            break
         return found_table, found_image
 
     i = 0
@@ -138,7 +193,7 @@ def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
                     issues.append(
                         (
                             start_i + 1,
-                            "表格题注未紧邻表格（上下均未检测到表格）。表格题注必须置于对应表格紧邻的上方或下方。",
+                            "表格题注未紧邻表格（上下均未检测到表格实体）。表格题注必须置于对应表格紧邻的上方或下方。",
                         )
                     )
             elif m_img:
@@ -148,7 +203,7 @@ def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
                     issues.append(
                         (
                             start_i + 1,
-                            "图片题注未紧邻图片（上下均未检测到图片）。图片题注必须置于对应图片紧邻的下方或上方。",
+                            "图片题注未紧邻图片（上下均未检测到图片实体）。图片题注必须置于对应图片紧邻的下方或上方。",
                         )
                     )
             i = end_i + 1

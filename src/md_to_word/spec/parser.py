@@ -136,8 +136,8 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
     ),
     (
         _S,
-        re.compile(r"(?:行距|line-spacing)(?P<v>\d+(?:\.\d+)?)倍?", re.I),
-        lambda p, m, d: _set_once(p, "line_spacing", float(m.group("v")), "行距/line_spacing", d),
+        re.compile(r"行距(?P<v>\d+(?:\.\d+)?)倍|line-spacing(?P<v2>\d+(?:\.\d+)?)(?:倍)?", re.I),
+        lambda p, m, d: _set_once(p, "line_spacing", float(m.group("v") or m.group("v2")), "行距/line_spacing", d),
     ),
     # ── 段前/段后 ──
     (
@@ -232,6 +232,7 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
 
 _HINTS = [
     # ── 行距纠偏（引导到唯一正典：行距N倍 / 行距N磅）──
+    (re.compile(r"^行距\d+(?:\.\d+)?$"), "行距必须带单位「倍」或「磅」（如 行距1.5倍、行距20磅，英文：line-spacing 1.5 / line-spacing 20pt）"),
     (re.compile(r"固定值|固定行距|fixed-line-spacing"), "固定磅值行距请统一写「行距N磅」（如 行距20磅，英文：line-spacing 20pt）"),
     (re.compile(r"^\d+(?:\.\d+)?倍(?:行距)?$"), "行距倍数请统一写「行距N倍」（如 行距1.5倍，英文：line-spacing 1.5）"),
     (re.compile(r"^(?:单倍|双倍)(?:行距)?$"), "行距倍数请统一写「行距1.0倍」或「行距2.0倍」（英文：line-spacing 1.0）"),
@@ -242,7 +243,7 @@ _HINTS = [
     (re.compile(r"^缩进\d"), "首行缩进请统一写「首行缩进N字符」（如 首行缩进2字符，英文：indent 2chars）"),
     # ── 字号纠偏 ──
     (re.compile(r"^\d+(?:\.\d+)?磅$"), "数值字号必须带单位 pt（如 12pt）；「磅」仅用于行距/段前/段后/线宽"),
-    (re.compile(r"^\d+$"), "数值字号必须带单位 pt（如 12pt）或使用中文字号（如 小四、五号）"),
+    (re.compile(r"^\d+(?:\.\d+)?$"), "数值字号必须带单位 pt（如 12pt、10.5pt）或使用中文字号（如 小四、五号）"),
     # ── 字形与边框纠偏 ──
     (re.compile(r"斜体"), "字体倾斜请写「倾斜」（英文：italic）"),
     (re.compile(r"下划线"), "下边框请写「下边框单线」（Word 字符级下划线不受模板样式控制）"),
@@ -373,7 +374,7 @@ def parse_font_name(text: str) -> Optional[list[str]]:
                 and not re.match(r"^\d", candidate)
                 and re.search(r"[^\W\d_]|[\u4e00-\u9fff]", candidate)
             ):
-                if re.search(r"[\u4e00-\u9fff]", candidate):
+                if re.search(r"[\u4e00-\u9fff]", candidate) or re.search(r"\b(?:SC|TC|CJK|Song|Hei|Kai|FangSong|Han)\b", candidate, re.I):
                     cjk = candidate
                 else:
                     latin = candidate
@@ -401,6 +402,8 @@ def _split_font(
         size_i = next((i for i, w in enumerate(words) if _consumable_word(w)), len(words))
     font_words = words[:size_i]
     for w in font_words:
+        if re.match(r"^\d+(?:\.\d+)?$", w):
+            raise ValueError(_unknown_word_msg(w, name, desc, lineno))
         if any(pat.search(w) for pat, _ in _HINTS):
             raise ValueError(_unknown_word_msg(w, name, desc, lineno))
     font_text = " ".join(font_words)

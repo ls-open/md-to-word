@@ -182,8 +182,18 @@ ALIGN_MAP = {cn: enum for cn, (enum, _) in _ALIGN.items()}
 ALIGN_VAL = {cn: val for cn, (_, val) in _ALIGN.items()}
 
 # ── 已知字体类别 ──
-CJK_FONTS = {"宋体", "黑体", "仿宋", "FangSong", "楷体", "微软雅黑"}
-LATIN_FONTS = {"Times New Roman", "Arial", "Calibri", "Verdana", "Helvetica", "Georgia"}
+CJK_FONTS = {
+    "宋体", "黑体", "仿宋", "FangSong", "楷体", "微软雅黑",
+    "SimSun", "SimHei", "KaiTi", "Microsoft YaHei",
+    "Noto Sans SC", "Noto Sans CJK SC", "Noto Serif SC", "Noto Serif CJK SC",
+    "Source Han Sans SC", "Source Han Serif SC", "Source Han Sans", "Source Han Serif",
+    "PingFang SC", "Hiragino Sans GB", "WenQuanYi Micro Hei",
+    "STSong", "STKaiti", "STHeiti", "STFangsong",
+}
+LATIN_FONTS = {
+    "Times New Roman", "Arial", "Calibri", "Verdana", "Helvetica", "Georgia",
+    "Cambria", "Garamond", "Palatino", "Consolas", "Courier New",
+}
 
 # ── 页码格式（中英支持）──
 PAGE_NUMBER_FMT: dict[str, str] = {

@@ -87,3 +87,55 @@ def test_image_caption_adjacent_above_and_below():
 :::
 """
     assert len(caption_adjacency_issues(md2)) == 0
+
+
+def test_body_text_penetration_detected():
+    """测试正文穿透漏洞已被修复：题注与远方图片之间夹带正文必须被判定为孤立题注。"""
+    md = """
+::: {custom-style="Image Caption"}
+图 1 孤立题注
+:::
+这是一段正文，分析了系统性能，但作者忘记在此处插入图表。
+这是一段更多的正文解释。
+![图 2 另外一个图](figures/arch.png)
+"""
+    issues = caption_adjacency_issues(md)
+    assert len(issues) == 1
+    assert "未紧邻图片" in issues[0][1]
+
+
+def test_ghost_container_detected():
+    """测试空壳容器伪装漏洞已被修复：无真实实体的空容器不能欺骗门禁。"""
+    md = """
+::: {#fig-ghost}
+::: {custom-style="Image Caption"}
+图 1 幽灵题注
+:::
+:::
+"""
+    issues = caption_adjacency_issues(md)
+    assert len(issues) == 1
+    assert "未紧邻图片" in issues[0][1]
+
+
+def test_table_with_multiline_table_note_passes():
+    """测试多行学术表注合法共存场景不被误报。"""
+    md = """
+| 排版要素 | Pandoc | 本方案 |
+|---|---|---|
+| 中西文分离 | 否 | 是 |
+
+::: {custom-style="Table Note"}
+注1：数据来源于基准测试环境；
+注2：判定以各家默认导出为准；
+注3：多行统计显著性 P < 0.01；
+注4：补充说明细节；
+注5：置信区间分析。
+:::
+
+::: {custom-style="Table Caption"}
+表 1 主流方案特性对照表
+:::
+"""
+    issues = caption_adjacency_issues(md)
+    assert len(issues) == 0

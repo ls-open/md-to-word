@@ -1,7 +1,11 @@
 .DS_Store
 __pycache__/
 *.pyc
+*.egg-info/
+build/
+dist/
 .ruff_cache/
 ~$*
 .obsidian/
+
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 import zipfile
 from pathlib import Path
-from skill_utils import split_frontmatter
+from md_to_word.utils.skill_utils import split_frontmatter
 
 _RE_NUMBER = re.compile(r"\b\d+\.\d{3,}\b")
 _RE_YEAR_LIKE = re.compile(r"^20\d{2}\.\d+$")

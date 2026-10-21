@@ -1,0 +1,52 @@
+# English Nature / international journal preset (en-nature)
+#
+# Usage: bash scripts/export.sh manuscript.md --preset en-nature
+#
+# Tune per journal: the body is set to 1.5 line spacing for readable review copies.
+# Journals that require double spacing only need `line-spacing 1.5` -> `line-spacing 2.0` on the body lines.
+#
+# Citation numbering is not set here: pick it in the manuscript YAML with `csl:`, e.g.
+#   csl: nature.csl   -> superscript numeric (Nature style)
+# Without `csl:` pandoc falls back to author-date (e.g. (Smith, 2024)).
+
+Paper: A4
+Margins: top 2.54cm bottom 2.54cm left 2.54cm right 2.54cm
+Font: Times New Roman
+Proofing Language: en-US
+
+Title: Times New Roman 18pt bold not-italic left line-spacing 1.5 space-before 0pt space-after 12pt indent 0
+Heading 1: Times New Roman 14pt bold not-italic left line-spacing 1.5 space-before 18pt space-after 6pt indent 0 keep-with-next
+Heading 2: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 12pt space-after 6pt indent 0 keep-with-next
+Heading 3: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 6pt space-after 0pt indent 0 keep-with-next
+Heading 4: Times New Roman 12pt not-bold italic left line-spacing 1.5 space-before 6pt space-after 0pt indent 0 keep-with-next
+
+Body Text: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 6pt indent 0
+First Paragraph: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 6pt indent 0
+Normal: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 6pt indent 0
+Block Text: Times New Roman 11pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 6pt indent 0 left-indent 2chars
+Code: Consolas 10pt not-bold not-italic left line-spacing 1.0 space-before 0pt space-after 0pt indent 0
+Footnote: Times New Roman 9pt not-bold not-italic left line-spacing 1.0 space-before 0pt space-after 0pt indent 0
+
+Compact: Times New Roman 10pt not-bold not-italic center line-spacing 1.0 space-before 0pt space-after 0pt indent 0
+Table: center three-line border-top 1pt border-bottom 1pt border-header 0.5pt valign center
+Table Header: Times New Roman 10pt bold not-italic center line-spacing 1.0 space-before 0pt space-after 0pt indent 0 repeat-header
+Table Caption: Times New Roman 11pt bold not-italic left line-spacing 1.5 space-before 6pt space-after 6pt indent 0 keep-with-next
+Table Note: Times New Roman 10pt not-bold not-italic left line-spacing 1.0 space-before 0pt space-after 6pt indent 0
+Figure: Times New Roman 11pt not-bold not-italic center line-spacing 1.0 space-before 6pt space-after 0pt indent 0 keep-with-next
+Image Caption: Times New Roman 11pt bold not-italic left line-spacing 1.5 space-before 6pt space-after 6pt indent 0
+
+Abstract Title: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 6pt space-after 6pt indent 0
+Abstract: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 6pt indent 0
+Keywords: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 12pt indent 0
+
+References Title: Times New Roman 14pt bold not-italic left line-spacing 1.5 space-before 18pt space-after 6pt indent 0 keep-with-next
+Bibliography: Times New Roman 9pt not-bold not-italic left line-spacing 1.0 space-before 0pt space-after 0pt hanging-indent 0.5in
+
+Page Number: decimal start 1
+Footer: Times New Roman 9pt not-bold not-italic center line-spacing 1.0 space-before 0pt space-after 0pt indent 0
+Footer Content: {page}
+
+TOC Heading: Times New Roman 14pt bold not-italic left line-spacing 1.5 space-before 12pt space-after 12pt indent 0 keep-with-next
+TOC 1: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 0pt space-after 0pt indent 0 left-indent 0chars
+TOC 2: Times New Roman 12pt not-bold not-italic left line-spacing 1.5 space-before 0pt space-after 0pt indent 0 left-indent 1chars
+TOC 3: Times New Roman 12pt not-bold not-italic left line-spacing 1.5 space-before 0pt space-after 0pt indent 0 left-indent 2chars
