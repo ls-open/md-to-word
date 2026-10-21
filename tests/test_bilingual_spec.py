@@ -86,21 +86,18 @@ Body Text: Arial 10pt right
         parse_requirements(text)
 
 
-def test_extended_syntax_variations():
-    """测试常见的中英文格式写法变体（100% 确定性解析）。"""
+def test_canonical_syntax():
+    """测试正典标准语法（唯一正规中英写法，确定性 100% 解析）。"""
     from docx.shared import Pt
     from md_to_word.spec.models import MinLineSpacing
 
     cases = [
-        ("正文: 宋体 小四 1.5倍", 1.5, Pt(12)),
-        ("正文: 宋体 小四 1.5倍行距", 1.5, Pt(12)),
-        ("正文: 宋体 小四 单倍行距", 1.0, Pt(12)),
-        ("正文: 宋体 小四 固定值20磅", Pt(20), Pt(12)),
-        ("正文: 宋体 12磅 行距20磅", Pt(20), Pt(12)),
-        ("正文: 宋体 小四号 行距 1.5倍 首行缩进 2字符", 1.5, Pt(12)),
-        ("正文: 宋体 小四 首行缩进2字", None, Pt(12)),
-        ("正文: Times New Roman 12pt line-spacing 20pt", Pt(20), Pt(12)),
-        ("正文: Times New Roman 12pt line-spacing 1.5", 1.5, Pt(12)),
+        ("正文: 宋体 小四 行距1.5倍 首行缩进2字符 两端对齐", 1.5, Pt(12)),
+        ("正文: 宋体 小四号 行距1.5倍 首行缩进2字符 两端对齐", 1.5, Pt(12)),
+        ("正文: 宋体 12pt 行距20磅 首行缩进0字符 两端对齐", Pt(20), Pt(12)),
+        ("正文: 宋体 小四 行距最小值20磅 首行缩进2字符", MinLineSpacing(20), Pt(12)),
+        ("正文: Times New Roman 12pt line-spacing 20pt indent 0 justify", Pt(20), Pt(12)),
+        ("正文: Times New Roman 12pt line-spacing 1.5 hanging-indent 0.5in", 1.5, Pt(12)),
     ]
     for text, exp_ls, exp_fs in cases:
         spec = parse_requirements(text + "\n")
@@ -110,6 +107,29 @@ def test_extended_syntax_variations():
             assert s["line_spacing"] == exp_ls, f"Line spacing mismatch for {text}: {s['line_spacing']} vs {exp_ls}"
         if exp_fs is not None:
             assert s["font_size"] == exp_fs, f"Font size mismatch for {text}: {s['font_size']} vs {exp_fs}"
+
+
+def test_rejection_with_canonical_hints():
+    """测试非正典变体被严格拦截，且给出精准单一正典纠偏提示。"""
+    # 1. 裸倍数拦截
+    with pytest.raises(ValueError, match="行距倍数请统一写「行距N倍」"):
+        parse_requirements("正文: 宋体 小四 1.5倍\n")
+
+    # 2. 固定值写法拦截
+    with pytest.raises(ValueError, match="固定磅值行距请统一写「行距N磅」"):
+        parse_requirements("正文: 宋体 小四 固定值20磅\n")
+
+    # 3. 裸单倍行距拦截
+    with pytest.raises(ValueError, match="行距倍数请统一写「行距1.0倍」"):
+        parse_requirements("正文: 宋体 小四 单倍行距\n")
+
+    # 4. 无缩进拦截，引导到首行缩进0
+    with pytest.raises(ValueError, match="免缩进请统一写「首行缩进0」"):
+        parse_requirements("正文: 宋体 小四 无缩进\n")
+
+    # 5. 字号裸磅值拦截，引导到 12pt
+    with pytest.raises(ValueError, match="数值字号必须带单位 pt"):
+        parse_requirements("正文: 宋体 12磅 行距20磅\n")
 
 
 def test_table_image_caption_key_aliases():
