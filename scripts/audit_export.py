@@ -174,7 +174,7 @@ def audit(docx: Path, req_path: Path) -> list:
     targets = list(spec.styles) + ([spec.table_header] if spec.table_header else [])
     for r in targets:
         name = r['style_name']
-        st = _tbl_cond(styles, 'firstRow') if name == '表头' else styles.get(name.lower())
+        st = _tbl_cond(styles, 'firstRow') if name in ('表头', 'Table Header') else styles.get(name.lower())
         if st is None:
             problems.append(('样式', f'{name}：产物里没有这个样式（要求文件写了，导出后不存在）'))
             continue

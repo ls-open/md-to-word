@@ -25,6 +25,9 @@ from docx.shared import Pt, RGBColor
 from lxml import etree
 
 _SKILL_DIR = Path(__file__).resolve().parent
+_SRC_DIR = _SKILL_DIR.parent / "src"
+if _SRC_DIR.exists() and str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
 if _SKILL_DIR.exists() and str(_SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(_SKILL_DIR))
 
@@ -913,7 +916,14 @@ class TemplateSpec:
 
 
 def parse_requirements(text):
-    """解析格式要求文本 → TemplateSpec（封闭词表，不认识的键或属性一律直接报错并提示可用项）"""
+    """解析格式要求文本 → TemplateSpec（支持中英双语格式语法）。"""
+    try:
+        from md_to_word.spec.parser import parse_requirements as _bilingual_parse
+        return _bilingual_parse(text)
+    except Exception as e:
+        # 若双语解析失败且有明确报错，优先暴露其错误信息
+        if "第 " in str(e) or "Line " in str(e):
+            raise e
     spec = TemplateSpec()
     seen_keys = {}
 

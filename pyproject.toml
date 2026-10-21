@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "md-to-word"
+version = "2.0.0.dev1"
+description = "Deterministic academic Markdown to journal-compliant Word (.docx) compiler with dual presets and quality gates."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Liu Song" }
+]
+keywords = ["markdown", "word", "docx", "quarto", "pandoc", "academic", "nature", "typography"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "python-docx>=1.1.0",
+    "lxml>=4.9.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+md-to-word = "md_to_word.cli:main"
+md2word = "md_to_word.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+md_to_word = ["presets/*.txt", "resources/**/*"]
