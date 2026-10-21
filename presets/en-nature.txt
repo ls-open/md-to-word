@@ -5,6 +5,10 @@
 #
 # Tune per journal: the body is set to 1.5 line spacing for readable review copies.
 # Journals that require double spacing only need `行距1.5倍` -> `行距2倍` on the body lines.
+#
+# Citation numbering is not set here: pick it in the manuscript YAML with `csl:`, e.g.
+#   csl: nature.csl   -> superscript numeric (Nature style)
+# Without `csl:` pandoc falls back to author-date (e.g. (Smith, 2024)).
 
 纸张：A4
 页边距：上2.54cm 下2.54cm 左2.54cm 右2.54cm

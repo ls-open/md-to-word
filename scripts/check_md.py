@@ -372,6 +372,12 @@ def main():
                 print('  提示: 请填写绝对路径，或相对稿件所在目录的路径。')
             problems += 1
 
+        # 有文献库、没指定样式：pandoc 会默默套作者-年份制，中文稿容易因此印出
+        # `(Smith, 2024)` 而不是 `[1]`。只提示、不计入 problems——作者-年份本身是合法选择。
+        if fm_data.get('bibliography') and not fm_data.get('csl'):
+            print(' 提示: 未写 csl:，参考文献将走 Pandoc 默认的作者-年份制（如 (Smith, 2024)）；'
+                  '中文稿要 [1] 编号写 csl: chinese-gb7714-2015-numeric.csl，英文期刊按目标刊选（如 nature.csl）。')
+
     # ── 1b. 正文引用的 key 是否都在 .bib 里 ──
     # 与上面同一个 `bibliography:` 路径，只是再往前走一步：把条目读出来对账。
     # 不做这一步的后果实测过——正文里留下 `[nosuchkey2020?]`（citeproc 的占位），
