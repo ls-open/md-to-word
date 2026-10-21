@@ -8,6 +8,11 @@
 
 ---
 
+## Contents
+
+1. 模板生成原理
+2. 深层故障排查
+
 ## 1. 模板生成原理
 
 > **引擎关系**：导出由 Quarto 渲染，Quarto 内嵌 Pandoc，docx 的样式映射/段落转换均由 Pandoc 的 docx writer 完成，故本文故障排查沿用 "Pandoc" 指代该底层行为。
