@@ -376,7 +376,7 @@ def main():
         # `(Smith, 2024)` 而不是 `[1]`。只提示、不计入 problems——作者-年份本身是合法选择。
         if fm_data.get('bibliography') and not fm_data.get('csl'):
             print(' 提示: 未写 csl:，参考文献将走 Pandoc 默认的作者-年份制（如 (Smith, 2024)）；'
-                  '中文稿要 [1] 编号写 csl: chinese-gb7714-2015-numeric.csl，英文期刊按目标刊选（如 nature.csl）。')
+                  '中文稿如需 [1] 编号，请写 csl: chinese-gb7714-2015-numeric.csl；英文期刊按目标期刊选择（如 nature.csl）。')
 
     # ── 1b. 正文引用的 key 是否都在 .bib 里 ──
     # 与上面同一个 `bibliography:` 路径，只是再往前走一步：把条目读出来对账。
@@ -427,10 +427,10 @@ def main():
                   f'（{shown}{more}）:')
             print(' 后果: pandoc 不会处理它们，`[@key]` 会**原样印进 docx 正文**，'
                   '不是渲染成占位符。')
-            print(' 三条出路（按用户习惯选，不是强制用 .bib）:')
-            print('   1. 有文献库：YAML 加 `bibliography: refs.bib`；')
-            print('   2. 习惯手写文献：把 `[@key]` 改成正文编号（如 `[1]`），文末按手写文献排版；')
-            print('   3. 只是在演示语法：用反引号包成行内代码。')
+            print(' 以下三种处理方式（按用户现有习惯选择，不强制使用 .bib）:')
+            print('   1. 已维护文献库：在 YAML 中增加 `bibliography: refs.bib`；')
+            print('   2. 继续使用手写文献编号：把 `[@key]` 改为正文编号（如 `[1]`），文末按手写文献排版；')
+            print('   3. 仅需展示语法字面量：用反引号包成行内代码。')
             problems += 1
 
     # ── 1c. 正文引用的 crossref 标签是否都有定义 ──
