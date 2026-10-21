@@ -70,6 +70,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 - **场景 2：无 `.bib` 文件，但文末已有手写的参考文献文本（如 `[1] 张三...`）**
   - **直接排版（推荐）**：YAML 不写 `bibliography:` / `csl:`，将文末标题用 `::: {custom-style="References Title"}` 包裹，将手写文献条目放进 `::: {custom-style="Bibliography"}` 包裹块中，即可直接套用 0.5 英寸悬挂缩进与文献专属字号；
   - **转换引用格式**：若用户要求统一转为 APA 或 GB/T 7714 等特定格式，由 Agent 根据手写文献在同目录生成 `references.bib`，并在正文填入引用键后按场景 3 导出。
+  - **不要硬推 `.bib`**：如果正文里已经出现 `[@key]`、但用户并没有文献库，说明用户还在手写文献的习惯里——把 `[@key]` 改回手写编号（如 `[1]`）后按场景 2 排版即可。导前预检拦下时给的是三条出路（补 `.bib` / 改手写编号 / 反引号包住），不是强制。
 - **场景 3：使用 `.bib` 文献库与 CSL 自动排版**
   - YAML 中配置 `bibliography: refs.bib` 和 `csl: <文件名.csl>`（**直接写本技能 `resources/csl/` 下的内置文件名即可**，如 `csl: apa.csl` 或 `csl: chinese-gb7714-2015-numeric.csl`，脚本会自动寻路挂载）；
   - 正文引用**默认就是可点击的**（跳到文末对应条目），不用配什么；不要这个效果才在 YAML 里写 `link-citations: false`；

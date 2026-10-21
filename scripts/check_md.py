@@ -413,7 +413,8 @@ def main():
                           '（导出后会渲染成「key?」，且不会进参考文献列表）:')
                     for line_no, why in cite_issues:
                         print(f' ⚠ 行 {line_no}: {why}')
-                    print(' 建议: 核对 key 拼写，或把该条目补进 .bib。')
+                    print(' 建议: 核对 key 拼写，或把该条目补进 .bib；'
+                          '如果这篇稿子本来就用不上 .bib，也可以把 `[@key]` 改成手写编号。')
                     problems += 1
     elif isinstance(fm_data, dict):
         # 没声明 bibliography：pandoc 完全不处理引文，`[@key]` 会**原样印进正文**。
@@ -426,8 +427,10 @@ def main():
                   f'（{shown}{more}）:')
             print(' 后果: pandoc 不会处理它们，`[@key]` 会**原样印进 docx 正文**，'
                   '不是渲染成占位符。')
-            print(' 建议: 在 YAML 里加 `bibliography: refs.bib`；'
-                  '若本意就是展示这串字面量，请用反引号包成行内代码。')
+            print(' 三条出路（按用户习惯选，不是强制用 .bib）:')
+            print('   1. 有文献库：YAML 加 `bibliography: refs.bib`；')
+            print('   2. 习惯手写文献：把 `[@key]` 改成正文编号（如 `[1]`），文末按手写文献排版；')
+            print('   3. 只是在演示语法：用反引号包成行内代码。')
             problems += 1
 
     # ── 1c. 正文引用的 crossref 标签是否都有定义 ──
