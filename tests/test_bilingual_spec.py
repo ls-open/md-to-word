@@ -84,3 +84,45 @@ Body Text: Arial 10pt right
 """
     with pytest.raises(ValueError, match="重复定义"):
         parse_requirements(text)
+
+
+def test_extended_syntax_variations():
+    """测试常见的中英文格式写法变体（100% 确定性解析）。"""
+    from docx.shared import Pt
+    from md_to_word.spec.models import MinLineSpacing
+
+    cases = [
+        ("正文: 宋体 小四 1.5倍", 1.5, Pt(12)),
+        ("正文: 宋体 小四 1.5倍行距", 1.5, Pt(12)),
+        ("正文: 宋体 小四 单倍行距", 1.0, Pt(12)),
+        ("正文: 宋体 小四 固定值20磅", Pt(20), Pt(12)),
+        ("正文: 宋体 12磅 行距20磅", Pt(20), Pt(12)),
+        ("正文: 宋体 小四号 行距 1.5倍 首行缩进 2字符", 1.5, Pt(12)),
+        ("正文: 宋体 小四 首行缩进2字", None, Pt(12)),
+        ("正文: Times New Roman 12pt line-spacing 20pt", Pt(20), Pt(12)),
+        ("正文: Times New Roman 12pt line-spacing 1.5", 1.5, Pt(12)),
+    ]
+    for text, exp_ls, exp_fs in cases:
+        spec = parse_requirements(text + "\n")
+        s = spec.get_style("Body Text")
+        assert s is not None, f"Failed for {text}"
+        if exp_ls is not None:
+            assert s["line_spacing"] == exp_ls, f"Line spacing mismatch for {text}: {s['line_spacing']} vs {exp_ls}"
+        if exp_fs is not None:
+            assert s["font_size"] == exp_fs, f"Font size mismatch for {text}: {s['font_size']} vs {exp_fs}"
+
+
+def test_table_image_caption_key_aliases():
+    """测试表名/图名别名直达 Table Caption / Image Caption。"""
+    text = """
+表名: 宋体 五号 居中
+图名: 宋体 五号 居中
+"""
+    spec = parse_requirements(text)
+    tbl_c = spec.get_style("Table Caption")
+    assert tbl_c is not None
+    assert tbl_c["style_name"] == "Table Caption"
+
+    img_c = spec.get_style("Image Caption")
+    assert img_c is not None
+    assert img_c["style_name"] == "Image Caption"

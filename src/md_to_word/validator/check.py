@@ -62,6 +62,102 @@ def extract_custom_styles(md_text: str) -> dict[str, list[int]]:
     return found
 
 
+def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
+    """检查表格题注与图片题注是否紧邻其实体（表格/图片），防止孤立题注。"""
+    masked = mask_code_fences(md_text)
+    lines = masked.split("\n")
+    n = len(lines)
+    issues: list[tuple[int, str]] = []
+
+    def look_back(start_idx: int, max_steps: int = 6) -> tuple[bool, bool]:
+        found_table = False
+        found_image = False
+        steps = 0
+        i = start_idx - 1
+        while i >= 0 and steps < max_steps:
+            line = lines[i].strip()
+            if not line or line.startswith("<!--"):
+                i -= 1
+                continue
+            steps += 1
+            if line.startswith("|") or re.search(r"^::: \{#tbl-", line):
+                found_table = True
+                break
+            if re.search(r"!\[.*?\]\(.*?\)", line) or re.search(r"^::: \{#fig-", line):
+                found_image = True
+                break
+            if line.startswith("#"):
+                break
+            i -= 1
+        return found_table, found_image
+
+    def look_forward(end_idx: int, max_steps: int = 6) -> tuple[bool, bool]:
+        found_table = False
+        found_image = False
+        steps = 0
+        i = end_idx + 1
+        while i < n and steps < max_steps:
+            line = lines[i].strip()
+            if not line or line.startswith("<!--"):
+                i += 1
+                continue
+            steps += 1
+            if line.startswith("|") or re.search(r"^::: \{#tbl-", line):
+                found_table = True
+                break
+            if re.search(r"!\[.*?\]\(.*?\)", line) or re.search(r"^::: \{#fig-", line):
+                found_image = True
+                break
+            if line.startswith("#"):
+                break
+            i += 1
+        return found_table, found_image
+
+    i = 0
+    while i < n:
+        line = lines[i].strip()
+        m_tbl = re.search(r'custom-style=["\'](Table Caption|表格题注|表名|表题)["\']', line, re.I)
+        m_img = re.search(r'custom-style=["\'](Image Caption|图片题注|图名|图题)["\']', line, re.I)
+        m_pandoc_tbl = re.search(r"^:\s+.*\{#tbl-", line)
+
+        if m_tbl or m_img or m_pandoc_tbl:
+            start_i = i
+            end_i = i
+            if m_tbl or m_img:
+                j = i + 1
+                while j < n:
+                    if lines[j].strip() == ":::":
+                        end_i = j
+                        break
+                    j += 1
+
+            if m_tbl or m_pandoc_tbl:
+                tbl_before, _ = look_back(start_i)
+                tbl_after, _ = look_forward(end_i)
+                if not (tbl_before or tbl_after):
+                    issues.append(
+                        (
+                            start_i + 1,
+                            "表格题注未紧邻表格（上下均未检测到表格）。表格题注必须置于对应表格紧邻的上方或下方。",
+                        )
+                    )
+            elif m_img:
+                _, img_before = look_back(start_i)
+                _, img_after = look_forward(end_i)
+                if not (img_before or img_after):
+                    issues.append(
+                        (
+                            start_i + 1,
+                            "图片题注未紧邻图片（上下均未检测到图片）。图片题注必须置于对应图片紧邻的下方或上方。",
+                        )
+                    )
+            i = end_i + 1
+            continue
+        i += 1
+
+    return issues
+
+
 def validate_manuscript(
     md_path: Path | str,
     *,
@@ -221,5 +317,10 @@ def validate_manuscript(
     for line_no, why in malformed_table_issues(md_text):
         report.valid = False
         report.errors.append(f"行 {line_no} [表格格式异常]: {why}")
+
+    # 12. 图表题注邻近性检查（防止孤立题注与表格/图片脱节）
+    for line_no, why in caption_adjacency_issues(md_text):
+        report.valid = False
+        report.errors.append(f"行 {line_no} [图表题注邻近性]: {why}")
 
     return report

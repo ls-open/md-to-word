@@ -28,9 +28,9 @@ from md_to_word.spec.models import MinLineSpacing, TemplateSpec
 _S = "style"
 _T = "table"
 
-_INDENT_UNITS = {"字符": "chars", "chars": "chars", "英寸": "pt", "in": "pt", "inch": "pt"}
+_INDENT_UNITS = {"字符": "chars", "字": "chars", "chars": "chars", "英寸": "pt", "in": "pt", "inch": "pt"}
 _SZ_ALT = "|".join(sorted(SIZE_MAP, key=len, reverse=True))
-_SIZE_PAT = rf"(?P<sz>{_SZ_ALT})|(?P<num>\d+(?:\.\d+)?)pt"
+_SIZE_PAT = rf"(?P<sz>{_SZ_ALT})|(?P<num>\d+(?:\.\d+)?)(?:pt|磅)"
 _SIZE_RE = re.compile(_SIZE_PAT, re.IGNORECASE)
 
 _RE_DECOR_TOKEN = re.compile(r"\{([^{}]*)\}")
@@ -124,20 +124,30 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
     # ── 行距（倍数/磅数/最小值） ──
     (
         _S,
-        re.compile(r"(?:行距最小值|min-line-spacing|line-spacing-min)(?P<v>\d+(?:\.\d+)?)磅?", re.I),
+        re.compile(r"(?:行距最小值|min-line-spacing|line-spacing-min|最小值)(?P<v>\d+(?:\.\d+)?)(?:磅|pt)?", re.I),
         lambda p, m, d: _set_once(
             p, "line_spacing", MinLineSpacing(float(m.group("v"))), "行距/line_spacing", d
         ),
     ),
     (
         _S,
-        re.compile(r"(?:行距|line-spacing)(?P<v>\d+(?:\.\d+)?)倍?", re.I),
-        lambda p, m, d: _set_once(p, "line_spacing", float(m.group("v")), "行距/line_spacing", d),
+        re.compile(r"(?:单倍|单倍行距|single|single-line-spacing)", re.I),
+        lambda p, m, d: _set_once(p, "line_spacing", 1.0, "行距/line_spacing", d),
     ),
     (
         _S,
-        re.compile(r"(?:行距|line-spacing)(?P<v>\d+(?:\.\d+)?)磅", re.I),
-        lambda p, m, d: _set_once(p, "line_spacing", Pt(float(m.group("v"))), "行距/line_spacing", d),
+        re.compile(r"(?:双倍|双倍行距|double|double-line-spacing)", re.I),
+        lambda p, m, d: _set_once(p, "line_spacing", 2.0, "行距/line_spacing", d),
+    ),
+    (
+        _S,
+        re.compile(r"(?:(?:固定值|固定行距|fixed-line-spacing)(?P<v>\d+(?:\.\d+)?)(?:磅|pt)?|(?:行距|line-spacing)(?P<v2>\d+(?:\.\d+)?)(?:磅|pt))", re.I),
+        lambda p, m, d: _set_once(p, "line_spacing", Pt(float(m.group("v") or m.group("v2"))), "行距/line_spacing", d),
+    ),
+    (
+        _S,
+        re.compile(r"(?:(?:行距|line-spacing)(?P<v1>\d+(?:\.\d+)?)倍?|(?P<v2>\d+(?:\.\d+)?)倍(?:行距)?)", re.I),
+        lambda p, m, d: _set_once(p, "line_spacing", float(m.group("v1") or m.group("v2")), "行距/line_spacing", d),
     ),
     # ── 段前/段后 ──
     (
@@ -153,17 +163,25 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
     # ── 缩进 ──
     (
         _S,
-        re.compile(r"(?:首行缩进|indent)(?P<v>\d+(?:\.\d+)?)(?P<u>字符|英寸|in|inch|chars)?", re.I),
+        re.compile(r"无缩进|不缩进|no-indent", re.I),
+        lambda p, m, d: (
+            _set_once(p, "indent", 0.0, "缩进", d),
+            p.update({"indent_type": "first_line", "indent_unit": "chars"}),
+        ),
+    ),
+    (
+        _S,
+        re.compile(r"(?:首行缩进|缩进|indent)(?P<v>\d+(?:\.\d+)?)(?P<u>字符|字|英寸|in|inch|chars)?", re.I),
         lambda p, m, d: _set_indent(p, m, d, "首行缩进"),
     ),
     (
         _S,
-        re.compile(r"(?:悬挂缩进|hanging-indent)(?P<v>\d+(?:\.\d+)?)(?P<u>英寸|in|inch)?", re.I),
+        re.compile(r"(?:悬挂缩进|hanging-indent)(?P<v>\d+(?:\.\d+)?)(?P<u>字符|字|英寸|in|inch|chars)?", re.I),
         lambda p, m, d: _set_indent(p, m, d, "悬挂缩进"),
     ),
     (
         _S,
-        re.compile(r"(?:左缩进|left-indent)(?P<v>\d+(?:\.\d+)?)(?:字符|chars)?", re.I),
+        re.compile(r"(?:左缩进|left-indent)(?P<v>\d+(?:\.\d+)?)(?P<u>字符|字|chars)?", re.I),
         lambda p, m, d: _set_once(p, "left_indent_chars", float(m.group("v")), "左缩进/left_indent", d),
     ),
     # ── 边框 ──
@@ -231,13 +249,11 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
 ]
 
 _HINTS = [
-    (re.compile(r"^(?:小初|小[一二三四五六])号$"), "去掉末尾的「号」（应写「小四」「小五」等）"),
-    (re.compile(r"^\d+(?:\.\d+)?磅$"), "数值字号单位用 pt（如「12pt」；「磅」仅用于行距/段前/段后/线宽）"),
     (re.compile(r"最小行距"), "「行距最小值N磅」或 min-line-spacing N pt"),
     (re.compile(r"行间距"), "「行距N倍」或 line-spacing N"),
     (re.compile(r"斜体"), "「倾斜」（开）或 italic"),
     (re.compile(r"下划线"), "「下边框单线」（Word 字符级下划线不受模板样式控制）"),
-    (re.compile(r"^\d+$"), "数值字号必须带单位 pt（如 12pt）"),
+    (re.compile(r"^\d+$"), "数值字号必须带单位 pt 或磅（如 12pt、12磅）"),
 ]
 
 
@@ -251,9 +267,12 @@ def _unknown_word_msg(word: str, name: str, desc: str, lineno: Optional[int]) ->
     )
 
 
-# 组合词前缀（英文写法中常把参数用空格分开，如 `line-spacing 1.5`、`indent 0`）
+# 组合词前缀（中英文中把参数用空格分立时，如 `line-spacing 1.5`、`行距 1.5倍`、`固定值 20磅`、`indent 0`）
 _COMPOUND_PREFIXES = {
+    # 英文
     "line-spacing",
+    "min-line-spacing",
+    "fixed-line-spacing",
     "space-before",
     "space-after",
     "indent",
@@ -267,11 +286,32 @@ _COMPOUND_PREFIXES = {
     "valign",
     "cell-margin",
     "char-spacing",
+    "table-align",
+    # 中文
+    "行距",
+    "行距最小值",
+    "固定值",
+    "固定行距",
+    "段前",
+    "段后",
+    "首行缩进",
+    "缩进",
+    "悬挂缩进",
+    "左缩进",
+    "线宽上",
+    "线宽底",
+    "线宽表头下",
+    "线宽内",
+    "边框粗",
+    "字距",
+    "表格对齐",
+    "单元格垂直",
+    "单元格内边距",
 }
 
 
 def _normalize_tokens(raw_words: list[str]) -> list[str]:
-    """将英文中用空格分立的属性词（如 ['line-spacing', '1.5']）归一化为单一 token。"""
+    """将属性词及其紧随的参数（如 ['line-spacing', '1.5']、['行距', '1.5倍']）归一化为单一 token。"""
     normalized: list[str] = []
     i = 0
     n = len(raw_words)
@@ -282,6 +322,8 @@ def _normalize_tokens(raw_words: list[str]) -> list[str]:
             next_w = raw_words[i + 1]
             if w_lower == "valign":
                 normalized.append(f"valign-{next_w}")
+            elif w_lower in ("table-align", "表格对齐"):
+                normalized.append(f"table-align-{next_w}")
             else:
                 normalized.append(f"{w_lower}{next_w}")
             i += 2
