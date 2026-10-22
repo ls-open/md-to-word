@@ -137,9 +137,10 @@ language. Add `--verbose` when a format does not seem to take effect.
 - Sum and integral limits stay on the right of the symbol in numbered equations (Word stacks limits
   only in display math). Content and symbols are correct; only the arrangement differs.
 - TOC page numbers and chapter headers are Word fields; Word asks once whether to update them.
-- Runtime: Python 3.9+ and five pure-Python packages (`pip install -r requirements.txt` when running
-  from this directory). No Quarto, no Pandoc, no external binary; `--pdf` additionally needs Word on
-  macOS and is skipped elsewhere.
+- Runtime: Python 3.9+, nothing else. The engine ships as the `md-to-word-docx` package
+  (`pip install -U md-to-word-docx` to install or upgrade); from a source checkout use
+  `pip install -r requirements.txt`. No Quarto, no Pandoc, no external binary; `--pdf` additionally
+  needs Word on macOS and is skipped elsewhere.
 
 Full statements: manual §6 (limits) and §8 (symptom → fix). Design rationale: `references/design.md`.
 

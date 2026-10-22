@@ -122,7 +122,7 @@ md-to-word hello.md -r requirements.txt -o hello.docx
 
 ---
 
-## 能力与限制
+## 能力
 
 | 支持 | 说明 |
 |:--|:--|
@@ -136,19 +136,9 @@ md-to-word hello.md -r requirements.txt -o hello.docx
 | 列表 | 有序、无序、嵌套三级、引用块内的列表 |
 | 质量门禁 | 导前预检（契约、样式、引文）、导后防丢数、逐条样式对账 |
 
-**不支持**（需在 Word 里补，或换一种写法）：
-
-| 做不到 | 原因与替代 |
-|:--|:--|
-| 定制封面页（校徽、填空栏、签署页） | `%% 文档标题` 只生成一页标准标题区；封面在 Word 里并到首页，或用表格排一张简版 |
-| 合并单元格、斜线表头、单元格底纹 | Markdown 表格只有规则二维网格；按网格导出后在 Word 里合并 |
-| 多栏混排、文字环绕的浮动图 | 单栏是唯一版式，图片走独立居中图段；环绕在 Word 里改 |
-| 带编号公式里求和/积分的上下限上下排 | Word 只有显示式才把上下限排到符号上下，带编号公式是行内公式；内容与符号正确，排法不同 |
-| 行内文字颜色 | 颜色是样式属性，按样式行声明（`颜色#1F4E79`），不支持行内 `{color=…}` |
-
-完整词表与逐条原理见包内 [`manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md)
-（中英各一份，随 wheel 发布）；实现取舍见
-[`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md)。
+能力边界（做不到什么、为什么）与完整词表见包内
+[`manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md)（中英各一份，随 wheel 发布）；
+实现取舍见 [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md)。
 
 ---
 
@@ -197,26 +187,30 @@ md-to-word-template 学校模板.docx -o 论文_requirements.txt
 
 ---
 
-## 相关技能
+## 推荐上游生态
 
-这一篇负责"编译成 Word"，上下游由同一套学术技能生态里的伙伴负责，按需转交，不必重造：
+本项目专注下游的确定性排版与格式交付，写稿、找文献的部分推荐配合这两个学术 Agent 框架使用：
 
-| 技能 | 负责什么 |
-|:--|:--|
-| [`nature-writing`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-writing) | 起草论文与章节论证（本技能的输入） |
-| [`nature-polishing`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-polishing) | 英文润色与学术表达收束（本技能的输入） |
-| [`nature-citation`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-citation) | 检索并导出本技能消费的 `.bib` 条目 |
-| [`nature-ref-verifier`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-ref-verifier) | 投稿前交叉核验参考文献元数据 |
-| [`nature-paper2ppt`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2ppt) | 同一篇论文转成组会/答辩用的 PPTX |
+- [Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)：五阶段学术研究与写作
+  全流程框架。Stage 5（FINALIZE）产出 Markdown 草稿与参考文献后，可直接接到本工具出规范 `.docx`。
+- [Nature Skills](https://github.com/Yuan1z0825/nature-skills)：学术论文写作的 Agent 技能集，覆盖文献综述、
+  实验论证与草稿生成。
 
-整组技能的入口见 [`nature-skills`](https://github.com/Yuan1z0825/nature-skills)（本技能被它列为第三方项目）。
+两者都把本项目列在各自的第三方项目清单里。
 
 ---
 
-## 实现了什么，借了什么
+## 与其他方案的区别
 
-排版、编号、门禁、OOXML 写出都是本项目自己的代码。借用的只有两段有公开标准的部分：
-LaTeX 解析（`latex2mathml`）与 CSL 引文渲染（`citeproc-py`）。判据是：**标准化的借，非标准化的自研**。
+| | Pandoc / Quarto | 常见的 Markdown→Word 库 | 这里 |
+|:--|:--|:--|:--|
+| 排版规则写在哪 | 命令行参数 + Word 底模，改细节要动 XML | 代码里，或只有几档预设 | 一份 `requirements.txt`，随稿件进 Git |
+| 公式编号靠右 | 需额外后处理 | 一般不做 | 默认；按章编号可声明 |
+| 分节页码、章名页眉 | 要手工改底模并插域 | 不支持 | 一行标记 + 一行要求 |
+| 出错时 | 多为静默走样 | 抛异常或静默 | 导前预检带行号，导后逐条对账 |
+
+各家默认就能做到的（中西文字体分离、三线表、跨页表头、参考文献排版），这里同样支持；
+上表只列拉开差距的项。
 
 ---
 

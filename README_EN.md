@@ -129,7 +129,7 @@ note — nothing was clicked in Word.
 
 ---
 
-## Capabilities and limits
+## Capabilities
 
 | Supported | Notes |
 |:--|:--|
@@ -143,20 +143,10 @@ note — nothing was clicked in Word.
 | Lists | ordered, unordered, three nesting levels, lists inside block quotes |
 | Gates | pre-flight contract/style/citation check, post-export number audit, element-by-element style reconciliation |
 
-**Not supported** (finish in Word, or restructure the manuscript):
-
-| Not possible | Why, and what to do instead |
-|:--|:--|
-| Custom cover pages (crests, fill-in fields, signature sheets) | `%% 文档标题` produces one standard title block; merge the cover in Word, or typeset a simple one as a table |
-| Merged cells, diagonal header rules, cell shading | Markdown tables are a regular 2-D grid; export the grid, merge in Word |
-| Multi-column text, floating figures with text wrap | Single-column is the only layout; figures are standalone centred blocks; wrapping is a Word-side edit |
-| Limits above/below Σ and ∫ in numbered equations | Word only stacks limits in display maths, and numbered equations are inline; symbols and content are correct, placement differs |
-| Inline text colour | Colour is a style property (`颜色#1F4E79` on a style line); inline `{color=…}` is not supported |
-
-The full vocabulary lives in the package manual
-([`manual_en.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md),
-shipped in both languages); design decisions are in
-[`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md).
+What it cannot do, and why, is in the packaged manual
+([`manual_en.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md)
+§6), together with the full vocabulary — both shipped in Chinese and English. Design decisions are
+in [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md).
 
 ---
 
@@ -213,29 +203,32 @@ style as it is applied.
 
 ---
 
-## Related skills
+## Recommended upstream
 
-This project compiles the manuscript. The steps around it belong to partners in the same academic
-skills ecosystem; hand off rather than re-implement:
+This project covers the last mile — deterministic typesetting and delivery. For drafting and
+reference work, two academic agent frameworks are worth pairing with it:
 
-| Skill | What it covers |
-|:--|:--|
-| [`nature-writing`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-writing) | Drafting the manuscript and its section-level argument (input to this one) |
-| [`nature-polishing`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-polishing) | Language polishing and academic phrasing (input to this one) |
-| [`nature-citation`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-citation) | Searching for and exporting the `.bib` entries this skill consumes |
-| [`nature-ref-verifier`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-ref-verifier) | Cross-checking reference metadata before submission |
-| [`nature-paper2ppt`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2ppt) | Turning the same manuscript into a presentation deck |
+- [Academic Research Skills](https://github.com/Imbad0202/academic-research-skills): a five-stage
+  research and writing framework. After Stage 5 (FINALIZE) produces a Markdown draft and its
+  bibliography, this tool turns it into a compliant `.docx`.
+- [Nature Skills](https://github.com/Yuan1z0825/nature-skills): an agent skill set for academic
+  writing — literature review, experimental argument and draft generation.
 
-The whole set is indexed at [`nature-skills`](https://github.com/Yuan1z0825/nature-skills), which
-lists this project among its third-party entries.
+Both list this project among their third-party entries.
 
 ---
 
-## Built here, borrowed elsewhere
+## How it differs
 
-Layout, numbering, gates and the OOXML writer are this project's own code. Two pieces with public
-standards are borrowed: LaTeX parsing (`latex2mathml`) and CSL citation rendering (`citeproc-py`).
-The rule: **borrow what is standardised, build what is not**.
+| | Pandoc / Quarto | Typical Markdown→Word libraries | This one |
+|:--|:--|:--|:--|
+| Where the format lives | command-line flags + a Word template; details need XML | in code, or a few presets | one `requirements.txt`, versioned with the manuscript |
+| Equation numbers set right | extra post-processing | usually not available | by default; per-chapter numbering is declared |
+| Section page numbers, chapter headers | edit the template and insert fields | not supported | one marker + one requirements line |
+| When something is wrong | mostly silently off | raise, or silently off | pre-flight with line numbers, audit after export |
+
+What other tools already do by default — CJK/Latin font separation, three-line tables, repeating
+header rows, bibliography typesetting — is supported here too; the table lists only the differences.
 
 ---
 
