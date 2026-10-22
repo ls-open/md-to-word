@@ -212,7 +212,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 **默认不需要任何外部二进制**，装 Python 依赖即可：
 
 ```bash
-pipx install md-to-word        # 从包安装（推荐）
+pip install md-to-word          # 从包安装（隔离环境用 pipx install md-to-word）
 pip install -r requirements.txt # 或从源码检出安装依赖
 ```
 
@@ -225,20 +225,20 @@ pip install -r requirements.txt # 或从源码检出安装依赖
 实现只有一份：`src/md_to_word/` 这个 pip 包。技能、命令行、Python 调用都是它的入口——
 **技能不含实现**，只带说明书（`SKILL.md`）和一层转发参数的壳（`scripts/export.sh`）。
 
-这样安排的直接好处是**更新方式**：改代码发版，用户跑一条 `pipx upgrade md-to-word` 就到位；
+这样安排的直接好处是**更新方式**：改代码发版，用户跑一条 `pip install -U md-to-word` 就到位；
 技能文件只在文档变化时才需要重新安装。把实现塞进技能里，一次小修也得让每个人重装技能。
 
 | 用法 | 适合谁 | 怎么装 | 怎么用 |
 |:--|:--|:--|:--|
-| **技能** | 让 AI 代办的作者 | 技能目录放 `SKILL.md` + `references/`，再 `pipx install md-to-word` | 「帮我把这份稿子按学校要求导出成 Word」，由 Agent 读 `SKILL.md` 执行 |
-| **命令行** | 本地批量导出、CI | `pipx install md-to-word`（隔离，推荐）或 `pip install` | `md-to-word 稿件.md -o 输出.docx` |
+| **技能** | 让 AI 代办的作者 | 技能目录放 `SKILL.md` + `references/`，再 `pip install md-to-word` | 「帮我把这份稿子按学校要求导出成 Word」，由 Agent 读 `SKILL.md` 执行 |
+| **命令行** | 本地批量导出、CI | `pip install md-to-word`（不想装进当前环境就用 `pipx`） | `md-to-word 稿件.md -o 输出.docx` |
 | **Python 包** | 写脚本、接自己的流程 | `pip install md-to-word` | `from md_to_word import export` |
 
 **更新**：
 
 ```bash
-pipx upgrade md-to-word        # 或 pip install --upgrade md-to-word
-md-to-word --version           # 确认版本
+pip install -U md-to-word       # 或 pipx upgrade md-to-word
+md-to-word --version            # 确认版本
 ```
 
 **命令行**：
@@ -251,7 +251,7 @@ md-to-word --help                                   # 全部选项；帮助语�
 md-to-word --version
 ```
 
-还没发布到 PyPI，所以先按源码装；发布后同一行命令换成 `pipx install md-to-word` 即可。用 Git 直装也行：
+还没发布到 PyPI，所以先按源码装；发布后同一行命令换成 `pip install md-to-word` 即可（隔离环境加个 `pipx`）。用 Git 直装也行：
 
 ```bash
 pip install "git+https://github.com/ls-open/md-to-word@main"
@@ -278,6 +278,18 @@ result = run_export_pipeline(ExportOptions(
     requirements_path="格式要求.txt", template_path="学校模板.docx", make_pdf=True,
 ))
 ```
+
+### 仓库里什么会发出去
+
+一个仓库，按发布物裁剪——不是所有目录都该出现在用户机器上：
+
+| 发布物 | 带什么 | 体积 |
+|:--|:--|:--|
+| **pip 包**（wheel） | `src/md_to_word/` + `presets/` + `resources/`（Word 365 底模、29 份 CSL） | 约 280 KB |
+| **技能** | `SKILL.md` + `references/` + `scripts/export.sh` | 几十 KB |
+| **只在仓库里** | `tests/`（回归网）、`demo/` 的源稿与页面截图、开发工具脚本 | — |
+
+对比一下：走 Pandoc 或 Quarto 的同类方案，用户要先装几百 MB 的二进制。这里连底模带样式库一共不到 300 KB，因为排版是我们自己写的，没有外部引擎可装。
 
 ### 自研与借用的边界
 

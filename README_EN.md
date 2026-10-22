@@ -216,7 +216,7 @@ For users unfamiliar with academic bibliography workflows:
 **No external binary is required.** Python dependencies only:
 
 ```bash
-pipx install md-to-word          # from the package (recommended)
+pip install md-to-word           # from the package (pipx install md-to-word for an isolated env)
 pip install -r requirements.txt  # or install deps for a source checkout
 ```
 
@@ -226,18 +226,18 @@ Five pure-Python packages, ≈3 MB: `python-docx` (writes OOXML), `lxml` (XML), 
 
 The implementation exists once: the pip package in `src/md_to_word/`. The skill, the CLI and the Python call are all entries into it — **the skill ships no implementation**, only the manual (`SKILL.md`) and a thin shell that forwards arguments (`scripts/export.sh`).
 
-That split decides how updates work: ship a release and users run `pipx upgrade md-to-word`; the skill files only change when the docs do. Bundle the implementation into the skill and even a one-line fix forces everyone to reinstall it.
+That split decides how updates work: ship a release and users run `pip install -U md-to-word`; the skill files only change when the docs do. Bundle the implementation into the skill and even a one-line fix forces everyone to reinstall it.
 
 | Way | For | Install | Use |
 |:--|:--|:--|:--|
-| **Skill** | authors who hand off to an AI agent | put `SKILL.md` + `references/` in your skills directory, then `pipx install md-to-word` | "Export this paper as Word per my school's rules" — the agent reads `SKILL.md` |
-| **CLI** | batch jobs, CI | `pipx install md-to-word` (isolated) or `pip install` | `md-to-word paper.md -o paper.docx` |
+| **Skill** | authors who hand off to an AI agent | put `SKILL.md` + `references/` in your skills directory, then `pip install md-to-word` | "Export this paper as Word per my school's rules" — the agent reads `SKILL.md` |
+| **CLI** | batch jobs, CI | `pip install md-to-word` (or `pipx` to keep it out of your env) | `md-to-word paper.md -o paper.docx` |
 | **Python** | your own scripts and pipelines | `pip install md-to-word` | `from md_to_word import export` |
 
 **Updating**:
 
 ```bash
-pipx upgrade md-to-word        # or: pip install --upgrade md-to-word
+pip install -U md-to-word       # or: pipx upgrade md-to-word
 md-to-word --version
 ```
 
@@ -249,11 +249,23 @@ md-to-word --help                                  # every option; help follows 
 md-to-word --version
 ```
 
-Not on PyPI yet — install from source for now; once published, the same line becomes `pipx install md-to-word`. Installing straight from Git works too:
+Not on PyPI yet — install from source for now; once published, the same line becomes `pip install md-to-word`. Installing straight from Git works too:
 
 ```bash
 pip install "git+https://github.com/ls-open/md-to-word@main"
 ```
+
+### What ships, and where
+
+One repository, trimmed at publish time — not every directory belongs on a user's machine:
+
+| Artifact | Contains | Size |
+|:--|:--|:--|
+| **pip package** (wheel) | `src/md_to_word/` + `presets/` + `resources/` (Word 365 base template, 29 CSL styles) | ≈280 KB |
+| **Skill** | `SKILL.md` + `references/` + `scripts/export.sh` | tens of KB |
+| **Repository only** | `tests/` (regression net), `demo/` sources and page screenshots, dev tools | — |
+
+For scale: a Pandoc- or Quarto-based equivalent asks the user to install several hundred MB of binaries first. Base template and style library included, this is under 300 KB — because the layout engine is our own code, so there is no external engine to install.
 
 From Python — one call, all the answers in the result:
 

@@ -13,15 +13,15 @@ license: MIT
 > **统一入口**：`bash <本技能目录>/scripts/export.sh <稿件.md> [-r <格式要求.txt> | --preset zh-academic|en-nature] [-o <输出.docx>]`（若稿件同目录有唯一的 `.txt`，`-r` 可省略；两者都没有时默认用内置预设 `presets/zh-academic.txt`，模板每次导出实时生成）
 > **核心引擎**：自研写出器（模型 → OOXML）+ 纯净 Word 365 底模 (`resources/pure_modern_base.docx`) + 公式居中与编号靠右对齐引擎 + 自动质量门禁（导前预检 / 导后防丢数 / XML 样式对账）
 >
-> **首次使用前**：安装实现（技能本身不含实现）：`pipx install md-to-word`。更新用同一条：`pipx upgrade md-to-word`——**技能文件几乎不用动**，这是把实现放进包而不是放进技能的原因。`bash scripts/export.sh --version` 可确认引擎版本。
+> **首次使用前**：安装实现（技能本身不含实现）：`pip install md-to-word`；想让它不搅乱当前环境就用 `pipx install md-to-word`（pipx 是 pip 的隔离包装，只给命令行工具用）。更新：`pip install -U md-to-word`（或 `pipx upgrade md-to-word`）——**技能文件几乎不用动**，这是把实现放进包而不是放进技能的原因。`bash scripts/export.sh --version` 可确认引擎版本。
 >
 > **导出不需要任何外部二进制**：没有 Pandoc、没有 Quarto、不调用 Word（只有 `--pdf` 核对才用到本机 Word）。
 
 ## Quick start (English)
 
 ```bash
-pipx install md-to-word                    # the skill is a thin entry; install the engine
-pipx upgrade md-to-word                    # updates need nothing else — the skill files stay put
+pip install md-to-word                     # the skill is a thin entry; install the engine
+pip install -U md-to-word                  # updates need nothing else — the skill files stay put
 md-to-word paper.md -o paper.docx          # default: Chinese thesis preset
 md-to-word paper.md --preset en-nature -o paper.docx
 md-to-word --help                          # all options; help follows the manuscript language

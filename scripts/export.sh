@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # export.sh — 技能入口壳：找到已安装的 md-to-word，把参数原样交给它。
 #
-# **技能不含实现**。实现是一个 pip 包（`pipx install md-to-word`），本文件只做转发。
-# 这样升级是 `pipx upgrade md-to-word` 一条命令，不必重装技能；技能文件只在文档
+# **技能不含实现**。实现是一个 pip 包（`pip install md-to-word`），本文件只做转发。
+# 这样升级是 `pip install -U md-to-word` 一条命令，不必重装技能；技能文件只在文档
 # 需要变化时才动。仓库里自带的 `src/` 只在开发检出、且没有安装过包时兜底使用。
 #
 # 用法:
 #   bash export.sh 稿件.md -o 输出.docx
 #   bash export.sh 稿件.md --preset en-nature -o 输出.docx
 #   bash export.sh --help            # 全部选项
-#   bash export.sh --version         # 确认引擎版本（低版本先 pipx upgrade）
+#   bash export.sh --version         # 确认引擎版本（低版本先 pip install -U）
 #
 # 退出码: 0=全部完成 / 1=稿件、门禁或依赖问题 / 3=docx 已生成但 --pdf 未渲染
 set -euo pipefail
@@ -34,10 +34,10 @@ fi
 cat >&2 <<'EOF'
 未找到 md-to-word。这个技能只是入口，实现要单独安装：
 
-  pipx install md-to-word                     # 已发布到 PyPI 后（推荐，隔离环境）
+  pip install md-to-word                      # 已发布到 PyPI 后
   pip install "git+https://github.com/ls-open/md-to-word@main"   # 在此之前
 
-更新用同一条：pipx upgrade md-to-word（或 pip install --upgrade …）
+更新：pip install -U md-to-word（不想装进当前环境就用 pipx install / pipx upgrade）
 如果你是从源码检出的仓库里直接运行，先在仓库根目录执行 pip install -r requirements.txt。
 EOF
 exit 1
