@@ -2,11 +2,11 @@
 """
 生成学术 Word 模板 (docx)
 
-从纯净现代 Word 365 基础母版出发，根据 requirements.txt 格式要求修改样式，
+从纯净现代 Word 365 基础母版出发，根据 format.txt 格式要求修改样式，
 输出是只含样式与页面设置的 template.docx，写出器直接用它。
 
 用法:
-    python3 generate_template.py requirements.txt -o template.docx
+    python3 generate_template.py format.txt -o template.docx
     python3 generate_template.py --help
 """
 
@@ -1622,13 +1622,13 @@ def main():
             requirements_file = arg
         else:
             logger.error(f'错误: 不认识的参数 "{arg}"')
-            logger.error('用法: python3 generate_template.py requirements.txt -o template.docx')
+            logger.error('用法: python3 generate_template.py format.txt -o template.docx')
             sys.exit(1)
         i += 1
 
     if requirements_file is None:
         logger.error('错误: 未提供格式要求文件')
-        logger.error('用法: python3 generate_template.py requirements.txt -o template.docx')
+        logger.error('用法: python3 generate_template.py format.txt -o template.docx')
         sys.exit(1)
 
     if not os.path.exists(requirements_file):

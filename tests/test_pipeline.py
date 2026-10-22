@@ -184,7 +184,7 @@ def test_custom_template_must_be_single_section(tmp_path: Path) -> None:
 def test_user_csl_direct_formatting_is_stripped(tmp_path: Path) -> None:
     """用户自带的 CSL 里若有 hanging-indent 之类的直接格式，导出时要忽略它。
 
-    直接格式的优先级高于样式：不剥，同一份 requirements.txt 换个 CSL，参考文献的
+    直接格式的优先级高于样式：不剥，同一份 format.txt 换个 CSL，参考文献的
     悬挂缩进和行距就跟着变——「同一份稿件重跑一致」当场作废。
     """
     (tmp_path / "refs.bib").write_text(

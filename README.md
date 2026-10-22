@@ -8,197 +8,82 @@
 
 [English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | 简体中文
 
-把 Markdown 编译成符合规范的 Word（`.docx`）：学位论文、期刊论文、技术报告、公文。
+把 Markdown 编译成符合规范的 Word（`.docx`）。学位论文、期刊投稿、技术报告、公文、说明书都用
+同一套写法——差别只在那份 `format.txt`：排版规则写在稿件旁边，跟着稿件一起进 Git；同一份源任何
+时候重跑，产物逐字节一致；格式没写全、样式名写错、引文缺文献库，导出前就中止并指出第几行。
 
-三条硬规矩：**排版与内容分离**——格式写成一份可进 Git 的 `format.txt`；
-**导出确定性**——同一份源任何时候重跑，产物逐字节一致；**门禁不放行静默错误**——
-导出前预检、导出后对账，不合规就中止并把行号指出来。
+[![最小样例的产物](https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png)](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx)
+
+*上图由 [`demo/00_quickstart`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/) 导出：
+中文首行缩进两字符、西文 Times New Roman、三线表带表题表注——没有一步是在 Word 里点的。*
 
 ---
 
-## 两种用法
-
-引擎只有一份（`src/md_to_word/`），两种用法都是它的入口。
-
-### 一、当成命令用
-
-适合在终端里导出、接进 CI、或自己写脚本调。
+## 安装
 
 ```bash
 pip install md-to-word-docx
-md-to-word 稿件.md -o 输出.docx
 ```
 
-```python
-from md_to_word import export
+包名比命令多一个 `-docx` 后缀：PyPI 上 `md-to-word` 与既有项目过于相似，被命名规则挡住；命令仍是
+`md-to-word`。隔离环境用 `pipx install md-to-word-docx`，更新用 `pip install -U md-to-word-docx`。
 
-result = export("稿件.md", "输出.docx")          # 默认预设按稿件语种选
-if not result.ok:
-    raise SystemExit("\n".join(result.errors))
-```
+## 30 秒
 
-- 更新：`pip install -U md-to-word-docx`（隔离环境用 `pipx install` / `pipx upgrade`）
-- 包名比命令多一个 `-docx` 后缀：PyPI 上 `md-to-word` 与既有项目过于相似，被规则挡住；命令仍是 `md-to-word`
-- 没装文档也能上手：`md-to-word --contract` 打印稿件契约、完整手册与内置预设的绝对路径
-
-### 二、当成技能用
-
-适合把活交给 AI：说清格式要求，剩下的由 Agent 做。
-
-1. 克隆本仓库（或把整个目录放进技能目录）
-2. 让 Agent 读仓库根目录的 `SKILL.md`
-3. Agent 依次完成：整理稿件 → 写格式要求文件（`format.txt`）→ 导出 → 读门禁、按行号改稿
-
-**不需要安装这个包**：`scripts/export.sh` 直接用仓库里的源码，`SKILL.md` 只写流程、
-具体写法指向包内手册。只需装依赖：`pip install -r requirements.txt`。
-更新方式是 `git pull`。
-
-同样的入口也存在于 `nature-skills` 仓库的
-[`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)，
-那边只有技能文档，引擎走同一个 pip 包——适合把技能目录放进 Agent、但不克隆引擎仓库的人。
-
-| | 当成命令 | 当成技能 |
-|:--|:--|:--|
-| 谁动手 | 你自己敲命令 | Agent 代办 |
-| 装什么 | `pip install md-to-word-docx` | 只装依赖，不装包 |
-| 更新 | `pip install -U md-to-word-docx` | `git pull` |
-| 读什么 | 本文件和 `--contract` | `SKILL.md`，细节查包内手册 |
-
----
-
-## 30 秒示例
-
-**你写的**（[`demo/00_quickstart/hello.md`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.md)，节选）：
+**写稿件**——正文是普通 Markdown，只有三处约定：以 `%%` 开头的行指定这一段的样式，`$$…$$ {#eq-x}`
+是带编号的公式，`{{< toc >}}` 这类标记单独成行。
 
 ```markdown
----
-crossref:
-  tbl-prefix: "表"
----
-
 %% 文档标题 我的第一份规范 Word 文档
 
 # 引言
 
-这是一份最小样例：一页纸、二十二行 Markdown。中文首行缩进两个字符、西文用
-Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在 Word 里点。
-
-# 一个三线表
+这是一份最小样例：中文首行缩进两个字符、西文用 Times New Roman、行距 1.5 倍，
+这些都不用你在 Word 里点。
 
 %% 表题 **表 1** 三套样例的端到端导出耗时
 
-| 样例 | 篇幅 | 稳定耗时 | 主要演示的排版要素 |
-|:------|:--|:---|:--------------|
-| 最小样例（本文） | 1 页 | 0.15 s | 中西文字体、首行缩进、多级标题、三线表 |
-| 技术白皮书样例 | 5 页 | 0.30 s | 全网格数据表、APA 引用、单线极简页眉 |
-| 学位论文样例 | 8 页 | 0.43 s | 目录、分节页码、双线章名页眉、跨页表头 |
+| 样例 | 篇幅 | 稳定耗时 |
+|:------|:--|:---|
+| 最小样例（本文） | 1 页 | 0.15 s |
+| 学位论文样例 | 8 页 | 0.43 s |
 ```
 
-**你声明的**（[`demo/00_quickstart/format.txt`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/format.txt)，节选）：
+**声明格式**——一行一种样式，字段写全就生效（节选：完整的一份还会声明各级标题、脚注、参考文献与页码）：
 
 ```text
 纸张：A4
 页边距：上2.54cm 下2.54cm 左2.54cm 右2.54cm
 西文字体：Times New Roman
 
-文档标题：黑体/Times New Roman 二号 加粗 不倾斜 居中 行距1.5倍 段前0磅 段后12磅 首行缩进0字符 无边框
-一级标题：黑体/Times New Roman 三号 加粗 不倾斜 左对齐 行距1.5倍 段前12磅 段后6磅 首行缩进0字符 与下段同页
 正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符
 表格：居中 三线表 线宽上1.5磅 线宽底1.5磅 线宽表头下0.75磅 单元格垂直居中
 表头：宋体/Times New Roman 五号 加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 跨页重复
 ```
 
-**你跑的**：
+**导出**：
 
 ```bash
-md-to-word hello.md -r format.txt -o hello.docx
+md-to-word 稿件.md -r format.txt -o 稿件.docx
 ```
 
-**你得到的**（约 0.2 秒，1 页）：
+约 0.2 秒。不传 `-r` 时用内置预设，按稿件语种选：中文走 `zh-academic`，其他语言走 `en-nature`。
 
-[![最小样例的输出](https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png)](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx)
+## 能做什么
 
-中文首行缩进两个字符、西文 Times New Roman、三线表带表题表注——没有一步是在 Word 里点的。
+- **页面与正文**：纸张、页边距、装订线、文档网格、中西文字体、字号、行距、缩进、段距、对齐、颜色
+- **标题与页眉页脚**：六级标题、奇偶页与首页不同、分节、页码格式与起始、`{页码}` `{总页数}` `{样式标题}` 域
+- **表格**：三线表、全网格线、顶底线、无边框，线宽、跨页重复表头、单元格对齐与内边距、列宽比例
+- **公式**：原生 OMML，居中、编号靠右，按章编号，编号外观可声明，`@eq-` 交叉引用
+- **图与题注**：图片宽度按版心钳制，题注与图同页绑定，图题在上一律由作者决定
+- **文献**：`.bib` + CSL，内置 29 份常用样式（GB/T 7714、APA、Nature、IEEE、Vancouver 等），也可指向自己的 CSL 文件
+- **行内**：加粗、斜体、删除线、下划线、上下标、行内代码、行内公式、链接、脚注
+- **列表**：有序、无序、三级嵌套、引用块内的列表
+- **质量门禁**：导前预检（契约、样式、引文）、导后防丢数、逐条样式对账
+- **无外部程序**：不调用 Pandoc、Quarto 或 Word，导出不依赖任何外部二进制
 
----
-
-## 能力
-
-| 支持 | 说明 |
-|:--|:--|
-| 页面与正文 | 纸张、页边距、装订线、文档网格、中西文字体、字号、行距、缩进、段距、对齐、颜色 |
-| 标题与页眉页脚 | 六级标题、奇偶页/首页不同、页码格式与起始、分节、`{页码}` `{总页数}` `{样式标题}` 域 |
-| 表格 | 三线表/全网格线/顶底线/无边框、线宽、表头跨页重复、单元格对齐与内边距、列宽比例 |
-| 公式 | 原生 OMML、居中、编号靠右、按章编号、编号外观模板、`@eq-` 交叉引用 |
-| 图与题注 | 图片宽度按版心钳制、题注与图同页绑定、图题在上一律由作者决定 |
-| 文献 | `.bib` + CSL，内置 29 份常用样式（GB/T 7714、APA、Nature、IEEE、Vancouver 等） |
-| 行内 | 加粗、斜体、删除线、下划线、上下标、行内代码、行内公式、链接、脚注 |
-| 列表 | 有序、无序、嵌套三级、引用块内的列表 |
-| 质量门禁 | 导前预检（契约、样式、引文）、导后防丢数、逐条样式对账 |
-
-能力边界（做不到什么、为什么）与完整词表见包内
-[`manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md)（中英各一份，随 wheel 发布）；
-实现取舍见 [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md)。
-
----
-
-## 环境
-
-- **依赖**：`python-docx`、`lxml`、`PyYAML`、`latex2mathml`、`citeproc-py`，5 个纯 Python 包
-- **导出不需要任何外部二进制**：没有 Pandoc，没有 Quarto，不调用 Word
-- **`--pdf` 核对版**才用到本机 Word（仅 macOS；不可用时自动跳过，不影响 `.docx`）
-- **中英双语**：运行时消息、门禁报错、使用手册各有两份，语言跟着**稿件语种**走——
-  英文稿拿到英文报错与英文样式名举例，中文稿一字不变
-
----
-
-## 手上有现成的模板？
-
-学校、期刊或单位下发的 `.docx` 不必逐条抄成要求文件。用包内的读取器反推一份草稿：
-
-```bash
-md-to-word-template 学校模板.docx -o 论文_format.txt
-```
-
-读出页面尺寸、页边距、页眉页脚距边界、页码格式与起始、各样式的中西文字体与字号、加粗倾斜、
-对齐、行距（区分倍数/固定值/最小值）、段前段后、缩进（含字符单位）、段落下边框、表格边框与
-表头行、页眉页脚内容与域。**读不出的项列成待确认清单**，不假装读到了。
-
----
-
-## 文档与仓库结构
-
-| 路径 | 读它做什么 |
-|:--|:--|
-| [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) | 技能入口：代办流程、门禁判据、能力边界。事实一律指向手册 |
-| [`src/md_to_word/resources/manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) | **使用手册**：稿件契约、完整词表、代办流程、门禁、能力边界、CSL 清单（中英各一份） |
-| [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md) | 设计原理与故障排查（导出结果不符合预期时先看它 §2） |
-| [`demo/`](https://github.com/ls-open/md-to-word/blob/main/demo/) | 四份样例：最小样例、中文学位论文、技术白皮书、英文期刊投稿 |
-| `scripts/` | 开发与验收工具（见 [`scripts/README.md`](https://github.com/ls-open/md-to-word/blob/main/scripts/README.md)） |
-| `src/md_to_word/` | 实现本体：模型 → OOXML 写出器、样式生成、校验、对账 |
-| `resources/` | Word 365 底模与 29 份规范化 CSL 样式 |
-| `presets/` | 内置预设：`zh-academic.txt`、`en-nature.txt` |
-
-发到用户机器上的只有 `src/`（内含 `md_to_word/presets/` 与 `md_to_word/resources/`，含两份手册）与包元数据（wheel 约 320 KB）；
-`tests/`、`demo/`、`scripts/`、`references/`、`SKILL.md` 是仓库的验收面与技能入口，不进包。
-
-**退出码**：`0` 完成；`1` 稿件、门禁或依赖问题；`3` `.docx` 已写出但 `--pdf` 未渲染。
-`md-to-word --help` 列出全部选项，帮助语言跟随稿件语种；`--verbose` 打印逐个样式套用的明细。
-
----
-
-## 推荐上游生态
-
-本项目专注下游的确定性排版与格式交付，写稿、找文献的部分推荐配合这两个学术 Agent 框架使用：
-
-- [Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)：五阶段学术研究与写作
-  全流程框架。Stage 5（FINALIZE）产出 Markdown 草稿与参考文献后，可直接接到本工具出规范 `.docx`。
-- [Nature Skills](https://github.com/Yuan1z0825/nature-skills)：学术论文写作的 Agent 技能集，覆盖文献综述、
-  实验论证与草稿生成。
-
-（本项目目前被 Academic Research Skills 列在第三方项目清单中。）
-
----
+做不到什么、为什么，以及完整词表见包内[使用手册](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md)
+（中英各一份，随 wheel 发布）；实现取舍见 [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md)。
 
 ## 与其他方案的区别
 
@@ -212,7 +97,70 @@ md-to-word-template 学校模板.docx -o 论文_format.txt
 各家默认就能做到的（中西文字体分离、三线表、跨页表头、参考文献排版），这里同样支持；
 上表只列拉开差距的项。
 
----
+## 另外两个入口
+
+**当作 Python 库**——需要接进自己的流程时：
+
+```python
+from md_to_word import export
+
+result = export("稿件.md", "稿件.docx")
+if not result.ok:
+    raise SystemExit("\n".join(result.errors))
+```
+
+**当作 Agent 技能**——把活交给 AI 时，克隆本仓库，让 Agent 读根目录的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md)，
+它依次完成：整理稿件 → 写 `format.txt` → 导出 → 读门禁、按行号改稿。
+同样的入口也存在于 `nature-skills` 仓库的
+[`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)，
+那边只有技能文档，引擎走同一个 pip 包。
+
+## 环境
+
+- **依赖**：`python-docx`、`lxml`、`PyYAML`、`latex2mathml`、`citeproc-py`，5 个纯 Python 包
+- **导出不需要任何外部二进制**：没有 Pandoc，没有 Quarto，不调用 Word
+- **`--pdf` 核对版**才用到本机 Word（仅 macOS；不可用时自动跳过，不影响 `.docx`）
+- **中英双语**：运行时消息、门禁报错、使用手册各有两份，语言跟着**稿件语种**走——
+  英文稿拿到英文报错与英文样式名举例，中文稿一字不变
+
+## 手上有现成的模板？
+
+学校、期刊或单位下发的 `.docx` 不必逐条抄成要求文件。用包内的读取器反推一份草稿：
+
+```bash
+md-to-word-template 学校模板.docx -o 论文_format.txt
+```
+
+读出页面尺寸、页边距、页眉页脚距边界、页码格式与起始、各样式的中西文字体与字号、加粗倾斜、
+对齐、行距（区分倍数/固定值/最小值）、段前段后、缩进（含字符单位）、段落下边框、表格边框与
+表头行、页眉页脚内容与域。**读不出的项列成待确认清单**，不假装读到了。
+
+## 文档与仓库结构
+
+| 路径 | 读它做什么 |
+|:--|:--|
+| [`src/md_to_word/resources/manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) | **使用手册**：稿件契约、完整词表、代办流程、门禁、能力边界、CSL 清单（中英各一份，随包发布） |
+| [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) | 技能入口：代办流程、门禁判据、能力边界。事实一律指向手册 |
+| [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md) | 设计原理与故障排查（导出结果不符合预期时先看它的 §2） |
+| [`demo/`](https://github.com/ls-open/md-to-word/blob/main/demo/) | 四份样例：最小样例、中文学位论文、技术白皮书、英文期刊投稿 |
+| `src/md_to_word/` | 实现本体：模型 → OOXML 写出器、样式生成、校验、对账 |
+
+发到用户机器上的只有 `src/`（内含 `md_to_word/presets/` 与 `md_to_word/resources/`，含两份手册）
+与包元数据（wheel 约 320 KB）；`tests/`、`demo/`、`scripts/`、`references/`、`SKILL.md` 是仓库的
+验收面与技能入口，不进包。`md-to-word --help` 列出全部选项，帮助语言跟随稿件语种；
+`--verbose` 打印逐个样式套用的明细。退出码：`0` 完成；`1` 稿件、门禁或依赖问题；
+`3` `.docx` 已写出但 `--pdf` 未渲染。
+
+## 推荐上游生态
+
+本项目专注下游的确定性排版与格式交付，写稿、找文献的部分推荐配合这两个学术 Agent 框架使用：
+
+- [Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)：五阶段学术研究与写作
+  全流程框架。Stage 5（FINALIZE）产出 Markdown 草稿与参考文献后，可直接接到本工具出规范 `.docx`。
+- [Nature Skills](https://github.com/Yuan1z0825/nature-skills)：学术论文写作的 Agent 技能集，覆盖文献综述、
+  实验论证与草稿生成。
+
+（本项目目前被 Academic Research Skills 列在第三方项目清单中。）
 
 ## 许可
 

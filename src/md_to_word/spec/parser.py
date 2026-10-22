@@ -1,4 +1,4 @@
-"""md_to_word.spec.parser — requirements.txt 格式要求语法解析器（中英双语）。
+"""md_to_word.spec.parser — format.txt 格式要求语法解析器（中英双语）。
 
 将用户声明的单行格式规范文本（中文或英文）解析为统一强类型的 TemplateSpec 对象。
 具备 100% 确定性全字词法匹配，杜绝歧义与模糊推测。

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "md-to-word-docx"
 dynamic = ["version"]
-description = "Deterministic academic Markdown to journal-compliant Word (.docx) compiler with dual presets and quality gates."
+description = "Deterministic Markdown to Word (.docx) compiler: declared typography, native equations, tables, cross-references, CSL bibliographies, pre- and post-export quality gates."
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
@@ -13,9 +13,11 @@ license-files = ["LICENSE"]
 authors = [
     { name = "Liu Song" }
 ]
-keywords = ["markdown", "word", "docx", "academic", "typography", "ooxml", "csl"]
+keywords = ["markdown", "word", "docx", "docx-generator", "typography", "ooxml", "csl", "latex", "thesis", "report"]
 classifiers = [
     "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Text Processing :: Markup :: Markdown",
     "Programming Language :: Python :: 3",

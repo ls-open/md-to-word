@@ -100,7 +100,7 @@ def test_preflight_verdict(name: str, tmp_path: Path) -> None:
 
     requirements = None
     if dropped_rows is not None:
-        requirements = tmp_path / "requirements.txt"
+        requirements = tmp_path / "format.txt"
         requirements.write_text(_requirements_without(*dropped_rows), encoding="utf-8")
 
     report = validate_manuscript(tmp_path / "manuscript.md", spec_path=requirements)
@@ -137,7 +137,7 @@ def test_visible_issues_warn_instead_of_blocking(tmp_path: Path) -> None:
         "%% 表题 表 1 测试\n\n正文隔开了题注和表格。\n\n| 甲 | 乙 |\n|:--|:--|\n| 1 | 2 |\n",
         encoding="utf-8",
     )
-    requirements = tmp_path / "requirements.txt"
+    requirements = tmp_path / "format.txt"
     requirements.write_text(PRESET.read_text(encoding="utf-8"), encoding="utf-8")
 
     report = validate_manuscript(manuscript, spec_path=requirements)

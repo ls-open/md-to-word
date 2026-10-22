@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""read_reference_docx.py — 从一份「参考 .docx」反推 requirements.txt 草稿。
+"""read_reference_docx.py — 从一份「参考 .docx」反推 format.txt 草稿。
 
 用法:
     md-to-word-template 参考.docx [-o 草稿.txt]        # 装包后
@@ -56,7 +56,7 @@ class Ref:
 
     def __init__(self, path: Path, lang: str = "zh"):
         self.notes: list[str] = []
-        # 消息语言：草稿正文始终是本工具的中文词表写法（那是 requirements.txt 的合法
+        # 消息语言：草稿正文始终是本工具的中文词表写法（那是 format.txt 的合法
         # 语法），变的只是「需人工确认」清单与命令行提示。
         self.lang = lang
         # 不是 .docx（多半是把 .md 或别的文件丢进来了）时要说清楚：直接抛 BadZipFile
@@ -613,7 +613,7 @@ def main(argv=None):
 def extract_spec_from_docx(
     docx_path: Path | str, output_path: Optional[Path | str] = None, lang: str = "zh"
 ) -> str:
-    """从给定的 docx 模板反推单行 requirements.txt 草稿。``lang`` 只管消息，草稿正文用中文词表。"""
+    """从给定的 docx 模板反推单行 format.txt 草稿。``lang`` 只管消息，草稿正文用中文词表。"""
     ref = Ref(Path(docx_path), lang)
     from md_to_word.spec.constants import STYLE_MAP
     from md_to_word.template.generator import REQUIRED_STYLES

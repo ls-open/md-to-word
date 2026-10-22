@@ -180,7 +180,7 @@ Word 打印时会把它加到左边距之外，但**算版心的公式里没有�
 
 参考模板仍须是**单节**：多节模板的页面几何会互相打架，生成时直接报错。
 
-### 1.9 requirements.txt 是一门**封闭**的小语言
+### 1.9 format.txt 是一门**封闭**的小语言
 
 它是本技能唯一的用户界面，只有两级语法，两级各由**一张表**实现（都在 `src/md_to_word/spec/parser.py`）：
 
@@ -202,7 +202,7 @@ Word 打印时会把它加到左边距之外，但**算版心的公式里没有�
 - 行级键 `页码：` 的前提（没有 `{页码}` 域就等于只写了一行没人读的 `pgNumType`）在
   `apply_page_decorations` 里查，那时才看得到页眉/页脚内容。
 
-**为什么封闭**：用法是 AI 读要求原文 → 转写成 requirements.txt → 解析器严格校验。"严格校验"
+**为什么封闭**：用法是 AI 读要求原文 → 转写成 format.txt → 解析器严格校验。"严格校验"
 成立的前提就是词表封闭：转写要么整行被接受、要么当场报错。多收一个同义写法看着只是"宽容
 一点"，实际是取消了对转写的唯一验证手段。
 
@@ -299,7 +299,7 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 写出器把表格单元格里的段落统一套 `Compact` 样式。正文段落落 `Body Text` / `First Paragraph`。
 
 - **表格内外无特殊要求**：将 `Compact` 设为与 `Body Text`、`First Paragraph`、`Normal` 相同的字体、字号、行距，效果统一
-- **表格内有特殊要求**（如表格内 10pt、表格外 12pt）：直接在 `requirements.txt` 中按表格内标准设 `Compact`，表格内文字自动跟着变
+- **表格内有特殊要求**（如表格内 10pt、表格外 12pt）：直接在 `format.txt` 中按表格内标准设 `Compact`，表格内文字自动跟着变
 
 ### 2.4 GB/T 7714 引用显示中文"等"而非英文"et al."
 
@@ -328,9 +328,9 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 
 ### 2.8 CSL direct formatting 属性覆盖模板样式
 
-症状：同一个 requirements.txt 在不同 CSL 下，参考文献的悬挂缩进、行距、段间距行为不一致。
+症状：同一个 format.txt 在不同 CSL 下，参考文献的悬挂缩进、行距、段间距行为不一致。
 原因：CSL 有两种悬挂缩进机制——`hanging-indent="true"` 与 `second-field-align="flush"`，都会写成段落级 direct formatting，绕过模板，覆盖 Bibliography 样式的设置。
-解决：内置 CSL 都已用 `scripts/normalize_csl.py` 去掉 `<bibliography>` 上的 `hanging-indent`、`second-field-align`、`line-spacing` 等 direct formatting 属性，悬挂缩进改由 requirements.txt 的 Bibliography 样式（`悬挂缩进0.5英寸`）统一控制。**新增 CSL 必须跑一次**：`python3 scripts/normalize_csl.py resources/csl/新期刊.csl`。
+解决：内置 CSL 都已用 `scripts/normalize_csl.py` 去掉 `<bibliography>` 上的 `hanging-indent`、`second-field-align`、`line-spacing` 等 direct formatting 属性，悬挂缩进改由 format.txt 的 Bibliography 样式（`悬挂缩进0.5英寸`）统一控制。**新增 CSL 必须跑一次**：`python3 scripts/normalize_csl.py resources/csl/新期刊.csl`。
 
 ### 2.9 参考文献 Tab 残留导致悬挂失效
 
@@ -339,15 +339,15 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 
 ### 2.10 静默失败防护（字号无单位、行距变体）
 
-症状：requirements.txt 写 `12`（无单位）、`双倍行距`/`靠左`（非规范写法），或漏写某个必填字段。
+症状：format.txt 写 `12`（无单位）、`双倍行距`/`靠左`（非规范写法），或漏写某个必填字段。
 原因：每个属性只有一种规范写法，全部列在 `_CLAUSE_TABLE` 子句表（与 manual.md §3.1 同一张表）。**认不出的词在解析期即当场报错**（给行号、原词、应写形式），不会静默丢弃——旧实现逐属性做子串探测，认不出就无声忽略：既漏（写了不生效）又错（`最小行距25磅` 被当成固定值用）。
 解决：解析器与必填校验形成双层防线：① 写错的词（如 `12` 无单位、`双倍行距`）在词法消费阶段直接报错并给出应写形式；② 完全没写的属性由 `_check_required_fields` 直接拦截，确保每个声明样式的字体、字号、对齐、行距、段前段后、缩进（及标题类的加粗/倾斜）全部显式填写。
 
 ### 2.11 表格对齐 jc 继承机制
 
-症状：requirements.txt 写了 `表格：居中`，但导出的表格仍左对齐，右边剩大片空白。
+症状：format.txt 写了 `表格：居中`，但导出的表格仍左对齐，右边剩大片空白。
 原因：写出器**不输出**表格级 `<w:jc>`，表格会**继承** Table 样式的 `tblPr/jc`（OOXML 规范 ECMA-376 §17.7.6 规定 Table 样式属性 "always applied" 除非被表格实例覆盖）。所以只要模板的 Table 样式 `tblPr` 里有 `<w:jc w:val="center"/>`，所有表格自动居中。
-解决：在 requirements.txt 中写 `表格：居中`，`src/md_to_word/template/generator.py` 会在 Table 样式的 tblPr 中插入 jc 元素。
+解决：在 format.txt 中写 `表格：居中`，`src/md_to_word/template/generator.py` 会在 Table 样式的 tblPr 中插入 jc 元素。
 
 ### 2.12 OOXML schema 顺序要求（jc 必须在 tblBorders 之前）
 
@@ -357,15 +357,15 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 
 ### 2.13 First Paragraph 必填原理
 
-症状：requirements.txt 只定义了 `正文 Body Text`，未定义 `首段 First Paragraph`，章节首段格式错误（无缩进或缩进错误）。
+症状：format.txt 只定义了 `正文 Body Text`，未定义 `首段 First Paragraph`，章节首段格式错误（无缩进或缩进错误）。
 原因：章节首段落 `First Paragraph` 样式（不是 `Body Text`）。只定义 `Body Text` 而没定义 `First Paragraph` 时，首段会继承底模默认。
-解决：requirements.txt 必须显式定义 `首段` 样式，通常 `首行缩进0字符`（APA 标准章节首段不缩进），与正文（`首行缩进2字符`）区分。src/md_to_word/template/generator.py 将 First Paragraph 列为必填样式之一（必填样式清单见 `REQUIRED_STYLES`，会随需求演进）。
+解决：format.txt 必须显式定义 `首段` 样式，通常 `首行缩进0字符`（APA 标准章节首段不缩进），与正文（`首行缩进2字符`）区分。src/md_to_word/template/generator.py 将 First Paragraph 列为必填样式之一（必填样式清单见 `REQUIRED_STYLES`，会随需求演进）。
 
 ### 2.14 间距清零原理（段前段后显式写 0）
 
-症状：requirements.txt 写 `行距2倍` 但未写段前段后，导出后正文段落之间仍有额外间距，"双倍行距贯穿全文"未实现。
+症状：format.txt 写 `行距2倍` 但未写段前段后，导出后正文段落之间仍有额外间距，"双倍行距贯穿全文"未实现。
 原因：底模里大多数样式自带段前/段后间距（如 Body Text 默认段前段后各 9pt）。仅设置行距不清零段间距，最终间距 = 双倍行距 + 段前 9pt + 段后 9pt。
-解决：在 requirements.txt 中显式写 `段前0磅 段后0磅`（必须显式写 `0` 才能覆盖默认值）。src/md_to_word/template/generator.py 将段前段后列为必填字段。
+解决：在 format.txt 中显式写 `段前0磅 段后0磅`（必须显式写 `0` 才能覆盖默认值）。src/md_to_word/template/generator.py 将段前段后列为必填字段。
 
 ### 2.15 LaTeX 分页符对 docx 无效
 
@@ -469,6 +469,21 @@ docx 打开、更新目录域之后，条目变成 Word 默认的样子（不加
 随 wheel 走，`--contract` 打印路径）；技能目录里只有"按什么顺序做"，因此引擎升级不需要改技能
 文件。反过来做——把词表抄进技能、再记一个版本号防止过期——是把维护成本放到最贵的那个渠道上：
 技能没有 `upgrade`，用户也无从知道自己手里的是旧的。
+
+**两份 `SKILL.md` 是同一份流程的两个定位。** 本仓库的是**通用**入口：把任意 Markdown 变成
+符合某项声明格式的 Word（学位论文、期刊投稿、技术报告、公文、说明书），不假定用户在做学术；
+nature-skills 那份挂在学术技能集里，按那边的写法来（frontmatter 面向学术场景、末尾列同门技能
+以便交接）。正文——契约、工作流、门禁判据、能力边界——是同一份，改一处要同步另一处。
+
+差异只允许三处，其余任何不同都算漂移：
+
+| 位置 | 本文库（通用） | nature-skills（学术场景） |
+|:--|:--|:--|
+| frontmatter `name:` / `description:` | `md-to-word`；场景泛举 | `nature-paper2word`；场景以投稿、学位论文为主 |
+| §1 场景表首行 | 「有一份声明好的规范」（含公文、内部规范） | 「期刊或学校合规」 |
+| §8 | 「边界」：只负责编译，交给用户已有的写作工具 | 「相关技能」：列同门技能，便于交接 |
+
+核对方法：`diff` 两份文件，只该出现上面三处差异。
 
 **入口有几层都无所谓，实现只有一份**：命令行、Python 调用、技能目录、将来的 NPM 包，都是同一份
 实现的薄壳。判断一个新入口该不该做，看它是否只是"另一种调用方式"——是，就加薄壳；不是（要求改写

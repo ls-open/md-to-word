@@ -7,9 +7,8 @@ every format decision is declared in the requirements file; export is determinis
 same source at any time and the output is byte-for-byte identical.
 
 This manual ships with the Python package and is versioned with the implementation — `pip install -U`
-replaces an implementation and its documentation together. `md-to-word --contract` prints its
-absolute path. `md-to-word --contract` prints the contract cheatsheet, the path to this
-file and the built-in preset paths.
+replaces an implementation and its documentation together. `md-to-word --contract` prints the
+contract cheatsheet, the absolute path of this file and the built-in preset paths.
 
 One export needs two files:
 

@@ -5,7 +5,7 @@
 
     契约 Markdown  --reader-->  文档模型  --writer-->  OOXML
                                   ↑
-                          requirements.txt（样式参数）
+                          format.txt（样式参数）
 
 模型的有意取舍：
 - 段落带的是 **Word 样式名**（`Abstract`），不是用户写的语义名（`摘要`）。语义名到样式名的

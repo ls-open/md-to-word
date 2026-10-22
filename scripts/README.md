@@ -7,7 +7,7 @@
 | 脚本 | 做什么 | 等价的包内命令 |
 |:--|:--|:--|
 | `export.sh` | 导出。先找已安装的 `md-to-word`，没有就用仓库里的 `src/` 兜底 | `md-to-word` / `python3 -m md_to_word` |
-| `read_reference_docx.py` | 从参考 `.docx` 反推 `requirements.txt` 草稿 | `md-to-word-template` |
+| `read_reference_docx.py` | 从参考 `.docx` 反推 `format.txt` 草稿 | `md-to-word-template` |
 | `generate_template.py` | 只按要求文件生成样式模板，用来看产物长什么样 | —（导出时会临时生成） |
 | `check_md.py` | 单独跑导前预检 | —（每次导出都会跑） |
 | `normalize_csl.py` | 规范化 CSL（剥掉 `<bibliography>` 上的直接格式属性） | —（用户自带 CSL 时自动执行） |

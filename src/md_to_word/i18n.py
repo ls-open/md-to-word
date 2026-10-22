@@ -217,8 +217,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "template.style_item": (" - {alias}（{style}）", " - {style}"),
     "template.missing_styles_hint": (
-        " 建议在 requirements.txt 中补充这些样式的定义",
-        " Add these style definitions to requirements.txt",
+        " 建议在 format.txt 中补充这些样式的定义",
+        " Add these style definitions to format.txt",
     ),
     "template.missing_rows_header": (
         "⚠️ 必填行缺失（不写就会套用默认样式）:",
@@ -393,7 +393,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     # ── 反推参考 docx（template/extractor.py，控制台入口 md-to-word-template） ──
     # 只翻**给人看的消息**与「需人工确认」清单；草稿正文仍用本工具的（中文）词表写法，
-    # 那是 requirements.txt 的合法语法，不随消息语言变。
+    # 那是 format.txt 的合法语法，不随消息语言变。
     "extractor.not_docx": (
         "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
         "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
@@ -403,8 +403,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.cli.description": (
-        "从参考 .docx 反推 requirements.txt 草稿（读不出的项单独列出，不猜值）",
-        "Draft a requirements.txt from a reference .docx (unreadable items are listed, never guessed)",
+        "从参考 .docx 反推 format.txt 草稿（读不出的项单独列出，不猜值）",
+        "Draft a format.txt from a reference .docx (unreadable items are listed, never guessed)",
     ),
     "extractor.not_docx": (
         "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",

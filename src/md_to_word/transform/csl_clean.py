@@ -2,7 +2,7 @@
 
 CSL 的 `<bibliography>` 标签可以带 `hanging-indent`、`second-field-align`、
 `line-spacing` 三个属性。引文处理器会把它们写成**段落级直接格式**，而直接格式的优先级
-高于样式——于是同一份 `requirements.txt`，换一个 CSL，悬挂缩进和行距就变了，
+高于样式——于是同一份 `format.txt`，换一个 CSL，悬挂缩进和行距就变了，
 「同一份稿件重跑结果一致」这个承诺当场作废。
 
 判据很简单：**段落格式归模板管，CSL 只管条目里写什么**。所以这三个属性一律去掉，

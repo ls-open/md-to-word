@@ -5,8 +5,8 @@ English: `manual_en.md`
 Markdown → 规范 Word（`.docx`）。内容与排版分离：Markdown 是源，格式全部声明在要求文件里；
 导出是确定性的，同一份源任何时候重跑，产物逐字节一致。
 
-本手册随 Python 包发布，版本与实现同步——`pip install -U` 换掉的是一整份一致的实现与说明；
-`md-to-word --contract` 打印它的绝对路径。`md-to-word --contract` 打印契约速查、本文件路径与内置预设路径。
+本手册随 Python 包发布，版本与实现同步——`pip install -U` 换掉的是一整份一致的实现与说明。
+`md-to-word --contract` 打印契约速查、本文件的绝对路径与内置预设路径。
 
 一次导出只需要两个文件：
 

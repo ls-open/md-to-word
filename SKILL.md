@@ -1,6 +1,6 @@
 ---
 name: md-to-word
-description: "Compile a Markdown manuscript into journal- or school-compliant Word (.docx): declared typography, native OMML equations, three-line tables, cross-references, page-number sections, CSL bibliographies, and pre/post-export quality gates — no Pandoc, no Quarto. 把 Markdown 导出为符合规范的 Word：学位论文/期刊论文/公文排版，摘要、公式编号、三线表、题注、交叉引用、目录域、CSL 参考文献。Use when the user wants a .docx — a readable copy or a compliant submission — including 导出Word、文档转Word、论文转Word、期刊排版、公文排版、prepare submission docx. Not for PDF, HTML or LaTeX output."
+description: "Compile a Markdown document into Word (.docx) that matches a declared format: typography, headings, native OMML equations, three-line tables, captions, cross-references, TOC field, per-section page numbers, CSL bibliographies, and pre/post-export quality gates — no Pandoc, no Quarto. 把 Markdown 导出为符合规范的 Word：学位论文、期刊论文、技术报告、公文、说明书都适用；格式写在一份随稿件进 Git 的要求文件里。Use when the user wants a .docx — a submission, a report, an official document, or just a readable copy — including 导出Word、文档转Word、转成Word、论文排版、公文排版、报告排版、prepare submission docx. Not for PDF, HTML or LaTeX output."
 license: MIT
 ---
 
@@ -18,8 +18,8 @@ of work; every spelling is looked up in the manual.
 
 | Scenario | What the user says | What to do |
 |---|---|---|
-| Journal or school compliance | "format it for Nature / my university" | Get a target `.docx` template or a written spec, then build a requirements file. |
-| Existing requirements | "use our lab's spec file" | Pass it with `-r`. |
+| A spec exists | "format it for Nature / my university / our 公文标准 / house style" | Get a target `.docx` template or a written spec, then build a requirements file. |
+| Existing requirements file | "use our lab's spec file" | Pass it with `-r`. |
 | Baseline export (no explicit spec) | "turn this into a Word file" | Normalize the manuscript to the contract, then export with the built-in preset. The preset is a complete, valid format, not a provisional default. |
 
 State the chosen preset or requirements path in one line, then proceed. Without `-r` the engine
@@ -142,18 +142,13 @@ language. Add `--verbose` when a format does not seem to take effect.
 Full statements: manual §6 (limits) and §8 (symptom → fix). Design rationale lives in the engine
 repository: <https://github.com/ls-open/md-to-word/blob/main/references/design.md>.
 
-## 8. Related skills
+## 8. Scope
 
-This skill compiles the manuscript; these cover the steps around it. Hand off rather than
-re-implement:
+This skill compiles a finished manuscript into a `.docx` and nothing else. Drafting, rewriting,
+polishing, searching for sources and verifying reference metadata belong to whatever writing tools
+the user already works with: take the Markdown they hand you, produce the `.docx`, and return it.
+The interface in both directions is a Markdown file plus a `format.txt` — no other cooperation is
+needed, and no other tool's conventions leak into the manuscript.
 
-| Skill | What it covers |
-|---|---|
-| `nature-writing` | Drafting the manuscript and its section-level argument (input to this one) |
-| `nature-polishing` | Language polishing and academic phrasing (input to this one) |
-| `nature-citation` | Searching for and exporting BibTeX / RIS entries for the `.bib` this skill consumes |
-| `nature-ref-verifier` | Cross-checking reference metadata before submission |
-| `nature-paper2ppt` | Turning the same manuscript into a presentation deck |
-
-Upstream engine, the general-purpose pip package, and the changelog:
+Engine, pip package, changelog and issue tracker:
 [md-to-word](https://github.com/ls-open/md-to-word).
