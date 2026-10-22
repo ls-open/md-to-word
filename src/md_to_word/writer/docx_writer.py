@@ -371,12 +371,24 @@ class _Writer:
         抓不到。既然目标是「导出的文档还能在 Word 里继续改」，编号就得是域。
         """
         num_id = self._numbered_list(block.ordered, block.start)
+        body_style = self._style_name("Body Text") or self._compact_style
         for item in block.items:
             for inner in item.blocks:
                 if not isinstance(inner, Paragraph):
                     raise UnsupportedFeature("列表项里目前只支持段落")
-                paragraph = self.docx.add_paragraph(style=self._compact_style)
+                # 列表项是正文，不是表格单元格：套 Body Text 而不是 Compact。
+                # Compact 常被设成「居中 + 不缩进」（表格里就该这样），列表项跟着它
+                # 会被逐行居中，看着像手打的「• 一句话」——排版对不上，内容却没错。
+                paragraph = self.docx.add_paragraph(style=body_style)
                 self._apply_numbering(paragraph, num_id)
+                # 缩进写在段落上：左缩进 0.5 英寸、悬挂 0.25 英寸，与编号定义一致；
+                # 同时清掉正文样式继承来的首行缩进（含字符单位的 firstLineChars），
+                # 否则编号会被推后两字。段落级 w:ind 会覆盖编号定义里的那一份，故两处都得写。
+                ind = paragraph._p.get_or_add_pPr().get_or_add_ind()
+                ind.set(qn("w:left"), "720")
+                ind.set(qn("w:hanging"), "360")
+                ind.set(qn("w:leftChars"), "0")
+                ind.set(qn("w:firstLineChars"), "0")
                 self.inlines(paragraph, inner.inlines)
 
     def _ensure_numbering(self) -> None:

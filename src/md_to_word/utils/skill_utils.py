@@ -141,11 +141,17 @@ _IMAGE_ONLY_RE = re.compile(r"^\s*!\[[^\]]*\]\([^)]+\)(\s*\{[^}]*\})?\s*$")
 _HEADING_RE = re.compile(r"^\s*#{1,6}\s")
 
 
+# 列表标记行：`- 项目`、`1. 项目`（`---` 是分隔线，已在前面排除）
+_LIST_ITEM_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+\S")
+
+
 def _is_prose_line(line: str) -> bool:
     """该行是不是正文（非空、非 ---、非标题、非任何块级标记行，也不含 `%%` 段落样式行）。"""
     s = line.strip()
     if not s or s == "---" or _HEADING_RE.match(line):
         return False
+    if _LIST_ITEM_RE.match(s):
+        return False  # 列表项各自成段，不参与「折行段落」判断
     if not s.strip("."):  # mask_code_fences 用「.」占位；占位行不是正文
         return False
     if s[0] in "|>!" or s.startswith(":::") or s.startswith("%%"):
@@ -160,13 +166,25 @@ def _shortcode_marker(line: str):
     return m.group(1) if m and m.group(1) in _SHORTCODE_MARKERS else None
 
 
+_INLINE_CODE_SPAN = re.compile(r"`[^`]*`")
+
+
+def _strip_inline_code(line: str) -> str:
+    """去掉行内代码的内容（保持列宽），用于标记检测。
+
+    `` `{{< pagebreak >}}` `` 里那段是**字面量**：文档里引用一句写法，不等于要在
+    这里插一个分页符。不剥掉，任何讲解写法的稿件都会被自己的示例拦下。
+    """
+    return _INLINE_CODE_SPAN.sub(lambda m: " " * len(m.group(0)), line)
+
+
 def unknown_shortcode_issues(text: str) -> list:
     """不认识的短代码 → [(行号, 名字)]；空列表 = 没有。"""
     if not text:
         return []
     issues = []
     for i, line in enumerate(mask_code_fences(text).split("\n")):
-        for m in _SHORTCODE_RE.finditer(line):
+        for m in _SHORTCODE_RE.finditer(_strip_inline_code(line)):
             if m.group(1) not in _SHORTCODE_MARKERS:
                 issues.append((i + 1, m.group(1)))
     return issues
@@ -189,21 +207,22 @@ def block_marker_issues(text: str) -> list:
     in_math = False
     for i, line in enumerate(lines):
         no = i + 1
-        if _MATH_ONLY_RE.match(line):
+        scan = _strip_inline_code(line)  # 行内代码里的标记是字面量，不算标记
+        if _MATH_ONLY_RE.match(scan):
             in_math = not in_math
             if not in_math and after_glued(i):
                 issues.append((no, "公式收尾行后无空行"))
             continue
         if in_math:
             continue
-        if "$$" in line:
-            if not _MATH_INLINE_RE.match(line):
+        if "$$" in scan:
+            if not _MATH_INLINE_RE.match(scan):
                 issues.append((no, "公式与文字同行（未独立成行）"))
             elif after_glued(i):
                 issues.append((no, "公式后无空行"))
-        elif (marker := _shortcode_marker(line)) is not None:
+        elif (marker := _shortcode_marker(scan)) is not None:
             whole_line_re, label = _SHORTCODE_MARKERS[marker]
-            if not whole_line_re.match(line):
+            if not whole_line_re.match(scan):
                 issues.append((no, f"{label}短代码未独占一行"))
             elif after_glued(i):
                 issues.append((no, f"{label}短代码后无空行"))
