@@ -41,7 +41,7 @@ def template(tmp_path: Path) -> Path:
 
 def test_writes_title_block_and_blocks(template: Path, tmp_path: Path) -> None:
     model = read_markdown(
-        '---\ntitle: "题目"\nauthor: [张三]\n---\n\n# 一 引言\n\n正文。\n\n## 1.1 小节\n\n更多正文。\n'
+        '%% 文档标题 题目\n\n%% 作者 张三\n\n# 一 引言\n\n正文。\n\n## 1.1 小节\n\n更多正文。\n'
     )
     out = write_docx(model, template, tmp_path / "a.docx")
     styles, text = _facts(out)
@@ -127,7 +127,7 @@ def test_footnotes_are_written_as_a_real_part(template: Path, tmp_path: Path) ->
 
 def test_toc_depth_follows_the_template_when_not_given(template: Path, tmp_path: Path) -> None:
     """`{{< toc >}}` 不带级数时，收几级由模板声明到几级决定，不是写死 3。"""
-    model = read_markdown('---\ntitle: "t"\n---\n\n{{< toc >}}\n\n# 一 引言\n\n正文。\n')
+    model = read_markdown('---\n---\n\n{{< toc >}}\n\n# 一 引言\n\n正文。\n')
     out = write_docx(model, template, tmp_path / "toc.docx")
     xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
     assert 'TOC \\o "1-3"' in xml, "预设只声明到三级"
@@ -196,7 +196,7 @@ def test_chapter_format_without_chapters_fails_loudly(template: Path, tmp_path: 
     """模板用了 {c} 而稿件没按章编号：当场报错，不产出 （0-1）。"""
     from md_to_word.writer.docx_writer import UnsupportedFeature
 
-    model = read_markdown('---\ntitle: "t"\n---\n\n# 一\n\n$$a$$ {#eq-a}\n')
+    model = read_markdown('---\n---\n\n# 一\n\n$$a$$ {#eq-a}\n')
     with pytest.raises(UnsupportedFeature, match="chapters"):
         write_docx(model, template, tmp_path / "bad.docx", equation_number_format="（{c}-{n}）")
 
@@ -252,7 +252,7 @@ def test_citations_render_and_bibliography_is_appended(template: Path, tmp_path:
     csl = REPO_ROOT / "src" / "md_to_word" / "resources" / "csl" / "chinese-gb7714-2015-numeric.csl"
     engine = CitationEngine(bib.read_text(encoding="utf-8"), csl)
 
-    model = read_markdown('---\ntitle: "t"\n---\n\n# 一 引言\n\n见 [@smith2024]。\n')
+    model = read_markdown('---\n---\n\n# 一 引言\n\n见 [@smith2024]。\n')
     out = write_docx(model, template, tmp_path / "cite.docx", citations=engine)
     xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
     text = "".join(re.findall(r"<w:t[^>]*>([^<]*)</w:t>", xml))
@@ -290,7 +290,7 @@ def test_nary_keeps_operand_inside(template: Path, tmp_path: Path) -> None:
 
 def test_ascii_quotes_become_typographic(template: Path, tmp_path: Path) -> None:
     """中文稿里的 `"…"` 直引号印出来很显眼，与中文排版的习惯不符。"""
-    model = read_markdown('---\ntitle: "t"\n---\n\n本文不作"无遗漏变量偏误"的断言。\n')
+    model = read_markdown('---\n---\n\n本文不作"无遗漏变量偏误"的断言。\n')
     out = write_docx(model, template, tmp_path / "a.docx")
     _, text = _facts(out)
     assert "“无遗漏变量偏误”" in text
@@ -305,7 +305,7 @@ def test_cjk_citation_gap_is_trimmed(template: Path, tmp_path: Path) -> None:
         "@article{smith2024,\n  author={Smith, J.},\n  title={T},\n  year={2024},\n  journal={J}\n}\n",
         get_csl_dir() / "chinese-gb7714-2015-numeric.csl",
     )
-    model = read_markdown('---\ntitle: "题"\n---\n\n认知负荷 @smith2024 增加。\n', citation_keys={"smith2024"})
+    model = read_markdown('---\n---\n\n认知负荷 @smith2024 增加。\n', citation_keys={"smith2024"})
     out = write_docx(model, template, tmp_path / "a.docx", citations=engine)
     _, text = _facts(out)
     assert "认知负荷" in text and "认知负荷 " not in text

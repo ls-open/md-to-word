@@ -28,11 +28,17 @@ from md_to_word.spec.constants import PAGE_NUMBER_FMT
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
-    Inline, Link, ListBlock, Math, PageBreak, Paragraph, Quote, SectionBreak, Strikethrough,
+    Inline, Link, ListBlock, MAX_LIST_LEVEL, Math, PageBreak, Paragraph, Quote, SectionBreak, Strikethrough,
     Strong, Subscript, Superscript, Table, Text, Toc, Underline, Citation, CrossRef,
 )
 
 SUPPORTED_BLOCKS = (Heading, Paragraph, ListBlock, Table, Figure, CodeBlock, PageBreak, Quote)
+
+# 列表缩进（twips，1 英寸 = 1440）：每层左缩进 0.5 英寸，编号悬挂 0.25 英寸。
+# 引用块里的列表整体再右移一个正文缩进，免得和引用正文左对齐、看不出从属关系。
+_LIST_STEP_TWIPS = 720
+_LIST_HANGING_TWIPS = 360
+_QUOTE_LEFT_TWIPS = 480
 SUPPORTED_INLINES = (Code, Strong, Emphasis, Strikethrough, Underline, Superscript, Subscript)
 
 _ALIGN = {
@@ -142,7 +148,6 @@ class _Writer:
                 body.remove(paragraph._element)
 
         self._collect_equation_numbers()
-        self._title_block()
         blocks = self.model.blocks
         for index, block in enumerate(blocks):
             self.block(block)
@@ -150,22 +155,6 @@ class _Writer:
         self._write_bibliography()
         if self._footnote_ids:
             self._write_footnotes()
-
-    def _title_block(self) -> None:
-        """YAML 里的标题区：文档标题、副标题、作者、日期各占一段。
-
-        摘要与关键词**不在这里**：它们走正文的 `%% 摘要` / `%% 关键词`，位置由作者定。
-        YAML 里写了却没人排，预检会拦下来让作者改稿——静默丢一段摘要是最贵的错。
-        """
-        meta = self.model.meta
-        if meta.title:
-            self.docx.add_paragraph(str(meta.title), style="Title")
-        if meta.subtitle:
-            self.docx.add_paragraph(str(meta.subtitle), style="Subtitle")
-        if meta.author:
-            self.docx.add_paragraph("，".join(meta.author), style="Author")
-        if meta.date:
-            self.docx.add_paragraph(str(meta.date), style="Date")
 
     # ── 块 ───────────────────────────────────────────────────────────
     def block(self, block: Block) -> None:
@@ -359,20 +348,32 @@ class _Writer:
 
     def _quote(self, block: Quote) -> None:
         for inner in block.blocks:
-            if not isinstance(inner, Paragraph):
-                raise UnsupportedFeature("引用块里目前只支持段落")
-            paragraph = self.docx.add_paragraph(style=inner.style or "Block Text")
-            self.inlines(paragraph, inner.inlines)
+            if isinstance(inner, Paragraph):
+                paragraph = self.docx.add_paragraph(style=inner.style or "Block Text")
+                self.inlines(paragraph, inner.inlines)
+            elif isinstance(inner, ListBlock):
+                # 引用里的列表整体再缩进一个层级，免得和引用里的正文左对齐、分不出从属关系
+                self._list(inner, base_left=_QUOTE_LEFT_TWIPS)
+            elif isinstance(inner, CodeBlock):
+                self._code(inner)
+            else:
+                raise UnsupportedFeature("引用块里目前只支持段落、列表与代码块")
 
-    def _list(self, block: ListBlock) -> None:
+    def _list(self, block: ListBlock, base_left: int = 0) -> None:
         """列表写出：真实编号（numbering.xml），不是字面量序号。
 
         字面量的代价是：Word 里按退格改不了级别、增删条目不会自动重编号、目录与交叉引用也
         抓不到。既然目标是「导出的文档还能在 Word 里继续改」，编号就得是域。
         """
-        num_id = self._numbered_list(block.ordered, block.start)
         body_style = self._style_name("Body Text") or self._compact_style
+        # numId 必须整块列表共用一个：`_numbered_list` 遇到起始号不是 1 时会**新建**一个
+        # 带 startOverride 的编号实例，逐项调用就会逐项重新从起始号数起——「4. 5.」变成「4. 4.」。
+        num_ids: dict[bool, int] = {}
         for item in block.items:
+            ordered = block.ordered if item.ordered is None else item.ordered
+            if ordered not in num_ids:
+                num_ids[ordered] = self._numbered_list(ordered, block.start)
+            num_id = num_ids[ordered]
             for inner in item.blocks:
                 if not isinstance(inner, Paragraph):
                     raise UnsupportedFeature("列表项里目前只支持段落")
@@ -380,33 +381,45 @@ class _Writer:
                 # Compact 常被设成「居中 + 不缩进」（表格里就该这样），列表项跟着它
                 # 会被逐行居中，看着像手打的「• 一句话」——排版对不上，内容却没错。
                 paragraph = self.docx.add_paragraph(style=body_style)
-                self._apply_numbering(paragraph, num_id)
-                # 缩进写在段落上：左缩进 0.5 英寸、悬挂 0.25 英寸，与编号定义一致；
+                self._apply_numbering(paragraph, num_id, item.level)
+                # 缩进写在段落上：左缩进按层递增、悬挂 0.25 英寸，与编号定义一致；
                 # 同时清掉正文样式继承来的首行缩进（含字符单位的 firstLineChars），
                 # 否则编号会被推后两字。段落级 w:ind 会覆盖编号定义里的那一份，故两处都得写。
                 ind = paragraph._p.get_or_add_pPr().get_or_add_ind()
-                ind.set(qn("w:left"), "720")
-                ind.set(qn("w:hanging"), "360")
+                ind.set(qn("w:left"), str(base_left + _LIST_STEP_TWIPS * (item.level + 1)))
+                ind.set(qn("w:hanging"), str(_LIST_HANGING_TWIPS))
                 ind.set(qn("w:leftChars"), "0")
                 ind.set(qn("w:firstLineChars"), "0")
                 self.inlines(paragraph, inner.inlines)
 
     def _ensure_numbering(self) -> None:
-        """模板里的 numbering.xml 是空的：首次用到列表时补两套定义（无序/有序）。"""
+        """模板里的 numbering.xml 是空的：首次用到列表时补两套定义（无序/有序），各三级。"""
         numbering = self.docx.part.numbering_part.element
         if numbering.findall(qn("w:abstractNum")):
             return
+        bullet_marks = ("•", "–", "▪")  # 第二级用短横：空心圆在中西文混排里容易被看成一个字母
+        ordered_fmt = (("decimal", "%1."), ("lowerLetter", "%2)"), ("lowerRoman", "%3."))
+        levels = []
+        for abstract_id, marks in ((0, bullet_marks), (1, None)):
+            lvl_xml = []
+            for ilvl in range(MAX_LIST_LEVEL + 1):
+                indent = f'<w:pPr><w:ind w:left="{_LIST_STEP_TWIPS * (ilvl + 1)}" w:hanging="{_LIST_HANGING_TWIPS}"/></w:pPr>'
+                if marks is None:
+                    fmt, text = ordered_fmt[ilvl]
+                else:
+                    fmt, text = "bullet", marks[ilvl]
+                lvl_xml.append(
+                    f'<w:lvl w:ilvl="{ilvl}"><w:start w:val="1"/><w:numFmt w:val="{fmt}"/>'
+                    f'<w:lvlText w:val="{text}"/><w:lvlJc w:val="left"/>{indent}</w:lvl>'
+                )
+            levels.append(
+                f'<w:abstractNum w:abstractNumId="{abstract_id}">'
+                f'<w:multiLevelType w:val="multilevel"/>{"".join(lvl_xml)}</w:abstractNum>'
+            )
         xml = (
             f'<w:numbering {nsdecls("w")}>'
-            '<w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="singleLevel"/>'
-            '<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/>'
-            '<w:lvlText w:val="•"/><w:lvlJc w:val="left"/>'
-            '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>'
-            '<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="singleLevel"/>'
-            '<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/>'
-            '<w:lvlText w:val="%1."/><w:lvlJc w:val="left"/>'
-            '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>'
-            '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>'
+            + "".join(levels)
+            + '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>'
             '<w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>'
             "</w:numbering>"
         )
@@ -434,10 +447,10 @@ class _Writer:
         return new_id
 
     @staticmethod
-    def _apply_numbering(paragraph, num_id: int) -> None:
+    def _apply_numbering(paragraph, num_id: int, level: int = 0) -> None:
         pPr = paragraph._p.get_or_add_pPr()
         numPr = pPr.get_or_add_numPr()
-        numPr.get_or_add_ilvl().val = 0
+        numPr.get_or_add_ilvl().val = level
         numPr.get_or_add_numId().val = num_id
 
     def _table(self, block: Table) -> None:

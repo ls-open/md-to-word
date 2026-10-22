@@ -38,7 +38,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Optional: an existing .docx to take styles from",
     ),
     "cli.lang": ("消息语言：auto=按稿件语种 / zh / en", "Message language: auto / zh / en"),
-    "cli.strip_comments": ("导出前剔除 HTML 注释", "Strip HTML comments before export"),
     "cli.no_check": ("跳过导前语法与排版契约预检（不推荐）", "Skip the pre-flight check (not recommended)"),
     "cli.no_postflight": ("跳过产物数值防丢检查（不推荐）", "Skip the numeric-integrity check (not recommended)"),
     "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against requirements"),

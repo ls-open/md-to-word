@@ -37,7 +37,6 @@ class ExportOptions:
     requirements_path: Optional[Path | str] = None
     preset: Optional[str] = None
     template_path: Optional[Path | str] = None
-    strip_comments: bool = False
     check_md: bool = True
     postflight: bool = True
     audit: bool = True
@@ -151,9 +150,9 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     # 5. 准备工作环境与 CSL 解析
     temp_dir = tempfile.mkdtemp(prefix="md2word_")
     try:
-        contract_text = in_p.read_text(encoding="utf-8")
-        if options.strip_comments:
-            contract_text = strip_html_comments(contract_text)
+        # HTML 注释是写给人看的编辑批注，任何 Markdown 渲染器都不显示；原样印进 Word
+        # 属于把批注当正文。这里无条件剔除，不给开关——代码块里的内容不受影响。
+        contract_text = strip_html_comments(in_p.read_text(encoding="utf-8"))
 
         # 引文样式：作者写了就按作者的（内置名或自己的路径），没写按语种取默认
         builtin_csl: Optional[Path] = None

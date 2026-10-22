@@ -67,3 +67,23 @@ def test_equation_number_placement_round_trip() -> None:
     default = parse_requirements(base)
     assert default.equation_number == "right"
     assert "公式编号" not in serialize_requirements(default)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        Path(__file__).resolve().parents[1] / "demo" / "01_chinese_thesis" / "requirements.txt",
+        Path(__file__).resolve().parents[1] / "demo" / "02_modern_report" / "requirements.txt",
+    ],
+    ids=["thesis", "report"],
+)
+def test_demo_requirements_round_trip_without_loss(path: Path) -> None:
+    """真稿件的规格同样要能原样写回去。
+
+    这条测试是在补一个实测出来的洞：`build_template(spec)` 内部先序列化再解析，
+    序列化漏掉哪一项，用 Python API 传进来的规格就被悄悄改掉——边框、颜色、字距、
+    制表位当时都会丢，而预设里恰好没用到这些，预设往返测试因此一直是绿的。
+    """
+    original = parse_requirements(path.read_text(encoding="utf-8"))
+    rewritten = parse_requirements(serialize_requirements(original))
+    assert rewritten.styles == original.styles

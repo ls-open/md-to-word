@@ -221,8 +221,8 @@ def fig_export_timing(out: Path, thesis: list[float], report: list[float]) -> No
     """端到端导出耗时实测：两条样例各连续跑 5 次。"""
     fig, ax = plt.subplots(figsize=(9, 4.2))
     xs = range(1, RUNS + 1)
-    ax.plot(xs, thesis, "o-", color="#2f6fbf", linewidth=2, label="学位论文样例（7 页）")
-    ax.plot(xs, report, "s-", color="#3f9f7f", linewidth=2, label="技术白皮书样例（3 页）")
+    ax.plot(xs, thesis, "o-", color="#2f6fbf", linewidth=2, label="学位论文样例")
+    ax.plot(xs, report, "s-", color="#3f9f7f", linewidth=2, label="技术白皮书样例")
 
     for name, ys, color in (("论文", thesis, "#2f6fbf"), ("报告", report, "#3f9f7f")):
         for x, y in zip(xs, ys):

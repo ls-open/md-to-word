@@ -129,6 +129,13 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
         re.compile(r"不倾斜|not-italic", re.I),
         lambda p, m, d: _set_once(p, "italic", False, "倾斜/italic", d),
     ),
+    # ── 颜色（样式级，不是行内） ──
+    # 只收十六进制色值：颜色名在不同设备上解释不一，写 #1F4E79 才是确定的。
+    (
+        _S,
+        re.compile(r"(?:颜色|color)[#＃]?(?P<c>[0-9A-Fa-f]{6})", re.I),
+        lambda p, m, d: _set_once(p, "color", m.group("c").upper(), "颜色/color", d),
+    ),
     # ── 对齐 ──
     (
         _S,
@@ -387,7 +394,7 @@ def _consume(props: dict, words: list[str], mode: str, name: str, desc: str, lin
 
 
 _CLAUSE_WORD_HINT = re.compile(
-    r"行距|段前|段后|缩进|加粗|倾斜|对齐|居中|边框|制表位|加入目录|与下段同页|跨页重复|段中不分页|段前分页|孤行控制"
+    r"行距|段前|段后|缩进|加粗|倾斜|对齐|居中|边框|制表位|加入目录|与下段同页|跨页重复|段中不分页|段前分页|孤行控制|颜色"
     r"|line-spacing|space-before|space-after|indent|bold|regular|italic|left|right|center|justify|repeat-header|keep-with-next",
     re.I,
 )
@@ -673,6 +680,13 @@ _BOTTOM_BORDER_KIND = {
     "等宽双线": "even", "even-double": "even",
     "上粗下细": "thickThin", "thick-thin": "thickThin",
     "三线": "triple", "triple": "triple",
+}
+
+
+# 写回要求文件时用的正典中文名（一个线型只有一个写法；别名只在解析时收）
+_BORDER_TEXT = {
+    "single": "单线", "double": "双线", "even": "等宽双线",
+    "thickThin": "上粗下细", "triple": "三线",
 }
 
 

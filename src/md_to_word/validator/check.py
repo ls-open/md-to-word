@@ -33,6 +33,7 @@ from md_to_word.utils.skill_utils import (
     citation_key_issues,
     citations_without_bibliography,
     crossref_prefix_issues,
+    dialect_issues,
     has_declared_image_width,
     heading_issues,
     image_width_issues,
@@ -276,8 +277,14 @@ def validate_manuscript(
                 report.valid = False
                 report.errors.append(f"CSL 样式文件不存在: {fm_data['csl']}")
 
-        # 1b2. 写在 YAML 里的内容性字段：引擎只认正文的样式行，这里不静默丢
+        # 1b2. 写在 YAML 里的内容性字段：引擎只认正文的样式行，这里不静默丢。
+        # 判据是「位置」——标题、副标题、作者、日期、摘要、关键词各自该落在哪一页哪一段，
+        # 由作者决定；YAML 没有位置，写在那里等于被钉死在正文最前面。
         for key, form in (
+            ("title", "`%% 文档标题 标题文字`"),
+            ("subtitle", "`%% 副标题 副标题文字`"),
+            ("author", "`%% 作者 姓名`（多位作者各写一行）"),
+            ("date", "`%% 日期 2026 年 1 月`"),
             ("abstract", "`%% 摘要标题 摘要` + 每段一行 `%% 摘要 正文…`"),
             ("keywords", "一行 `%% 关键词 词一；词二`"),
             ("reference-section-title", "一行 `%% 参考文献标题 参考文献`"),
@@ -383,6 +390,11 @@ def validate_manuscript(
         if re.search(r"\\(?:newpage|pagebreak|clearpage)", line):
             report.valid = False
             report.errors.append(f"行 {i}: 发现 LaTeX 分页命令（请改用 `{{{{< pagebreak >}}}}`）")
+
+    # 4b. 本引擎没实现的 Markdown 方言：写了不会报错，只会把原始语法印进成品
+    for line_no, why in dialect_issues(md_text):
+        report.valid = False
+        report.errors.append(f"行 {line_no} [写法不支持]: {why}")
 
     # 5. 块级标记空行分隔
     for line_no, why in block_marker_issues(md_text):

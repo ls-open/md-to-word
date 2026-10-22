@@ -112,7 +112,10 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     """
     if text.startswith("\ufeff"):
         text = text.lstrip("\ufeff")
-    m = re.match(r"^---[ \t]*\r?\n(?:(.*?)\r?\n)?---[ \t]*(?:\r?\n|$)", text, re.DOTALL)
+    # 收尾的 `---` 必须**行首那一条**。少写 MULTILINE、让它随便找一条 `---`，
+    # 正文里的横向分隔线就会被当成前置区的结束符——它之前的内容整段被当成 YAML
+    # 吃掉，而 YAML 允许纯注释，于是连报错都没有。
+    m = re.match(r"^---[ \t]*\r?\n(.*?)^---[ \t]*(?:\r?\n|$)", text, re.DOTALL | re.M)
     if not m:
         return "", text
     return m.group(1) or "", text[m.end():]
@@ -603,3 +606,147 @@ def soft_wrap_issues(text: str) -> list:
         snippet = here.strip()
         issues.append((i + 2 + offset, snippet[:24] + ("…" if len(snippet) > 24 else "")))
     return issues
+
+
+# ── 未实现的 Markdown 方言 ────────────────────────────────────────────
+# 判据只有一条：**按这种写法写下去，原始语法会不会漏进成品**。会漏的拦下并给出替代写法；
+# 只是排版细节不同的不拦——预检是契约检查，不是 Markdown 语法考试。
+_HTML_TAG_RE = re.compile(
+    r"</?(?:a|b|br|center|div|em|font|hr|i|img|p|span|strong|sub|sup|table|td|th|tr|u)\b[^>]*>",
+    re.I,
+)
+_AUTOLINK_RE = re.compile(r"<https?://[^>\s]+>")
+_HR_RE = re.compile(r"^\s{0,3}(?:\*\s*){3,}$|^\s{0,3}(?:-\s*){3,}$|^\s{0,3}(?:_\s*){3,}$")
+_SETEXT_RE = re.compile(r"^\s{0,3}=+\s*$")
+_DEF_LIST_RE = re.compile(r"^\s{0,3}:\s+\S")
+_TASK_ITEM_RE = re.compile(r"^\s*[-*+]\s+\[[ xX]\]\s")
+_NOEDGE_TABLE_RE = re.compile(r"^\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+$")
+_NESTED_QUOTE_RE = re.compile(r"^\s*>\s*>")
+_WIDE_STYLE_RE = re.compile(r"^\s*％％")
+_EMPTY_HEADING_RE = re.compile(r"^\s*#{1,6}\s*$")
+_NO_SPACE_HEADING_RE = re.compile(r"^\s*#{1,6}[^\s#]")
+# 图片行能带的属性只有宽度；`{align=right}` 这类「写了等于没写」的写法要拦下来
+_IMAGE_ATTR_RE = re.compile(r"!\[[^\]]*\]\([^)\s]+\)\s*\{(?P<attrs>[^}]*)\}")
+_IMAGE_ATTR_OK = re.compile(r"^\s*(?:width\s*=\s*[\d.]+\s*(?:cm|mm|in|pt)?)?\s*$")
+_INDENT_CODE_RE = re.compile(r"^(?: {4,}|\t)\S")
+_LIST_ITEM_ANY_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
+_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+
+
+def _looks_like_block_start(line: str) -> bool:
+    """缩进行是不是另一块的开始（列表项、标记、表格、图片、标题、公式）。"""
+    stripped = line.strip()
+    return bool(
+        not stripped
+        or _LIST_ITEM_ANY_RE.match(line)
+        or stripped.startswith(("{{<", "%%", "|", "$$", "#", ":::", "!["))
+    )
+
+
+def dialect_issues(text: str) -> list[tuple[int, str]]:
+    """稿件里用了本引擎没实现的 Markdown 写法 → [(行号, 说明)]；空列表 = 全部规范。
+
+    这些写法不会报错，只会把原始语法原样印进 Word：`---` 印成三条短横、`<br>` 印成
+    尖括号、`**` 跨行时印成星号。静默印错比报错难查得多，所以在导出前拦下来。
+    """
+    if not text:
+        return []
+    _, body = split_frontmatter(text)
+    offset = text.count("\n") - body.count("\n")
+    # 先掩码围栏、再挖掉 HTML 注释（换成等量换行，行号不挪）：注释在导出时会被剔除，
+    # 里面的 `<br>` 不该被当成正文字面量拦下来。
+    masked = mask_code_fences(body)
+    masked = _COMMENT_RE.sub(lambda m: "\n" * m.group(0).count("\n"), masked)
+    lines = masked.split("\n")
+    issues: list[tuple[int, str]] = []
+
+    in_display_math = False
+    for index, line in enumerate(lines):
+        line_no = index + 1 + offset
+        code_free = _strip_inline_code(line)
+
+        # `$$` 独占一行是块级公式的围栏，要成对切换；单行的 `$$…$$` 整行都是公式，
+        # 既不切换状态、也不需要检查符号配对——两者混为一谈会让后面所有的 `$` 检查失效。
+        if code_free.strip() == "$$":
+            in_display_math = not in_display_math
+            continue
+        if code_free.strip().startswith("$$"):
+            continue
+
+        if _HTML_TAG_RE.search(code_free) or _AUTOLINK_RE.search(code_free):
+            issues.append((line_no, "不支持 HTML 标签；换行用行尾两空格，换页用 `{{< pagebreak >}}`，"
+                                    "网址直接写或写成 `[文字](网址)`"))
+            continue
+        if _HR_RE.match(code_free):
+            issues.append((line_no, "不支持横向分隔线；需要分页用 `{{< pagebreak >}}`，需要分段用空行"))
+            continue
+        if _SETEXT_RE.match(code_free):
+            issues.append((line_no, "不支持 `====` 下划线式标题；标题一律写成 `# 标题`"))
+            continue
+        if _DEF_LIST_RE.match(code_free):
+            issues.append((line_no, "不支持定义列表（`术语` + `: 定义`）；两项各写成一段"))
+            continue
+        if _TASK_ITEM_RE.match(code_free):
+            issues.append((line_no, "不支持待办勾选框（`- [ ]`）；去掉 `[ ]` 写成普通无序列表"))
+            continue
+        if _NO_SPACE_HEADING_RE.match(code_free):
+            issues.append((line_no, "标题的 `#` 后面要空一格；不空格的 `#` 会连同井号一起当成正文印出来"))
+            continue
+        for img in _IMAGE_ATTR_RE.finditer(code_free):
+            attrs = img.group('attrs')
+            if '%' in attrs:
+                issues.append((line_no, "图片宽度按绝对长度写（`{width=8cm}`），百分比宽度不支持"))
+                break
+            if not _IMAGE_ATTR_OK.match(attrs):
+                issues.append((line_no, "图片行只认 `{width=…}`；对齐请写要求文件的「图：… 左对齐」"))
+                break
+        if _EMPTY_HEADING_RE.match(code_free):
+            issues.append((line_no, "标题只有 `#` 没有文字；补上标题文字，或删掉这一行"))
+            continue
+        if _NOEDGE_TABLE_RE.match(code_free):
+            issues.append((line_no, "表格首尾都要加竖线：把 `名称 | 值` 写成 `| 名称 | 值 |`"))
+            continue
+        if _NESTED_QUOTE_RE.match(code_free):
+            issues.append((line_no, "不支持引用块再套引用块；把内层内容改成普通段落"))
+            continue
+        if _WIDE_STYLE_RE.match(code_free):
+            issues.append((line_no, "样式行的 `%%` 必须是半角；全角 `％％` 会被当成正文印出来"))
+            continue
+        if (
+            _INDENT_CODE_RE.match(code_free)
+            and (index == 0 or not lines[index - 1].strip())
+            and not _LIST_ITEM_ANY_RE.match(code_free)
+        ):
+            issues.append((line_no, "不支持四空格缩进的代码块；代码一律用 ``` 围栏包起来"))
+            continue
+
+        # 强调与行内公式必须在同一行内闭合：跨行时不会配对，符号会原样印出去
+        if code_free.count("**") % 2:
+            issues.append((line_no, "`**` 没有在同一行内闭合；跨行加粗不支持，把它和文字写在同一行"))
+            continue
+        if not in_display_math and code_free.count("$") % 2:
+            issues.append((line_no, "`$` 没有在同一行内闭合；行内公式要写成 `$公式$`，与文字在同一行"))
+            continue
+
+    # 首尾不带竖线的表格：连续两行都有竖线，却都不以竖线开头。按规则二维网格读不到，
+    # 只会一行一段地把竖线原样印出去。
+    for index in range(len(lines) - 1):
+        here, nxt = lines[index], lines[index + 1]
+        if "|" in here and "|" in nxt and not here.lstrip().startswith("|") \
+                and not nxt.lstrip().startswith("|") and not _LIST_ITEM_ANY_RE.match(here):
+            issues.append((index + 1 + offset, "表格每一行都要以 `|` 开头、以 `|` 结尾；否则整行会当成正文印出来"))
+            break
+
+    # 列表项后面的缩进段落：Markdown 里算列表项的第二段，本引擎会当成独立正文段落，
+    # 位置从列表里跑出去。看得见，但结构已经变了，所以拦下。
+    for index in range(len(lines) - 2):
+        if not _LIST_ITEM_ANY_RE.match(lines[index]):
+            continue
+        if lines[index + 1].strip() or not lines[index + 2].strip():
+            continue
+        if lines[index + 2].startswith(("  ", "\t")) and not _looks_like_block_start(lines[index + 2]):
+            issues.append(
+                (index + 1 + offset,
+                 "列表项里不支持第二段（空行加缩进）；把它写成列表项之外的一段，或用第二个列表项")
+            )
+    return sorted(issues)

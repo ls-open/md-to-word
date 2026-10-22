@@ -35,10 +35,11 @@ Layout rules live in `requirements.txt` — **one per line, diffable in Git**, n
 
 ```markdown
 ---
-title: "我的第一份规范 Word 文档"   # "My first properly formatted Word document"
 crossref:
   tbl-prefix: "表"                  # table numbering prefix
 ---
+
+%% 文档标题 我的第一份规范 Word 文档   # "My first properly formatted Word document"
 
 # 引言
 
@@ -49,9 +50,9 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 
 | 样例 | 篇幅 | 端到端耗时 | 主要演示的排版要素 |
 |:------|:--|:---|:--------------|
-| 最小样例（本文） | 1 页 | 0.25 s | 中西文字体、首行缩进、多级标题、三线表 |
-| 技术白皮书样例 | 4 页 | 0.33 s | 全网格数据表、APA 引用、单线极简页眉 |
-| 学位论文样例 | 7 页 | 0.52 s | 目录、分节页码、双线章名页眉、跨页表头 |
+| 最小样例（本文） | 1 页 | 0.15 s | 中西文字体、首行缩进、多级标题、三线表 |
+| 技术白皮书样例 | 5 页 | 0.30 s | 全网格数据表、APA 引用、单线极简页眉 |
+| 学位论文样例 | 7 页 | 0.41 s | 目录、分节页码、双线章名页眉、跨页表头 |
 
 …(the table-caption wrapper and the surrounding prose are elided — see the source file)
 ```
@@ -189,7 +190,7 @@ Ground rules: every tool is judged on its **default output** (no custom template
 
 > **The table lists only what sets this apart.** Where the default paths already deliver — separated CJK/Latin fonts and first-line indent, three-line tables with adjustable rules, header rows repeating across pages, formatted bibliographies — this skill supports them too, but they are not a differentiator, so they are left out.
 >
-> **Also supported**: footnotes (`[^1]`), Word's native dynamic TOC via `{{< toc 2 >}}`, odd/even and first-page headers and footers plus the `{总页数}` field, four table border styles (three-line / full grid / top-and-bottom / none), using an existing `.docx` as the base template (`-t`), and stripping HTML comments before export (`--strip-comments`).
+> **Also supported**: footnotes (`[^1]`), Word's native dynamic TOC via `{{< toc 2 >}}`, odd/even and first-page headers and footers plus the `{总页数}` field, four table border styles (three-line / full grid / top-and-bottom / none), using an existing `.docx` as the base template (`-t`), multi-level lists (up to three), and per-style colours (`颜色#1F4E79`). HTML comments in the manuscript are always stripped (code blocks are left untouched).
 >
 > The ✅ marks under Pandoc and Quarto are **honest** — repeating header rows and citeproc bibliographies, for instance, do come out of the box. The value here isn't that others *can't*; it's that a single `requirements.txt` settles **all of it at once**, with no base-template surgery, no XML, and no per-paragraph clicking.
 

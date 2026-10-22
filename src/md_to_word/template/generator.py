@@ -364,9 +364,10 @@ def write_run_props(rpr, props, cjk=None, latin=None):
             else:
                 it_cs.attrib.pop(W('val'), None)
 
-    # 统一设置黑色并清除主题色，同时清除底模可能残留的字符间距加宽（spacing）与字距调整（kern）
+    # 颜色：要求文件写了「颜色#RRGGBB」就用它，没写一律黑色。同时清除主题色，
+    # 以及底模可能残留的字符间距加宽（spacing）与字距调整（kern）。
     color = ensure_ordered_child(rpr, 'color', _RPR_ORDER)
-    color.set(W('val'), '000000')
+    color.set(W('val'), props.get('color') or '000000')
     clear_color_theme_attrs(color)
     for tag in ('spacing', 'kern'):
         el = rpr.find(W(tag))
@@ -1546,7 +1547,7 @@ def _props_from_req(req, page_size, margins):
         'indent_unit': req.get('indent_unit', 'pt'),
     }
     for key in ('space_before', 'space_after', 'no_border', 'bottom_border',
-                'border_width_pt', 'left_indent_chars', 'char_spacing_pt',
+                'border_width_pt', 'left_indent_chars', 'char_spacing_pt', 'color',
                 'keep_lines', 'page_break_before', 'widow_control'):
         if key in req:
             props[key] = req[key]
@@ -1782,10 +1783,13 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
         logger.info(' ✓ Block Text: 已创建')
 
     try:
-        doc.styles['Source Code']
+        code_style = doc.styles['Source Code']
     except KeyError:
-        doc.styles.add_style('Source Code', WD_STYLE_TYPE.PARAGRAPH)
+        code_style = doc.styles.add_style('Source Code', WD_STYLE_TYPE.PARAGRAPH)
         logger.info(' ✓ Source Code: 已创建')
+    # 代码块一律左对齐：它继承正文的「两端对齐」，长行会被拉伸到版心右边界——
+    # 代码的换行位置本身就是作者写的，再拉伸只会让人以为是排版错了。
+    code_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     doc.save(output_path)
 

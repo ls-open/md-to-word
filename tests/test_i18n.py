@@ -47,9 +47,9 @@ def test_language_override_wins() -> None:
 
 def test_cli_help_follows_the_manuscript(tmp_path: Path) -> None:
     zh = tmp_path / "zh.md"
-    zh.write_text('---\ntitle: "题目"\n---\n\n# 一 引言\n\n中文正文一段。\n', encoding="utf-8")
+    zh.write_text('---\n---\n\n# 一 引言\n\n中文正文一段。\n', encoding="utf-8")
     en = tmp_path / "en.md"
-    en.write_text('---\ntitle: "T"\n---\n\n# Introduction\n\nEnglish body.\n', encoding="utf-8")
+    en.write_text('---\n---\n\n# Introduction\n\nEnglish body.\n', encoding="utf-8")
 
     from md_to_word.cli import _message_lang
 
@@ -70,7 +70,7 @@ def test_reminder_is_localized_end_to_end(tmp_path: Path) -> None:
     from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
     manuscript = tmp_path / "m.md"
-    manuscript.write_text('---\ntitle: "T"\n---\n\n# Introduction\n\nEnglish body.\n', encoding="utf-8")
+    manuscript.write_text('---\n---\n\n# Introduction\n\nEnglish body.\n', encoding="utf-8")
     result = run_export_pipeline(
         ExportOptions(input_path=manuscript, output_path=tmp_path / "o.docx", preset="en-nature")
     )

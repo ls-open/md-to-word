@@ -44,7 +44,6 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("--preset", help=t("cli.preset", lang))
     parser.add_argument("-t", "--template", help=t("cli.template", lang))
     parser.add_argument("--lang", choices=["auto", *SUPPORTED], default="auto", help=t("cli.lang", lang))
-    parser.add_argument("--strip-comments", action="store_true", help=t("cli.strip_comments", lang))
     parser.add_argument("--no-check", action="store_true", help=t("cli.no_check", lang))
     parser.add_argument("--no-postflight", action="store_true", help=t("cli.no_postflight", lang))
     parser.add_argument("--no-audit", action="store_true", help=t("cli.no_audit", lang))
@@ -66,7 +65,6 @@ def main(args: list[str] | None = None) -> int:
         requirements_path=parsed.requirements,
         preset=parsed.preset,
         template_path=parsed.template,
-        strip_comments=parsed.strip_comments,
         check_md=not parsed.no_check,
         postflight=not parsed.no_postflight,
         audit=not parsed.no_audit,

@@ -19,12 +19,12 @@ DEMOS = Path(__file__).resolve().parents[1] / "demo"
 
 
 def test_frontmatter_becomes_metadata() -> None:
+    """YAML 只承载与位置无关的配置；标题、作者这类位置相关的内容不在模型里。"""
     doc = read_markdown(
-        '---\ntitle: "题目"\nauthor: [张三, 李四]\nbibliography: refs.bib\n'
+        '---\nbibliography: refs.bib\n'
         'csl: apa.csl\ncrossref:\n  eq-prefix: "式"\n  chapters: true\n---\n\n正文\n'
     )
-    assert doc.meta.title == "题目"
-    assert doc.meta.author == ["张三", "李四"]
+    assert not hasattr(doc.meta, "title")
     assert doc.meta.bibliography == "refs.bib"
     assert doc.meta.chapters is True
     assert doc.meta.crossref["eq-prefix"] == "式"

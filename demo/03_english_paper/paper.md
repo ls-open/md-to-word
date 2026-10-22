@@ -1,8 +1,10 @@
 ---
-title: "Native Markdown-to-Word for AI-Assisted Writing"
-author: [Jane Doe, John Smith]
 bibliography: refs.bib
 ---
+
+%% Title Native Markdown-to-Word for AI-Assisted Writing
+
+%% Author Jane Doe, John Smith
 
 %% Abstract Title Abstract
 

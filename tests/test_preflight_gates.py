@@ -21,9 +21,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PRESET = REPO_ROOT / "presets" / "zh-academic.txt"
 FIGURE = REPO_ROOT / "demo" / "01_chinese_thesis" / "figures" / "qa_pipeline.png"
 
-BASE_YAML = '---\ntitle: "门禁测试"\n---\n\n# 一 引言\n\n正文一段。\n'
+BASE_YAML = '---\n---\n\n# 一 引言\n\n正文一段。\n'
 CROSSREF_YAML = (
-    '---\ntitle: "门禁测试"\ncrossref:\n  eq-prefix: "式"\n  fig-prefix: "图"\n'
+    '---\ncrossref:\n  eq-prefix: "式"\n  fig-prefix: "图"\n'
     '  tbl-prefix: "表"\n---\n\n# 一 引言\n'
 )
 
@@ -64,11 +64,16 @@ CASES = {
     # 引擎只认正文的样式行：YAML 里的摘要/关键词没有任何排版位置，静默丢一段摘要
     # 比报错难查得多，所以这里拦下来并说清该写成什么样。
     "yaml_abstract": (
-        '---\ntitle: "t"\nabstract: |\n  摘要正文。\n---\n\n# 一 引言\n\n正文。\n',
+        '---\nabstract: |\n  摘要正文。\n---\n\n# 一 引言\n\n正文。\n',
         None,
         True,
     ),
-    "yaml_keywords": ('---\ntitle: "t"\nkeywords: [甲, 乙]\n---\n\n正文。\n', None, True),
+    "yaml_keywords": ('---\nkeywords: [甲, 乙]\n---\n\n正文。\n', None, True),
+    # 标题、作者、日期同理：位置由作者定（可能排在封面之后），YAML 没有位置
+    "yaml_title": ('---\ntitle: "题目"\n---\n\n正文。\n', None, True),
+    "yaml_author": ('---\nauthor: [张三]\n---\n\n正文。\n', None, True),
+    # 正文写法才是正典
+    "title_as_style_line": ('%% 文档标题 题目\n\n# 一 引言\n\n正文。\n', None, False),
     # 题注写在 `![…]` 里：引擎不把它当题注排，等于丢内容
     "caption_in_alt": (
         BASE_YAML + "\n![图 1-1 框架图](figures/qa_pipeline.png){width=10cm}\n",
@@ -127,7 +132,7 @@ def test_visible_issues_warn_instead_of_blocking(tmp_path: Path) -> None:
         shutil.copy(FIGURE, tmp_path / "figures" / "qa_pipeline.png")
     manuscript = tmp_path / "m.md"
     manuscript.write_text(
-        '---\ntitle: "t"\n---\n\n# 一 引言\n\n### 跳级标题\n\n正文。\n\n'
+        '---\n---\n\n# 一 引言\n\n### 跳级标题\n\n正文。\n\n'
         "%% 表题 表 1 测试\n\n正文隔开了题注和表格。\n\n| 甲 | 乙 |\n|:--|:--|\n| 1 | 2 |\n",
         encoding="utf-8",
     )
@@ -149,7 +154,7 @@ def test_bibliography_without_title_warns(tmp_path: Path) -> None:
     )
     manuscript = tmp_path / "m.md"
     manuscript.write_text(
-        '---\ntitle: "t"\nbibliography: refs.bib\ncsl: apa.csl\n---\n\n# 一 引言\n\n见 [@smith2024]。\n',
+        '---\nbibliography: refs.bib\ncsl: apa.csl\n---\n\n# 一 引言\n\n见 [@smith2024]。\n',
         encoding="utf-8",
     )
 
@@ -167,7 +172,7 @@ def test_reference_section_title_in_yaml_only_warns(tmp_path: Path) -> None:
     )
     manuscript = tmp_path / "m.md"
     manuscript.write_text(
-        '---\ntitle: "t"\nbibliography: refs.bib\ncsl: apa.csl\n'
+        '---\nbibliography: refs.bib\ncsl: apa.csl\n'
         'reference-section-title: 参考文献\n---\n\n# 一 引言\n\n见 [@smith2024]。\n',
         encoding="utf-8",
     )

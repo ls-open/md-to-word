@@ -1,11 +1,12 @@
 ---
-title: "基于声明式规则与 OOXML 重构的 Markdown 学术排版引擎设计与实现"
 bibliography: references.bib
 csl: chinese-gb7714-2015-numeric.csl
 crossref:
   eq-prefix: "式"
   chapters: true          # 公式按章编号（第 2 章第 1 式 → 2.1），学位论文的通行要求
 ---
+
+%% 文档标题 基于声明式规则与 OOXML 重构的 Markdown 学术排版引擎设计与实现
 
 %% 摘要标题 摘要
 

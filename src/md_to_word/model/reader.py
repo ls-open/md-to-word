@@ -17,7 +17,7 @@ import yaml
 from md_to_word.model.document import (
     Block, Citation, CitationItem, Code, CodeBlock, CrossRef, Document, Emphasis, Equation,
     Figure, Footnote, FootnoteRef, Heading, Link, ListBlock, ListItem, Math, Metadata,
-    PageBreak, Paragraph, Quote, SectionBreak, Strikethrough, Strong, Subscript,
+    MAX_LIST_LEVEL, PageBreak, Paragraph, Quote, SectionBreak, Strikethrough, Strong, Subscript,
     Superscript, Table, Text, Toc, Underline,
 )
 from md_to_word.preprocessor.blocks import resolve_style_name, split_style_line
@@ -36,8 +36,14 @@ _TABLE_ROW_RE = re.compile(r"^\s*\|(?P<body>.*)\|\s*$")
 _TABLE_SEP_RE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 
 _SECTION_PARAM_RE = re.compile(r"(\S+?)=(\S+)")
+_QUOTE_LINE_RE = re.compile(r"^\s*>\s?")
 _SECTION_ALIAS = {"页码": "page_format", "page_number": "page_format", "format": "page_format",
                   "起始": "start", "start": "start"}
+
+
+def _indent_width(indent: str) -> int:
+    """缩进宽度（制表符按四空格算）：Markdown 用缩进表达列表嵌套。"""
+    return len(indent.expandtabs(4))
 
 
 # ── 内联 ────────────────────────────────────────────────────────────────
@@ -221,15 +227,8 @@ def _metadata(raw: str) -> Metadata:
         data = {}
     if not isinstance(data, dict):
         data = {}
-    authors = data.get("author") or []
-    if isinstance(authors, str):
-        authors = [authors]
     crossref = data.get("crossref") if isinstance(data.get("crossref"), dict) else {}
     return Metadata(
-        title=data.get("title"),
-        subtitle=data.get("subtitle"),
-        author=list(authors),
-        date=str(data["date"]) if data.get("date") is not None else None,
         bibliography=data.get("bibliography"),
         csl=data.get("csl"),
         crossref=crossref,
@@ -473,33 +472,55 @@ class _Reader:
         return Figure(path=match.group("path"), alt=match.group("alt"), width_cm=width_cm)
 
     def _read_quote(self, start: int) -> int:
+        """引用块：去掉 `>` 之后按普通块再解析一遍，块级写法在引用里也成立。"""
         body: list[str] = []
         i = start
         while i < len(self.lines) and self.lines[i].strip().startswith(">"):
-            body.append(self.lines[i].strip().lstrip(">").strip())
+            body.append(_QUOTE_LINE_RE.sub("", self.lines[i]))
             i += 1
         self._flush_pending()
-        self._append(
-            Quote(blocks=[Paragraph(inlines=self._inl(line)) for line in body if line])
-        )
+        inner = _Reader("\n".join(body), self.citation_keys).read().blocks
+        self._append(Quote(blocks=inner))
         return i
 
     def _read_list(self, start: int) -> int:
-        items: list[ListItem] = []
-        ordered = bool(_ORDERED_RE.match(self.lines[start]))
+        """列表读出：按缩进判层级，最多三级。
+
+        层级记在 `ListItem.level` 上，写出时落成 Word 的编号级别。反过来做——把缩进变
+        成行首空格——在 Word 里回车、调整级别、改编号形式都会失效，等于把结构写死成
+        看起来像的字符。
+        """
         first = _ORDERED_RE.match(self.lines[start])
+        ordered = first is not None
         start_no = int(first.group("num")) if first else 1
+        base = _indent_width((first or _BULLET_RE.match(self.lines[start])).group("indent"))
+        levels = [base]  # 每一层对应的缩进宽度
+        items: list[ListItem] = []
         i = start
         while i < len(self.lines):
-            line = self.lines[i]
-            bullet = _BULLET_RE.match(line)
-            number = _ORDERED_RE.match(line)
-            if bullet and not ordered:
-                items.append(ListItem(blocks=[Paragraph(inlines=self._inl(bullet.group("text")))]))
-            elif number and ordered:
-                items.append(ListItem(blocks=[Paragraph(inlines=self._inl(number.group("text")))]))
-            else:
+            bullet = _BULLET_RE.match(self.lines[i])
+            number = _ORDERED_RE.match(self.lines[i])
+            match = number or bullet
+            if not match:
                 break
+            indent = _indent_width(match.group("indent"))
+            if indent < base:
+                break
+            while len(levels) > 1 and indent < levels[-1]:
+                levels.pop()
+            if indent > levels[-1]:
+                levels.append(indent)
+            level = min(len(levels) - 1, MAX_LIST_LEVEL)
+            is_ordered = number is not None
+            if level == 0 and is_ordered != ordered:
+                break  # 顶层换了编号形式 → 这是另一个列表
+            items.append(
+                ListItem(
+                    blocks=[Paragraph(inlines=self._inl(match.group("text")))],
+                    level=level,
+                    ordered=is_ordered,
+                )
+            )
             i += 1
         self._flush_pending()
         self._append(ListBlock(items=items, ordered=ordered, start=start_no))

@@ -66,3 +66,39 @@ def test_figure_alignment_follows_the_requirements_file(tmp_path: Path) -> None:
 
     styles = _styles_xml(tmp_path, req)
     assert 'w:styleId="CaptionedFigure"' in styles
+
+
+def test_style_colour_follows_the_requirements_file(tmp_path: Path) -> None:
+    """颜色是样式级属性：写了就落成 w:color，没写一律黑色。"""
+    from md_to_word.spec.parser import parse_requirements as parse
+
+    req = PRESET.replace(
+        "一级标题：黑体/Times New Roman 三号 加粗",
+        "一级标题：黑体/Times New Roman 三号 加粗 颜色#1F4E79",
+    )
+    heading = next(s for s in parse(req).styles if s["style_name"] == "Heading 1")
+    assert heading["color"] == "1F4E79"
+
+    styles = _styles_xml(tmp_path, req)
+    assert 'w:val="1F4E79"' in styles
+
+    (tmp_path / "plain").mkdir()
+    plain = _styles_xml(tmp_path / "plain", PRESET)
+    assert 'w:val="1F4E79"' not in plain, "没写颜色就不能凭空上色"
+
+
+def test_colour_must_be_hex() -> None:
+    from md_to_word.spec.parser import parse_requirements as parse
+
+    with pytest.raises(ValueError):
+        parse(PRESET.replace("一级标题：黑体/Times New Roman 三号 加粗",
+                             "一级标题：黑体/Times New Roman 三号 加粗 颜色深蓝"))
+
+
+def test_code_block_is_left_aligned(tmp_path: Path) -> None:
+    """代码块不能继承正文的两端对齐：长行被拉满版心会让人以为排版错了。"""
+    styles = _styles_xml(tmp_path, PRESET)
+    import re
+
+    block = re.search(r'<w:style [^>]*w:styleId="SourceCode".*?</w:style>', styles, re.S)
+    assert block and '<w:jc w:val="left"/>' in block.group(0)

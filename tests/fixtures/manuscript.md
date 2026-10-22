@@ -1,8 +1,9 @@
 ---
-title: "Smoke Test Manuscript"
 bibliography: refs.bib
 csl: nature.csl
 ---
+
+%% 文档标题 Smoke Test Manuscript
 
 # Introduction
 

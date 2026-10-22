@@ -22,6 +22,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
+# 列表最多三级：Word 的编号级别能到九级，但三级之后在 A4 版心里已经没有可读的行宽，
+# 多出来的层级只会让「同一份稿件的两种写法」导出成看不出差别的两个结果。
+# 读取（判层级）与写出（生成编号定义）共用这一个上限。
+MAX_LIST_LEVEL = 2
+
 
 # ── 内联层 ──────────────────────────────────────────────────────────────
 
@@ -139,7 +144,11 @@ class Paragraph:
 
 @dataclass
 class ListItem:
+    """列表项。level 是缩进层级（0 起），ordered 为 None 表示跟随所属列表。"""
+
     blocks: list["Block"] = field(default_factory=list)
+    level: int = 0
+    ordered: Optional[bool] = None
 
 
 @dataclass
@@ -222,12 +231,12 @@ Block = Union[
 
 @dataclass
 class Metadata:
-    """YAML 前置区。只保留与排版有关的部分；内容性信息不在此重复。"""
+    """YAML 前置区。只放**与位置无关**的配置：文献库、样式、交叉引用约定。
 
-    title: Optional[str] = None
-    subtitle: Optional[str] = None
-    author: list[str] = field(default_factory=list)
-    date: Optional[str] = None
+    标题、副标题、作者、日期**不在这里**：它们的位置本身就是排版的一部分（可能在封面
+    之后、可能在第二页），YAML 管不住位置。这四项一律写成正文的样式行。
+    """
+
     bibliography: Optional[str] = None
     csl: Optional[str] = None
     crossref: dict = field(default_factory=dict)

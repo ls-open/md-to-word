@@ -89,7 +89,7 @@ def test_default_csl_is_shared_by_both_writers(tmp_path: Path) -> None:
     """
     _write_bib(tmp_path)
     (tmp_path / "m.md").write_text(
-        '---\ntitle: "题"\nbibliography: refs.bib\n---\n\n# 一 引言\n\n'
+        '---\nbibliography: refs.bib\n---\n\n# 一 引言\n\n'
         "中文正文引用一次 [@smith2024] 即可。\n",
         encoding="utf-8",
     )
@@ -114,7 +114,7 @@ def test_default_csl_follows_language(tmp_path: Path) -> None:
 def test_export_reminds_to_open_the_result(tmp_path: Path) -> None:
     """门禁全绿不等于版面合格。行高列宽、公式与题注的落版只能目视核对，
     因此每次成功导出都必须附一条核对提醒，使其成为交付流程的一环。"""
-    (tmp_path / "m.md").write_text('---\ntitle: "t"\n---\n\n# 一 引言\n\n正文。\n', encoding="utf-8")
+    (tmp_path / "m.md").write_text('---\n---\n\n# 一 引言\n\n正文。\n', encoding="utf-8")
     result = run_export_pipeline(
         ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx", preset="zh-academic")
     )
@@ -131,7 +131,7 @@ def test_image_paths_are_relative_to_the_manuscript(tmp_path: Path, monkeypatch)
         work / "figures" / "x.png",
     )
     (work / "m.md").write_text(
-        '---\ntitle: "t"\n---\n\n![](figures/x.png){width=8cm}\n\n%% 图片题注 图 1 示意图\n',
+        '---\n---\n\n![](figures/x.png){width=8cm}\n\n%% 图片题注 图 1 示意图\n',
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)  # 站在别的目录调用
@@ -144,7 +144,7 @@ def test_image_paths_are_relative_to_the_manuscript(tmp_path: Path, monkeypatch)
 
 def test_bad_requirements_return_error_instead_of_exiting(tmp_path: Path) -> None:
     """作为库调用时，写错的格式要求必须返回错误码，不能 sys.exit 掉调用方的进程。"""
-    (tmp_path / "m.md").write_text('---\ntitle: "t"\n---\n\n# 一\n\n正文。\n', encoding="utf-8")
+    (tmp_path / "m.md").write_text('---\n---\n\n# 一\n\n正文。\n', encoding="utf-8")
     (tmp_path / "req.txt").write_text("正文：宋体 小四\n", encoding="utf-8")
 
     try:

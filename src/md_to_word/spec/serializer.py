@@ -13,6 +13,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
 from md_to_word.spec.models import MinLineSpacing, TemplateSpec
+from md_to_word.spec.parser import _BORDER_TEXT
 
 _ALIGN_TEXT = {
     WD_ALIGN_PARAGRAPH.CENTER: "居中",
@@ -77,6 +78,28 @@ def _style_line(style: dict) -> str:
         parts.append("跨页重复")
     if style.get("keep_next"):
         parts.append("与下段同页")
+    # 下面这几项曾经被漏掉：`build_template(spec)` 是先序列化再解析的，漏一项就等于
+    # 用 Python API 传进来的规格被悄悄改了——边框、颜色、字距都会丢。
+    if style.get("no_border"):
+        parts.append("无边框")
+    if style.get("bottom_border"):
+        kind = _BORDER_TEXT.get(style["bottom_border"])
+        if kind:
+            parts.append(f"下边框{kind}")
+    if style.get("border_width_pt") is not None:
+        parts.append(f"边框粗{float(style['border_width_pt']):g}磅")
+    if style.get("char_spacing_pt") is not None:
+        parts.append(f"字距{float(style['char_spacing_pt']):g}磅")
+    if style.get("color"):
+        parts.append(f"颜色#{style['color']}")
+    if style.get("dot_leader_tab"):
+        parts.append("点线制表位")
+    if style.get("keep_lines"):
+        parts.append("段中不分页")
+    if style.get("page_break_before"):
+        parts.append("段前分页")
+    if "widow_control" in style:
+        parts.append("孤行控制" if style["widow_control"] else "取消孤行控制")
 
     return f"{style['style_name']}：" + " ".join(parts)
 
