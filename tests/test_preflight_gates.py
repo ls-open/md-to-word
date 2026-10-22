@@ -48,10 +48,11 @@ CASES = {
         True,
     ),
     "latex_tag": (BASE_YAML + "\n$$E = mc^2 \\tag{1}$$\n", None, True),
+    # 图片宽度超版心只提醒：图还在页内，看得见，不阻断
     "image_wider_than_text_block": (
-        BASE_YAML + "\n![图 1 测试](figures/qa_pipeline.png){width=30cm}\n",
+        BASE_YAML + "\n![](figures/qa_pipeline.png){width=30cm}\n",
         (),  # 版心要从要求文件算，故必须给文件，但不删任何行
-        True,
+        False,
     ),
     "citation_without_bibliography": (BASE_YAML + "\n见 [@smith2024]。\n", None, True),
     "crossref_without_bibliography": (
@@ -97,3 +98,23 @@ def test_custom_style_must_exist_in_template(tmp_path: Path) -> None:
     report = validate_manuscript(manuscript, template_docx=template)
     assert not report.valid
     assert any("不存在的样式" in error for error in report.errors)
+
+
+def test_visible_issues_warn_instead_of_blocking(tmp_path: Path) -> None:
+    """看得见的问题只提醒：多一页、宽度被钳、题注离得远，作者可以自行收尾。"""
+    (tmp_path / "figures").mkdir()
+    if FIGURE.exists():
+        shutil.copy(FIGURE, tmp_path / "figures" / "qa_pipeline.png")
+    manuscript = tmp_path / "m.md"
+    manuscript.write_text(
+        '---\ntitle: "t"\n---\n\n# 一 引言\n\n### 跳级标题\n\n正文。\n\n'
+        "%% 表题 表 1 测试\n\n正文隔开了题注和表格。\n\n| 甲 | 乙 |\n|:--|:--|\n| 1 | 2 |\n",
+        encoding="utf-8",
+    )
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text(PRESET.read_text(encoding="utf-8"), encoding="utf-8")
+
+    report = validate_manuscript(manuscript, spec_path=requirements)
+    assert report.valid, f"看得见的问题不该阻断：{report.errors}"
+    assert any("标题" in w for w in report.warnings)
+    assert any("题注" in w for w in report.warnings)

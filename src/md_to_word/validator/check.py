@@ -1,6 +1,12 @@
-"""md_to_word.validator.check — 稿件导前硬校验门禁。
+"""md_to_word.validator.check — 稿件导前校验门禁。
 
-导出前检查 Markdown 稿件中可能导致静默失败、样式丢失或格式错位的结构性问题。
+按后果分两级，判据只有一条：
+
+- **阻断（error）**：产物会静默出错，而且错了看不出来——内容丢字、变成乱码、格式静默不生效。
+- **提醒（warning）**：产物看得见，只是不合规——多出一页、宽度被钳、题注离得远、标题跳级。
+
+提醒不阻塞导出：作者可能是有意为之，也可能打算在 Word 里收尾。把这类情况做成硬失败，
+只会把人逼去用 `--no-check`，连真正的阻断也一起关掉。
 """
 
 from __future__ import annotations
@@ -498,15 +504,13 @@ def validate_manuscript(
         report.valid = False
         report.errors.append(f"行 {line_no} [未知短代码]: {why}")
 
-    # 7. 分节符前后页码
+    # 7. 分节符后又写分页：多顶出一页空白。看得见，只提醒
     for line_no, why in section_pagebreak_issues(md_text):
-        report.valid = False
-        report.errors.append(f"行 {line_no} [分节标记]: {why}")
+        report.warnings.append(f"行 {line_no} [分节标记]: {why}")
 
-    # 8. 标题层级与 custom-style 容器
+    # 8. 标题层级：跳级会让大纲级别错位，但内容与样式都还在，提醒即可
     for line_no, why in heading_and_div_issues(md_text):
-        report.valid = False
-        report.errors.append(f"行 {line_no} [标题/分级]: {why}")
+        report.warnings.append(f"行 {line_no} [标题/分级]: {why}")
 
     # 9. 交叉引用前缀：要求文件声明了中文校对语言时，导出阶段会补默认前缀，
     #    这里只提示、不阻断（否则「自动补」永远走不到渲染那一步）
@@ -517,8 +521,10 @@ def validate_manuscript(
                 f"行 {line_no} [交叉引用前缀]: {why}；导出时会按「式/图/表」自动补上"
             )
         else:
-            report.valid = False
-            report.errors.append(f"行 {line_no} [交叉引用前缀]: {why}")
+            # 不写前缀会渲染成 Equation 1（中英混排），但内容没错，提醒即可
+            report.warnings.append(
+                f"行 {line_no} [交叉引用前缀]: {why}；不加要求文件里声明中文校对语言即可自动补"
+            )
 
     # 10. 未定义交叉引用标签
     for line_no, why in undefined_crossref_issues(md_text):
@@ -530,10 +536,9 @@ def validate_manuscript(
         report.valid = False
         report.errors.append(f"行 {line_no} [表格格式异常]: {why}")
 
-    # 12. 图表题注邻近性检查（防止孤立题注与表格/图片脱节）
+    # 12. 图表题注邻近性：题注离表格/图片远了，样式仍会生效，只是位置不对，提醒即可
     for line_no, why in caption_adjacency_issues(md_text):
-        report.valid = False
-        report.errors.append(f"行 {line_no} [图表题注邻近性]: {why}")
+        report.warnings.append(f"行 {line_no} [图表题注邻近性]: {why}")
 
     # 13. `\tag{}` 公式编号（Pandoc 不认，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):
@@ -545,12 +550,11 @@ def validate_manuscript(
 
     # 14/15. 依赖格式要求文件的两道门禁
     if spec is not None:
-        # 14. 图片声明宽度超过版心（导出时被静默钳到版心宽，不报错）
+        # 14. 图片声明宽度超过版心：会被钳到版心宽，但图还在页内，提醒即可
         width_cm = content_width_cm(spec)
         if width_cm:
             for line_no, why in image_width_issues(md_text, width_cm):
-                report.valid = False
-                report.errors.append(f"行 {line_no} [图片宽度超过版心]: {why}")
+                report.warnings.append(f"行 {line_no} [图片宽度超过版心]: {why}")
         elif has_declared_image_width(md_text):
             report.warnings.append("要求文件没写页边距，算不出版心，图片宽度未校验")
 
