@@ -1,0 +1,172 @@
+# Markdown → compliant Word
+
+Turns a Markdown manuscript into a `.docx` whose typography comes from a declared format file. The
+engine is deterministic — the same manuscript and the same declarations produce a byte-identical
+file on every run — so do not substitute a hand-written python-docx script; run this pipeline.
+
+**The facts live in the manual. This file is the order of work.** `md-to-word --contract` prints the
+manual's absolute path (Chinese or English, following the manuscript), the built-in preset paths and
+a one-screen contract summary. When a spelling is not certain, read the manual rather than guess:
+every word outside the vocabulary is a hard error with a line number.
+
+## 1. The work, in order
+
+1. **Normalize** the manuscript (pasted text, `.txt`, `.md`, an old `.docx`, a PDF) to the contract
+   in §2. Write a new file; never edit the user's original in place.
+2. **Decide the format** (§3): built-in preset, an edited copy of one, or the requirements file the
+   user supplied.
+3. **Export** (§4).
+4. **Read the gates** (§4), fix the reported lines, export again. Repeat until the exit code is `0`.
+5. **Report** (§5): what format was applied, what the run warned about, and that the layout still
+   needs a look in Word.
+
+Nothing here accepts arbitrary Markdown and returns a finished document: a preset supplies
+formatting, not missing structure. Pre-flight stops with a line number instead of emitting a
+document that looks acceptable while its formatting was never mapped.
+
+## 2. The manuscript contract
+
+**Headings** — `#`, `##`, `###`, consecutive and unskipped; a heading that carries its own number
+(`1.`, `2.1`) needs as many `#` as its number has levels. Heading levels are set by `#` only.
+
+**Style lines** — a line starting with `%% ` sets that paragraph's style. One line is one paragraph,
+ended by a blank line, no closing fence. Names come from a closed list, valid in either language;
+these are the ones that come up in almost every document:
+
+| Style line | Sets |
+|---|---|
+| `%% Title …` / `%% 文档标题 …` | the document title |
+| `%% Author …` / `%% 作者 …` | author line |
+| `%% Abstract Title …` / `%% 摘要标题 …` | the "Abstract" heading |
+| `%% Abstract …` / `%% 摘要 …` | abstract body |
+| `%% Keywords …` / `%% 关键词 …` | keywords |
+| `%% Table Caption …` / `%% 表题 …` | caption above a table |
+| `%% Table Note …` / `%% 表注 …` | note below a table |
+| `%% Image Caption …` / `%% 图片题注 …` | caption for a figure |
+| `%% References Title …` / `%% 参考文献标题 …` | the bibliography heading |
+
+Full list: manual §3.4.
+
+**Title, author, abstract and keywords go in the body as style lines, never in YAML** — their
+position on the page is the author's decision and YAML has no position. Pre-flight blocks those keys
+and prints the exact line to write instead.
+
+**YAML holds only position-independent configuration**: `bibliography:`, `csl:`, `crossref:`,
+`link-citations:`.
+
+**Equations** — `$$...$$ {#eq-name}` on its own line, referenced as `@eq-name`. Chinese manuscripts
+get 「式/图/表」 prefixes and （1）numbering, English ones Equation/Figure/Table and (1);
+`crossref: chapters: true` switches to per-chapter numbering. `\tag{}` is blocked.
+
+**Citations** — `[@key]` parenthetical, `@key` narrative, resolved from `bibliography:` + `csl:`. A
+`.bib` is mandatory once the manuscript cites: handwritten reference lists are not supported, and
+`[@key]` without `bibliography:` would be printed literally.
+
+**Figures and tables** — `![](path/img.png){width=13cm}`, caption in its own `%% Image Caption`
+paragraph; table caption above, note below. Do not put `{#fig-...}` labels on images. Column widths
+follow the separator row's dash lengths.
+
+**Block markers** — three, each on its own line with blank lines around it: `{{< pagebreak >}}`,
+`{{< toc >}}`, `{{< section page_number=lowerRoman start=1 >}}` (Chinese parameters `页码=` `起始=`
+also work). A section marker closes *the section above it*; never add a page break next to one.
+
+**Unsupported Markdown is blocked with a replacement, never printed literally**: HTML tags, `---`
+rules, `====` headings, definition lists, `- [ ]` boxes, tables without outer pipes, nested block
+quotes, full-width `％％`, four-space code blocks, `**` across lines, a second paragraph inside a list
+item.
+
+## 3. The format requirements file
+
+1. **Built-in preset** — `zh-academic` or `en-nature`. Use as-is when the user gave no detailed spec;
+   the preset is a complete, valid format, not a provisional default.
+2. **Copy and edit a preset** — change only the lines the user mentioned. Field order is fixed: font,
+   size, bold, italic, alignment, line spacing, space before, space after, indent. Every style line
+   must be complete; missing fields are errors.
+3. **Reverse-engineer a target `.docx`** — `md-to-word-template target.docx -o format.txt`, then work
+   through the "to confirm" list at the end of the draft.
+
+Each property has exactly one accepted spelling, plus its Chinese or English counterpart; anything
+else is a hard error with a line number (manual §3.1). `format.txt` in these instructions means *the
+format requirements file* — any filename works, `-r` takes it. `requirements.txt` never means that;
+it is the Python dependency list.
+
+Citation style comes from `csl:` with a bundled name (manual §7) or a path to the user's own CSL.
+Without `csl:`, Chinese manuscripts get GB/T 7714 numeric and everything else APA 7th.
+
+Without `-r` the engine first takes over a **lone `.txt`** beside the manuscript (several of them →
+exit 1); otherwise the preset follows the **manuscript's language**. Report which one was used.
+
+## 4. Export, then the gates
+
+```bash
+md-to-word manuscript.md -o manuscript.docx                    # preset by language
+md-to-word manuscript.md -r format.txt -o manuscript.docx      # explicit format
+md-to-word manuscript.md --contract                            # contract + manual and preset paths
+```
+
+From a source checkout the same commands run through `bash <skill-dir>/scripts/export.sh`. Run it
+from the manuscript's directory. Add `--verbose` when a format does not seem to take effect; add
+`--pdf` (macOS with Word) to expand fields and spot-check the result.
+
+Add `--json` whenever the result has to be read back programmatically: stdout then carries one JSON
+object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `messages`, `errors` — while progress
+and diagnostics stay on stderr. The keys are fixed; the sentences inside them follow the manuscript's
+language.
+
+Two gate levels, split by "would the mistake be visible afterwards":
+
+- **Blocking** — silently wrong later: dropped content, syntax printed literally, formatting never
+  mapped, a title in YAML, a caption inside an image's brackets. Fix the reported line; do not reach
+  for `--no-check`, which turns off the blocking gates too.
+- **Warning** — visible but non-compliant: an image wider than the text block (it gets clamped), a
+  caption far from its figure, a skipped heading level, a page break next to a section marker.
+
+Exit codes: `0` every gate passed; `1` manuscript, gate or dependency problem; `3` the `.docx` was
+written but the optional `--pdf` proof was skipped. Messages follow the manuscript's language.
+
+## 5. Verify before delivery
+
+- Confirm the `.docx` exists and the command exited `0`.
+- Report the preset or requirements file, the citation style, and anything the run warned about.
+- Say plainly that the layout still needs a look in Word: table heights and column widths are
+  content-driven, and equations, captions and headers only settle in the real renderer.
+- With a TOC, `{style-title}` headers or per-section page numbers, run once with `--pdf` and check the
+  first page, the widest table, an equation-heavy page and the references.
+
+## 6. Boundaries
+
+- No custom cover pages, merged cells, multi-column text, inline text colour or text-wrapped figures.
+  Export the body, then complete those in Word.
+- Only equation cross-references are supported (`{#eq-x}` + `@eq-x`); figure and table numbers are
+  typed into the caption.
+- Sum and integral limits stay to the right of the symbol in numbered equations (Word stacks limits
+  only in display math). Content and symbols are correct; only the arrangement differs.
+- TOC page numbers and chapter headers are Word fields; Word asks once whether to update them.
+- Runtime: Python 3.9+ and nothing else. From a source checkout, `pip install -r requirements.txt`;
+  where only the documentation is present, `pip install -U md-to-word-docx`. No Quarto, no Pandoc,
+  no external binary.
+
+Full statements: manual §6 (limits) and §8 (symptom → fix).
+
+## 7. Scope
+
+This skill compiles a finished manuscript into a `.docx` and nothing else. Drafting, rewriting,
+polishing, searching for sources and verifying reference metadata belong to whatever writing tools
+the user already works with: take the Markdown they hand you, produce the `.docx`, return it. The
+interface in both directions is a Markdown file plus a `format.txt`.
+
+Engine, pip package, changelog and issue tracker:
+[md-to-word](https://github.com/ls-open/md-to-word).
+
+## 8. Version contract
+
+This file must keep working after `pip install -U`, without being edited. What is frozen:
+
+- the commands `md-to-word` and `md-to-word-template`, and the flags `-o`, `-r`, `--preset`,
+  `--contract`, `--version`, `--json`
+- exit codes `0` / `1` / `3`, and the JSON keys under `--json`
+- the manuscript contract in §2 and the vocabulary in §3
+
+Everything else — message wording, the layout inside the installed package, preset file names, the
+version number — may change between releases. Never parse the prose of a message: pass `--json` and
+read the keys.

@@ -60,9 +60,11 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     from md_to_word.config import resolve_preset_path
 
     # 手册按语言各一份：中文版 manual.md，英文版 manual_en.md。两份都随包发布。
-    manual = Path(__file__).resolve().parent / "resources" / (
-        "manual_en.md" if lang == "en" else "manual.md"
-    )
+    resources = Path(__file__).resolve().parent / "resources"
+    manual = resources / ("manual_en.md" if lang == "en" else "manual.md")
+    # 入门文档与技能入口是同一份流程（tests/test_resource_sync.py 盯着两者不许分叉）：
+    # 只装 pip 包、手上没有 SKILL.md 的 Agent 从这里读“按什么顺序做”。
+    guide = resources / "guide.md"
     presets = "\n".join(
         f"  {name:<12} {resolve_preset_path(name)}" for name in ("zh-academic", "en-nature")
     )
@@ -91,6 +93,7 @@ language (zh-academic for Chinese, en-nature otherwise). One style per line, for
 `Body Text: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 0pt indent 0`.
 Starting from a preset is recommended: copy the file below next to the manuscript and change only the lines you need.
 
+Getting-started guide (order of work, gates, boundaries — read this first): {guide}
 Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits): {manual}
 Built-in presets:
 {presets}
@@ -116,6 +119,7 @@ Built-in presets:
 每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
 推荐从预设起步：将下面那份复制到稿件旁，仅修改需要的行。
 
+入门文档（代办流程、门禁判据、能力边界，先读这份）：{guide}
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界）：{manual}
 内置预设：
 {presets}

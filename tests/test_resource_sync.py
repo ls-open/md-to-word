@@ -26,7 +26,7 @@ PKG_RESOURCES = REPO_ROOT / "src" / "md_to_word" / "resources"
 
 
 # 只随包发布、仓库根不放副本的文件
-PACKAGE_ONLY = {"manual.md", "manual_en.md"}
+PACKAGE_ONLY = {"manual.md", "manual_en.md", "guide.md"}
 
 
 def _relative_files(root: Path) -> set[str]:
@@ -58,3 +58,15 @@ def test_copies_are_identical(root: Path, package: Path, label: str) -> None:
     )
     assert not errors, f"{label}/ 有文件无法比较：{errors}"
     assert not mismatch, f"{label}/ 与包内拷贝内容不一致：{mismatch}"
+
+
+def test_packaged_guide_is_the_skill_entry() -> None:
+    """只装了 pip 包的 Agent 也要有“先读哪一份”的入口。
+
+    技能入口是仓库根的 `SKILL.md`（带 frontmatter），包内是同一份正文的 `guide.md`。
+    两处内容必须一字不差，否则 pip 用户读到的流程与技能用户读到的会分叉。
+    """
+    skill = (REPO_ROOT / "SKILL.md").read_text(encoding="utf-8")
+    body = skill.split("---", 2)[2].lstrip("\n")
+    guide = (PKG_RESOURCES / "guide.md").read_text(encoding="utf-8")
+    assert guide == body, "SKILL.md 正文与包内 guide.md 不一致：改了一处要同步另一处"

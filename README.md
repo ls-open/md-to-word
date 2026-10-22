@@ -27,6 +27,7 @@ pip install md-to-word-docx
 
 包名比命令多一个 `-docx` 后缀：PyPI 上 `md-to-word` 与既有项目过于相似，被命名规则挡住；命令仍是
 `md-to-word`。隔离环境用 `pipx install md-to-word-docx`，更新用 `pip install -U md-to-word-docx`。
+不知道怎么写：`md-to-word --contract` 打印稿件约定、入门文档、完整手册与内置预设的路径。
 
 ## 30 秒
 

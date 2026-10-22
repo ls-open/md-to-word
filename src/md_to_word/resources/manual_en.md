@@ -8,7 +8,8 @@ same source at any time and the output is byte-for-byte identical.
 
 This manual ships with the Python package and is versioned with the implementation — `pip install -U`
 replaces an implementation and its documentation together. `md-to-word --contract` prints the
-contract cheatsheet, the absolute path of this file and the built-in preset paths.
+contract cheatsheet, the absolute paths of the getting-started guide and of this file, and the
+built-in preset paths.
 
 One export needs two files:
 
@@ -40,12 +41,13 @@ One export needs two files:
 | Python | `from md_to_word import export` |
 | Reverse-engineer a requirements draft from a reference `.docx` | `md-to-word-template reference.docx -o format.txt` |
 | AI skill | The skill directory's `export.sh` calls an installed `md-to-word`; a source checkout runs `src/` directly |
+| Getting-started guide | `guide.md` inside the package: order of work, how to read the gates, boundaries. Read it first when only the package is installed (`--contract` prints its path) |
 
 ```bash
 md-to-word manuscript.md -o out.docx                     # built-in zh-academic preset (Chinese)
 md-to-word manuscript.md --preset en-nature -o out.docx  # international journal preset
 md-to-word manuscript.md -r format.txt -o out.docx # explicit requirements file
-md-to-word --contract                                    # contract cheatsheet + manual and preset paths
+md-to-word --contract                                    # cheatsheet + guide, manual and preset paths
 md-to-word --contract --lang en                          # same, in English (canonical English style names)
 md-to-word manuscript.md -o out.docx --verbose           # per-style log, for "the format had no effect"
 ```
