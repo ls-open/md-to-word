@@ -6,10 +6,14 @@ right-aligned number, an `@eq-model` cross-reference, and an APA bibliography ge
 from `refs.bib`.
 
 ```bash
-md-to-word paper.md -o paper.docx --preset en-nature
-# or, from the skill directory:
-bash scripts/export.sh demo/03_english_paper/paper.md -o paper.docx --preset en-nature
+md-to-word paper.md -o paper.docx                      # an English manuscript selects en-nature by itself
+md-to-word paper.md -o paper.docx --preset en-nature   # the same thing, spelled out
+# or, from the repository root:
+bash scripts/export.sh paper.md -o paper.docx
 ```
+
+`page-*.png` are rendered from `paper.pdf`, the Word proof; both are committed with the
+manuscript so a change in output shows up as a changed image.
 
 Style lines use the English vocabulary (`%% Abstract Title`, `%% Table Caption`,
 `%% Image Caption`, `%% References Title`); the Chinese names work identically.
