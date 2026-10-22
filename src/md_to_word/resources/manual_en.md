@@ -400,10 +400,11 @@ updated when the document is opened or shown in print preview.
   `Footer Content: {page}` and then `Even Header Content: …` leaves even pages without any page
   number at all. The generator fills the empty slots automatically and says so.
 
-### 3.3 The three ways to obtain a requirements file
+### 3.3 The four ways to obtain a requirements file
 
 | What you have | What to do |
 |:--|:--|
+| An empty directory, and you want to see output first | `md-to-word init` writes a complete preset as `format.txt` plus a `hello.md` that exports as-is; edit from there |
 | A reference `.docx` template | `md-to-word-template reference.docx -o format.txt` reverse-engineers a draft; **items it could not read are listed at the end of the draft** — check each one before using it |
 | Format instructions in text or given verbally | fill in whatever the user stated explicitly; derive and fill the unmentioned required fields of the same set per §3.5 |
 | Nothing at all | use a built-in preset, export a standard `.docx` first, then adjust from feedback |
