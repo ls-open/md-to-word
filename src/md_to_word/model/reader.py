@@ -32,6 +32,8 @@ _LABEL_RE = re.compile(r"\{#(?P<label>[\w:.\-]+)\}\s*$")
 _BULLET_RE = re.compile(r"^(?P<indent>\s*)[-*+]\s+(?P<text>.*)$")
 _ORDERED_RE = re.compile(r"^(?P<indent>\s*)(?P<num>\d+)[.)]\s+(?P<text>.*)$")
 _FOOTNOTE_DEF_RE = re.compile(r"^\[\^(?P<label>[^\]]+)\]:\s*(?P<text>.*)$")
+# Pandoc 的围栏：`::: {#refs}` 这类定位标记在自研通道里没有意义（文献列表由引擎放到文末）
+_DIV_FENCE_RE = re.compile(r"^:::\s*(\{[^}]*\})?\s*$")
 _TABLE_ROW_RE = re.compile(r"^\s*\|(?P<body>.*)\|\s*$")
 _TABLE_SEP_RE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 
@@ -249,6 +251,11 @@ class _Reader:
 
             if not stripped:
                 self._flush_pending()
+                i += 1
+                continue
+
+            # Pandoc 围栏（`::: {#refs}` / 收尾 `:::`）：跳过，不当作正文
+            if _DIV_FENCE_RE.match(stripped):
                 i += 1
                 continue
 

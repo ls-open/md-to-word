@@ -174,7 +174,9 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         raw_text = in_p.read_text(encoding="utf-8")
         if options.strip_comments:
             raw_text = strip_html_comments(raw_text)
-        # `%% 摘要 …` 这类段落样式行先翻译成 Pandoc 的 fenced div，再交给标记展开
+        # `%% 摘要 …` 这类段落样式行先翻译成 Pandoc 的 fenced div，再交给标记展开。
+        # 自研后端要的是**原始契约文本**（读取器自己认识 `%%`），所以先留一份。
+        contract_text = raw_text
         raw_text = expand_style_lines(raw_text)
 
         # 解析 CSL 路径（若是内置 CSL 自动转为绝对路径）
@@ -234,9 +236,34 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                         citation_keys = parse_bib_keys(Path(bib_path).read_text(encoding="utf-8"))
                     except Exception:
                         citation_keys = set()
+            engine = None
+            if citation_keys:
+                from md_to_word.transform.citations import CitationEngine, CitationError
+
+                csl_path = builtin_csl
+                if csl_path is None and isinstance(fm_data, dict) and fm_data.get("csl"):
+                    resolved, how = resolve_manuscript_path(
+                        str(fm_data["csl"]), in_p, skill_csl_dir=get_csl_dir()
+                    )
+                    if how:
+                        csl_path = resolved
+                if csl_path is None:
+                    from md_to_word.config import get_csl_dir as _csl_dir
+
+                    csl_path = _csl_dir() / "chinese-gb7714-2015-numeric.csl"
+                try:
+                    bib_text = Path(resolve_manuscript_path(
+                        str(fm_data["bibliography"]), in_p
+                    )[0]).read_text(encoding="utf-8")
+                    engine = CitationEngine(bib_text, csl_path)
+                except (CitationError, OSError) as exc:
+                    res.returncode = 1
+                    res.errors.append(f"文献库或 CSL 样式无法使用：{exc}")
+                    return res
+
             try:
-                model = read_markdown(raw_text, citation_keys=citation_keys)
-                write_docx(model, tpl_for_render, out_p)
+                model = read_markdown(contract_text, citation_keys=citation_keys)
+                write_docx(model, tpl_for_render, out_p, citations=engine)
             except UnsupportedFeature as exc:
                 res.returncode = 1
                 res.errors.append(

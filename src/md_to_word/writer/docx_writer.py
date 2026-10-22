@@ -51,9 +51,10 @@ class UnsupportedFeature(NotImplementedError):
 
 
 class _Writer:
-    def __init__(self, document: Document, docx) -> None:
+    def __init__(self, document: Document, docx, citations=None) -> None:
         self.model = document
         self.docx = docx
+        self.citations = citations
         self._after_heading = False  # 下一段正文若是「标题后的第一段」，落 First Paragraph
         self._compact_style = self._style_name("Compact")
         self._footnote_ids: dict[str, int] = {}
@@ -70,6 +71,7 @@ class _Writer:
         self._title_block()
         for block in self.model.blocks:
             self.block(block)
+        self._write_bibliography()
         if self._footnote_ids:
             self._write_footnotes()
 
@@ -111,6 +113,16 @@ class _Writer:
             self._section(block)
         else:
             raise UnsupportedFeature(f"未支持的块类型：{type(block).__name__}")
+
+    def _write_bibliography(self) -> None:
+        """文献列表由引擎生成，放在文末；样式由要求文件的「参考文献」行控制。"""
+        if self.citations is None:
+            return
+        entries = self.citations.bibliography()
+        if not entries:
+            return
+        for entry in entries:
+            self.docx.add_paragraph(entry, style="Bibliography")
 
     def _collect_equation_numbers(self) -> None:
         """先扫一遍给带标签的公式编号：写正文时要用它解析 `@eq-x`。
@@ -454,7 +466,12 @@ class _Writer:
         elif isinstance(node, CrossRef):
             paragraph.add_run(self._resolve_crossref(node.target))
         elif isinstance(node, Citation):
-            raise UnsupportedFeature("文献引用需要 citeproc，尚未实现；先走 Pandoc 通道")
+            if self.citations is None:
+                raise UnsupportedFeature(
+                    "稿件声明了 citation，但未提供文献库或 CSL 样式；请检查 YAML 的 bibliography/csl"
+                )
+            keys = [(item.key, item.locator) for item in node.items]
+            paragraph.add_run(self.citations.cite(keys, narrative=node.narrative))
         elif isinstance(node, FootnoteRef):
             self._footnote_reference(paragraph, node.label)
         else:
@@ -504,10 +521,14 @@ class _Writer:
                 run.add_text(text)
 
 
-def write_docx(model: Document, template: Path | str, output: Path | str) -> Path:
-    """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。"""
+def write_docx(model: Document, template: Path | str, output: Path | str, citations=None) -> Path:
+    """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
+
+    `citations` 是 `transform.citations.CitationEngine`：有文献库时传进来，文献引用与
+    文末列表都由它渲染；不传时遇到 citation 会明确失败。
+    """
     docx = open_docx(str(template))
-    _Writer(model, docx).write()
+    _Writer(model, docx, citations=citations).write()
     out = Path(output)
     docx.save(str(out))
     return out

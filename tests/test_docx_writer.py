@@ -76,7 +76,7 @@ def test_code_block_keeps_line_breaks(template: Path, tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("source", "fragment"),
     [
-        ("见 [@smith2024]。\n", "引用"),
+        ("见 [@smith2024]。\n", "文献"),
     ],
 )
 def test_unsupported_features_fail_loudly(source: str, fragment: str, template: Path, tmp_path: Path) -> None:
@@ -267,3 +267,39 @@ def test_native_pipeline_needs_no_quarto(tmp_path: Path, monkeypatch) -> None:
     assert (tmp_path / "out.docx").exists()
     styles, text = _facts(tmp_path / "out.docx")
     assert "Title" in styles and text
+
+
+def test_citations_render_and_bibliography_is_appended(template: Path, tmp_path: Path) -> None:
+    """引文由 CSL 引擎渲染，文末列表自动生成——作者一个字都不用写。"""
+    from md_to_word.transform.citations import CitationEngine
+
+    bib = tmp_path / "refs.bib"
+    bib.write_text(
+        "@article{smith2024,\n  author = {Smith, John},\n  title = {A Study},\n"
+        "  journal = {Nature},\n  year = {2024},\n}\n",
+        encoding="utf-8",
+    )
+    csl = REPO_ROOT / "src" / "md_to_word" / "resources" / "csl" / "chinese-gb7714-2015-numeric.csl"
+    engine = CitationEngine(bib.read_text(encoding="utf-8"), csl)
+
+    model = read_markdown('---\ntitle: "t"\n---\n\n# 一 引言\n\n见 [@smith2024]。\n')
+    out = write_docx(model, template, tmp_path / "cite.docx", citations=engine)
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    text = "".join(re.findall(r"<w:t[^>]*>([^<]*)</w:t>", xml))
+
+    assert "[1]" in text, "正文里的引用要渲染成编号"
+    assert "SMITH" in text.upper(), "文末要自动生成文献列表"
+    assert 'w:val="Bibliography"' in xml, "文献条目要用 Bibliography 样式"
+
+
+def test_bibtex_to_csl_json_maps_core_fields() -> None:
+    from md_to_word.transform.bibtex import parse_bibtex
+
+    entries = parse_bibtex(
+        "@article{key1,\n  author = {Zhang, San and Li, Si},\n  title = {T},\n"
+        "  journal = {J},\n  year = {2020},\n  pages = {1--9},\n}\n"
+    )
+    assert entries[0]["type"] == "article-journal"
+    assert entries[0]["container-title"] == "J"
+    assert entries[0]["issued"] == {"date-parts": [[2020]]}
+    assert [a.get("family") for a in entries[0]["author"]] == ["Zhang", "Li"]
