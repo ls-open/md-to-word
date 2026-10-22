@@ -55,3 +55,15 @@ def test_page_grid_round_trip() -> None:
         pitch, body_line_spacing_multiple(spec.styles), spec.page_size, spec.margins
     )
     assert back == 22
+
+
+def test_equation_number_placement_round_trip() -> None:
+    """`公式编号：紧跟` 要能往返；默认的「右侧」不写进文本（保持预设干净）。"""
+    base = (PRESETS / "zh-academic.txt").read_text(encoding="utf-8")
+    spec = parse_requirements(base.rstrip() + "\n公式编号：紧跟\n")
+    assert spec.equation_number == "inline"
+    assert "公式编号：紧跟" in serialize_requirements(spec)
+
+    default = parse_requirements(base)
+    assert default.equation_number == "right"
+    assert "公式编号" not in serialize_requirements(default)

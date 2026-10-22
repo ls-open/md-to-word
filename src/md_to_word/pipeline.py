@@ -18,6 +18,7 @@ from md_to_word.audit.postflight import verify_numeric_integrity
 from md_to_word.config import default_csl_path, get_csl_dir, resolve_preset_path
 from md_to_word.i18n import resolve_lang, t
 from md_to_word.preprocessor.cleaner import strip_html_comments
+from md_to_word.spec.parser import parse_requirements
 from md_to_word.template.builder import build_template
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
@@ -123,6 +124,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             res.errors.append(t("pipeline.template_missing", res.lang, path=p_tpl))
             return res
         custom_template = p_tpl
+
+    spec = parse_requirements(req_content) if req_content else None
 
     # 按章编号 + 编号外观仍是默认 → 多半是漏带了 --eq-number-style cjk。
     # **这一项没有任何闸门能发现**：漏了就是静默产出 (5.1)（点号、半角括号），
@@ -232,6 +235,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 citations=engine,
                 base_dir=in_p.parent,
                 eq_number_style=options.eq_number_style,
+                equation_number_placement=spec.equation_number if spec else "right",
             )
         except UnsupportedFeature as exc:
             res.returncode = 1

@@ -135,7 +135,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 ## 📸 排版效果实测展示（本技能体系自举样例）
 
-除上面那份最小样例外，仓库还内置**两套完整样例**，均基于 md-to-word 本身的设计原理与工程实践撰写，真正实现“以身说法”：
+除上面那份最小样例外，仓库还内置**三套完整样例**，均由 md-to-word 本身导出：
 
 ### 样例一：中文硕博学位论文 / 核心期刊（全要素学术排版）
 > 前置独立小写罗马页码（`i, ii`）、Word 原生动态目录（收到二级）、双线动态章名页眉、**三线表跨页时自动重现表头**、公式按章编号（学位论文写法 `（2-1）`）且绝对居中靠右、GB/T 7714-2015 顺序编码文献；版式上另有**装订线 1cm**、**每页 22 行**与标题**字符间距 1 磅**。
@@ -160,6 +160,13 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 |                执行摘要与正文第一章                 |                  效能推导公式与耗时实测图                   |               全网格线数据表与 APA 参考文献                |
 | :---------------------------------------: | :---------------------------------------------: | :--------------------------------------------: |
 | ![报告首页](demo/02_modern_report/page-1.png) | ![效能公式与耗时实测图](demo/02_modern_report/page-2.png) | ![全网格表与参考文献](demo/02_modern_report/page-3.png) |
+
+---
+
+### 样例三：英文期刊投稿（`en-nature` 预设）
+> 英文摘要与关键词、APA 默认文献样式、图题在下且与图同页、三线表、公式居中编号靠右、交叉引用渲染为 `Equation 1`。
+
+📁 源码与一键复现命令 → **[demo/03_english_paper](demo/03_english_paper/paper.md)**
 
 ---
 
@@ -210,9 +217,27 @@ pip install -r requirements.txt
 
 依赖清单（合计约 3 MB，纯 Python）：`python-docx`（写 OOXML）、`lxml`（读写 XML）、`PyYAML`（读稿件元信息）、`latex2mathml`（公式）、`citeproc-py`（文献引用）。
 
-默认通道（`--writer native`）**不需要任何外部二进制**，也不要求装 Quarto/Pandoc。
+**导出不需要任何外部二进制**：没有 Pandoc、没有 Quarto、不调用 Word。`--pdf` 核对版才会用到本机 Word（仅 macOS）。
 
-可选：`--writer pandoc` 是备选通道（Quarto ≥ 1.4，内嵌 Pandoc），用于与成熟实现逐段对拍或兜底。此时 Quarto 低于 1.4 直接报错，高于 1.10 只提示「未在本仓验证」，补丁号不参与判定；缺依赖时以退出码 `2` 停下，与「稿件有问题」（`1`）区分。
+### 也可以当普通 Python 包用
+
+技能与包是**同一份代码**：`src/md_to_word/` 就是一个 pip 安装包，技能只是给它配了一份说明书（`SKILL.md`）和一个转发参数的入口壳（`scripts/export.sh`）。`presets/`（格式预设）与 `resources/`（CSL 样式、底模）随包安装，装完即用。
+
+```bash
+pip install .                                  # 或 pip install -e .（开发）
+md-to-word 稿件.md -o 输出.docx                 # 默认中文预设
+md-to-word 稿件.md --preset en-nature -o out.docx
+md-to-word --help                              # 全部选项；帮助语言跟随稿件语种
+```
+
+代码里调用：
+
+```python
+from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+result = run_export_pipeline(ExportOptions(input_path="稿件.md", preset="zh-academic"))
+print(result.returncode, result.output_docx)
+```
 
 ### 自研与借用的边界
 

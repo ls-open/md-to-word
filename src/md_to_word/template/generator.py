@@ -535,6 +535,27 @@ class MinLineSpacing:
 
 # ── 样式操作函数 ──
 
+# Word 内置的目录条目样式：styleId = TOC1/TOC2/TOC3，名字是小写的 "toc 1/2/3"，
+# 且**不能带 `w:customStyle="1"`**。带了这个标记，Word 就把它们当用户自建样式，
+# 更新目录域时会按自己的内置默认重建，我们写的字体/字号/加粗全部丢失。
+_BUILTIN_TOC = {"TOC 1": ("TOC1", "toc 1"), "TOC 2": ("TOC2", "toc 2"), "TOC 3": ("TOC3", "toc 3")}
+
+
+def _ensure_builtin_toc_style(style, style_name: str) -> None:
+    """把目录条目样式写成 Word 的**内置**样式，而不是自建样式。"""
+    builtin = _BUILTIN_TOC.get(style_name)
+    if builtin is None:
+        return
+    style_id, name = builtin
+    element = style.element
+    element.attrib.pop(W('customStyle'), None)
+    element.set(W('styleId'), style_id)
+    name_el = element.find(W('name'))
+    if name_el is None:
+        name_el = etree.SubElement(element, W('name'))
+    name_el.set(W('val'), name)
+
+
 def modify_style(doc, style_name, props, default_latin=None):
     """修改或创建样式的属性"""
     try:
@@ -547,6 +568,8 @@ def modify_style(doc, style_name, props, default_latin=None):
         except KeyError:
             pass
         print(f' ✓ {style_name}: 已创建新样式（basedOn Normal）')
+
+    _ensure_builtin_toc_style(style, style_name)
 
     cjk, latin = split_fonts(props.get('font_name'), default_latin)
     if not cjk and not latin and default_latin:

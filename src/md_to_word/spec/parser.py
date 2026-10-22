@@ -667,6 +667,17 @@ def _line_doc_grid(spec: TemplateSpec, desc: str, lineno: int) -> None:
     spec.doc_grid_lines = n
 
 
+def _line_equation_number(spec: TemplateSpec, desc: str, lineno: int) -> None:
+    """公式编号放在哪：`右侧`（默认，靠版心右边）或 `紧跟`（公式后面）。"""
+    value = {"右侧": "right", "右对齐": "right", "right": "right",
+             "紧跟": "inline", "紧随": "inline", "inline": "inline"}.get(desc.strip().lower())
+    if value is None:
+        raise _bad_value(lineno, "公式编号/Equation Number", desc,
+                         "右侧 (right) 或 紧跟 (inline)",
+                         why="右侧=编号靠版心右边；紧跟=编号直接跟在公式后面")
+    spec.equation_number = value
+
+
 def _line_decor(container: str, key: str) -> Callable[[TemplateSpec, str, int], None]:
     def handler(spec: TemplateSpec, desc: str, lineno: int) -> None:
         spec.decor[DECOR_CONTENT_KEYS[key]] = (
@@ -686,6 +697,7 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "纸张": _line_paper,
     "装订线": _line_gutter,
     "文档网格": _line_doc_grid,
+    "公式编号": _line_equation_number,
     "页码": lambda s, d, l: setattr(s, "page_number", parse_page_number(d, l)),
     "表格": lambda s, d, l: setattr(s, "table", parse_table_props(d, l)),
     "表头": lambda s, d, l: setattr(s, "table_header", parse_style_props("表头", d, l)),
@@ -701,6 +713,7 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "Paper Size": _line_paper,
     "Gutter": _line_gutter,
     "Document Grid": _line_doc_grid,
+    "Equation Number": _line_equation_number,
     "Page Number": lambda s, d, l: setattr(s, "page_number", parse_page_number(d, l)),
     "Table": lambda s, d, l: setattr(s, "table", parse_table_props(d, l)),
     "Table Header": lambda s, d, l: setattr(s, "table_header", parse_style_props("表头", d, l)),

@@ -1,8 +1,7 @@
 ---
 name: md-to-word
-description: "Exports Markdown documents, reports, and academic papers to standard, professional Word (.docx) files with modern Word 365 styles, custom typography, three-line tables, equation right-alignment, figure/table cross-referencing, and optional CSL bibliography formatting. Use when the user wants a .docx — a quick readable copy or a school/journal-compliant submission — including export Markdown to Word, generate docx, convert md/txt/text to docx, 导出Word, 文档转Word, 报告转Word, 论文转Word, 期刊排版, Word排版, 公文排版, prepare submission docx. Not for PDF, HTML, or LaTeX output."
+description: "Exports Markdown documents, reports, and academic papers to standards-compliant Word (.docx): Word 365 styles, three-line tables, centred equations with right-aligned numbers, figure/table captions, cross-references, dynamic TOC, and CSL bibliographies from .bib — no Pandoc, no Quarto, no external binary. 把 Markdown 导出为符合规范的 Word：学位论文/期刊论文/公文排版，摘要、公式编号、三线表、题注、交叉引用、目录域、CSL 参考文献。Use when the user wants a .docx — a readable copy or a school/journal-compliant submission — including export Markdown to Word, generate docx, convert md/txt/text to docx, 导出Word, 文档转Word, 报告转Word, 论文转Word, 期刊排版, Word排版, 公文排版, prepare submission docx. Not for PDF, HTML, or LaTeX output."
 license: MIT
-compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml。"
 ---
 
 # Markdown → Word 现代文档与学术排版导出技能
@@ -14,9 +13,26 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 > **统一入口**：`bash <本技能目录>/scripts/export.sh <稿件.md> [-r <格式要求.txt> | --preset zh-academic|en-nature] [-o <输出.docx>]`（若稿件同目录有唯一的 `.txt`，`-r` 可省略；两者都没有时默认用内置预设 `presets/zh-academic.txt`，模板每次导出实时生成）
 > **核心引擎**：自研写出器（模型 → OOXML）+ 纯净 Word 365 底模 (`resources/pure_modern_base.docx`) + 公式居中与编号靠右对齐引擎 + 自动质量门禁（导前预检 / 导后防丢数 / XML 样式对账）
 >
-> **首次使用前**：`pip install -r requirements.txt` 即可。**默认走自研写出器，不需要安装 Quarto**，也不需要任何外部二进制。
+> **首次使用前**：`pip install -r requirements.txt`。**导出不需要任何外部二进制**——没有 Pandoc、没有 Quarto、不调用 Word（只有 `--pdf` 核对才用到本机 Word）。
 >
-> 备选通道 `--writer pandoc` 才需要 Quarto ≥ 1.4：低于 1.4 直接报错，高于 1.10 只提示「未在本仓验证」不阻断，补丁号不参与判定；缺依赖时以退出码 `2` 停下，与稿件问题（`1`）区分。
+> **命令行与 Python 包是同一份代码**：`pip install .` 后可直接用 `md-to-word 稿件.md -o 输出.docx`；技能壳 `scripts/export.sh` 只是把它包了一层。
+
+## Quick start (English)
+
+```bash
+pip install -r requirements.txt            # or: pip install .
+md-to-word paper.md -o paper.docx          # default: Chinese thesis preset
+md-to-word paper.md --preset en-nature -o paper.docx
+md-to-word --help                          # all options; help follows the manuscript language
+```
+
+A manuscript is plain Markdown with three extra conventions:
+
+- `#`, `##`, `###` set heading levels; inline formatting works as usual.
+- A line starting with `%% ` names the paragraph style: `%% Abstract Title Abstract`, `%% Table Caption Table 1. …`, `%% Image Caption Figure 1. …`. One line is one paragraph — no closing marker.
+- `$$…$$ {#eq-model}` for a numbered display equation; `@eq-model` refers to it. `[@key]` comes from `references.bib` plus a CSL style (`csl:` in the YAML, or GB/T 7714 for Chinese and APA for English by default).
+
+Exit codes: `0` ok, `1` manuscript/gate failure, `3` `.docx` written but the `--pdf` step was skipped. Known limits are listed in §四; the most common ones are a custom cover page (do it in Word) and merged table cells (Markdown has no rowspan).
 
 **技能目录结构与文档路由**：
 
@@ -26,7 +42,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 | `references/reference.md` | 查 `requirements.txt` 完整合法词表（§1.5）、排版推导默认值（§1.6）、内置 CSL 清单（§3）时查阅 |
 | `references/design.md` | **导出行为不符合预期**时（参见其 §2 故障排查定位原因）；或**需要修改 `scripts/` 下的脚本**时查阅 |
 | `scripts/` | 入口壳与开发工具：`export.sh`（导出入口）、`check_md.py`（预检命令）、`generate_template.py`、`read_reference_docx.py`、`normalize_csl.py`、`render_via_word.sh` |
-| `src/md_to_word/` | **全部实现**（流水线、样式生成、校验、后处理、对账）。`bash scripts/export.sh` 等价于 `python -m md_to_word`，是同一份代码 |
+| `src/md_to_word/` | **全部实现**（流水线、文档模型、写出器、样式生成、校验、对账）。`bash scripts/export.sh` 等价于 `python -m md_to_word`，是同一份代码 |
 | `resources/` | 纯净 Word 365 底模 `pure_modern_base.docx` 与内置规范化引用样式库 `resources/csl/*.csl` |
 | `presets/` | 开箱即用的格式预设：`zh-academic.txt`（中文学术/通用报告，默认）与 `en-nature.txt`（英文期刊投稿）。用户没给格式要求时直接用这两份 |
 
@@ -95,7 +111,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
    - 带编号公式：`$$Y = \beta_0 + \beta_1 X + \epsilon$$ {#eq-model1}`，正文引用写 `@eq-model1`；**中文稿的交叉引用前缀默认自动补**（要求文件写了中文校对语言时按「式/图/表」注入），要改就在 YAML 里显式写 `crossref:`（写了以 YAML 为准）；**学位论文要按章编号**（`(2.1)` 而非 `(1)`）再加一行 `chapters: true`；无编号公式直接写 `$$...$$`；
    - 图片：图片行只描述图片本身——`![](path/to/img.png){width=14cm}`，方括号里放无障碍替代文字；题注另起一段 `%% 图片题注 图 1 …`，写在图上方还是下方由作者决定（中文规范多为图题在下），编号手写、不自动生成；
    - **图片不要加 `{#fig-xxx}` 标签**：会被套上三线表的框线、并失去居中。图号手写在题注文字里即可。（预检看不出这条，请照此写；机制见 `design.md §2.22`。）
-   - 表格：表题写 `%% 表题 表 1 …` 贴在上方，表注写 `%% 表注 注：…` 贴在下方。题注是**独立段落**，不是表格的附属字段——「题注与表格同页」由题注样式上的「与下段同页」控制。列宽**默认不动**（按内容排，长的撑满、短的窄着居中）。**要定列宽比例，就把分隔行的短横线写得长短不一**（`|:--|:--|:------|` → 约 2:2:6，按版心铺开）——**这靠本技能的后处理兑现，pandoc 本身不认**。写成一模一样 = 没指定；也因此**无法强制等宽**（三列等宽就写不出「长短不一」）。表要带首尾竖线（`| 甲 | 乙 |`），不带外框的写法认不出。
+   - 表格：表题写 `%% 表题 表 1 …` 贴在上方，表注写 `%% 表注 注：…` 贴在下方。题注是**独立段落**，不是表格的附属字段——「题注与表格同页」由题注样式上的「与下段同页」控制。列宽**默认不动**（按内容排，长的撑满、短的窄着居中）。**要定列宽比例，就把分隔行的短横线写得长短不一**（`|:--|:--|:------|` → 约 2:2:6，按版心铺开；只数短横线，`:---` 与 `:---:` 都算三条）。写成一模一样 = 没指定，由内容自己排；也因此**无法强制等宽**（三列等宽就写不出「长短不一」）。表要带首尾竖线（`| 甲 | 乙 |`），不带外框的写法认不出。
 4. **标准短代码（仅限三种，独占一行且前后留空行）**：
    - 分页：`{{< pagebreak >}}`；
    - 目录：`{{< toc >}}`（默认收 1~3 级）或 `{{< toc 2 >}}`。**条目外观由 Word 决定**——`目录标题：` 生效，`目录一/二/三级` 会被 Word 更新域时重置，**不应承诺可自定义条目字体或缩进**（原因见 `design.md §2.23`）；
@@ -136,7 +152,7 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 | 缩进 | `首行缩进2字符` / `悬挂缩进0.5英寸` | 每行只能写一种缩进 |
 | 左缩进 | `左缩进2字符` | 目录条目逐级右移用 |
 
-其余属性（页眉页脚与域、页码、装订线、文档网格、字符间距、边框、表格线宽、分页控制等）用到时再查 §1.5，写法同样唯一。
+其余属性（页眉页脚与域、页码、装订线、文档网格、公式编号位置、字符间距、边框、表格线宽、分页控制等）用到时再查 §1.5，写法同样唯一。
 
 **样式名**：`文档标题`/`副标题`/`作者`/`日期`/`摘要`/`摘要标题`/`关键词`/`一~六级标题`/`正文`/`首段`/`普通`/`紧凑`/`图`/`表格题注`/`图片题注`/`表注`/`参考文献`/`参考文献标题`/`引用块`/`页眉`/`页脚`/`脚注`/`代码`/`目录标题`/`目录一/二/三级`
 
@@ -179,20 +195,18 @@ Body Text: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 spa
 ```bash
 bash <本技能目录>/scripts/export.sh 稿件_export.md -o 输出.docx
 ```
-脚本自动完成：**导前预检 → 展开目录/分节标记 → Quarto 编译 → 公式右对齐与主题净化 → 防丢数检查 → 产物与格式要求逐条对账**（各步脚本及其职责见 `references/reference.md §2`）。
+脚本自动完成：**导前预检 → 生成样式模板 → 读成文档模型 → 写出 OOXML → 防丢数检查 → 产物与格式要求逐条对账**（各步职责见 `references/reference.md §2`）。
 
 **预检分两级，判据是「错了看不看得见」**：
 
 | 级别 | 判据 | 例子 |
 |:--|:--|:--|
-| **阻断** | 产物会静默出错，且错了看不出来 | 内容丢字（表格列数不符）、变成乱码（`\tag{}`、未定义交叉引用、没配文献库的 `[@key]`）、格式静默不生效（用了表格但要求文件没写表格样式、`%%` 样式名不认识、custom-style 在模板里不存在） |
-| **提醒** | 产物看得见，只是不合规 | 图片宽度超版心（会被钳）、题注离表格/图片远了、标题跳级、分节后多写分页（多一页）、没写交叉引用前缀 |
+| **阻断** | 静默出错，事后看不出来 | 内容丢字（表格列数不符）、退化成字面文本（`\tag{}`、未定义交叉引用）、格式不生效（`%%` 样式名不在模板里、要求文件漏写表格样式）、YAML 里写了摘要/关键词、题注写进图片的方括号 |
+| **提醒** | 看得见，只是不合规 | 图片宽度超版心（会被钳）、题注离图表远了、标题跳级、分节后多写分页、折行段落、没写交叉引用前缀 |
 
-提醒不阻塞导出——作者可能有意为之，也可能打算在 Word 里收尾。把这类情况做成硬失败，只会把人逼去用 `--no-check`，连真正的阻断也一起关掉。
+提醒不阻断导出：作者可能有意为之，也可能打算在 Word 里收尾。做成硬失败只会逼人用 `--no-check`，把真正的阻断也关掉。
 
-命令返回 `0`（`✅ Word 文档导出成功`）即已通过全部闸门，`.docx` 可以交付——但**交付前一律提醒用户用 Word 打开看一眼**，并按需附上一句"表格行高列宽是按内容自适应的"。机器验得了文字与结构，验不了版面：表格行高、宽表折行、公式与题注的落版、页眉页脚，只有真 Word 打开才知道。这条提醒对每份文档都成立，导出脚本也会在末尾打一行。
-
-**写出后端**：默认 `native`（自研写出器，不需要 Quarto），覆盖标题、正文、列表（真实编号）、表格（三线表 + 表头重复）、图片、脚注、目录域、分节页码、公式（OMML）、交叉引用与文献引用（CSL，citeproc-py）。`--writer pandoc` 是备选通道（Quarto/Pandoc），两者在三个内置样例上的样式序列与正文文本一致（`tests/test_backend_parity.py` 守着）。
+命令返回 `0` 即已通过全部闸门。**交付前仍需提醒用户用 Word 打开核对版面**：表格行高列宽按内容自适应，公式与题注的落版、页眉页脚只有真打开才能确认。导出脚本会在末尾输出这条提醒。
 
 ### 2. 视觉抽查（macOS + Word 曾启动过才可用，按需开启）
 
@@ -215,11 +229,11 @@ bash <本技能目录>/scripts/export.sh 稿件_export.md -o 输出.docx --pdf
 3. **多栏混排与文字环绕浮动图**：默认单栏排版，图片走独立居中图段（`Captioned Figure`），**不支持单双栏混排、文字环绕或彩色文字**。
 4. **目录页码与页眉章名是「域」**：由 Word 打开时算，**Agent 无需额外处理**。用户打开时会看到一次「是否更新这些域」，**点「是」即得正确页码**（每次都问，属正常）；若仍不正确，可让其按 `Ctrl+A` → `F9`。
    - `--pdf` 出的 PDF 用的是渲染那一刻的分页；改过内容后要重新导出一份。
-5. **表格行高**：不预设高度，由 Word 按内容自适应（每张表内容不同，定死只会截断长单元格）。单元格内行距走要求文件的「紧凑」样式；列宽只能按分隔行短横线长短给**比例**，给不了绝对宽度。真需要调的那几张，在 Word 里改。
-6. **折行段落**：本引擎按「一行一段」读取。从 Pandoc 或别的工具迁来的稿子常把一段折成多行，导出会拆成几段（每段都吃一次首行缩进）——预检会按行号提醒，合并成一行即可。这是稿子的写法问题，不在渲染里补偿。
-7. **摘要、关键词、文献区标题只认正文**：YAML 的 `abstract:` / `keywords:` / `reference-section-title:` 不参与排版（YAML 管不住位置），预检会拦下并给出正文写法（`%% 摘要` / `%% 关键词` / `%% 参考文献标题`）。
-8. **公式**：覆盖上下标、分式、根式、求和/积分、矩阵等常见结构；遇到没覆盖的 MathML 结构会**明确失败**并指出是哪一处，不会静默排错。
-9. **CSL 细节**：文献样式由 CSL 决定，个别细节与 Pandoc 的 citeproc 不同（如 `van`/`de` 这类姓氏前缀的位置）。样式本身可换（`csl:`），差异不会影响条目内容。
-10. **每页 N 行（文档网格）**：公文版式（GB/T 9704 每页 22 行）在要求文件写一行 `文档网格：每页22行`，行距倍数会自动折算进网格。
+5. **表格尺寸**：行高不预设，由 Word 按内容自适应；单元格行距走「紧凑」样式；列宽只能按分隔行短横线长短给比例，给不了绝对宽度。个别表需要精调时在 Word 里改。
+6. **折行段落**：引擎按「一行一段」读取。一段若折成多行，会拆成几段并各自首行缩进——预检按行号提醒，合并成一行即可。这属于稿子的写法，不在渲染时补偿。
+7. **摘要、关键词、文献区标题只认正文**：YAML 的 `abstract:` / `keywords:` / `reference-section-title:` 不参与排版，预检会拦下并给出正文写法（`%% 摘要` / `%% 关键词` / `%% 参考文献标题`）。
+8. **公式**：覆盖上下标、分式、根式、求和/积分、矩阵等常见结构；遇到未覆盖的 MathML 结构会明确失败并指出位置。
+9. **文献样式**：内置 29 份 CSL（`references/reference.md §3`），也可写自己的 `csl:` 路径。个别姓氏前缀（`van`/`de`）的位置由 CSL 处理器决定，不影响条目内容。
+10. **每页 N 行（文档网格）**：公文版式（GB/T 9704 每页 22 行）在要求文件写 `文档网格：每页22行`，行距倍数自动折算。
 
 > 完整的边界清单（定制封面、合并单元格、任意制表位、底纹/背景色、脚注位置等）见 `references/reference.md §1.4`。

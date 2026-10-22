@@ -37,6 +37,7 @@ class TemplateSpec:
     page_size: str = "a4"
     gutter_cm: Optional[float] = None
     doc_grid_lines: Optional[int] = None
+    equation_number: str = "right"  # right=编号靠右（默认）| inline=紧跟公式
     proofing_lang: Optional[str] = None
     header_distance: Optional[float] = None
     footer_distance: Optional[float] = None

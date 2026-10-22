@@ -304,3 +304,17 @@ def test_equal_dashes_leave_the_table_to_the_word_engine(template: Path, tmp_pat
     [widths] = _grid_widths(out)
     assert len(set(widths)) == 1
     assert Document(out).tables[0].autofit is True
+
+
+def test_equation_number_placement_is_configurable(template: Path, tmp_path: Path) -> None:
+    """编号默认靠右；要求文件写「公式编号：紧跟」时直接跟在公式后面。"""
+    model = read_markdown(r"$$y = ax + b$$ {#eq-a}" + "\n")
+
+    right = write_docx(model, template, tmp_path / "r.docx")
+    inline = write_docx(model, template, tmp_path / "i.docx", equation_number_placement="inline")
+
+    right_xml = zipfile.ZipFile(right).read("word/document.xml").decode("utf-8")
+    inline_xml = zipfile.ZipFile(inline).read("word/document.xml").decode("utf-8")
+    assert 'w:val="right"' in right_xml and "(1)" in right_xml
+    assert 'w:val="right"' not in inline_xml, "紧跟时不设右制表位"
+    assert "(1)" in inline_xml

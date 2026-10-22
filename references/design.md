@@ -15,13 +15,13 @@
 
 ## 1. 模板生成原理
 
-> **引擎关系**：导出由 Quarto 渲染，Quarto 内嵌 Pandoc，docx 的样式映射/段落转换均由 Pandoc 的 docx writer 完成，故本文故障排查沿用 "Pandoc" 指代该底层行为。
+> **引擎关系**：导出由本技能自己的写出器完成——读取器把契约 Markdown 变成文档模型，写出器把模型直接写成 OOXML。没有中间引擎，所以"为什么长这样"都能在代码里指到具体一行。
 
 ### 1.1 纯净现代 Word 365 底模机制
 
 本框架使用**纯净现代 Word 365 基础母版**（由 `create_pure_modern_base.py` 按 Word 365 规范直接构建 `pure_modern_base.docx`）。
 - **原生现代架构**：基于 ISO/IEC 29500 与 Word 365（`AppVersion=16.0000`、`w14–w16du` 命名空间）组装 OPC 包，`compatibilityMode` 写 **15**——这是**真实 Word 365 新建文档**自己写的值（公开文档记载的合法值只有 11/12/14/15），导出文档打开无 `[兼容模式]` 警告；
-- **标准槽位注册**：在纯净文档中预先注册 Word 365 核心根样式与全部标准学术样式 ID（如 `Title`, `Abstract`, `Heading 1..9`, `BodyText`, `Compact`, `TableCaption`, `TableNote`, `Bibliography`, `Table` 等），与 Quarto / Pandoc 内部解析器 100% 精确对接；
+- **标准槽位注册**：在纯净文档中预先注册 Word 365 核心根样式与全部标准学术样式 ID（如 `Title`, `Abstract`, `Heading 1..9`, `BodyText`, `Compact`, `TableCaption`, `TableNote`, `Bibliography`, `Table` 等），与 Word 内置样式名精确对接；
 - **现代数学支持**：原生写入现代 OMML 数学公式配置，支持 Cambria Math 居中渲染。
 
 ### 1.2 主题属性工作原理与三重净化
@@ -41,31 +41,28 @@
 2. **模板刷样阶段（过程净化）**：`src/md_to_word/template/generator.py` 保存时刻对 `styles.xml` 再次执行递归清理；
 3. **最终导出阶段（末端兜底与防御）**：`src/md_to_word/postprocessor/equations.py` 在后处理公式的同时对最终 docx 再次执行样式净化。**此步的双重必要性**：
    - **第三方模板兜底**：用户直接使用期刊官方现有 `.docx` 模板（非脚本生成）时，也能自动拔除其中残留的主题属性；
-   - **编译器隐式注入拦截**：Quarto 编译过程中若动态补齐某些特定样式节点，可能会自动带上系统默认主题标记，末端扫描可确保交到作者手中的 Word 终稿 100% 纯净。
+   - **写出后复扫**：写出器只按模板套样式，理论上不会再引入主题标记；导出前的这一步是保险，确保交到作者手里的终稿 100% 纯净。
 
-### 1.3 学术公式居中与编号靠右对齐引擎
+### 1.3 学术公式居中与编号靠右对齐
 
-**靠右没有任何原生路径**：Pandoc 把编号塞在公式对象内部（`m:oMath` 末尾），OMML 没有
-"对齐到右边"这个概念；Quarto 官方给的方案（`quarto-dev#2618`）也是自己写 filter。
-本技能走渲染后重构——把带编号公式改成 **1 行 3 列无边框表格**：左右两列等宽（公式因此
-能整页居中），右列放编号。
+**靠右没有任何原生路径**：OMML 里的公式对象没有"对齐到右边"这个概念，编号如果塞在
+公式对象内部，就只能跟着公式走。本技能的写法是**段落级的三段制表位**——左制表位靠版心
+左边、中心制表位在版心中线、右制表位在版心右边，公式落在中间那段，编号落在右边那段：
 
-两个改代码前要知道的点：
+```xml
+<w:tabs><w:tab w:val="center" w:pos="4150"/><w:tab w:val="right" w:pos="8300"/></w:tabs>
+<w:r><w:tab/></w:r><m:oMath>…</m:oMath><w:r><w:tab/></w:r><w:r>(1)</w:r>
+```
 
-- **列宽按编号实际宽度算**（`_eq_number_pct`），不能用固定百分比：固定 12% 时
-  「（式 5-1）」这类中文编号会折成两行。
-- **写 `tblLayout type="fixed"`**（钉住列宽，Word 的常规做法）。
-  ⚠ **但原先那句「不写就会被 autofit 把编号列压到约 40pt」复现不出来**：把 demo/01 产物里
-  3 处 `tblLayout` 全删掉重新渲染，编号仍落在 x 17.05–18.46cm（右边界就是 18.46cm）；
-  让 Word 存回后比对，`gridCol` 只从 `1446` 变成 `1447`。猜测是这几张表另有 `tblW=100%`，
-  轮不到 autofit 发威。**这条按「惯例」保留，别再当成「不写就坏」的依据。**
+比"用无边框表格摆三列"简单得多：没有列宽要算、没有 `tblLayout` 要钉，也不会因为
+列宽随编号长度变化而折行。
 
 **编号来源与编号外观分属两层**：
 
 | | 谁定 | 在哪 |
 |:--|:--|:--|
-| 数字本身 | Quarto crossref：`{#eq-x}` → `(1)`；配 `crossref: chapters: true` → 按章 `(5.1)` | 稿件 + YAML |
-| 括号与分隔符 | `--eq-number-style`：`asis` 保持原生 / `cjk` 改写成 `（5-1）` | `format_eq_number()` |
+| 数字本身 | 写出器按出现顺序：`(1)`；YAML 开 `crossref.chapters: true` 时按章 `(5.1)` | `writer/docx_writer.py::_collect_equation_numbers` |
+| 括号与分隔符 | `--eq-number-style`：`asis` 保持 `(5.1)` / `cjk` 改写成 `（5-1）`，正文里的交叉引用同步跟着改 | `_display_eq_number` / `_resolve_crossref` |
 
 ### 1.4 工作流程图
 
@@ -91,9 +88,10 @@
 
 ### 1.5 页面尺寸与图片宽度（pgSz + pgMar）
 
-Pandoc 的 docx writer 在确定图片显示宽度时，会从模板的 `sectPr` 中读取 `pgSz`（页面尺寸）和 `pgMar`（页边距），计算内容宽度 `envPrintWidth = pgSz.w - pgMar.left - pgMar.right`。**如果 pgSz 或 pgMar 任一缺失**，Pandoc 回退到默认值 420pt（≈14.817cm = 5,334,000 EMU）。
+图片的显示宽度上限是版心宽：从模板的 `sectPr` 里取 `pgSz`（页面尺寸）与 `pgMar`（页边距），
+算 `版心宽 = pgSz.w - pgMar.left - pgMar.right`。**任一项缺失**时按 A4 + 2.54cm 边距兜底。
 
-**`{width=15cm}` 被静默截断为 14.82cm 的根因**——Pandoc 默认 reference.docx 的 sectPr 不含 pgSz/pgMar。
+**图片宽度为什么会莫名变小**——模板的 `sectPr` 里如果没有 `pgSz`/`pgMar`，就只能按兜底值算版心。
 
 `src/md_to_word/template/generator.py` 现在在保存模板前自动设置：
 - `section.page_width` / `section.page_height`（写入 `<w:pgSz>`）
@@ -103,20 +101,20 @@ Pandoc 的 docx writer 在确定图片显示宽度时，会从模板的 `sectPr`
 设置后，A4 页面内容宽度 = 21.0 - 2.54 - 2.54 = 15.92cm，`{width=15cm}` 可正确生效。
 
 **装订线不在这条公式里，所以折进左边距写**。`w:gutter` 是"在装订侧再多留一段空白"，
-Word 打印时会把它加到左边距之外，但 **pandoc 算 `envPrintWidth` 时不减它**，本技能算正文
+Word 打印时会把它加到左边距之外，但**算版心的公式里没有它**，本技能算正文
 宽度的两处（`_content_width_twips`、`_text_width_pt`）同样。后果实测：A4 + 2.54cm 边距 +
 `装订线：1cm`，`{width=25cm}` 被钳成 15.90cm（本应 14.92cm），而文字起点已经右移 1cm——
 于是在 Word 渲染的 PDF 上量出图片右缘在 **19.44cm**，越过 18.46cm 的右边距 **0.98cm**，
 而导前预检、防丢数、导出后对账三道闸门全绿。
 
 改法是把装订线**加进 `pgMar/@w:left`**（2.54 + 1 = 3.54cm），不写 `w:gutter`。单节、不开
-镜像页边距时，两者在打印上等效，但折进去之后 pandoc 与本技能算的都是**真实版心**
+镜像页边距时，两者在打印上等效，但折进去之后算出来的才是**真实版心**
 （14.92cm），图片、公式网格表、点线制表位的落点一起跟着对——是"算得对"，不是"再补一刀"。
 对账侧（`src/md_to_word/audit/inspector.py`）左边的期望值相应加上装订线。
 
 ### 1.6 原生图语法居中
 
-原生图语法 `![caption](path){width=Xcm}`（alt 非空）时，Pandoc 将图片段落映射为 Captioned Figure 样式，模板中已设为居中。
+图片行 `![](path){width=Xcm}` 落成 Captioned Figure 段落，模板中已设为居中。
 
 ### 1.7 缩进单位换算技术细节
 
@@ -136,7 +134,7 @@ Word 打印时会把它加到左边距之外，但 **pandoc 算 `envPrintWidth` 
 
 ### 1.8 参考文档被带走了什么（**改模板前必读**）
 
-pandoc 只从参考文档拿走三类东西，其余一概忽略：
+**为什么要自己生成模板**：Word 的样式槽位是封闭的，用的样式不在 `styles.xml` 里就只能退成普通段落。生成器只从底模拿走三类东西，其余一概不用：
 
 | 会被带走 | 不会被带走 |
 |:--|:--|
@@ -152,7 +150,7 @@ pandoc 只从参考文档拿走三类东西，其余一概忽略：
 
 #### 1.8.1 参考模板只能单节，多节由标记在渲染层插入
 
-**pandoc 取参考文档的第一个 `sectPr`，只用它的页眉页脚与页面几何。**
+**模板只取正文节那一个 `sectPr` 的页眉页脚与页面几何。**
 
 实测：两节模板导出后只剩节 0 的那个 `sectPr`。
 
@@ -164,21 +162,18 @@ pandoc 只从参考文档拿走三类东西，其余一概忽略：
 
 `src/md_to_word/template/generator.py` 生成后强制校验单节，多节直接报错——多节模板会让页眉页脚错位且无人察觉。
 
-#### 1.8.2 分节与目录：为什么在 Markdown 里展开，而不是导出后改 docx
+#### 1.8.2 分节与目录：模型节点，不是字符串替换
 
-**`{=openxml}` 围栏块会被 Quarto 原样写进 `word/document.xml`**（实测：写一段含 `sectPr`
-的围栏块，产物里就真多一个 `sectPr`）。于是分节符、目录域这类 Pandoc 语法里没有的东西都能
-停在标记层表达，不必再写"改产物 XML"的后处理。
+`{{< section >}}` 与 `{{< toc >}}` 在读取阶段变成两个模型节点（`SectionBreak` / `Toc`），
+写出器把它们落成原生 OOXML：
 
-`src/md_to_word/preprocessor/markers.py` 在**预检之后、渲染之前**把标记换成 OOXML 块：
+- **分节**：`sectPr` 在 OOXML 里描述的是**上面那一节**，所以分节符写成"上一节段落属性里的
+  `sectPr`"。新节的页面几何、页脚引用整段抄模板的正文节，只改分节类型与页码格式；同时
+  **剥掉 `headerReference` 与 `titlePg`**（前置件不排页眉，`titlePg` 只属于文档起始页）。
+- **目录**：写成 `w:sdt` 里的 TOC 域。Word 打开时算页码，所以每次打开都会问一次"是否更新
+  这些域"——点"是"即得正确页码，`Ctrl+A` → `F9` 可强制重算。
 
-- 放在预检之后，是为了让 `src/md_to_word/validator/check.py` 校验的仍是作者写的标记本身（未独占一行、拼错的
-  短代码都该在那一层报错），而 Quarto 只看到展开后的结果。
-- 展开要读参考模板的 `word/document.xml`：新节的页面几何与页脚引用整段抄正文节。
-  rId 是模板自己的编号，**pandoc 会照搬**（实测两次渲染一致），故抄过来在产物里同样有效。
-
-展开用的是渲染前的临时副本，**必须与原稿同目录**（YAML 的 bibliography/csl 与图片路径都是
-相对稿件目录写的），并由 `CLEANUP_FILES` + trap 清理。
+参考模板仍须是**单节**：多节模板的页面几何会互相打架，生成时直接报错。
 
 ### 1.9 requirements.txt 是一门**封闭**的小语言
 
@@ -261,33 +256,11 @@ Word 的「文档网格」（`w:docGrid`）只在**单倍行距**下才等于声
 按正文（Body Text，退回 Normal）的倍数算，固定值行距不参与相乘（Word 只把行高向上取整到
 网格，故不除）。补偿后三种行距实测都落 21 行（第一页另有标题占位），声明的 N 行就是 N 行。
 
-### 1.12 表格列宽为什么要在后处理里做
-
-Markdown 没有表达表格列宽的语法（pandoc 对 pipe 表一律均分，实测连分隔行短横线的
-长短都不看）。所以我们借**分隔行本来就有的短横线**当比例，由后处理兑现；作者不写就
-完全不碰那张表。
-
-两个必须一起做的动作：
-
-- **写 `gridCol`**：pandoc 给的列宽与内容多少无关，短列空一大片、长列被挤到换行；
-- **钉 `tblLayout=fixed`**：不钉的话 Word 存盘时会按自己的算法重算，写进去的列宽等于没设
-  （与 §1.3 公式三列网格表同一个坑）。
-
-**按位置配比例，对不上就一张都不调**：稿件里的表格与 docx 里的表格按顺序一一对应，
-中间夹着的公式网格表与图片包装表要先排除。曾经边遍历边跳（单列表直接 `continue`），
-结果它后面所有表错位一格——单列表也要占一个位置。
-
-配套的导前拦截：表格各行列数对不上时 pandoc **不报错，直接把多出来的单元格连同内容
-丢掉**（实测表头 3 列、分隔行 2 格 → 产物只剩两列）。这是丢内容不是排版问题，
-`src/md_to_word/validator/check.py` 会拦。
-
----
-
 ## 2. 深层故障排查
 
 ### 2.1 中文字体不对
 
-原因：Pandoc 默认模板中 Heading 1、Heading 2 等样式的 rFonts 带有 `eastAsiaTheme="majorEastAsia"`，Word 的主题优先级高于 `eastAsia` 显式指定，导致中文字体被宋体覆盖。
+原因：底模的 Heading 样式 rFonts 带着 `eastAsiaTheme="majorEastAsia"` 这类主题引用，Word 的主题优先级**高于** `eastAsia` 的显式指定，中文字体因此被换掉。
 解决：用 `src/md_to_word/template/generator.py` 重新生成模板——它改样式时会清掉 `eastAsiaTheme` 属性。
 
 ### 2.2 字体被主题属性覆盖
@@ -296,45 +269,45 @@ Markdown 没有表达表格列宽的语法（pandoc 对 pipe 表一律均分，�
 
 ### 2.3 表格内外字体
 
-Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Body Text` / `First Paragraph`。
+写出器把表格单元格里的段落统一套 `Compact` 样式。正文段落落 `Body Text` / `First Paragraph`。
 
 - **表格内外无特殊要求**：将 `Compact` 设为与 `Body Text`、`First Paragraph`、`Normal` 相同的字体、字号、行距，效果统一
-- **表格内有特殊要求**（如表格内 10pt、表格外 12pt）：直接在 `requirements.txt` 中按表格内标准设 `Compact`，Pandoc 会自动应用到表格内文字，无需任何 Word 后处理
+- **表格内有特殊要求**（如表格内 10pt、表格外 12pt）：直接在 `requirements.txt` 中按表格内标准设 `Compact`，表格内文字自动跟着变
 
 ### 2.4 GB/T 7714 引用显示中文"等"而非英文"et al."
 
 症状：使用 GB/T 7714 CSL 时，纯英文文献库的条目显示"等"而非"et al."。
-原因：Pandoc 的 citeproc **不支持 CSL-M 多语种 layout**。GB/T 7714 CSL 中的多语种 layout 块已被注释掉（取消注释会导致 `CiteprocParseError: Multiple layout elements present in bibliography`）。`.bib` 条目中的 `language={en}` 字段**不会**触发自动切换。
+原因：citeproc-py **不支持 CSL-M 多语种 layout**。GB/T 7714 CSL 中的多语种 layout 块已被注释掉（取消注释会导致 `CiteprocParseError: Multiple layout elements present in bibliography`）。`.bib` 条目中的 `language={en}` 字段**不会**触发自动切换。
 解决：纯英文文献库 → 将 CSL 文件中的 `default-locale="zh-CN"` 改为 `default-locale="en-US"`，所有条目渲染"et al."。纯中文文献库 → 保持 `zh-CN`。中英文混排 → 不支持，需用户根据主体语言选一种 locale，或在 Word 中手动替换。
 
 ### 2.5 图片宽度被截断为 14.82cm
 
 症状：MD 中写 `{width=15cm}`，导出后图片实际宽度只有 14.817cm。
-原因与解决见 §1.5——模板 sectPr 缺 `pgSz`/`pgMar` 时 Pandoc 回退到 420pt；用
+原因与解决见 §1.5——模板 sectPr 缺 `pgSz`/`pgMar` 时只能按兜底值算版心；用
 `src/md_to_word/template/generator.py` 重新生成模板即可（它按 requirements 的 `纸张：` 行写入这两个元素）。
 
 ### 2.6 图片因文件名空格无法加载
 
-症状：`![图 1](file name.png)` 导出后图片缺失，Pandoc 无报错或报路径不存在。
-原因：标准 Markdown 链接语法 `[]()` 和 `![]()` 的路径部分遵循 URL 规范（RFC 3986），空格不是合法字符。Pandoc 无法正确解析含空格的路径，导致图片静默加载失败。
+症状：`![图 1](file name.png)` 导出后图片缺失，或报路径不存在。
+原因：标准 Markdown 链接语法 `[]()` 和 `![]()` 的路径部分遵循 URL 规范（RFC 3986），空格不是合法字符；带空格的路径解析不出来，图片就静默丢了。
 解决：将文件名中的空格替换为**下划线或连字符**（如 `file_name.png`），或使用 `%20` 编码空格（`file%20name.png`）。推荐前者，可读性更好。
 
 ### 2.7 文档/论文主标题误用 `#` 导致标题层级整体错位
 
 症状：文档/论文主标题用 `# 标题`，所有章节标题被挤到 `##`/`###`/`####`，编号与层级全部错位。
-原因：Pandoc 的 `#` 固定映射到 Heading 1（章节标题样式），不是 Title（文档标题样式）。两者样式不同（本项目的表里 Title 通常**二号**（＝22pt）、Heading 1 通常**三号**（＝16pt）；14pt 是四号）。如果主标题用 `#`，会变成 Heading 1 样式，丢失 Title 样式，还会把所有章节标题挤到 `##`/`###`，导致标题层级整体错位。
-解决：文档主标题用 YAML `title:` 字段（Pandoc 自动渲染为 Title 样式），章节标题从 `# 1. 绪论`（1 级）开始。
+原因：`#` 固定映射到 Heading 1（章节标题样式），不是 Title（文档标题样式）。两者样式不同（本项目的表里 Title 通常**二号**（＝22pt）、Heading 1 通常**三号**（＝16pt）；14pt 是四号）。如果主标题用 `#`，会变成 Heading 1 样式，丢失 Title 样式，还会把所有章节标题挤到 `##`/`###`，导致标题层级整体错位。
+解决：文档主标题用 YAML `title:` 字段（落 Title 样式），章节标题从 `# 1. 绪论`（1 级）开始。
 
 ### 2.8 CSL direct formatting 属性覆盖模板样式
 
 症状：同一个 requirements.txt 在不同 CSL 下，参考文献的悬挂缩进、行距、段间距行为不一致。
-原因：CSL 有两种悬挂缩进机制——`hanging-indent="true"`（Pandoc 设成段落 direct formatting）与 `second-field-align="flush"`（该输出 Tab，实际输出空格，已知缺陷）。两者行为不一致，且都绕过模板，覆盖 Bibliography 样式的设置。
+原因：CSL 有两种悬挂缩进机制——`hanging-indent="true"` 与 `second-field-align="flush"`，都会写成段落级 direct formatting，绕过模板，覆盖 Bibliography 样式的设置。
 解决：内置 CSL 都已用 `scripts/normalize_csl.py` 去掉 `<bibliography>` 上的 `hanging-indent`、`second-field-align`、`line-spacing` 等 direct formatting 属性，悬挂缩进改由 requirements.txt 的 Bibliography 样式（`悬挂缩进0.5英寸`）统一控制。**新增 CSL 必须跑一次**：`python3 scripts/normalize_csl.py resources/csl/新期刊.csl`。
 
 ### 2.9 参考文献 Tab 残留导致悬挂失效
 
 症状：每行内容都跑到 `left_indent` 处，看着像没有悬挂，其实连首行也缩进了。
-原因与解决同 §2.8：CSL 里残留 `second-field-align="flush"`，Pandoc 在「1.」后插的 Tab 跳到了 `left_indent`。
+原因与解决同 §2.8：CSL 里残留 `second-field-align="flush"`，编号后的 Tab 跳到了 `left_indent`。
 
 ### 2.10 静默失败防护（字号无单位、行距变体）
 
@@ -345,7 +318,7 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 ### 2.11 表格对齐 jc 继承机制
 
 症状：requirements.txt 写了 `表格：居中`，但导出的表格仍左对齐，右边剩大片空白。
-原因：Pandoc 生成的表格**不输出**表格级 `<w:jc>` 元素，但会**继承** Table 样式的 `tblPr/jc`（OOXML 规范 ECMA-376 §17.7.6 规定 Table 样式属性 "always applied" 除非被表格实例覆盖）。所以只要模板的 Table 样式 `tblPr` 里有 `<w:jc w:val="center"/>`，所有表格自动居中。
+原因：写出器**不输出**表格级 `<w:jc>`，表格会**继承** Table 样式的 `tblPr/jc`（OOXML 规范 ECMA-376 §17.7.6 规定 Table 样式属性 "always applied" 除非被表格实例覆盖）。所以只要模板的 Table 样式 `tblPr` 里有 `<w:jc w:val="center"/>`，所有表格自动居中。
 解决：在 requirements.txt 中写 `表格：居中`，`src/md_to_word/template/generator.py` 会在 Table 样式的 tblPr 中插入 jc 元素。
 
 ### 2.12 OOXML schema 顺序要求（jc 必须在 tblBorders 之前）
@@ -357,20 +330,20 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 ### 2.13 First Paragraph 必填原理
 
 症状：requirements.txt 只定义了 `正文 Body Text`，未定义 `首段 First Paragraph`，章节首段格式错误（无缩进或缩进错误）。
-原因：Pandoc 把章节首段映射为 `First Paragraph` 样式（不是 `Body Text`）。如果只定义了 `Body Text` 而没定义 `First Paragraph`，章节首段会用 Pandoc 默认样式。
+原因：章节首段落 `First Paragraph` 样式（不是 `Body Text`）。只定义 `Body Text` 而没定义 `First Paragraph` 时，首段会继承底模默认。
 解决：requirements.txt 必须显式定义 `首段` 样式，通常 `首行缩进0字符`（APA 标准章节首段不缩进），与正文（`首行缩进2字符`）区分。src/md_to_word/template/generator.py 将 First Paragraph 列为必填样式之一（必填样式清单见 `REQUIRED_STYLES`，会随需求演进）。
 
 ### 2.14 间距清零原理（段前段后显式写 0）
 
 症状：requirements.txt 写 `行距2倍` 但未写段前段后，导出后正文段落之间仍有额外间距，"双倍行距贯穿全文"未实现。
-原因：Pandoc 默认模板中大多数样式自带段前/段后间距（如 Body Text 默认段前段后各 9pt）。仅设置行距不清零段间距，最终间距 = 双倍行距 + 段前 9pt + 段后 9pt。
+原因：底模里大多数样式自带段前/段后间距（如 Body Text 默认段前段后各 9pt）。仅设置行距不清零段间距，最终间距 = 双倍行距 + 段前 9pt + 段后 9pt。
 解决：在 requirements.txt 中显式写 `段前0磅 段后0磅`（必须显式写 `0` 才能覆盖默认值）。src/md_to_word/template/generator.py 将段前段后列为必填字段。
 
 ### 2.15 LaTeX 分页符对 docx 无效
 
 症状：MD 中用 `\newpage` 分页，导出的 docx 中不生效，段落连在一起。
-原因：`\newpage` 是 LaTeX 命令，Pandoc 的 docx writer 不支持（已知限制，GitHub #6358/#1934）。
-解决：改用 Quarto 标准短代码 `{{< pagebreak >}}`（`src/md_to_word/validator/check.py` 会拦下 LaTeX 那几个写法
+原因：`\newpage` 是 LaTeX 命令，写出器不认它。
+解决：改用 `{{< pagebreak >}}`（`src/md_to_word/validator/check.py` 会拦下 LaTeX 那几个写法
 并给出这一句）。它在 docx 下产出 `<w:br w:type="page"/>`，与手写 raw openxml 块等效，
 但不必写 XML。不生效时再在导出的 Word 文档中手动插入分页符。
 
@@ -378,22 +351,21 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 
 症状：导出的 docx 中没有参考文献列表。
 原因：缺 `--citeproc` 或 frontmatter 中 bibliography 路径不对。
-解决：确认 Pandoc 命令包含 `--citeproc`，确认 .bib 文件路径正确。如果路径是相对路径，导出时先 `cd` 到 MD 文件所在目录。
+解决：确认 YAML 写了 `bibliography:`，且 `.bib` 路径相对稿件目录存在。
 
 ### 2.17 样式映射不上
 
 症状：导出的 docx 中某些段落格式不对（如关键词没有 Keywords 样式）。
-原因：模板中样式名不符合 Pandoc 默认要求（常见：自定义了新样式而非修改已有的，或用错了样式 ID）。
+原因：模板里没有这个样式（常见：要求文件漏写，或样式 ID 写错）。
 解决：检查 `pure_modern_base.docx` 或通过 `create_pure_modern_base.py` 核对注册的标准样式名和 styleId，再用 `python-docx` 对比目标模板确认。
 
 ### 2.18 图片无法显示
 
-症状：导出的 docx 中图片缺失（空白框或红叉），Pandoc 无报错。
-原因：`![](path)` 中的路径不对，Pandoc/Quarto 找不到文件。
+症状：导出的 docx 中图片缺失（空白框或红叉），导出过程不报错。
+原因：`![](path)` 中的路径不对，文件找不到。
 解决：
-1. 绝对路径（`/Users/...`）与相对路径均可；`export.sh` 已自动追加 `--resource-path "$RESOURCE_PATH:/"`（含输入目录、git 仓库根目录与根 `/`）。根 `/` 使绝对路径不被 Quarto 误解析为 `./Users/...`（否则图片静默丢弃、仅有 warning）；
-2. 图片放在稿件同目录、子目录或同一 Git 仓库下均可，写相对路径或绝对路径即可，无需在 YAML 配置 `resource-path`；
-3. 图片文件不存在时 `src/md_to_word/validator/check.py` 会在导出前拦截（预检报图片缺失），不静默失败。
+1. 路径**相对稿件所在目录**解析（绝对路径也支持）。稿子放在哪里，图片就相对哪里写，与从哪个目录调用命令无关；
+2. 图片文件不存在、路径含未转义空格时，预检会在导出前拦下，不会静默丢图。
 
 ### 2.19 代码块内 `:::` 包裹误检测
 
@@ -423,103 +395,29 @@ Word 见到脏域就询问一次，点「是」当场把页码算好。
 | 行距固定值 / 最小值 | `w:spacing/@lineRule` | 两者都是 Length，分不开 |
 | 段落下边框、页码格式、表格边框、校对语言 | 各自的 XML 节点 | 没有 API |
 
-### 2.22 图片加了 `{#fig-xxx}` 为什么会被套上表格框线
+### 2.22 图号为什么不支持 `{#fig-xxx}` 自动编号
 
-Quarto 交叉引用要求「图 + 题注」保持同页，为此把它们放进一个**单格表格**；该表格走
-`表格：` 那行声明的 `Table` 样式（实测 `w:tblStyle w:val="Table"`），于是图片上下被
-套上三线表的框线（顶底线 1.5 磅）。图片段落同时失去 `CaptionedFigure`，不再居中。
+本技能的交叉引用只覆盖公式（`{#eq-x}` + `@eq-x`）。图与表没有自动编号：图号手写在
+题注里（`%% 图片题注 图 1 …`），表号手写在表题里。这样题注文字与正文里写的「如图 1 所示」
+永远是同一个人写的，不会出现编号对不上。
 
-本技能只支持公式的交叉引用；图号一律手写在题注文字里。
+### 2.23 目录条目样式必须声明成 Word 的**内置**样式
 
-### 2.23 Word 更新目录域时会重置 `toc 1/2/3` 样式
+**症状**：要求文件里写了 `目录一级：黑体 小四 加粗 …`，模板里也确实有这条样式；但交付的
+docx 打开、更新目录域之后，条目变成 Word 默认的样子（不加粗、字体也不对）。
 
-**症状**：要求文件里写了 `目录一级：黑体 小四 加粗 … 首行缩进0字符 左缩进0字符 点线制表位`，
-交付的 docx 里也确实有这条样式，但打开文档更新目录域之后，目录条目**按正文的格式排**——
-一级条目起点比左边界右 0.85cm，正是正文「首行缩进2字符」的量。
+**根因**：Word 的内置目录样式是 `styleId="TOC1"`、`name="toc 1"`，**不带**
+`w:customStyle="1"`。用 `python-docx` 新建同名样式时，它会写成自建样式（`customStyle="1"`，
+名字也常写成大写 `TOC 1`）。Word 更新目录域时，按自己的内置定义重建这些样式——我们写进去的
+字体、字号、加粗、行距全部被覆盖。
 
-**怎么查到的**：这条现象靠看 PDF 是定不了性的（只有"和预期不一样"），得看 Word **更新之后**
-的文档内部。为此给 `render_via_word.sh` 加了可选的第三项输出（就地 `save d` 存回容器里的
-中转副本，再拷出来，原稿不动）。拿它跑一遍 demo/01 的产物：
+**修法**（`template/generator.py::_ensure_builtin_toc_style`）：生成目录条目样式时去掉
+`w:customStyle`，`styleId` 定为 `TOC1/TOC2/TOC3`，`w:name` 用小写 `toc 1/2/3`。之后 Word
+更新域会沿用这份定义。
 
-```text
-更新前（我们的模板）  styleId=TOC1  name="TOC 1"  basedOn=Normal
-                     rPr: 黑体/Times New Roman · 加粗 · sz=24(小四) · 制表位 right+dot@15.92cm
-                     pPr: 左缩进0字符 · 首行缩进0字符 · 居中/左对齐…
-更新后（Word 存的）   styleId=TOC1  name="toc 1"  basedOn="a"
-                     子元素只剩 name/basedOn/next/autoRedefine/uiPriority/rsid —— rPr、pPr 全没了
-```
+**验证**：`tests/test_template_toc.py` 断言模板里的三条样式是内置形态；端到端核对用
+`scripts/render_via_word.sh 稿件.docx out.pdf 更新后.docx` 留下 Word 更新过的副本，比对
+`styles.xml` 里 `TOC1` 是否仍带 `rFonts`/`b`。
 
-同一次更新里 Word 还把一批内置样式**归一化**成它自己的写法：`Heading 1` → `heading 1`
-（styleId 变成 `1`，并把我们写的名字存进 `w:aliases`）、并为 `标题 1 字符`…`页脚 字符`
-等新建了本地化名称的样式。关键是**归一化时它保住了 heading 的格式、独独丢了 toc 的**：
-
-```text
-heading 1  →  rPr 里 eastAsia=黑体、b、sz=32(三号) 都在，pPr 里 keepNext/居中 也都在   ← 保留
-toc 1      →  rPr、pPr 全没了（空壳，靠 basedOn 继承正文）                              ← 丢弃
-```
-
-**四条补救路都试过，都无效**（每次都走 `export.sh` + `render_via_word.sh`，量 PDF）：
-
-| 试法 | 结果 |
-|:--|:--|
-| 条目样式的制表位 `15.92cm` → `5cm`，以及整个删掉 | 页码位置与点线都不变 |
-| 「目录一级」字号 `小四` → `24pt`、加 `左缩进12字符` | 条目大小与位置都不变 |
-| 把 `w:name` 改成小写（Word 自己存内置样式就是 `toc 1`） | 更新后仍被清空 |
-| 补上 Word 内置同款的 `next`/`autoRedefine`/`uiPriority`/`unhideWhenUsed` | 更新后仍被清空 |
-| 把目录域从 pandoc 的 `<w:sdt>` 里挪出来 | 更新后仍被清空 |
-
-**结论**：`toc 1/2/3` 是 Word 自己拥有并可自动重定义（`w:autoRedefine`）的样式，它更新目录域时
-按内置默认重建，不采纳模板里的自定义。**这是 Word 的行为，不是本技能的 bug，也没有找到可行的
-绕法**。故：`目录标题`（`TOC Heading`，不在被重置之列）照常生效；三个条目样式保留在词表里
-（写了无害，换 Word 版本或许不同），但文档不再声称它们能控制目录外观。
-
-`点线制表位` 同理——目录条目上那条是 Word 画的；该写法本身在**非目录样式**上仍然有效。
-
-> 判断方法（换 Word 版本时可照做）：渲染时用 `render_via_word.sh <in> <out.pdf> <更新后.docx>`
-> 留下更新后的文档，比对同一份 styles.xml 在更新前后的差别。
-
-**根因**（规范的语义是有出处的，但「更新域会重建 TOC 样式」本身**没有微软官方文档**，
-只有 MVP/社区与微软问答层的共识）：`w:autoRedefine` 的规范语义是「把用户对段落的直接格式
-**合并回样式定义**」（即「修改样式」对话框里那个**「自动更新」**勾选框），**省略它才是不合并**；
-Word 的 TOC 1–9 默认开着它（Word MVP Barnhill《Whole Document Reformatted》、微软问答 5032458
-多处一致）。更新目录域时把生成段落的格式并回样式，与观察到的现象吻合。
-
-**但「去掉 `autoRedefine`」这个杠杆在我们这儿已经证明无效**：我们的模板里那条样式**本来就没写**
-`autoRedefine`，更新后照样被清空——Word 还自己补了一个上去。补上它（连同 `uiPriority` 等）
-同样被清空。故只能把这条当**根因解释**，不能当解法。
-
-顺带排除两条：`\* MERGEFORMAT` 管的是**域结果的直接格式**，与段落样式定义无关；`\t` 开关只
-决定「哪些段落进目录、进到第几级」，**条目格式永远由 TOC n 决定**——想换自定义样式没这条路。
-
-**一条没采纳的社区建议**：不让 Word 自动更新（去掉 `dirty="true"`、`settings.xml` 里也不设
-`w:updateFields`），TOC 样式与缓存内容就能保住。但我们的目录域**没有缓存结果**——不更新就只剩
-那句占位文字「（打开文档后目录会自动生成）」。这个取舍 `§2.20` 已经权衡过，仍保留 `dirty`。
-
-## 3. 后续可做
-
-### 3.1 双栏排版（未实现）
-
-**为什么先不做**：投稿阶段各刊都要单栏，双栏是**出版排版**环节的事；报告与学位论文同样用不到。
-对「把稿子写到能交出去」这个目标，双栏属于超纲。
-
-**能不能做**：能，而且本技能的架构比 pandoc 裸用更适合——`section_block()` 已经是「整段抄模板节属性，
-只改分节类型与页码」，其插入顺序表里已含 `cols`；模板 sectPr 里一旦有 `<w:cols w:num="2">`，
-会**自动跟着抄进每一个新节**。底座是现成的，缺的是词表入口与几处配套。
-
-按工作量分三档：
-
-| 档 | 范围 | 要动的地方 | 估量 |
-| :-- | :-- | :-- | :-- |
-| ① | 标题区单栏 + 正文起全双栏 | `src/md_to_word/template/generator.py` 认新词写 `<w:cols>`；**外带 `src/md_to_word/validator/check.py` 图片宽度门禁** | 小改 |
-| ② | 分节控制（摘要单栏／正文双栏／目录单栏） | `parse_section_params()` 加 `分栏=` 覆写本节 | 中改 |
-| ③ | 跨栏的表格与大图 | `section_block()` 支持 `continuous`；前后各包一个单栏节 | **大改，真难点** |
-
-**①里那条图片门禁不是可选项**：现在 `image_width_issues` 按整页版心算上限，双栏时应按**栏宽**算。
-不改的话，写 `{width=15cm}` 的图会直接压穿两栏——**与 `§1.5` 装订线那次是同一种静默失败**
-（能导出、能打开、版面是坏的）。
-
-**③为什么最难**：Word 的分栏是**节级属性**，一节中间切不回单栏，只能靠连续分节符单独包一段。
-`section_block()` 现在把分节类型写死为 `nextPage`（`src/md_to_word/preprocessor/markers.py`），要先让它支持
-`continuous`；而连续分节符在 Word 里历来容易多出空行、页码乱跳。**这条没实测过，耗时不作估计。**
-
-> 以上是读代码得出的可行性判断，**一行都没跑过**。
+> `目录标题`（`TOC Heading`）本来就是内置样式，不受影响。目录条目上的点线与页码由 Word
+> 的域自己画，`点线制表位` 只对非目录样式有意义。

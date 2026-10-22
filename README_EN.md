@@ -219,15 +219,13 @@ For users unfamiliar with academic bibliography workflows:
 pip install -r requirements.txt
 ```
 
-Optional: `--writer pandoc` is the fallback channel and needs Quarto ≥ 1.4 (bundled Pandoc). Use it to cross-check against the mature implementation, not for everyday exports.
-
 ### Using it as a plain Python package
 
 The skill and the package are **the same code**: `src/md_to_word/` is a pip-installable package, and `SKILL.md` is the manual an AI agent reads. `presets/` (format presets) and `resources/` (CSL styles, base template) ship with the package.
 
 ```bash
 pip install .
-md-to-word paper.md -o paper.docx          # default writer, no Quarto
+md-to-word paper.md -o paper.docx          # Chinese thesis preset by default
 md-to-word paper.md --preset en-nature -o paper.docx
 md-to-word --help                          # all options and exit codes
 ```

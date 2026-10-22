@@ -14,11 +14,9 @@
 
 ### 1.1 样式映射表
 
-> **Quarto 与 Pandoc 的关系**：Quarto 内嵌 Pandoc，docx 输出正是走 Pandoc 的 docx writer 与样式匹配逻辑。因此下文 "Pandoc 样式映射 / 转换规则" 指的就是这一底层行为，Quarto 导出同样适用，两者不冲突。
+这些样式名写在 `styles.xml` 里，是格式要求文件与稿件样式行共同指向的目标；写错就等于样式不存在：
 
-Pandoc 在 reference.docx 中识别的样式名是固定的，不能擅自改名：
-
-| Pandoc 样式名 | 用途 | python-docx 访问方式 |
+| Word 样式名 | 用途 | python-docx 访问方式 |
 |---|---|---|
 | Title | 文档/论文大标题 | `doc.styles['Title']` |
 | Abstract | 摘要 | `doc.styles['Abstract']` |
@@ -29,23 +27,24 @@ Pandoc 在 reference.docx 中识别的样式名是固定的，不能擅自改名
 | Heading 1—9 | 标题 | `doc.styles['Heading X']` |
 | Table Caption | 表名 | `doc.styles['Table Caption']` |
 | Image Caption | 图名 | `doc.styles['Image Caption']` |
-| Captioned Figure | 图片段落（原生图语法 `![caption](path)` 时生成，模板已设居中） | `doc.styles['Captioned Figure']` |
+| Captioned Figure | 图片所在的段落（模板已设居中） | `doc.styles['Captioned Figure']` |
 | Table Note | 表注 | `doc.styles['Table Note']` |
-| Bibliography | 参考文献 | `doc.styles['Bibliography']` – 用 `::: {#refs}` 控制位置 |
-| References Title | 参考文献标题（自定义样式）| `doc.styles['References Title']` – 与 `::: {#refs}` div 配合控制标题样式 |
+| Bibliography | 参考文献条目（列表由引擎生成在文末） | `doc.styles['Bibliography']` |
+| References Title | 参考文献抬头，正文写 `%% 参考文献标题 参考文献` | `doc.styles['References Title']` |
 | Keywords | 关键词 | `doc.styles['Keywords']` |
 | Footnote Text | 脚注正文 | `doc.styles['Footnote Text']` |
 | Footnote Reference | 脚注序号（字符样式，上标）| `doc.styles['Footnote Reference']` |
 | Table | 表格边框 | `doc.styles['Table']` |
 
-> **样式名匹配规则**：`%% 样式名` 行在预处理阶段被翻成 Pandoc 的 `custom-style="X"`，按**样式名**或 **styleId** 匹配（「Table Note」「TableNote」都认）。两者都不存在时，Pandoc 会**静默**建一个空壳样式（继承 Normal/Body Text）——格式不生效且没有警告，预检能在导出前检出。
+> **样式名匹配规则**：`%% 样式名` 按**样式名**或 **styleId** 匹配（「Table Note」「TableNote」都认）。
+> 模板里没有这个样式时，预检直接拦下——不会退成普通段落让你以为排好了。
 
-> `Keywords`、`Table Note` 这类样式**已预置在底模里**——Pandoc 自带的参考文档没有它们，
-> 不预置就会静默建出空壳样式（继承 `Normal` 的格式，看不出对错）。
+> `Keywords`、`Table Note` 这类样式**已预置在底模里**：格式要求文件没写时也有默认值，
+> 但写了就以要求文件为准。
 
 ### 1.2 多套正文样式的说明
 
-Pandoc 内部使用启发式规则将不同段落映射到不同样式：
+同样的 Markdown 写法落到哪个样式，由读取器的规则决定（不是启发式猜测）：
 
 | 落在这一样式的东西（实测） | 映射为 |
 |---|---|
@@ -83,14 +82,11 @@ Pandoc 内部使用启发式规则将不同段落映射到不同样式：
 - **字符间距**（样式行写 `字距0.5磅` 加宽、`字距-0.2磅` 紧缩）
 - 公式交叉引用（`{#eq-xxx}` + `@eq-xxx`，中文前缀由 YAML `crossref:` 决定）
 
-> ⚠ **图片不要加 `{#fig-xxx}` 标签**。加了 Quarto 会为「图 + 题注」生成一个单格表格以保持同页，
-> 而该表格走「表格：」那行声明的 `Table` 样式（实测 `w:tblStyle w:val="Table"`），图片上下
-> 因此被套上三线表的框线；图片段落也同时失去 `CaptionedFigure`，不再居中。
+> ⚠ **图片不要加 `{#fig-xxx}` 标签**：本技能只支持公式的交叉引用（`{#eq-x}` + `@eq-x`）。
 > 图号一律**手写在题注里**（`%% 图片题注 图 1 …`），图片行只写 `![](path){width=…}`。
-> 本技能只支持公式的交叉引用（`{#eq-x}` + `@eq-x`）。
 
 **多节的页码切换**（如前置罗马 → 正文阿拉伯）：用正文里的 `{{< section >}}` 标记做，
-见 §1.9；参考模板本身仍须**单节**（pandoc 只取第一个 `sectPr`）。
+见 §1.9。
 
 **不支持**（需在 Word 中手动调整或合并）：
 - 定制花式封面页（含单位徽标 Logo、下划线填空表单、绝对定位框等；YAML `title:` 仅生成正文开篇标准大标题，定制封面建议在 Word 中合并到首页）
@@ -137,7 +133,7 @@ Pandoc 内部使用启发式规则将不同段落映射到不同样式：
 | 与下段同页 | `与下段同页` | `目录标题：… 与下段同页` | — （题注跟着表/图、标题不落单页尾，都靠它；不写则完全取决于底模继承）|
 | 无边框 | `无边框`（去除底模自带下边框，如文档标题）| 文档标题行尾加 `无边框` | `下边框无`——它与 `无边框` 产物**逐字节相同**（都清掉整段 `w:pBdr`），故只保留一种写法 |
 | 下边框 | `下边框<单线\|双线>` `[边框粗<N>磅]` | `页眉：宋体/Times New Roman 小五 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 下边框双线` | 写 `下划线`（那是字符属性）；**`边框粗` 单独写**（没有下边框时它无处可落，实测产物里连 `w:pBdr` 都没有）|
-| 表格宽度 | **不用声明**——默认完全不动：pandoc 与 Word 按内容排 | — | 想自己定列宽比例，把分隔行的短横线写得长短不一即可；规则、边界与实现见 `SKILL.md §一 3` 与 `design.md §1.12` |
+| 表格宽度 | **不用声明**——默认不动，由内容排 | — | 想自己定列宽比例，把分隔行的短横线写得长短不一即可（只数短横线，对齐冒号不算）；规则见 `SKILL.md §一 3` |
 | 表格（**含表格时必填**）| `表格：<居中\|左对齐\|右对齐> <三线表\|全网格线\|顶底线\|无边框> [线宽上/线宽底/线宽表头下<N>磅] [线宽内<N>磅（仅全网格线）] [单元格垂直居中\|顶端\|底端] [单元格内边距<N>cm]` | `表格：居中 三线表 线宽上1磅 线宽底1磅 线宽表头下0.25磅 单元格垂直居中 单元格内边距0.19cm` | `表格：居中 三线表(1磅)`；**三线表/顶底线写「线宽内」（没有内部横线，会报错）**；**无边框写任何线宽（不画线，会报错）**；**`单元格内边距` 单位用 cm 不用磅（`单元格内边距0.19磅` 会报错），不写即 0** |
 | 表头行（**含表格时必填**）| `表头：<段落属性，同样式行语法> [跨页重复]` | `表头：宋体/Times New Roman 五号 加粗 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 跨页重复` | — |
 | 页眉/页脚**样式** | `页眉：<段落属性，同样式行语法>` | `页眉：宋体/Times New Roman 小五 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符` | 把内容写进样式行——字体段是**唯一的自由文本**，`页眉：某某大学 小五 居中 …`（字段齐备时）里的 `某某大学` 会被当成字体名**静默收下**，不报错 |
@@ -147,6 +143,7 @@ Pandoc 内部使用启发式规则将不同段落映射到不同样式：
 | 纸张 | `纸张：<A4\|Letter>`（不写默认 A4）| `纸张：A4` | `纸张：B5` |
 | 装订线 | `装订线：<N>cm` | `装订线：1cm` | — （加在左边距之外；产物里是**折进左边距**写的，不写 `w:gutter`，理由见 `design.md §1.5`）|
 | 文档网格 | `文档网格：每页<N>行` | `文档网格：每页22行` | — （只按行数指定，不支持「每行多少字」；行距倍数已自动补偿，不必手调）|
+| 公式编号位置 | `公式编号：<右侧\|紧跟>` | `公式编号：紧跟` | 不写默认 `右侧`（编号靠版心右边，中文学位论文与多数期刊的写法）；`紧跟` 让编号直接跟在公式后面。`--eq-number-style cjk` 只改编号外观（（5-1）），不改位置 |
 | 字符间距 | `字距<N>磅`（正数加宽、负数紧缩）| `字距0.5磅`、`字距-0.2磅` | `字间距0.5磅`（词序反了）|
 | 页边距 | `页边距：上<数字>cm 下<数字>cm 左<数字>cm 右<数字>cm` | `页边距：上2.54cm 下2.54cm 左2.54cm 右2.54cm` | — |
 | 页眉/页脚距边界 | `页眉距边界：<数字>cm` / `页脚距边界：<数字>cm` | `页眉距边界：1.40cm` | — |
@@ -222,7 +219,7 @@ Pandoc 内部使用启发式规则将不同段落映射到不同样式：
 
 ### 1.7 公式编号
 
-**只有一种写法**：`$$…$$ {#eq-xxx}`，编号由 Quarto crossref 生成。
+**只有一种写法**：`$$…$$ {#eq-xxx}`，编号由写出器按出现顺序生成（`chapters: true` 时按章编号）。
 
 ```markdown
 $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
@@ -254,8 +251,8 @@ crossref:
 
 **编号外观**（导出加 `--eq-number-style`）：`asis`（默认）保持 `(5.1)`；`cjk` 改写成 `（5-1）`。
 
-> ⚠ **不要写 `\tag{…}`**。它不是 Pandoc 语法：不报错，而是让整条公式退化成字面文本打进 Word。
-> `check_md.py` 会拦下它并给出改写示例。编号靠右是后处理实现的，机制见 `design.md §1.3`。
+> ⚠ **不要写 `\tag{…}`**：它不是本技能的编号写法，整条公式会退化成字面文本打进 Word。
+> `check_md.py` 会拦下它并给出改写示例。
 
 ### 1.8 稿件头部：哪些走 YAML、哪些走正文
 
@@ -285,12 +282,12 @@ title: "标题"
 
 ### 1.9 块级标记必须独占一行、并与正文隔空行
 
-紧贴正文时 Pandoc 会把标记并进相邻段落，产物静默走形。**哪一侧要空行是不对称的**，
+紧贴正文时会被并进相邻段落，产物静默走形。**哪一侧要空行是不对称的**，
 按标记各异（逐例渲染后核对产物段落得出，实现在 `skill_utils.block_marker_issues`）：
 
 | 标记 | 与正文直接相邻会出事的一侧 | 后果 |
 |:--|:--|:--|
-| `$$…$$` 公式 | 后 | 后一行标题/正文被并进同一段（后处理重构公式表格时连带吞掉正文）|
+| `$$…$$` 公式 | 后 | 后一行标题/正文被并进同一段 |
 | `{{< pagebreak >}}` | 后 | 同上 |
 | `{{< toc >}}` / `{{< section … >}}` | 后 | 同上 |
 | `![…](…)` 独占一行 | 前、后 | 前：并进上一段（样式跟着上一段走）；后：标题被并进图片段 |
@@ -319,18 +316,13 @@ $$Y = a + bX$$ {#eq-model1}
 
 - 三者都必须独占一行，写在句子中间不生效。
 - `\newpage` / `\pagebreak` / `\clearpage` 在 docx 里不生效，分页一律用 `{{< pagebreak >}}`。
-- **短代码只有三种**：`pagebreak` / `toc` / `section`。名字写错会被 Quarto 静默丢弃，
+- **短代码只有三种**：`pagebreak` / `toc` / `section`。名字写错会被预检拦下，
   故 `check_md.py` 把这份名单当封闭集合拦。
 
 ### 1.9.1 目录与分节：两个结构标记
 
-> ⚠ **它们借用了 Quarto 的短代码写法，但不是 Quarto 短代码**：`{{< toc >}}` / `{{< section … >}}`
-> 在 `quarto render` 看到它们**之前**就被本技能的 `expand_markers.py` 换成了原生 OOXML。
-> 所以**在普通 Quarto 项目里单独用这两个写法是不生效的**（Quarto 只会当成不认识的 shortcode），
-> 只有走本技能的 `export.sh` 才会被展开。搬到别处时别指望它照常工作。
-
-这两个标记在**渲染前**被展开成 OOXML 块（`expand_markers.py`，接在预检之后、Quarto 之前；
-机制见 `design.md §1.8.2`）。
+> ⚠ 这两个写法**只在本技能里有效**：读取器把它们认成「目录域」与「分节符」两种节点，
+> 写出器直接产出 OOXML（`w:sdt` 目录域、`sectPr`）。搬到别的 Markdown 工具里不会照常工作。
 
 ```markdown
 %% 目录标题 目录
@@ -343,7 +335,7 @@ $$Y = a + bX$$ {#eq-model1}
 ```
 
 **`{{< toc >}}` / `{{< toc 2 >}}`** —— 出目录域，位置就在这里。默认收 1–3 级（`\o "1-3"`），
-带数字则指定到第几级。用**域**而不是 Pandoc `--toc` 的静态列表：条目页码要 Word 现算，
+带数字则指定到第几级。用**域**而不是静态列表：条目页码要 Word 现算，
 静态列表给不出页码。域在 Word 打开时自动更新一次；**页码要完全准确需再按一次 F9**——
 域更新用的是展开前的分页，目录自己变长会把正文往后推。
 
@@ -366,13 +358,14 @@ $$Y = a + bX$$ {#eq-model1}
 
 > ⚠ **严禁在 `{{< section >}}` 前后叠加 `{{< pagebreak >}}`**：分节符底层已自带下一页分页属性，叠加会导致多出一页空白页。普通单节文档（如商业报告、技术方案）通篇使用阿拉伯页码即可，无需使用此分节标记。
 
-### 1.10 图表题注与表注规范（哪些包裹、哪些原生）
+### 1.10 图表题注与表注规范
 
-| 元素 | Markdown 语法形式 | 对应 Word 样式 | 机制与设计原因 |
+| 元素 | 写法 | 对应 Word 样式 | 说明 |
 |:-----|:------------------|:---------------|:---------------|
-| **表格题注** | `%% 表题 …`<br>`**Table 1.** *Title*`<br>`:::` | `Table Caption` | **必须显式包裹**。Pandoc 无法自动识别紧邻表格上方的段落为题注，不包裹会被默认赋予 `Body Text`（与正文同大，如 12pt）。 |
-| **表格注释** | `%% 表注 …`<br>`*Note:* Explanations...`<br>`:::` | `Table Note` | **必须显式包裹**。同上，Pandoc 无法识别下方段落为表注，不包裹会落入 `Body Text`。 |
-| **图片及题注** | `![**Figure 1.** *Title*](path)` | `Image Caption`<br>+ `Captioned Figure` | **使用原生语法，严禁外层套 `:::` 围栏**。Pandoc 原生将图片 alt 文本映射为 `Image Caption` 样式并赋予图段 `Captioned Figure`（居中）。若外加块级围栏，会破坏 Pandoc 的图段流，造成图片居中失效。 |
+| **表格题注** | 表格上方或下方一行 `%% 表题 表 1 …` | `Table Caption` | 题注是**独立段落**；行首 `%%` 是唯一的样式入口，没有第二种写法 |
+| **表格注释** | 表格下方一行 `%% 表注 注：…` | `Table Note` | 同上 |
+| **图片** | `![](path){width=14cm}` | `Captioned Figure` | 方括号里只放无障碍替代文字；图片段落固定居中 |
+| **图片题注** | 图片上方或下方一行 `%% 图片题注 图 1 …` | `Image Caption` | 图号手写；题注与图同页由写出器补齐（题注在上给题注、题注在下给图片段加「与下段同页」）|
 
 **内联格式控制（加粗与斜体）**：
 - 题注中的局部排版（如编号加粗 `**Table 1.**` / `**Figure 1.**`，题名斜体 `*Title*`，注释前缀 `*Note:*`）直接在 Markdown 源码中书写。Word 导出后会忠实保留内联标记。
@@ -395,18 +388,16 @@ $$Y = a + bX$$ {#eq-model1}
   `--resource-path "<输入目录>:<git 项目根>:/"`——根目录 `/` 让绝对路径（`/Users/...`）直接解析
   （否则会被当成 `./Users/...`），git 项目根让「相对项目根」的路径（如 `figs/x.png`）也可解析。
   **无需在 YAML 里配 `resource-path`**
-- 原生由 Quarto 渲染，支持 `{width=Xcm}` 属性语法与现代学术扩展
-- 支持 `.markdown` 后缀（与 `.md` 同等待遇）
+- 支持 `{width=Xcm}` 图片宽度属性；支持 `.markdown` 后缀（与 `.md` 同等待遇）
 - **内置 CSL 自动寻路**：若 YAML `csl:` 填写本技能 `resources/csl/` 下的文件名（如 `apa.csl`），脚本自动解析并挂载技能内置 CSL 绝对路径，无需手动拷贝 `.csl` 文件
 - **引用默认可点击**：`export.sh` 会给每篇稿件带上 `-M link-citations=true`，正文引用在 docx 里落成指向文末条目的内部书签链接。稿件 YAML 里写 `link-citations: false` 可关掉（实测 YAML 覆盖命令行，命令行只是默认值）
 - **模板从哪来**：优先级 `-r` 显式指定 → `--preset` 显式指定 → 同目录唯一的 `.txt` → 内置默认预设
   `presets/zh-academic.txt`（见 §2.2）。拿到要求文件后**当场生成临时模板**，导出完即清理——配置一改模板自动跟着变，二进制模板不必入库。显式传 `-t`
   则以那一份为准（目标方自己发的 `.docx` 走这条），此时不套预设。同目录有多个 `.txt` 时直接报错，不替你猜
-- 依赖 Quarto 渲染器（要求 >= 1.4）
 - 其余参数见 `bash scripts/export.sh --help`：`--preset zh-academic|en-nature` 选内置预设（`-r` 优先）；`--strip-comments` 先去 HTML 注释再导出；`--no-check` / `--no-postflight` / `--no-audit` 分别关掉三道闸门（**不推荐**——关掉等于把静默失败的判读交回人眼）；`--eq-number-style cjk` 用中文编号写法。
 - **产物完整性闸门（默认开）**：稿件里每个三位以上小数都必须出现在 docx 里，缺一个即
-  阻断导出（`src/md_to_word/audit/postflight.py`）。这是导出链上唯一的数据丢失守护——后处理
-  （公式重构）历史上丢过段。逃逸 `--no-postflight`（不推荐）
+  阻断导出（`src/md_to_word/audit/postflight.py`）。这是导出链上唯一的数据丢失守护。
+  逃逸 `--no-postflight`（不推荐）
 - `--pdf`：**可选**，导出后顺带用本机 Word 渲染一份同名 PDF（调 `render_via_word.sh`，见 §2.4）。
   **定位是「抽查核对」，不是「每次导出都跑一遍」**——docx 才是交付物；PDF 只在需要
   亲眼确认版式时出（如首次套用新模板、改了样式、要核对目录/页眉章名/页码这些**域**）。
@@ -438,25 +429,32 @@ python3 scripts/generate_template.py requirements.txt -o template.docx
 
 导出前校验脚本：检查 MD 中可能导致"静默失败"的写法。由 export.sh 在导出前自动执行（`--no-check` 可跳过，不推荐）。
 
-**校验项**（18 项）：
-- YAML 中 bibliography / csl 路径是否存在（`csl` 支持自动回退匹配本技能 `resources/csl/` 目录）
-- 标准 Markdown `![]()` 和 `[]()` 中路径是否含空格（空格违反 URL 规范，Pandoc 静默失败）
-- `![](path)` 图片文件是否存在（Pandoc 静默失败，图不会出现在 docx 中）
-- Obsidian `![[path]]` 图片语法和 `[[link]]` 链接语法（Pandoc 不识别，漏成文本）
-- `\newpage` / `\pagebreak` / `\clearpage`（docx 中不生效，分页用 `{{< pagebreak >}}`）
-- `\tag{}` 公式编号（不是 Pandoc 语法，会让整条公式退化成字面文本）
-- `%% 样式名` 里的样式是否在模板中存在（按样式名或 styleId 匹配；不存在则 Pandoc 静默建空壳样式）
-- **块级标记与正文没隔空行**（公式／`:::` 围栏／表格／图片行）
-- **白名单外的短代码**（Quarto 只打一行 WARNING 便把整段标记丢弃，标记凭空消失）
-- **标题层级规范**（拦截首个标题非 1 级、标题跳级、章节编号深度与 `#` 数量不匹配）
-- **稿件用到、格式要求却没声明的深层样式**（三~六级标题／目录／引用块——不声明就静默回退底模默认，只有给了 `-r` 才查）
-- **分节标记之后紧跟 `{{< pagebreak >}}`**（分节符已自带下一页，会多顶出一页）
-- **中文稿用了 `{#eq-/fig-/tbl-}` 交叉引用、YAML 却没写对应的 `crossref` 前缀**（会渲染成中英混排的 `Equation 1`）
-- **表格各行列数不一致**（pandoc 不报错，直接把多出来的单元格连同内容丢掉）
-- **图片声明宽度超过版心**（pandoc 按 `pgSz - pgMar` 静默钳成版心宽，写 `{width=25cm}` 拿到的是 15.92cm）
-- **正文引用的文献 key 在 `.bib` 里找不到**（产物里渲染成 `[key?]`，且该条不进参考文献列表；citeproc 只打一行 WARNING）
-- **正文有引文语法、YAML 却没声明 `bibliography:`**（pandoc 完全不处理引文，`[@key]` 会**原样印进正文**）
-- **正文引用的 crossref 标签没有 `{#标签}` 定义**（产物里渲染成 `?@标签`；Quarto 只打一行 WARNING）
+**校验项的判据是「错了看不看得见」**：会让产物静默出错、事后看不出来的，阻断导出；看得出来只是不合规的，只提醒。
+
+**阻断**：
+- YAML 中 `bibliography` / `csl` 路径是否存在（`csl` 支持自动匹配本技能 `resources/csl/`）
+- YAML 里的 `abstract` / `keywords` / `reference-section-title`（内容要写在正文，YAML 管不住位置）
+- 图片路径含空格、图片文件不存在、Obsidian `![[…]]` / `[[…]]` 写法
+- `\newpage` / `\pagebreak` / `\clearpage`（分页用 `{{< pagebreak >}}`）
+- `\tag{}` 公式编号（整条公式会退化成字面文本）
+- `%% 样式名` 里的样式在模板中不存在（格式不会生效）
+- `:::` 包裹（不是本技能的写法）
+- 题注写进图片的方括号里（那只是无障碍替代文字，题注要独立一行）
+- 块级标记与正文没隔空行（公式／表格／图片行）
+- 白名单外的短代码（`pagebreak` / `toc` / `section` 之外的名字）
+- 表格各行列数不一致（多出来的单元格会被静默丢掉）
+- 正文引用的文献 key 在 `.bib` 里找不到，或有引文语法却没声明 `bibliography:`
+- 正文引用的交叉引用标签没有 `{#eq-…}` 定义
+- 稿件用到、格式要求却没声明的深层样式（三~六级标题／目录／引用块；给了 `-r` 才查）
+
+**提醒（看得见，不阻断）**：
+- 标题层级：首个标题非 1 级、跳级、章节编号深度与 `#` 数量不匹配
+- 中文稿用了 `{#eq-…}` 却没写 `crossref` 前缀（会自动补「式/图/表」，这里只说一声）
+- 图片声明宽度超过版心（会被钳成版心宽）
+- 题注离表格/图片远了
+- 分节标记之后紧跟 `{{< pagebreak >}}`（多顶出一页）
+- 折行段落（一行一段的读取规则会把它们拆成几段）
+- 有 `bibliography` 却没写文献区标题
 
 > **兜底情况不一**，别一概而论：第 1 项与第 3 项 `export.sh` 另有一层以渲染器自己警告为准的
 > 兜底（`Citeproc: citation … not found` / `Unable to resolve crossref`）；**第 2 项没有**——
@@ -529,60 +527,74 @@ python3 scripts/read_reference_docx.py 参考.docx -o 名称_requirements.txt
 
 技能 `resources/csl/` 目录下的 CSL 文件覆盖主要出版商和顶级期刊。所有 CSL 的 `<bibliography>` 标签均已规范化（去掉 `hanging-indent`/`second-field-align`/`line-spacing`，段落格式由模板 Bibliography 样式控制）。
 
-### 3.1 常用样式
+### 3.1 通用样式（先看这一组）
 
 | 样式 | 适用论文 | 文件名 | 引用风格 |
 |------|---------|-------|---------|
-| APA 7th（默认） | 英文社科/心理学/商学 | `apa.csl` | 作者-年份 |
-| IEEE | IEEE Transactions 系列、电气电子计算机 | `ieee.csl` | 数字编号方括号 |
-| Elsevier（含标题） | Elsevier 多数期刊 | `elsevier-with-titles.csl` | 数字编号方括号 |
-| Springer Basic（作者-年份） | Springer 医学/生物/化学/计算机 | `springer-basic-author-date.csl` | 作者-年份 |
-| Nature | Nature 及 Nature Research 系列 | `nature.csl` | 上标数字编号 |
-| GB/T 7714-2015 顺序编码制 | 中文论文 | `chinese-gb7714-2015-numeric.csl` | 顺序编码 [1][2] |
+| APA 7th | 英文社科 / 心理学 / 商学（**英文稿默认**） | `apa.csl` | 作者-年份 |
+| Chicago（作者-年份） | 人文学科、历史、部分社科 | `chicago-author-date.csl` | 作者-年份 |
+| MLA | 语言文学、艺术 | `modern-language-association.csl` | 作者-年份 |
+| Harvard（Cite Them Right） | 英国高校通用 | `harvard-cite-them-right.csl` | 作者-年份 |
+| IEEE | 电气电子、计算机 | `ieee.csl` | 数字编号方括号 |
+| ACM | 计算机会议 / 期刊 | `acm-sig-proceedings.csl` | 数字编号方括号 |
+| Nature | Nature 及子刊 | `nature.csl` | 上标数字 |
+| Science | Science 及 AAAS 系列 | `science.csl` | 数字编号 |
+| Cell | Cell Press 系列 | `cell.csl` | 数字编号 |
 
-### 3.2 其他出版商通用风格
+### 3.2 医学与生命科学
 
 | 样式 | 适用论文 | 文件名 | 引用风格 |
 |------|---------|-------|---------|
-| Elsevier Vancouver | Elsevier 医学/生命科学 | `elsevier-vancouver.csl` | 数字编号方括号 |
+| AMA 11th | JAMA 及医学期刊 | `american-medical-association.csl` | 数字编号上标 |
+| BMJ | British Medical Journal 系列 | `bmj.csl` | 数字编号 |
+| The Lancet | Lancet 及子刊 | `the-lancet.csl` | 数字编号 |
+| Elsevier Vancouver | Elsevier 医学 | `elsevier-vancouver.csl` | 数字编号 |
+| SAGE Vancouver | SAGE 医学期刊 | `sage-vancouver.csl` | 数字编号上标 |
+| Springer Vancouver | Springer 医学 | `springer-vancouver.csl` | 数字编号 |
+| ACS | 化学 | `american-chemical-society.csl` | 数字编号上标 |
+
+### 3.3 出版商通用
+
+| 样式 | 适用论文 | 文件名 | 引用风格 |
+|------|---------|-------|---------|
+| Elsevier（含标题） | Elsevier 多数期刊 | `elsevier-with-titles.csl` | 数字编号 |
+| Elsevier Harvard | Elsevier（作者-年份制） | `elsevier-harvard.csl` | 作者-年份 |
+| Emerald Harvard | Emerald 期刊 | `emerald-harvard.csl` | 作者-年份 |
+| Springer Basic | Springer 医学/生物/化学 | `springer-basic-author-date.csl` | 作者-年份 |
 | Springer MathPhys | Springer 数学/物理 | `springer-mathphys-brackets.csl` | 方括号编号 |
 | Springer LNCS | Springer 计算机会议论文集 | `springer-lecture-notes-in-computer-science.csl` | 数字编号 |
-| MDPI | MDPI 旗下所有 OA 期刊 | `multidisciplinary-digital-publishing-institute.csl` | 数字编号 |
-| Frontiers | Frontiers 系列期刊 | `frontiers.csl` | 数字编号 |
-| SAGE Vancouver | SAGE 期刊 | `sage-vancouver.csl` | 数字编号上标 |
-| Elsevier Harvard | Elsevier 期刊（作者-年份制） | `elsevier-harvard.csl` | 作者-年份 |
-| Emerald Harvard | Emerald 期刊（OIR 等） | `emerald-harvard.csl` | 作者-年份 |
+| MDPI | MDPI 旗下 OA 期刊 | `multidisciplinary-digital-publishing-institute.csl` | 数字编号 |
+| Frontiers | Frontiers 系列 | `frontiers.csl` | 数字编号 |
 
-### 3.3 顶级期刊专用
+### 3.4 中文国标
 
 | 样式 | 适用论文 | 文件名 | 引用风格 |
 |------|---------|-------|---------|
-| Science | Science 及 AAAS 系列 | `science.csl` | 数字编号 |
-| Cell | Cell 及 Cell Press 系列 | `cell.csl` | 数字编号 |
-| The Lancet | Lancet 及子刊 | `the-lancet.csl` | 数字编号 |
-| AMA 11th | JAMA 及医学期刊 | `american-medical-association.csl` | 数字编号上标 |
-
-### 3.4 中文国标变体
-
-| 样式 | 适用论文 | 文件名 | 引用风格 |
-|------|---------|-------|---------|
+| GB/T 7714-2015 顺序编码制 | 中文论文（**中文稿默认**） | `chinese-gb7714-2015-numeric.csl` | 顺序编码 [1][2] |
 | GB/T 7714-2015 著者-出版年制 | 中文论文（作者, 年份） | `chinese-gb7714-2015-author-date.csl` | 作者-年份 |
-| GB/T 7714-2025 顺序编码制 | 新版国标（2026 年起） | `china-national-standard-gb-t-7714-2025-numeric.csl` | 顺序编码 [1][2] |
+| GB/T 7714-2025 顺序编码制 | 新版国标 | `china-national-standard-gb-t-7714-2025-numeric.csl` | 顺序编码 |
 
-### 3.5 新增 CSL 流程
+### 3.5 其他
 
-Wiley 等未预下载的出版商，需从 Zotero 官方仓库下载并规范化：
+| 样式 | 适用论文 | 文件名 | 引用风格 |
+|------|---------|-------|---------|
+| ISO 690（作者-年份） | 国际标准，多语种 | `iso690-author-date-en.csl` | 作者-年份 |
+| ISO 690（数字编号） | 国际标准 | `iso690-numeric-en.csl` | 数字编号 |
+
+### 3.6 新增 CSL
+
+内置样式都经过一次「规范化 + 渲染」核验（`tests/test_csl_library.py` 守着）。遇到清单里没有的期刊：
 
 ```bash
-# 1. 从 https://www.zotero.org/styles 搜索目标期刊 CSL，下载到 resources/csl/ 目录
-# 2. 规范化（去掉 direct formatting 属性，确保段落格式由模板控制）
+# 1. 从 https://www.zotero.org/styles 下载目标期刊 CSL 到 resources/csl/
+# 2. 规范化（去掉 direct formatting 属性，段落格式统一由模板控制）
 python3 scripts/normalize_csl.py resources/csl/新期刊.csl
-
-# 3. 批量检查所有 CSL 是否已规范化
+# 3. 批量检查
 python3 scripts/normalize_csl.py resources/csl/ --check
 ```
 
-> **为什么不直接用**：CSL 规范的 `hanging-indent="true"` 和 `second-field-align="flush"` 会绕过模板控制，覆盖 requirements.txt 中 Bibliography 样式的设置。详见 `design.md §2.8`。
+> **为什么要规范化**：CSL 里的 `hanging-indent="true"`、`second-field-align="flush"` 是
+> 段落级 direct formatting，会盖掉格式要求文件里「参考文献」样式的悬挂缩进与行距。
 
 **`csl:` 路径写法**：
 - **推荐直接写内置文件名**：如 `csl: apa.csl` 或 `csl: chinese-gb7714-2015-numeric.csl`，`scripts/export.sh` 和 `scripts/check_md.py` 会自动在技能自带的 `resources/csl/` 目录下查找并挂载；

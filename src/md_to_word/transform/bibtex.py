@@ -33,12 +33,12 @@ _TYPE_MAP = {
     "online": "webpage",
 }
 
-_ENTRY_RE = re.compile(r"@(?P<kind>\w+)\s*\{\s*(?P<key>[^,\s]+)\s*,(?P<body>.*?)\n\}", re.S)
+_ENTRY_HEAD_RE = re.compile(r"@(?P<kind>\w+)\s*\{\s*(?P<key>[^,\s]+)\s*,", re.S)
 _FIELD_NAME_RE = re.compile(r"(\w+)\s*=\s*", re.S)
 
 
 def _read_field_value(body: str, start: int) -> tuple[str, int]:
-    """从 `=` 之后读一个字段值，返回 (值, 下一个位置)。
+    r"""从 `=` 之后读一个字段值，返回 (值, 下一个位置)。
 
     必须按**配对括号**读，不能用非贪婪正则：中文名常写成 `{{王伟伟} and {顾炎辉}}`，
     `\{.*?\}` 只会吃到第一个 `}`，作者就只剩第一位——一条文献丢三位作者，且不报错。
@@ -173,15 +173,39 @@ def _issued(raw_date: str, year: str) -> dict | None:
     return None
 
 
+def _iter_entries(text: str):
+    """逐条切出 (类型, key, 字段正文)。
+
+    按配对花括号找条目结尾，不用 `.*?\n}`：后者要求收尾的 `}` 独占一行，
+    单行写法的条目（`@article{a, author={…}, year={2020}}`）会被整条漏掉。
+    """
+    pos = 0
+    while True:
+        head = _ENTRY_HEAD_RE.search(text, pos)
+        if not head:
+            return
+        depth, i = 1, head.end()
+        while i < len(text) and depth:
+            if text[i] == "\\":
+                i += 2
+                continue
+            if text[i] == "{":
+                depth += 1
+            elif text[i] == "}":
+                depth -= 1
+            i += 1
+        yield head.group("kind").lower(), head.group("key"), text[head.end() : i - 1]
+        pos = i
+
+
 def parse_bibtex(text: str) -> list[dict]:
     """整份 .bib → CSL-JSON 条目列表。"""
     entries: list[dict] = []
-    for match in _ENTRY_RE.finditer(text or ""):
-        kind = match.group("kind").lower()
+    for kind, key, body in _iter_entries(text or ""):
         if kind in ("comment", "string", "preamble"):
             continue
-        fields = _parse_fields(match.group("body"))
-        item: dict = {"id": match.group("key"), "type": _TYPE_MAP.get(kind, "article")}
+        fields = _parse_fields(body)
+        item: dict = {"id": key, "type": _TYPE_MAP.get(kind, "article")}
         if fields.get("author"):
             item["author"] = _parse_names(fields["author"])
         if fields.get("editor"):

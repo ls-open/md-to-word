@@ -194,14 +194,14 @@ def template_style_issues(
     for style in root.findall(f"{ns}style"):
         style_id = style.get(f"{ns}styleId")
         if style_id:
-            ids.add(style_id)
+            ids.add(style_id.casefold())
         name = style.find(f"{ns}name")
         if name is not None and name.get(f"{ns}val"):
-            names.add(name.get(f"{ns}val"))
+            names.add(name.get(f"{ns}val").casefold())
 
     errors: list[str] = []
     for style_name, lines in sorted(styles_used.items()):
-        if style_name in names or style_name in ids:
+        if style_name.casefold() in names or style_name.casefold() in ids:
             continue
         errors.append(
             f"行 {lines[0]} 样式「{style_name}」在模板中不存在，格式不会生效；"

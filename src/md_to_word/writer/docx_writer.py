@@ -95,12 +95,19 @@ class UnsupportedFeature(NotImplementedError):
 
 class _Writer:
     def __init__(
-        self, document: Document, docx, citations=None, base_dir=None, eq_number_style="asis"
+        self,
+        document: Document,
+        docx,
+        citations=None,
+        base_dir=None,
+        eq_number_style="asis",
+        equation_number_placement="right",
     ) -> None:
         self.model = document
         self.docx = docx
         self.citations = citations
         self.eq_number_style = eq_number_style
+        self.equation_number_placement = equation_number_placement
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         self._after_heading = False  # 下一段正文若是「标题后的第一段」，落 First Paragraph
         self._compact_style = self._style_name("Compact")
@@ -269,10 +276,15 @@ class _Writer:
         paragraph = self.docx.add_paragraph(style="Body Text")
         width = self._content_width_twips()
         pPr = paragraph._p.get_or_add_pPr()
+        # 中心制表位永远要有（公式居中）；右制表位只在编号靠右时才需要
+        right_tab = (
+            "" if self.equation_number_placement == "inline"
+            else f'<w:tab w:val="right" w:pos="{width}"/>'
+        )
         pPr.append(
             parse_xml(
                 f'<w:tabs {nsdecls("w")}><w:tab w:val="center" w:pos="{width // 2}"/>'
-                f'<w:tab w:val="right" w:pos="{width}"/></w:tabs>'
+                f"{right_tab}</w:tabs>"
             )
         )
         paragraph.add_run().add_tab()
@@ -281,8 +293,11 @@ class _Writer:
 
         number = self._eq_numbers.get(block.label or "")
         if number:
-            paragraph.add_run().add_tab()
-            paragraph.add_run(self._display_eq_number(number))
+            if self.equation_number_placement == "inline":
+                paragraph.add_run(self._display_eq_number(number))
+            else:
+                paragraph.add_run().add_tab()
+                paragraph.add_run(self._display_eq_number(number))
 
     @staticmethod
     def _omath(nodes):
@@ -758,6 +773,7 @@ def write_docx(
     citations=None,
     base_dir: Path | str | None = None,
     eq_number_style: str = "asis",
+    equation_number_placement: str = "right",
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
 
@@ -766,10 +782,16 @@ def write_docx(
     `base_dir` 是稿件所在目录：稿里的图片路径都是相对它的，不能按进程 cwd 解析——
     否则从别的目录调用时图全找不到（预览与流水线走的是同一个入口）。
     `eq_number_style`：`asis` 出 (5.1)，`cjk` 出 （5-1）——中文学位论文多用前者以外的写法。
+    `equation_number_placement`：`right` 编号靠版心右边（默认），`inline` 紧跟公式。
     """
     docx = open_docx(str(template))
     _Writer(
-        model, docx, citations=citations, base_dir=base_dir, eq_number_style=eq_number_style
+        model,
+        docx,
+        citations=citations,
+        base_dir=base_dir,
+        eq_number_style=eq_number_style,
+        equation_number_placement=equation_number_placement,
     ).write()
     out = Path(output)
     docx.save(str(out))
