@@ -172,9 +172,29 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     return parser
 
 
+def _run_init(args: list[str], lang: str) -> int:
+    """`md-to-word init [目录]`：第一条命令就把可导出的文件放好。"""
+    from md_to_word.scaffold import run_init
+
+    parser = argparse.ArgumentParser(
+        prog="md-to-word init",
+        description=t("init.description", lang),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("directory", nargs="?", default=".", help=t("init.directory", lang))
+    parser.add_argument("--preset", help=t("init.preset", lang))
+    parser.add_argument("--force", action="store_true", help=t("init.force", lang))
+    parser.add_argument("--lang", choices=["auto", *SUPPORTED], default="auto")
+    parsed = parser.parse_args(args)
+    effective = lang if parsed.lang == "auto" else parsed.lang
+    return run_init(Path(parsed.directory), preset=parsed.preset, force=parsed.force, lang=effective)
+
+
 def main(args: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if args is None else args)
     lang = _message_lang(argv)
+    if argv and argv[0] == "init":
+        return _run_init(argv[1:], lang)
     parser = build_parser(lang)
     parsed = parser.parse_args(argv)
     configure_logging("DEBUG" if parsed.verbose else "INFO", force=True)

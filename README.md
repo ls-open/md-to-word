@@ -27,9 +27,16 @@ pip install md-to-word-docx
 
 包名比命令多一个 `-docx` 后缀：PyPI 上 `md-to-word` 与既有项目过于相似，被命名规则挡住；命令仍是
 `md-to-word`。隔离环境用 `pipx install md-to-word-docx`，更新用 `pip install -U md-to-word-docx`。
-这不是几个参数就能用的工具：**第一次先读入门文档**——`md-to-word --guide` 直接打印，`md-to-word --contract` 则给出稿件约定速查和手册、预设的路径。
 
 ## 30 秒
+
+**先跑一条命令**：`md-to-word init` 在当前目录放好 `format.txt` 与 `hello.md`，`hello.md` 能直接导出——
+先看到成品，再改内容与格式。
+
+```bash
+md-to-word init
+md-to-word hello.md -o hello.docx
+```
 
 **写稿件**——正文是普通 Markdown，只有三处约定：以 `%%` 开头的行指定这一段的样式，`$$…$$ {#eq-x}`
 是带编号的公式，`{{< toc >}}` 这类标记单独成行。

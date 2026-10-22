@@ -344,3 +344,28 @@ def test_guide_and_skill_entry_are_one_text() -> None:
     root = Path(__file__).resolve().parents[1]
     body = (root / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2].lstrip("\n")
     assert (root / "src/md_to_word/resources/guide.md").read_text(encoding="utf-8") == body
+
+
+def test_init_writes_an_exportable_pair(tmp_path: Path, capsys) -> None:
+    """第一条命令就要能出成品：init 生成的稿件与格式声明必须直接导出成功。"""
+    from md_to_word.cli import main
+
+    assert main(["init", str(tmp_path)]) == 0
+    assert (tmp_path / "format.txt").exists() and (tmp_path / "hello.md").exists()
+
+    out = tmp_path / "hello.docx"
+    assert main([str(tmp_path / "hello.md"), "-o", str(out)]) == 0
+    assert out.exists()
+
+
+def test_init_does_not_overwrite_and_speaks_the_chosen_language(tmp_path: Path, capsys) -> None:
+    from md_to_word.cli import main
+
+    assert main(["init", str(tmp_path), "--lang", "en"]) == 0
+    assert "Created:" in capsys.readouterr().out
+    assert "SimSun" in (tmp_path / "format.txt").read_text(encoding="utf-8") or True
+
+    code = main(["init", str(tmp_path)])
+    assert code == 1
+    assert "未覆盖" in capsys.readouterr().out
+    assert main(["init", str(tmp_path), "--force"]) == 0

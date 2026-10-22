@@ -42,11 +42,13 @@ One export needs two files:
 | Reverse-engineer a requirements draft from a reference `.docx` | `md-to-word-template reference.docx -o format.txt` |
 | AI skill | The skill directory's `export.sh` calls an installed `md-to-word`; a source checkout runs `src/` directly |
 | Getting-started guide | `guide.md` inside the package: order of work, how to read the gates, boundaries. Read it first when only the package is installed: `md-to-word --guide` prints it |
+| Starting from nothing | `md-to-word init [dir]`: writes a `format.txt` and a `hello.md` that exports as-is |
 
 ```bash
 md-to-word manuscript.md -o out.docx                     # built-in zh-academic preset (Chinese)
 md-to-word manuscript.md --preset en-nature -o out.docx  # international journal preset
 md-to-word manuscript.md -r format.txt -o out.docx # explicit requirements file
+md-to-word init                                          # format.txt + a hello.md that exports as-is
 md-to-word --guide                                       # getting-started guide (pipeline entry)
 md-to-word --contract                                    # cheatsheet + guide, manual and preset paths
 md-to-word --contract --lang en                          # same, in English (canonical English style names)

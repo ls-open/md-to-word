@@ -113,9 +113,9 @@ def test_cli_help_follows_the_manuscript(tmp_path: Path) -> None:
 def test_parser_language_switches_every_help_line() -> None:
     english = build_parser("en").format_help()
     chinese = build_parser("zh").format_help()
-    assert "Compile Markdown into publication-ready Word" in english
-    assert "现代学术 Markdown" in chinese
-    assert "现代学术 Markdown" not in english
+    assert "Compile Markdown into Word" in english
+    assert "把 Markdown 编译成符合声明格式的 Word" in chinese
+    assert "把 Markdown" not in english
 
 
 def test_reminder_is_localized_end_to_end(tmp_path: Path) -> None:

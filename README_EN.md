@@ -33,11 +33,15 @@ The distribution carries a `-docx` suffix because plain `md-to-word` is too clos
 projects; the command is still `md-to-word`. Use `pipx install md-to-word-docx` to stay out of the
 system environment, and `pip install -U md-to-word-docx` to update.
 
-This is not a tool you drive from `--help` alone: **read the getting-started guide once** —
-`md-to-word --guide` prints it, `md-to-word --contract` gives the manuscript conventions plus the
-paths of the manual and the built-in presets.
-
 ## In 30 seconds
+
+**Start with one command**: `md-to-word init` writes a `format.txt` and a `hello.md` that exports
+as-is — see the finished file first, then change the content and the format.
+
+```bash
+md-to-word init
+md-to-word hello.md -o hello.docx
+```
 
 **Write the manuscript** — ordinary Markdown, with three conventions: a line starting with `%%` sets
 that paragraph's style, `$$…$$ {#eq-x}` is a numbered equation, and markers such as `{{< toc >}}`

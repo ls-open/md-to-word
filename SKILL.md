@@ -87,6 +87,8 @@ item.
 
 ## 3. The format requirements file
 
+0. **Starting from nothing** — `md-to-word init` writes a complete preset copy plus a one-page
+   manuscript that exports as-is. Useful when the user has no format file and no template.
 1. **Built-in preset** — `zh-academic` or `en-nature`. Use as-is when the user gave no detailed spec;
    the preset is a complete, valid format, not a provisional default.
 2. **Copy and edit a preset** — change only the lines the user mentioned. Field order is fixed: font,

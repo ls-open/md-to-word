@@ -24,14 +24,16 @@ SUPPORTED = ("zh", "en")
 _MESSAGES: dict[str, tuple[str, str]] = {
     # ── 命令行 ──────────────────────────────────────────────────────
     "cli.description": (
-        "现代学术 Markdown 到期刊/学位规范 Word (.docx) 编译引擎",
-        "Compile Markdown into publication-ready Word (.docx)",
+        "把 Markdown 编译成符合声明格式的 Word（.docx）",
+        "Compile Markdown into Word (.docx) that matches a declared format",
     ),
     "cli.epilog": (
         "退出码: 0=成功 / 1=稿件或门禁问题 / 3=docx 已生成但 PDF 未渲染\n"
-        "没有文档、不知从哪下手？先跑 `md-to-word --contract`（加 --lang en 得英文版）。",
+        "快速起步：`md-to-word init` 生成一份格式声明与样例稿件；\n"
+        "第一次用先过一遍 `md-to-word --guide`（流程、门禁、边界）。",
         "Exit codes: 0=ok / 1=manuscript or gate failure / 3=docx written, PDF skipped\n"
-        "No docs at hand? Run `md-to-word --contract` first.",
+        "To start quickly: `md-to-word init` writes a format file and a sample manuscript;\n"
+        "read `md-to-word --guide` once (workflow, gates, boundaries).",
     ),
     "cli.help": ("显示本帮助后退出", "show this help message and exit"),
     "cli.version": ("显示版本号后退出", "show program's version number and exit"),
@@ -63,6 +65,26 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "打印稿件契约速查、手册与预设的路径后退出（--lang en 得英文版）",
         "Print the manuscript contract, manual and preset paths, then exit (--lang en for English)",
     ),
+    "init.description": (
+        "在当前目录生成一份格式声明与一份能直接导出的样例稿件",
+        "Write a format file and a sample manuscript into a directory, ready to export",
+    ),
+    "init.directory": ("目标目录（默认当前目录）", "Target directory (default: current)"),
+    "init.preset": ("用哪份内置预设（默认按语种：zh-academic / en-nature）", "Which built-in preset (default: by language)"),
+    "init.force": ("覆盖已存在的同名文件", "Overwrite existing files"),
+    "init.done": (
+        "已生成：\n  {directory}/format.txt（{preset} 预设，整份都可以改）\n"
+        "  {directory}/hello.md（能直接导出）\n\n下一步：{command}\n"
+        "流程与全部写法：md-to-word --guide",
+        "Created:\n  {directory}/format.txt (the {preset} preset — edit it in place)\n"
+        "  {directory}/hello.md (exports as-is)\n\nNext: {command}\n"
+        "Workflow and full vocabulary: md-to-word --guide",
+    ),
+    "init.exists": (
+        "未覆盖已存在的文件：{paths}（要覆盖加 --force）",
+        "Not overwriting existing files: {paths} (add --force to replace them)",
+    ),
+    "init.dir_failed": ("无法创建目录 {dir}：{err}", "Cannot create directory {dir}: {err}"),
     "cli.guide": (
         "打印入门文档后退出：按什么顺序做、门禁怎么读、边界在哪（第一次用先读它）",
         "Print the getting-started guide, then exit: order of work, how to read the gates, boundaries",

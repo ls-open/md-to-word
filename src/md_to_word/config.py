@@ -11,6 +11,11 @@ from typing import Optional
 # 包所在目录
 PACKAGE_DIR = Path(__file__).resolve().parent
 
+# 内置预设名：不传 -r 时按稿件语种二选一。名字只在这里写一次，
+# 命令、提示与 `init` 都从这里取。
+DEFAULT_PRESET_ZH = "zh-academic"
+DEFAULT_PRESET_EN = "en-nature"
+
 # 工作区/工程根目录（根据包所在目录推导）
 WORKSPACE_DIR = PACKAGE_DIR.parent.parent
 
