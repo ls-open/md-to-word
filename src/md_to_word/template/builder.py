@@ -18,16 +18,18 @@ def build_template(
     *,
     margins: Optional[dict[str, float]] = None,
 ) -> Path:
-    """根据 Spec 或配置文本生成 template.docx。"""
+    """根据格式要求文本生成 template.docx。
+
+    只接受文本：TemplateSpec 是解析结果的**产物**，不是入口。
+    """
     out = Path(output_path)
     if isinstance(spec_or_text, TemplateSpec):
-        # 若传入的是 Spec 对象，当前先转换为其规范文本表达（或直接提取样式生成）
-        # 3.0 将进一步演化为纯内存对象编译
-        text = "\n".join(
-            f"{s.get('style_name')}: {s}" for s in spec_or_text.styles
+        # 曾经这里把 dict 直接插进字符串拼成「要求文本」，产物是乱码且报错指向字体段。
+        # TemplateSpec → 文本的序列化还没实现，宁可当场说清楚，也不能给一个看起来能跑的结果。
+        raise TypeError(
+            "build_template 目前只接受格式要求文本，不接受 TemplateSpec："
+            "TemplateSpec → 文本的序列化尚未实现。请把原始的 requirements 文本传进来。"
         )
-    else:
-        text = str(spec_or_text)
 
-    generate_template(text, str(out), margins=margins)
+    generate_template(str(spec_or_text), str(out), margins=margins)
     return out

@@ -86,3 +86,15 @@ def test_missing_renderer_reports_environment_error(tmp_path: Path, monkeypatch)
     )
     assert result.returncode == 2
     assert any("渲染引擎" in error for error in result.errors)
+
+
+def test_build_template_rejects_spec_object(tmp_path: Path):
+    """TemplateSpec → 文本的序列化还没做：宁可当场报清楚，也不拼出乱码要求文本。"""
+    from md_to_word.spec.parser import parse_requirements
+    from md_to_word.template.builder import build_template
+
+    spec = parse_requirements(
+        "正文：宋体 小四 不加粗 不倾斜 左对齐 行距1.5倍 段前0磅 段后6磅 首行缩进2字符"
+    )
+    with pytest.raises(TypeError, match="序列化尚未实现"):
+        build_template(spec, tmp_path / "t.docx")
