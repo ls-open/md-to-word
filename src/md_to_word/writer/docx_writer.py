@@ -87,8 +87,8 @@ def _escape(text: str) -> str:
 def _trim_citation_gap(nodes: Iterable[Inline]) -> list:
     """中文正文与数字制引文之间的那个空格不该印出来：`认知负荷 [9]` → `认知负荷[9]`。
 
-    稿子里的空格是 Markdown 语法要求（`@key` 前必须断开），不是作者想印的。Pandoc 同样
-    不印。西文行文（`as shown in [9]`）照留——那里空格是本意。
+    稿子里的空格是 Markdown 语法要求（`@key` 前必须断开），不是作者想印的，因此不印。
+    西文行文（`as shown in [9]`）照留——那里空格是本意。
     """
     out: list = []
     for node in nodes:
@@ -169,8 +169,8 @@ class _Writer:
 
     # ── 块 ───────────────────────────────────────────────────────────
     def block(self, block: Block) -> None:
-        """任何非段落块之后，下一段正文都算「首段」——这是 Word 里 First Paragraph 的用法，
-        也是 Pandoc 的行为：公式、图、表、列表之后的那一段，与标题之后一样要换样式。"""
+        """任何非段落块之后，下一段正文都算「首段」——这是 Word 里 First Paragraph 的用法：
+        公式、图、表、列表之后的那一段，与标题之后一样换样式。"""
         prev = self._after_heading
         if isinstance(block, Heading):
             self._heading(block)
@@ -229,8 +229,8 @@ class _Writer:
     def _collect_equation_numbers(self) -> None:
         """先扫一遍给带标签的公式编号：写正文时要用它解析 `@eq-x`。
 
-        编号规则与 Quarto 的 crossref 对齐：默认按出现顺序 (1)(2)…；开了 `chapters: true`
-        就按「章号.序号」，章号取自一级标题的序号。
+        编号规则：默认按出现顺序 (1)(2)…；开了 `chapters: true` 就按「章号, 序号」，
+        章号取自一级标题的序号。外观由 `equation_number_format` 模板决定。
         """
         chapter = 0
         index = 0

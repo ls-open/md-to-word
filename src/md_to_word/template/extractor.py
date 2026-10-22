@@ -59,7 +59,7 @@ class Ref:
         for st in self.styles.findall(q('style')):
             self.by_id[(st.get(q('styleId')) or '').replace(' ', '').lower()] = st
         self.theme = self._theme_fonts()
-        # 页面设置一律取 **body 末尾那个 sectPr**（正文节），与 audit_export / expand_markers /
+        # 页面设置一律取 **body 末尾那个 sectPr**（正文节），与导出后对账 / 标记展开 /
         # fix_docx_equations 同一口径。多节文档里第一个 sectPr 是**前置节**（目录、摘要），
         # 按"第一个"取会把前置节的小写罗马页码当成正文的页码读出来。
         doc_root = etree.fromstring(self.parts['word/document.xml'])

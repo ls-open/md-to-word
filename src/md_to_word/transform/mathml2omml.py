@@ -71,7 +71,7 @@ class _Converter:
         OMML 的 `m:nary` 自带 `m:e`（被运算体），而 MathML 里 `\sum_{k} a_k` 是并列的
         兄弟节点——`msub(∑,k)` 后面跟 `a_k`。不把 `a_k` 放进 `m:e`，Word 会先画一个空的
         求和号（带占位框），再把 `a_k` 当普通项排在后面，下限 `k` 被挤到下一行去。
-        Pandoc 的 texmath 也是这么处理的：只吃紧邻的一个元素，其余留在 nary 外面。
+        texmath（TeX → OMML 的常用实现）同样如此：只吃紧邻的一个元素，其余留在 nary 外面。
         """
         out: list = []
         kids = list(element)
@@ -236,7 +236,7 @@ def _hide(nary, *, sub: bool = False, sup: bool = False) -> None:
     """标明哪一侧的上下限是真的有内容。
 
     nary 里没有内容的 sub/sup 会留下一个空占位框，Word 里看得到；`*Hide=on` 让 Word
-    不画它。Pandoc 也这么做（`supHide=on`）。
+    不画它。texmath 同样如此（`supHide=on`）。
     """
     pr = nary.find(_m("naryPr"))
     for tag, present in (("subHide", sub), ("supHide", sup)):

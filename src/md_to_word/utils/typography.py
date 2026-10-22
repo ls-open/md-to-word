@@ -1,7 +1,7 @@
 """md_to_word.utils.typography — 排印层面的文字规整。
 
-只做 Pandoc 默认就会做的那一点（smart 扩展）：直引号 → 弯引号。中文稿里 `"…"` 若原样
-印进 Word，两边会是两个 ASCII 直引号，很显眼；代码与公式不走这里。
+只做一件小事：直引号 → 弯引号。中文稿里 `"…"` 若原样印进 Word，两边会是两个 ASCII
+直引号，与中文排版习惯不符；代码与公式不走这里。
 """
 
 from __future__ import annotations

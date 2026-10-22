@@ -48,10 +48,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.requirements_missing": ("指定的格式要求文件不存在: {path}", "Requirements file not found: {path}"),
     "pipeline.preset_missing": ("未找到预设: {name}", "Preset not found: {name}"),
     "pipeline.many_txt": (
-        "在 {dir} 下找到多个 .txt 文件，无法判断哪份是格式要求。\n"
-        "  建议加 -r 指定其中一份，或使用 --preset zh-academic/en-nature。",
+        "{dir} 下存在多个 .txt 文件，无法判定哪一份是格式要求。\n"
+        "  请用 -r 指定其中一份，或改用 --preset zh-academic/en-nature。",
         "Several .txt files in {dir}; cannot tell which one is the requirements.\n"
-        "  Pass -r to pick one, or use --preset zh-academic/en-nature.",
+        "  Pass -r to select one, or use --preset zh-academic/en-nature.",
     ),
     "pipeline.template_missing": ("指定的模板文件不存在: {path}", "Template file not found: {path}"),
     "pipeline.no_spec": ("未提供格式要求或模板，无法生成样式文档。", "No requirements or template: cannot build the style template."),
@@ -59,8 +59,9 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     # ── 流水线：进度与结论 ──────────────────────────────────────────
     "pipeline.precheck": ("执行导出前语法与排版契约预检…", "Running the pre-flight check…"),
     "pipeline.rejected": (
-        "稿件有 {count} 处不符合契约，已停下；按下面的行号改稿后重跑。",
-        "The manuscript violates the contract in {count} place(s); fix the lines below and run again.",
+        "稿件共有 {count} 处不符合契约，导出已中止。请按下列行号修改后重新导出。",
+        "The manuscript violates the contract in {count} place(s); export stopped. "
+        "Amend the lines below and export again.",
     ),
     "pipeline.success": ("Word 文档导出成功: {path}", "Word document written: {path}"),
     "pipeline.numeric_ok": ("产物数值完整性检查通过。", "Numeric integrity check passed."),
@@ -73,20 +74,21 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "导出后抽查未通过：产物与格式要求存在 {count} 处不符。",
         "Post-export audit failed: {count} mismatch(es) against the requirements.",
     ),
-    "pipeline.unsupported": ("稿件里有写不出来的结构：{reason}", "A structure could not be written: {reason}"),
+    "pipeline.unsupported": ("稿件包含当前无法写出的结构：{reason}", "A structure could not be written: {reason}"),
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
-    "pipeline.pdf_skipped": ("docx 已正常生成，但 PDF 渲染被跳过或未完成。", "docx written, but the PDF was skipped."),
+    "pipeline.pdf_skipped": ("docx 已正常生成；PDF 渲染未执行或未完成。", "docx written; the PDF step was skipped or did not finish."),
     "pipeline.reminder": (
-        "提醒：导出后请用 Word 打开核对一遍——表格的行高与列宽由内容自适应，"
-        "公式、三线表、图片与题注的上下位置、页眉页脚，这些只有真看才能确认。",
-        "Reminder: open the .docx in Word once. Table row heights and column widths follow the "
-        "content, and equations, three-line tables, figure/caption placement and headers can only "
-        "be confirmed by eye.",
+        "导出完成。请在 Word 中打开该文档并核对以下各项：表格的行高与列宽由内容自适应；"
+        "公式、三线表、图片与题注的位置；页眉与页脚。以上各项均需在 Word 中目视确认。",
+        "Export complete. Open the document in Word and verify the following: table row heights "
+        "and column widths adapt to content; the placement of equations, three-line tables, "
+        "figures and captions; and the headers and footers. Each of these can be confirmed "
+        "visually only.",
     ),
     # ── 模板生成 ────────────────────────────────────────────────────
     "template.styles_only": (
-        "模板只提供样式（styles.xml）。导出：md-to-word 稿件.md -o 输出.docx",
-        "The template carries styles only (styles.xml). Export with: md-to-word paper.md -o out.docx",
+        "该模板只提供样式（styles.xml）。导出命令：md-to-word 稿件.md -o 输出.docx",
+        "This template carries styles only (styles.xml). Export with: md-to-word paper.md -o out.docx",
     ),
 }
 

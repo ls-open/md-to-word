@@ -18,7 +18,7 @@
 在长篇学术论文、专业技术报告与商业白皮书的撰写中，许多团队都经历过 Word 带来的协作阵痛：
 
 * **Word（`.docx`）是封闭的二进制黑盒**：Git 无法对其进行行级差异对比（diff），改动全凭肉眼；多人协作时分支合并（merge）极易损坏文件，团队只能依靠“`论文_终稿_v2_定稿_真的不改了.docx`”痛苦传递。
-* **排版耗费大量非生产性时间**：在 Word 中反复刷样式、手动断开分节符、调整三线表边框、狂按空格硬凑公式对齐；一旦源文字稍作修改，排版往往前功尽弃。
+* **排版耗费大量非生产性时间**：在 Word 中反复刷样式、手动断开分节符、逐条调整三线表边框、以空格手工对齐公式；源文字一旦修改，排版往往全部作废。
 
 **md-to-word 提供的现代化工作流**：
 1. **内容与排版彻底解耦**：作者在纯文本 Markdown 中专注逻辑与思考，享受 Git 版本分支、代码审查（PR）与持续集成的全部工程红利；
@@ -47,11 +47,11 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 
 # 一个三线表
 
-| 样例 | 篇幅 | 稳定耗时 | 主要演示的排版要素 |
+| 样例 | 篇幅 | 端到端耗时 | 主要演示的排版要素 |
 |:------|:--|:---|:--------------|
-| 最小样例（本文） | 1 页 | 0.95 s | 中西文字体、首行缩进、多级标题、三线表 |
-| 技术白皮书样例 | 3 页 | 1.03 s | 全网格数据表、APA 引用、单线极简页眉 |
-| 学位论文样例 | 8 页 | 1.15 s | 目录、分节页码、双线章名页眉、跨页表头 |
+| 最小样例（本文） | 1 页 | 0.25 s | 中西文字体、首行缩进、多级标题、三线表 |
+| 技术白皮书样例 | 3 页 | 0.33 s | 全网格数据表、APA 引用、单线极简页眉 |
+| 学位论文样例 | 7 页 | 0.52 s | 目录、分节页码、双线章名页眉、跨页表头 |
 
 …（表格上方的表题包裹块、表注与正文段落见源文件）
 ```
@@ -113,7 +113,7 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
    > 帮我安装这个技能：https://github.com/ls-open/md-to-word
    > 克隆到你的技能目录，装好后读一遍 SKILL.md，告诉我它能做什么、怎么触发。
 
-2. **验证装好了**：让助手跑一遍仓库里最小的一份样例，看到 `✅ Word 文档导出成功` 就算装成了：
+2. **验证安装**：让助手运行仓库中最小的一份样例，看到 `✅ Word 文档导出成功` 即表示安装完成：
 
    ```bash
    cd demo/00_quickstart
@@ -256,7 +256,7 @@ if not result.ok:                 # ok = docx 已写出（--pdf 跳过不算失�
 print(result.output_docx)         # 路径；result.messages 是进度与提醒
 ```
 
-需要更细的控制（关掉某道闸门、指定模板、顺手出 PDF）就用 `ExportOptions`：
+需要更细的控制（关闭某道闸门、指定模板、同时输出 PDF）时，使用 `ExportOptions`：
 
 ```python
 from md_to_word import ExportOptions, run_export_pipeline
@@ -294,7 +294,7 @@ result = run_export_pipeline(ExportOptions(
 | :--- | :--- |
 | [`demo/00_quickstart/`](demo/00_quickstart/) | **最小可跑样例**（1 页）：一份 26 行稿件 + 一份 14 行 `requirements.txt`（均不含空行），用来 30 秒看懂输入与输出，也用来验证装好了没。 |
 | [`presets/`](presets/) | **开箱即用的格式预设**：`zh-academic.txt`（中文学术/通用报告，未指定格式时的默认）与 `en-nature.txt`（英文期刊投稿）。直接 `--preset` 选用，也可复制一份改。 |
-| [`SKILL.md`](SKILL.md) | **AI Agent 必读**：包含 Agent 全自动代办工作流、Markdown 语法排版契约与常见避坑指南。 |
+| [`SKILL.md`](SKILL.md) | **AI Agent 必读**：包含 Agent 全自动代办工作流、Markdown 语法排版契约与常见问题与规避要点。 |
 | [`references/reference.md`](references/reference.md) | **进阶定制查阅**：`requirements.txt` 完整合法中文词表、默认值推导原则、内置 20 种 CSL 清单与视觉核验规范。 |
 | [`references/design.md`](references/design.md) | **开发者与极客查阅**：深入了解纯净底模、三列无边框公式重构、OOXML 底层机制与架构设计。 |
 

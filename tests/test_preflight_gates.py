@@ -106,7 +106,7 @@ def test_preflight_verdict(name: str, tmp_path: Path) -> None:
 
 
 def test_custom_style_must_exist_in_template(tmp_path: Path) -> None:
-    """模板里没有该样式时 Quarto 会静默建空壳，格式不生效；不认识的样式名预检直接拦。"""
+    """模板里没有该样式，段落只能退回普通段落，格式不生效；不认识的样式名预检直接拦。"""
     template = tmp_path / "template.docx"
     build_template(PRESET.read_text(encoding="utf-8"), template)
 

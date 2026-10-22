@@ -21,11 +21,12 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+from matplotlib.patches import FancyArrowPatch, FancyBboxPatch, Rectangle
 
 ROOT = Path(__file__).resolve().parent.parent
 DEMO01 = ROOT / "demo" / "01_chinese_thesis"
 DEMO02 = ROOT / "demo" / "02_modern_report"
+DEMO03 = ROOT / "demo" / "03_english_paper"
 
 # 中文字体：优先宋体，退到 Arial Unicode MS
 plt.rcParams["font.sans-serif"] = ["Songti SC", "Arial Unicode MS", "Heiti SC"]
@@ -49,19 +50,54 @@ def measure_runs(demo_dir: Path, stem: str) -> list[float]:
     return times
 
 
-def fig_qa_pipeline(out: Path) -> None:
+_PIPELINE_LABELS = {
+    "zh": {
+        "row1": [
+            ("稿件.md\n+ 格式要求.txt", "输入"),
+            ("导前预检\n契约与语法", "门禁 ①"),
+            ("样式模板\n要求 → styles.xml", "排版"),
+            ("文档模型\nMarkdown → 节点树", "解析"),
+        ],
+        "row2": [
+            ("原生写出器\n模型 → OOXML", "导出"),
+            ("数值完整性检查\n防丢数", "门禁 ②"),
+            ("逐条对账\n产物与要求", "门禁 ③"),
+            ("交付 .docx", "输出"),
+        ],
+        "abort": "任一道门禁不通过即中止导出并指出行号，退回改稿",
+    },
+    "en": {
+        "row1": [
+            ("manuscript.md\n+ requirements.txt", "input"),
+            ("Pre-flight check\ncontract and syntax", "gate 1"),
+            ("Style template\nrequirements → styles.xml", "typeset"),
+            ("Document model\nMarkdown → node tree", "parse"),
+        ],
+        "row2": [
+            ("Native writer\nmodel → OOXML", "emit"),
+            ("Numeric integrity\nno lost values", "gate 2"),
+            ("Requirement audit\nproduct vs. spec", "gate 3"),
+            ("Deliver .docx", "output"),
+        ],
+        "abort": "Any failing gate aborts the export and reports the line number",
+    },
+}
+
+_GATE_COLORS = {"门禁 ①": "#d6e4c8", "门禁 ②": "#d6e4c8", "门禁 ③": "#d6e4c8",
+                "gate 1": "#d6e4c8", "gate 2": "#d6e4c8", "gate 3": "#d6e4c8"}
+
+
+def _pipeline_color(tag: str) -> str:
+    if tag in _GATE_COLORS:
+        return _GATE_COLORS[tag]
+    return "#f7e8d6" if tag in ("输出", "output") else "#e8eef7"
+
+
+def fig_qa_pipeline(out: Path, lang: str = "zh") -> None:
     """质量门禁流程示意图。结构图，不涉及任何数据。"""
-    row1 = [
-        ("稿件.md\n+ requirements.txt", "输入", "#e8eef7"),
-        ("导前预检\ncheck_md.py", "门禁 ①", "#d6e4c8"),
-        ("生成临时模板\n+ Quarto 编译", "排版", "#e8eef7"),
-        ("公式居中/编号靠右\n+ 主题属性净化", "后处理", "#e8eef7"),
-    ]
-    row2 = [
-        ("防丢数检查\npost_flight_check.py", "门禁 ②", "#d6e4c8"),
-        ("产物逐条对账\naudit_export.py", "门禁 ③", "#d6e4c8"),
-        ("交付 .docx", "输出", "#f7e8d6"),
-    ]
+    labels = _PIPELINE_LABELS[lang]
+    row1 = [(text, tag, _pipeline_color(tag)) for text, tag in labels["row1"]]
+    row2 = [(text, tag, _pipeline_color(tag)) for text, tag in labels["row2"]]
 
     BW, BH, GAP = 8.4, 4.0, 1.6
     fig, ax = plt.subplots(figsize=(9.2, 4.4))
@@ -104,9 +140,77 @@ def fig_qa_pipeline(out: Path) -> None:
         "", xy=(0.9, 1.5), xytext=(3 * (BW + GAP), 1.5),
         arrowprops=dict(arrowstyle="-|>", color="#a8432f", linewidth=1.1, linestyle="--"),
     )
-    ax.text(4 * (BW + GAP) / 2, 1.5, "任一道门禁不通过即中止导出并指出行号，退回改稿",
+    ax.text(4 * (BW + GAP) / 2, 1.5, labels["abort"],
             ha="center", va="center", fontsize=9.2, color="#a8432f",
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="none"))
+
+    fig.tight_layout()
+    fig.savefig(out, dpi=200, facecolor="white")
+    plt.close(fig)
+
+
+def fig_system_architecture(out: Path) -> None:
+    """五段式总体架构图（demo/01 的图 1）。结构图，不涉及任何数据。"""
+    columns = [
+        ("1. 规范输入与声明", "#0b7dc0", [
+            "纯文本 Markdown 稿件",
+            "requirements.txt 声明式规则",
+            "references.bib 学术文献库",
+        ]),
+        ("2. 导前预检与建模", "#1f8a70", [
+            "check_md 语法严格预检",
+            "文档模型：块与内联节点",
+            "目录域 / 分节切分",
+        ]),
+        ("3. 原生写出器", "#4b47d6", [
+            "模型 → OOXML，无外部引擎",
+            "Word 365 纯净底模映射",
+            "中西文字体独立绑定",
+        ]),
+        ("4. OOXML 组织与编号", "#7b3fe4", [
+            "三线表边框",
+            "公式居中 + 编号靠右",
+            "清除主题字体污染",
+        ]),
+        ("5. 确定性质量门禁", "#d2481f", [
+            "防丢数：数值逐条对账",
+            "样式审计：产物与要求",
+            "规则项逐项合规验证",
+        ]),
+    ]
+
+    fig, ax = plt.subplots(figsize=(13.0, 5.4))
+    ax.set_xlim(0, 100)
+    ax.set_ylim(4, 86)
+    ax.axis("off")
+
+    n, gap = len(columns), 1.6
+    width = (100 - 4 - gap * (n - 1)) / n
+    top, head_h, body_h = 82.0, 12.0, 50.0
+
+    for i, (title, color, bullets) in enumerate(columns):
+        x = 2 + i * (width + gap)
+        ax.add_patch(Rectangle((x, top - head_h), width, head_h,
+                               facecolor=color, edgecolor=color, linewidth=1.4))
+        ax.text(x + width / 2, top - head_h / 2, title, ha="center", va="center",
+                fontsize=10.5, color="white", fontweight="bold")
+        ax.add_patch(Rectangle((x, top - head_h - body_h), width, body_h,
+                               facecolor="#f7f9fc", edgecolor=color, linewidth=1.4))
+        for j, text in enumerate(bullets):
+            ax.text(x + 0.9, top - head_h - 8.5 - j * 13, "\u00b7 " + text,
+                    ha="left", va="center", fontsize=8.6, color="#243746")
+        if i < n - 1:
+            ax.add_patch(FancyArrowPatch(
+                (x + width + 0.2, top - head_h - body_h / 2),
+                (x + width + gap - 0.2, top - head_h - body_h / 2),
+                arrowstyle="-|>", mutation_scale=15, color="#5b6b7c", linewidth=1.5,
+            ))
+
+    ax.add_patch(Rectangle((2, 8), 96, 10, facecolor="#eef7ee",
+                           edgecolor="#3f9f7f", linewidth=1.3))
+    ax.text(50, 13,
+            "最终产物：规范学术 Word 文档（双线章名页眉 / 独立小写罗马页码 / 三线表 / 居中公式 / 国标参考文献）",
+            ha="center", va="center", fontsize=9.6, color="#24503a")
 
     fig.tight_layout()
     fig.savefig(out, dpi=200, facecolor="white")
@@ -117,7 +221,7 @@ def fig_export_timing(out: Path, thesis: list[float], report: list[float]) -> No
     """端到端导出耗时实测：两条样例各连续跑 5 次。"""
     fig, ax = plt.subplots(figsize=(9, 4.2))
     xs = range(1, RUNS + 1)
-    ax.plot(xs, thesis, "o-", color="#2f6fbf", linewidth=2, label="学位论文样例（5 页）")
+    ax.plot(xs, thesis, "o-", color="#2f6fbf", linewidth=2, label="学位论文样例（7 页）")
     ax.plot(xs, report, "s-", color="#3f9f7f", linewidth=2, label="技术白皮书样例（3 页）")
 
     for name, ys, color in (("论文", thesis, "#2f6fbf"), ("报告", report, "#3f9f7f")):
@@ -142,6 +246,8 @@ def main() -> None:
     report = measure_runs(DEMO02, "report_sample")
 
     fig_qa_pipeline(DEMO01 / "figures" / "qa_pipeline.png")
+    fig_qa_pipeline(DEMO03 / "figures" / "pipeline.png", lang="en")
+    fig_system_architecture(DEMO01 / "figures" / "system_architecture.png")
     fig_export_timing(DEMO02 / "figures" / "export_timing.png", thesis, report)
 
     print(

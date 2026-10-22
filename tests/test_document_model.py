@@ -130,7 +130,7 @@ def test_citation_details() -> None:
 
 
 def test_narrative_reference_needs_bibliography_to_disambiguate() -> None:
-    """`@key` 在 Pandoc 里既是叙述式文献引用又是交叉引用，只能靠 .bib 里的 key 区分。"""
+    """`@key` 既可能是叙述式文献引用，也可能是交叉引用，只能靠 .bib 里的 key 区分。"""
     [unknown] = parse_inlines("@smith2024")
     assert isinstance(unknown, CrossRef)
 

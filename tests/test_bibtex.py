@@ -60,6 +60,6 @@ def test_consecutive_numbers_collapse_to_range() -> None:
     """数字制里连续三条以上要压成区间（GB/T 7714 与 IEEE 的硬要求）。"""
     assert _collapse_numeric_runs("[4,5,6]") == "[4–6]"
     assert _collapse_numeric_runs("[1,2,3,7,8,9]") == "[1–3,7–9]"
-    # 两条不压：与 Pandoc 的 citeproc 一致
+    # 两条不压：只有三条及以上才合并
     assert _collapse_numeric_runs("[4,5]") == "[4,5]"
     assert _collapse_numeric_runs("[4,6]") == "[4,6]"

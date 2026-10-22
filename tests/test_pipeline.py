@@ -112,14 +112,14 @@ def test_default_csl_follows_language(tmp_path: Path) -> None:
 
 
 def test_export_reminds_to_open_the_result(tmp_path: Path) -> None:
-    """门禁全绿 ≠ 版面没问题。行高列宽、公式与题注的落版只有真 Word 能看，
-    所以每次成功导出都要带一条"打开看一眼"的提醒，让它成为交付动作的一部分。"""
+    """门禁全绿不等于版面合格。行高列宽、公式与题注的落版只能目视核对，
+    因此每次成功导出都必须附一条核对提醒，使其成为交付流程的一环。"""
     (tmp_path / "m.md").write_text('---\ntitle: "t"\n---\n\n# 一 引言\n\n正文。\n', encoding="utf-8")
     result = run_export_pipeline(
         ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx", preset="zh-academic")
     )
     assert result.returncode == 0, result.errors
-    assert any("用 Word 打开核对" in m for m in result.messages), result.messages
+    assert any("在 Word 中打开该文档并核对" in m for m in result.messages), result.messages
 
 
 def test_image_paths_are_relative_to_the_manuscript(tmp_path: Path, monkeypatch) -> None:

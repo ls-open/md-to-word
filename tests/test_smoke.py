@@ -3,8 +3,7 @@
 Two layers:
 
 - preset/template checks that run anywhere (python-docx only);
-- one end-to-end export that is skipped when Quarto is not installed, because
-  Quarto is an external binary that CI does not provide by default.
+- one end-to-end export over the whole pipeline (no external binary involved).
 """
 
 from __future__ import annotations

@@ -4,7 +4,7 @@ normalize_csl.py — 规范化 CSL 文件：去掉 direct formatting 属性
 
 功能：
   去掉 CSL <bibliography> 标签上的 hanging-indent / second-field-align / line-spacing 属性。
-  这些属性会被 Pandoc 写入段落 direct formatting，覆盖模板样式，导致同一 requirements.txt
+  引文处理器会把它们写成段落 direct formatting，覆盖模板样式，导致同一 requirements.txt
   在不同 CSL 下行为不一致（违反确定性原则）。
 
   规范化后，段落格式（悬挂缩进/行距/段间距）统一由模板 Bibliography 样式控制。

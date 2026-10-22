@@ -184,14 +184,12 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
     (_S, re.compile(r"无边框|no-border", re.I), lambda p, m, d: _set_once(p, "no_border", True, "边框", d)),
     (
         _S,
-        re.compile(r"(?:下边框|border-bottom-)(?P<k>单线|双线|single|double)", re.I),
-        lambda p, m, d: _set_once(
-            p,
-            "bottom_border",
-            {"单线": "single", "双线": "double", "single": "single", "double": "double"}[m.group("k").lower()],
-            "边框",
-            d,
+        re.compile(
+            r"(?:下边框|border-bottom-)"
+            r"(?P<k>单线|双线|等宽双线|上细下粗|上粗下细|三线|single|double|even-double|thin-thick|thick-thin|triple)",
+            re.I,
         ),
+        lambda p, m, d: _set_once(p, "bottom_border", _BOTTOM_BORDER_KIND[m.group("k").lower()], "边框", d),
     ),
     (
         _S,
@@ -490,11 +488,11 @@ def _check_clause_preconditions(props: dict, style_name: str, desc: str, lineno:
     who = _who(style_name, english)
     tail = f"\n  Line: {desc.strip()}" if english else f"\n  原文：{desc.strip()}"
 
-    if "border_width_pt" in props and props.get("bottom_border") not in ("single", "double"):
+    if "border_width_pt" in props and props.get("bottom_border") not in _BOTTOM_BORDER_KIND.values():
         raise ValueError(
             f"{where}{who}: `border-width` is set, but no single or double bottom border was declared.{tail}"
             if english
-            else f"{where}{who}: 写了「边框粗 / border-width」，却没声明下边框为单线或双线。{tail}"
+            else f"{where}{who}: 写了「边框粗 / border-width」，却没声明下边框线型。{tail}"
         )
 
     if props.get("repeat_header") and style_name not in ("表头", "Table Header"):
@@ -665,6 +663,17 @@ def _line_doc_grid(spec: TemplateSpec, desc: str, lineno: int) -> None:
     if not 1 <= n <= 200:
         raise _bad_value(lineno, "文档网格/Document Grid", desc, "每页22行 (22 lines)", why="行数要在 1–200 之间 / line count must be 1–200")
     spec.doc_grid_lines = n
+
+
+# 下边框线型：中文写法与英文写法都收敛到同一组内部值（`template/generator.py` 的
+# BOTTOM_BORDER_STYLE 按它取 OOXML 线型）
+_BOTTOM_BORDER_KIND = {
+    "单线": "single", "single": "single",
+    "双线": "double", "上细下粗": "double", "double": "double", "thin-thick": "double",
+    "等宽双线": "even", "even-double": "even",
+    "上粗下细": "thickThin", "thick-thin": "thickThin",
+    "三线": "triple", "triple": "triple",
+}
 
 
 def _line_equation_number(spec: TemplateSpec, desc: str, lineno: int) -> None:

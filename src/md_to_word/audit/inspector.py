@@ -9,7 +9,7 @@
 压扁——这些只有真正渲染成 PDF 才看得出来，交给人工/渲染核对。
 
 用法:
-  python3 audit_export.py <产物.docx> --requirements <格式要求.txt> [--quiet]
+  python3 -m md_to_word.audit.inspector <产物.docx> --requirements <格式要求.txt> [--quiet]
 退出码: 0=全部对上 / 1=有对不上的（逐条打印）/ 2=用法或读取错误
 """
 import argparse
@@ -298,7 +298,7 @@ def audit(docx: Path, req_path: Path) -> list:
             problems.append(('同页', f'{name}：要求与下段同页（keepNext），产物未设置'))
 
         # 段落下边框（如页眉下双线、或显式声明无边框）
-        if r.get('bottom_border') in ('single', 'double'):
+        if r.get('bottom_border') in BOTTOM_BORDER_STYLE:
             want_bdr = BOTTOM_BORDER_STYLE[r['bottom_border']]
             pbdr = _pelement(styles, name, 'pBdr')
             bot = pbdr.find(W + 'bottom') if pbdr is not None else None
@@ -375,7 +375,7 @@ def audit(docx: Path, req_path: Path) -> list:
         if spec.margins:
             pgmar = sect.find(W + 'pgMar')
             # 「装订线」是折进**左**边距写的（理由见 generate_template 里那段注释：
-            # pandoc 算正文宽度不认 w:gutter，图片会压出右边距），故左边的期望值要加它。
+            # 正文宽度按 pgSz − pgMar 计算，不认 w:gutter，图片会压出右边距），故左边的期望值要加它。
             expect = dict(spec.margins)
             if spec.gutter_cm:
                 expect['left'] = expect['left'] + spec.gutter_cm

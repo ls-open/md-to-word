@@ -226,8 +226,8 @@ def image_width_issues(text: str, content_cm: float) -> list[tuple[int, str]]:
     """图片声明宽度超过版心 → [(行号, 说明)]。`content_cm` 是版心宽度（cm）。
 
     **写超了不会报错，会被静默改小**：实测 A4 + 2.54cm 边距下写 `{width=25cm}`，
-    产物里是 15.90cm（pandoc 按 `pgSz - pgMar` 钳的，与本技能算版心同一条公式）。
-    作者以为排的是 25cm，拿到的是别的数——所以写超了就是写错，拦下让他改。
+    产物里是 15.90cm——算式是 `pgSz − pgMar`，与计算版心用的是同一条公式。
+    作者以为排的是 25cm，拿到的是别的数；因此写超即视为写错，导出前拦下。
     """
     if not text:
         return []
@@ -263,9 +263,9 @@ def has_declared_image_width(text: str) -> bool:
 def malformed_table_issues(text: str) -> list[tuple[int, str]]:
     """Markdown 表格各行列数不一致 → [(行号, 说明)]。
 
-    **这不是排版问题，是丢内容**：列数对不上时 pandoc 不报错，直接把多出来的单元格
-    连同里面的字一起丢掉（实测：表头 3 列、分隔行 2 格、数据行 3 格 → 产物只剩前两列，
-    第三列的字一个不剩，全程零告警）。所以必须在导出前拦下。
+    **这不是排版问题，是内容丢失**：列数对不上时不报错，多出来的单元格连同其中的文字
+    一并丢弃（实测：表头 3 列、分隔行 2 格、数据行 3 格 → 产物只剩前两列，第三列的文字
+    全部缺失，全程零告警）。因此必须在导出前拦下。
     """
     if not text:
         return []
@@ -331,8 +331,8 @@ _BIB_ENTRY_RE = re.compile(r'@\w+\s*\{\s*([^,\s}]+)\s*,')
 _INLINE_CODE_RE = re.compile(r'`[^`]*`')
 # 稿子里定义过的标签：`{#eq-dynamics}`、`{#tbl-main}`
 _DEFINED_LABEL_RE = re.compile(r'\{#([\w:.\-]+)\}')
-# Quarto 内置的 crossref 标签前缀——`@eq-x` 这类是**交叉引用**，不是文献 key，
-# 当文献 key 去 .bib 里找必然找不到（demo/01 的 `@eq-dynamics` 就是这么被误报的）。
+# 交叉引用标签前缀——`@eq-x` 这类是**交叉引用**，不是文献 key，
+# 当文献 key 去 .bib 里找必然找不到（demo/01 的 `@eq-dynamics` 即属此类）。
 _CROSSREF_PREFIX_RE = re.compile(r'^(?:eq|fig|tbl|sec|lst)-')
 
 
@@ -368,7 +368,7 @@ def citation_key_issues(text: str, known_keys: set, line_offset: int = 0) -> lis
 
     属于「能确定」的一类：文献库是纯文本，正文引了哪些 key 也是纯文本，两边取差集即可，
     不需要渲染。不查的后果实测过——正文里留下 `[nosuchkey2020?]`（citeproc 的占位），
-    参考文献列表里也不会有它，而三道门禁全绿（pandoc 只在自己的输出里打一行 WARNING）。
+    参考文献列表里也不会有它，而三道门禁全绿。
 
     `known_keys` 为空时返回空：那种情况下每个被引 key 都会报，是噪声；**「文献库读到了
     却一条条目都没有」由调用方单独报**（`check_md.py` 的 1b），不在这里静默吞掉。
@@ -382,8 +382,8 @@ def citation_key_issues(text: str, known_keys: set, line_offset: int = 0) -> lis
     issues: list[tuple[int, str]] = []
     reported: set = set()
     for line_no, key in cited_keys(text, line_offset):
-        # `@eq-x` 这类是 Quarto 交叉引用，归 undefined_crossref_issues 管，
-        # 拿到 .bib 里找必然落空（demo/01 的 `@eq-dynamics` 就是这么被误报的）。
+        # `@eq-x` 这类是交叉引用，归 undefined_crossref_issues 管，
+        # 拿到 .bib 里找必然落空。
         if key in known_keys or key in labels or _CROSSREF_PREFIX_RE.match(key):
             continue
         if key in reported:
@@ -396,8 +396,7 @@ def citation_key_issues(text: str, known_keys: set, line_offset: int = 0) -> lis
 def undefined_crossref_issues(text: str, line_offset: int = 0) -> list[tuple[int, str]]:
     """正文引用了 `@eq-x` / `@fig-x` / `@tbl-x`，但稿子里没有 `{#eq-x}` 定义。
 
-    与引文 key 是同一类失败：实测渲染成 **`?@eq-x`**——残骸直接印在正文里，
-    而 Quarto 只在自己的输出里打一行 `WARNING Unable to resolve crossref`。
+    与引文 key 是同一类失败：渲染成 **`?@eq-x`**，残骸直接印在正文里，而导出全程不报错。
     """
     labels = defined_labels(text)
     issues: list[tuple[int, str]] = []
@@ -413,14 +412,13 @@ def undefined_crossref_issues(text: str, line_offset: int = 0) -> list[tuple[int
 def citations_without_bibliography(text: str, line_offset: int = 0) -> list[int]:
     """正文里出现**文献引用**语法的行号，保序去重。
 
-    实测：YAML 没有 `bibliography:` 时 pandoc **完全不处理引文**——`[@somekey2020]`
-    不是渲染成 `(somekey2020?)` 那种占位符，而是**这七个字符原样印进 docx 正文**，
-    且 citeproc 一声不吭、导出照样报成功。所以这属于「能确定」的一类。
+    实测：YAML 没有 `bibliography:` 时**引文完全不处理**——`[@somekey2020]` 不是渲染成
+    `(somekey2020?)` 那种占位符，而是**这十三个字符原样印进 docx 正文**，导出照样报成功。
+    所以这属于「能确定」的一类。
 
-    **交叉引用不算文献引用**：`@eq-model1`（或引用稿子里定义过的 `{#标签}`）由 Quarto
-    的 crossref 解析，没有 `bibliography:` 也照常渲染。把它算进来，会让「有公式编号、
-    没有参考文献」的常规报告被误拦——实测该场景 `--no-check` 强导后产物里是「式1」，
-    没有任何残留。交叉引用自身的失效由 `undefined_crossref_issues` 负责。
+    **交叉引用不算文献引用**：`@eq-model1`（或稿子里定义过的 `{#标签}`）照常渲染，
+    没有 `bibliography:` 也不受影响。把它算进来，会让「有公式编号、没有参考文献」的常规
+    报告被误拦。交叉引用自身的失效由 `undefined_crossref_issues` 负责。
     """
     labels = defined_labels(text)
     seen: set = set()
@@ -437,7 +435,7 @@ def citations_without_bibliography(text: str, line_offset: int = 0) -> list[int]
 def crossref_prefix_issues(text: str, fm_data) -> list[tuple[int, str]]:
     """中文稿件用了交叉引用标签、YAML 却没设中文字前缀 → [(行号, 说明)]。
 
-    不设前缀时 Quarto 渲染成 `Equation 1` / `Figure 1`，与正文中文混排。
+    不设前缀时渲染成 `Equation 1` / `Figure 1`，与正文中文混排。
     判定条件都是硬事实，不做任何猜测：**正文含中日韩字符** + **出现 `{#eq-/fig-/tbl-}` 标签**
     + **该标签在 YAML `crossref:` 下没有对应前缀**。三样都成立才报。
 
@@ -470,14 +468,13 @@ def crossref_prefix_issues(text: str, fm_data) -> list[tuple[int, str]]:
     return issues
 
 
-def heading_and_div_issues(text: str) -> list[tuple[int, str]]:
-    """检查标题层级与 custom-style 包裹块内禁用 # 的规范问题 → [(行号, 说明)]。
+def heading_issues(text: str) -> list[tuple[int, str]]:
+    """检查标题层级的规范问题 → [(行号, 说明)]。
 
     检查项：
-      1. `::: {custom-style="..."}` 包裹块内严禁写 `#` 标题（Quarto 会渲染为 Heading 覆盖自定义样式）
-      2. 正文第一个 `#` 标题必须是 1 级（不能从 `##` 开始）
-      3. `#` 标题层级必须连续（不能从 `#` 直接跳到 `###`）
-      4. 带数字编号的章节标题（如 `1.`、`2.1`、`2.1.1`），其编号深度必须等于 `#` 的数量
+      1. 正文第一个 `#` 标题必须是 1 级（不能从 `##` 开始）
+      2. `#` 标题层级必须连续（不能从 `#` 直接跳到 `###`）
+      3. 带数字编号的章节标题（如 `1.`、`2.1`、`2.1.1`），其编号深度必须等于 `#` 的数量
          （防止把论文大标题写成 `# 标题` 导致全文编号章节被挤到 `## 1.` / `### 1.1`）
     """
     if not text:
@@ -487,24 +484,11 @@ def heading_and_div_issues(text: str) -> list[tuple[int, str]]:
     lines = mask_code_fences(body).split("\n")
 
     issues: list[tuple[int, str]] = []
-    in_custom_div = False
-    custom_div_style = ""
     prev_level = 0
 
     for idx, line in enumerate(lines):
         line_no = start_offset + idx + 1
         stripped = line.strip()
-
-        # 跟踪 ::: {custom-style="..."} 包裹状态
-        m_div = re.match(r'^:::\s*\{[^}]*custom-style=(["\'])([^"\']+)\1[^}]*\}\s*$', stripped)
-        if m_div:
-            in_custom_div = True
-            custom_div_style = m_div.group(2)
-            continue
-        if stripped == ":::":
-            in_custom_div = False
-            custom_div_style = ""
-            continue
 
         m_head = re.match(r'^(#{1,6})\s+(.+?)\s*$', stripped)
         if not m_head:
@@ -513,22 +497,13 @@ def heading_and_div_issues(text: str) -> list[tuple[int, str]]:
         hashes, title = m_head.group(1), m_head.group(2)
         level = len(hashes)
 
-        # 1. 包裹块内严禁写 #
-        if in_custom_div:
-            issues.append((
-                line_no,
-                f'`::: {{custom-style="{custom_div_style}"}}` 包裹内严禁使用 `{hashes}` 标题'
-                f'（Quarto 会将其识别为 Heading {level} 并覆盖自定义样式，请去掉 `{hashes} ` 保留纯文本）'
-            ))
-            continue
-
-        # 2. 第一个标题必须是 1 级
+        # 1. 第一个标题必须是 1 级
         if prev_level == 0 and level != 1:
             issues.append((
                 line_no,
                 f'首个章节标题是 {level} 级（`{hashes} {title[:30]}`），必须从 1 级（`#`）开始'
             ))
-        # 3. 标题不得跳级
+        # 2. 标题不得跳级
         elif prev_level > 0 and level > prev_level + 1:
             issues.append((
                 line_no,
@@ -536,7 +511,7 @@ def heading_and_div_issues(text: str) -> list[tuple[int, str]]:
                 f'应为 `{"#" * (prev_level + 1)}`'
             ))
 
-        # 4. 章节数字编号深度必须等于 # 数量（如 # 1. / ## 2.1 / ### 2.1.1）
+        # 3. 章节数字编号深度必须等于 # 数量（如 # 1. / ## 2.1 / ### 2.1.1）
         num_match = re.match(r'^(\d+(?:\.\d+)*)\.?\s+\S', title)
         if num_match:
             number_str = num_match.group(1)
@@ -589,8 +564,8 @@ def soft_wrap_issues(text: str) -> list:
     """相邻两行都是正文、且上一行没有句末标点 → [(行号, 上一行片段)]。
 
     本引擎按「一行一段」读取（Markdown 里一段本来就能写成一行，不需要延续规则）。
-    但为 Pandoc 写的稿子常把一段折成多行，Pandoc 会把它们并成一段，我们则拆成几段——
-    每段都吃一次首行缩进，版面上是看得出来的错，所以提醒一句，不阻断。
+    稿件里若把一段折成多行，会被拆成几段，每段各吃一次首行缩进，版面上看得出来，
+    因此提醒一句，不阻断。
     """
     if not text:
         return []

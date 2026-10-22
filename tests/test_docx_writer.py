@@ -1,6 +1,6 @@
 """模型 → OOXML 的写出器。
 
-验收方式是**双后端对拍**：同一份稿件分别走 Pandoc（现有通道）与自研写出器，比对
+验收方式是对产物本身下断言：读 `word/document.xml`，检查结构、样式与编号
 样式序列与全文文本。样式序列一致，说明「哪一段用什么样式」这层判断没有跑偏；
 文本一致，说明内容一个字没丢。
 
@@ -281,7 +281,7 @@ def test_nary_keeps_operand_inside(template: Path, tmp_path: Path) -> None:
 
 
 def test_ascii_quotes_become_typographic(template: Path, tmp_path: Path) -> None:
-    """中文稿里的 `"…"` 直引号印出来很显眼；Pandoc 默认也会转。"""
+    """中文稿里的 `"…"` 直引号印出来很显眼，与中文排版的习惯不符。"""
     model = read_markdown('---\ntitle: "t"\n---\n\n本文不作"无遗漏变量偏误"的断言。\n')
     out = write_docx(model, template, tmp_path / "a.docx")
     _, text = _facts(out)
@@ -326,7 +326,7 @@ def test_separator_dash_lengths_set_column_widths(template: Path, tmp_path: Path
 
 
 def test_equal_dashes_leave_the_table_to_the_word_engine(template: Path, tmp_path: Path) -> None:
-    """全等 = 没指定，一列都不动，由内容自己决定（与 Pandoc 通道一致）。"""
+    """全等 = 没指定，一列都不动，由内容自己决定。"""
     from docx import Document
 
     model = read_markdown("| 甲 | 乙 |\n|:---|:---:|\n| 1 | 2 |\n")

@@ -1,8 +1,7 @@
 """md_to_word.transform.citations — 文献引用的编译（CSL）。
 
-用 citeproc-py（2 MB，只依赖 lxml）做 CSL 渲染，而不是为了引文装一个近 1 GB 的
-Quarto。实测：把我们自己的 .bib 转成 CSL-JSON 之后，两套内置样式（nature、GB/T 7714）
-都能正常渲染；citeproc-py 自带的 BibTeX 读取器反而不产出 `issued`，直接用会抛
+用 citeproc-py（2 MB，只依赖 lxml）做 CSL 渲染。实测：把我们自己的 .bib 转成
+CSL-JSON 之后，两套内置样式（nature、GB/T 7714）都能正常渲染；citeproc-py 自带的 BibTeX 读取器反而不产出 `issued`，直接用会抛
 VariableError——所以转换这一步由我们做（见 transform/bibtex.py）。
 
 已知限制：citeproc-py 不支持 `suppress-author`，叙述式引用（`@key` 作句子主语）无法按
@@ -120,9 +119,8 @@ _NUMERIC_CITE_RE = re.compile(r"\[(\d+(?:\s*[,\-–]\s*\d+)+)\]")
 def _collapse_numeric_runs(html: str) -> str:
     """数字制的连续编号合并成区间：`[4,5,6]` → `[4–6]`。
 
-    这是 GB/T 7714 与 IEEE 这类数字制的硬要求（Pandoc 的 citeproc 也会合并），
-    citeproc-py 只管把编号一个个列出来。三条以上的连续号才合并——`[4,5]` 保持原样，
-    与 Pandoc 一致。
+    这是 GB/T 7714 与 IEEE 这类数字制的硬要求，citeproc-py 只管把编号一个个列出来。
+    三条以上的连续号才合并，`[4,5]` 保持原样。
     """
 
     def repl(match: re.Match) -> str:

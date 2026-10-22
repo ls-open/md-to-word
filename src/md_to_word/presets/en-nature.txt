@@ -7,7 +7,7 @@
 #
 # Citation numbering is not set here: pick it in the manuscript YAML with `csl:`, e.g.
 #   csl: nature.csl   -> superscript numeric (Nature style)
-# Without `csl:` pandoc falls back to author-date (e.g. (Smith, 2024)).
+# Without `csl:` the default is APA author-date, e.g. (Smith, 2024).
 
 Paper: A4
 Margins: top 2.54cm bottom 2.54cm left 2.54cm right 2.54cm

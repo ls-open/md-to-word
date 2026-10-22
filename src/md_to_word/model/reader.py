@@ -142,8 +142,8 @@ def parse_inlines(
 ) -> list:
     """把一行内联 Markdown 切成节点序列。
 
-    `citation_keys` 是文献库里已知的 key 集合。`@key` 在 Pandoc 里既是叙述式文献引用、
-    又是稿内交叉引用，语义靠 key 是否存在于 .bib 区分——不传这个集合时一律当交叉引用，
+    `citation_keys` 是文献库里已知的 key 集合。`@key` 既可能是叙述式文献引用，也可能是
+    稿内交叉引用，语义靠 key 是否存在于 .bib 区分——不传这个集合时一律当交叉引用，
     由调用方稍后归类。密钥要**逐层下传**：`**[@a]**` 里那层同样要能认出引用。
     """
     hold: dict[str, str] = dict(hold or {})

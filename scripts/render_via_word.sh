@@ -93,7 +93,7 @@ on run argv
             -- 插入域那一刻的值（实测：四章全写「1」）。这份 PDF 存在的意义就是核对目录/
             -- 页眉这类动态域，域没更新等于没核对。
             -- 用 `update field (every field of d)` 而不是 `update toc`：我们的目录域生在
-            -- pandoc 的 <w:sdt> 内容控件里，Word 不把它归入 table of contents 集合
+            -- 目录写在 <w:sdt> 内容控件里，Word 不把它归入 table of contents 集合
             -- （实测 TOC 个数=0），只有按 field 逐个更新才够得着。
             update field (every field of d)
             repaginate d

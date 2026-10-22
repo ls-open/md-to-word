@@ -158,7 +158,7 @@ _RE_STYLEREF = re.compile(r'^样式标题\s*[:：]\s*(.+?)\s*$')
 
 # ── 对齐方式（唯一写法：居中/左对齐/右对齐/两端对齐）──
 # **唯一一张表**：中文写法 → (python-docx 枚举, OOXML 值)。下面两个视图与
-# audit_export 里那份都从这里派生，不再各写一遍。
+# 导出后对账用的那一份都从这里派生，不再各写一遍。
 _ALIGN = {
     '居中': (WD_ALIGN_PARAGRAPH.CENTER, 'center'),
     '左对齐': (WD_ALIGN_PARAGRAPH.LEFT, 'left'),
@@ -211,10 +211,18 @@ _SECTPR_ORDER = ['footnotePr', 'endnotePr', 'type', 'pgSz', 'pgMar', 'paperSrc',
                  'lnNumType', 'pgNumType', 'cols', 'formProt', 'vAlign', 'noEndnote',
                  'titlePg', 'textDirection', 'bidi', 'rtlGutter', 'docGrid', 'printerSettings']
 # ── 段落下边框（页眉下的那条线就靠它）──
-# 「双线」用 OOXML 的 thinThickMediumGap——Word 画成一粗一细两条，
-# 学位论文的页眉线即此，常见取值 1.5 磅（`sz=12`）。
-BOTTOM_BORDER_STYLE = {'single': 'single', 'double': 'thinThickMediumGap'}
-BOTTOM_BORDER_DEFAULT_PT = {'single': 0.5, 'double': 1.5}
+# OOXML 的边框线型里，「双线」不是一种，而是一族：两条线的**粗细顺序**（上细下粗 /
+# 上粗下细 / 等宽）与**间距**（小 / 中 / 大）各有一组取值。这里固定用「中」间距，
+# 只把粗细顺序做成可选的写法——间距再拆一档就是三倍词表，实际几乎无人指定。
+BOTTOM_BORDER_STYLE = {
+    'single': 'single',                    # 一条实线
+    'double': 'thinThickMediumGap',        # 双线：上细下粗（学位论文页眉的常见写法）
+    'even': 'double',                      # 双线：等宽（看着最轻）
+    'thickThin': 'thickThinMediumGap',     # 双线：上粗下细
+    'triple': 'thinThickThinMediumGap',    # 三线：细粗细
+}
+BOTTOM_BORDER_DEFAULT_PT = {'single': 0.5, 'double': 1.5, 'even': 0.5,
+                            'thickThin': 1.5, 'triple': 1.0}
 
 # ── 版心宽度（twips）──
 # 目录的「点线制表位」要把页码顶到版心右边界，位置得由纸张与页边距算，不能写死：
@@ -428,7 +436,7 @@ def write_para_props(ppr, props):
         if p_bdr is not None:
             ppr.remove(p_bdr)
 
-    if props.get('bottom_border') in ('single', 'double'):
+    if props.get('bottom_border') in BOTTOM_BORDER_STYLE:
         p_bdr = ppr.find(W('pBdr'))
         if p_bdr is None:
             p_bdr = ensure_ordered_child(ppr, 'pBdr', _PPR_ORDER)
@@ -1129,11 +1137,10 @@ def _check_required_fields(spec) -> bool:
 # ══════════════════════════════════════════════════════════════════
 #  页眉 / 页脚 / 页码
 #
-#  Pandoc 的 --reference-doc **会**连同参考文档的 header/footer 部件与 sectPr 一起
-#  带进产物（官方手册明写 "document properties (including margins, page size,
-#  header, and footer) are used"）。但 pandoc 只产出**一个** section——取参考文档
-#  的第一个 sectPr。因此本技能把整份文档做成单节，奇偶页差异走 evenAndOddHeaders
-#  + default/even 两个 headerReference，而不是靠多节。
+#  参考模板会连同 header/footer 部件与 sectPr 一起带进产物：页面尺寸、页边距、
+#  页眉与页脚都取自参考文档。一份模板只取**一个** section 的几何与引用，因此模板
+#  必须是单节，奇偶页差异走 evenAndOddHeaders + default/even 两个 headerReference，
+#  跨节改页码格式交给正文的 {{< section >}} 标记。
 # ══════════════════════════════════════════════════════════════════
 
 _XML_SPACE = '{http://www.w3.org/XML/1998/namespace}space'
@@ -1302,7 +1309,7 @@ def apply_page_decorations(doc, spec):
 # ══════════════════════════════════════════════════════════════════
 #  表格
 #
-#  Pandoc 把**表格内所有段落**映射为 Compact 样式（实测：Compact 在表内 582 次、
+#  写出器把**表格内所有段落**映射为 Compact 样式（实测：Compact 在表内 582 次、
 #  表外 0 次），所以表内文字的字体/字号/缩进由「紧凑：」样式行控制；而**表头行**
 #  与**单元格**无法用段落样式区分，只能写进 Table 样式的条件格式
 #  （w:tblStylePr type="firstRow" / "wholeTable"）。
@@ -1651,7 +1658,7 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
     except KeyError:
         pass
 
-    # 清除 Caption 基样式的斜体：Pandoc/Quarto 默认 Caption 基样式带 italic，
+    # 清除 Caption 基样式的斜体：底模的 Caption 基样式带 italic，
     # Image Caption 和 Table Caption 继承它，导致 bold+italic 叠加
     try:
         caption_style = doc.styles['Caption']
@@ -1711,7 +1718,7 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
 
     # 装订线**折进左边距**，不写 pgMar/@w:gutter。
     # Word 打印时两者等效（单节、不开镜像页边距时，"装订线"就是在装订侧多留空白）；
-    # 但 pandoc 以及本技能自己算正文宽度，用的都是 `pgSz - pgMar(left/right)`，
+    # 但算正文宽度用的是 `pgSz - pgMar(left/right)`，
     # **都不认 w:gutter**：实测 A4 + 2.54cm 边距 + 装订线1cm，`{width=25cm}` 被钳成
     # 15.90cm（本应是 14.92cm），而文字起点已右移 1cm，于是图片压出右边距 **0.98cm**
     # （在 Word 渲染的 PDF 上量出来的）。折进去之后，图片宽度、公式网格表、点线制表位

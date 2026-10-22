@@ -34,7 +34,7 @@ from md_to_word.utils.skill_utils import (
     citations_without_bibliography,
     crossref_prefix_issues,
     has_declared_image_width,
-    heading_and_div_issues,
+    heading_issues,
     image_width_issues,
     malformed_table_issues,
     mask_code_fences,
@@ -399,7 +399,7 @@ def validate_manuscript(
         report.warnings.append(f"行 {line_no} [分节标记]: {why}")
 
     # 8. 标题层级：跳级会让大纲级别错位，但内容与样式都还在，提醒即可
-    for line_no, why in heading_and_div_issues(md_text):
+    for line_no, why in heading_issues(md_text):
         report.warnings.append(f"行 {line_no} [标题/分级]: {why}")
 
     # 9. 交叉引用前缀：要求文件声明了中文校对语言时，导出阶段会补默认前缀，
