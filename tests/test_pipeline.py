@@ -159,3 +159,22 @@ def test_bad_requirements_return_error_instead_of_exiting(tmp_path: Path) -> Non
 
     assert result.returncode == 1
     assert any("格式要求" in e for e in result.errors), result.errors
+
+
+def test_custom_template_must_be_single_section(tmp_path: Path) -> None:
+    """第三方模板只取正文那一节的页面几何与页眉页脚；多节模板会整体错位，必须当场拒绝。"""
+    from docx import Document
+
+    multi = tmp_path / "multi.docx"
+    doc = Document()
+    doc.add_paragraph("第一节")
+    doc.add_section()
+    doc.add_paragraph("第二节")
+    doc.save(str(multi))
+
+    (tmp_path / "m.md").write_text("# 一\n\n正文。\n", encoding="utf-8")
+    result = run_export_pipeline(
+        ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx", template_path=multi)
+    )
+    assert result.returncode == 1
+    assert any("单节" in e for e in result.errors), result.errors

@@ -61,9 +61,16 @@ class ExportResult:
         return self.returncode in (0, 3)
 
 
-def _strip_theme_from_template(src: Path, dst: Path) -> Path:
-    """把模板里的主题属性剥掉，写成一份干净的副本。"""
+def _prepare_custom_template(src: Path, dst: Path) -> Path:
+    """第三方模板入场前的清理：剥主题属性，并确认它只有一节。
+
+    主题字体与主题色的优先级高于显式字体，外来的 `.docx`（期刊/学校下发）几乎都带着
+    它们，不剥就会出现「要求文件写了字体，产物却没变」。多节模板则更直接：本工具只在
+    正文那一节上写页眉页脚，多出来的节会全部走样，这里当场拒绝而不是产出一份错位的文档。
+    """
     import zipfile
+
+    from docx import Document
 
     from md_to_word.utils.skill_utils import strip_theme_attrs_from_xml
 
@@ -73,6 +80,13 @@ def _strip_theme_from_template(src: Path, dst: Path) -> Path:
             if item.filename in ("word/styles.xml", "word/stylesWithEffects.xml"):
                 data = strip_theme_attrs_from_xml(data)
             zout.writestr(item, data)
+
+    sections = len(Document(str(dst)).sections)
+    if sections != 1:
+        raise TemplateError(
+            f"模板必须是单节（当前 {sections} 节）。多节模板的页面几何与页眉页脚无法逐节沿用，"
+            f"导出后会错位。请在 Word 里把模板合并成一节，或改用生成的模板（不传 -t）。"
+        )
     return dst
 
 
@@ -198,9 +212,14 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         # 临时模板生成
         tpl_for_render = custom_template
         if tpl_for_render:
-            # 第三方模板（期刊/学校下发的 .docx）常带主题字体与主题色，它们优先级高于
-            # 显式字体，会让"设置了样式却不生效"。用之前先剥一遍，和自生成模板同一标准。
-            tpl_for_render = _strip_theme_from_template(tpl_for_render, Path(temp_dir) / "template.docx")
+            try:
+                tpl_for_render = _prepare_custom_template(
+                    tpl_for_render, Path(temp_dir) / "template.docx"
+                )
+            except TemplateError as exc:
+                res.returncode = 1
+                res.errors.append(str(exc))
+                return res
         if not tpl_for_render:
             if not req_content:
                 res.returncode = 1
