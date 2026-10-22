@@ -95,14 +95,19 @@ def _prepare_custom_template(src: Path, dst: Path, lang: str = "zh") -> Path:
 
     from md_to_word.utils.skill_utils import strip_theme_attrs_from_xml
 
-    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
-        for item in zin.infolist():
-            data = zin.read(item.filename)
-            if item.filename in ("word/styles.xml", "word/stylesWithEffects.xml"):
-                data = strip_theme_attrs_from_xml(data)
-            zout.writestr(item, data)
+    # 不是 zip、zip 里缺 word/、磁盘上读不了：都在这里收成一句人话。
+    # 一路漏到调用方就是 BadZipFile 的 traceback（`-t 一份 PDF` 会这么炸）。
+    try:
+        with zipfile.ZipFile(src) as zin, zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item.filename)
+                if item.filename in ("word/styles.xml", "word/stylesWithEffects.xml"):
+                    data = strip_theme_attrs_from_xml(data)
+                zout.writestr(item, data)
+        sections = len(Document(str(dst)).sections)
+    except (zipfile.BadZipFile, KeyError, OSError, ValueError) as exc:
+        raise TemplateError(t("pipeline.template_unreadable", lang, path=src, err=exc)) from exc
 
-    sections = len(Document(str(dst)).sections)
     if sections != 1:
         raise TemplateError(t("pipeline.template_multiple_sections", lang, count=sections))
     return dst
@@ -133,6 +138,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     if not out_p.parent.is_dir():
         res.returncode = 1
         res.errors.append(t("pipeline.output_dir_missing", res.lang, dir=out_p.parent))
+        return res
+    # `-o 某个目录` 是常见笔误（把目录当成文件名传进来），python-docx 会抛 IsADirectoryError，
+    # 到时候看到的是 zipfile 的 traceback——这里先拦住。
+    if out_p.is_dir():
+        res.returncode = 1
+        res.errors.append(t("pipeline.output_is_dir", res.lang, path=out_p))
         return res
 
     # 2. 确定格式要求 (Requirements Spec)
@@ -323,6 +334,11 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         except UnsupportedFeature as exc:
             res.returncode = 1
             res.errors.append(t("pipeline.unsupported", res.lang, reason=exc))
+            return res
+        except OSError as exc:
+            # 目录只读、磁盘满、文件被 Word 占着：都是"写不进去"，不该甩 traceback。
+            res.returncode = 1
+            res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
             return res
 
         # 8. 产物数值防丢检查 (Audit: Post-flight)

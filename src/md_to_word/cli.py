@@ -206,7 +206,10 @@ def main(args: list[str] | None = None) -> int:
         print(contract_cheatsheet(lang))
         return 0
     if not parsed.input:
-        parser.error(t("cli.input_required", lang))
+        # 没有参数时给人一段能照着敲的简述（描述 + 三条示例 + 去哪儿读全部），
+        # 而不是 argparse 的 usage 加一句 "the following arguments are required"。
+        print(t("cli.brief", lang, version=__version__), file=sys.stderr)
+        return 2
 
     options = ExportOptions(
         input_path=parsed.input,

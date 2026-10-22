@@ -1,4 +1,4 @@
-"""md_to_word — 现代学术 Markdown 到标准 Word (.docx) 的确定性编译引擎。
+"""md_to_word — 把 Markdown 编译成符合声明格式的 Word (.docx)，导出确定性。
 
 提供 Python API 与命令行接口，支持中英文双语声明式排版与全流程质量门禁。
 """

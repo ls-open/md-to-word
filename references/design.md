@@ -481,7 +481,7 @@ docx 打开、更新目录域之后，条目变成 Word 默认的样子（不加
 | 冻结 | 内容 |
 |:--|:--|
 | 命令与开关 | `md-to-word`、`md-to-word-template`；`-o`、`-r`、`--preset`、`--contract`、`--version`、`--json` |
-| 退出码 | `0` 完成 / `1` 稿件或门禁问题 / `3` docx 已写出但 PDF 跳过 |
+| 退出码 | `0` 完成 / `1` 稿件或门禁问题 / `2` 参数用法错误 / `3` docx 已写出但 PDF 跳过 |
 | `--json` 键名 | `ok`、`returncode`、`input`、`output`、`pdf`、`lang`、`messages`、`errors` |
 | 稿件契约 | `#` 标题、`%%` 样式行、`$$…$$ {#eq-x}`、三个块标记 |
 | 要求文件词法 | 封闭词表：每项只有一个中英写法 |

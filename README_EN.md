@@ -33,6 +33,10 @@ The distribution carries a `-docx` suffix because plain `md-to-word` is too clos
 projects; the command is still `md-to-word`. Use `pipx install md-to-word-docx` to stay out of the
 system environment, and `pip install -U md-to-word-docx` to update.
 
+Read `md-to-word --guide` once: workflow, gate criteria, boundaries. It is the same text as
+`SKILL.md` in the repository — skill users read that file, package users read this one; same
+content, different entry.
+
 ## In 30 seconds
 
 **Start with one command**: `md-to-word init` writes a `format.txt` and a `hello.md` that exports

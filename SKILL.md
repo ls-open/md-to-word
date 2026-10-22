@@ -134,8 +134,9 @@ Two gate levels, split by "would the mistake be visible afterwards":
 - **Warning** — visible but non-compliant: an image wider than the text block (it gets clamped), a
   caption far from its figure, a skipped heading level, a page break next to a section marker.
 
-Exit codes: `0` every gate passed; `1` manuscript, gate or dependency problem; `3` the `.docx` was
-written but the optional `--pdf` proof was skipped. Messages follow the manuscript's language.
+Exit codes: `0` every gate passed; `1` manuscript, gate or dependency problem; `2` a usage error
+(bad flags or a missing argument); `3` the `.docx` was written but the optional `--pdf` proof was
+skipped. Messages follow the manuscript's language.
 
 ## 5. Verify before delivery
 
@@ -177,7 +178,7 @@ This file must keep working after `pip install -U`, without being edited. What i
 
 - the commands `md-to-word` and `md-to-word-template`, and the flags `-o`, `-r`, `--preset`,
   `--contract`, `--version`, `--json`
-- exit codes `0` / `1` / `3`, and the JSON keys under `--json`
+- exit codes `0` / `1` / `2` / `3`, and the JSON keys under `--json`
 - the manuscript contract in §2 and the vocabulary in §3
 
 Everything else — message wording, the layout inside the installed package, preset file names, the

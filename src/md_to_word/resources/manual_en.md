@@ -60,7 +60,7 @@ manuscript is taken over automatically (the run reports which one); otherwise th
 used, **selected by the manuscript's language**: `zh-academic` for Chinese, `en-nature` for every
 other language.
 
-**Exit codes**: `0` done; `1` a manuscript, gate or dependency problem; `3` the `.docx` was written
+**Exit codes**: `0` done; `1` a manuscript, gate or dependency problem; `2` a usage error; `3` the `.docx` was written
 but `--pdf` was not rendered (non-macOS). `0` means every gate passed — **it does not mean the
 layout has been checked by eye** (§5.3).
 
@@ -73,7 +73,8 @@ to stderr:
 ```
 
 The keys are fixed and do not change between versions; the values of `messages` and `errors` are
-sentences for humans, in the manuscript's language. Parse the keys, not the wording.
+sentences for humans, in the manuscript's language. Parse the keys, not the wording. A usage error
+(exit code `2`) happens during argument parsing, so no JSON is produced.
 
 **Library call**:
 

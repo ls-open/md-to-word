@@ -28,6 +28,9 @@ pip install md-to-word-docx
 包名比命令多一个 `-docx` 后缀：PyPI 上 `md-to-word` 与既有项目过于相似，被命名规则挡住；命令仍是
 `md-to-word`。隔离环境用 `pipx install md-to-word-docx`，更新用 `pip install -U md-to-word-docx`。
 
+第一次用先过一遍 `md-to-word --guide`：流程、门禁判据、能力边界都在里面。它就是仓库根
+`SKILL.md` 的正文——用技能的人读 `SKILL.md`，只装包的人读这份，内容相同，只是入口不同。
+
 ## 30 秒
 
 **先跑一条命令**：`md-to-word init` 在当前目录放好 `format.txt` 与 `hello.md`，`hello.md` 能直接导出——

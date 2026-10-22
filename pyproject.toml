@@ -38,6 +38,12 @@ dependencies = [
     "citeproc-py>=0.6",
 ]
 
+[project.urls]
+Homepage = "https://github.com/ls-open/md-to-word"
+Documentation = "https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md"
+Repository = "https://github.com/ls-open/md-to-word"
+Issues = "https://github.com/ls-open/md-to-word/issues"
+
 [project.optional-dependencies]
 test = [
     "pytest>=7.0",

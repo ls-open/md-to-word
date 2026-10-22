@@ -28,10 +28,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Compile Markdown into Word (.docx) that matches a declared format",
     ),
     "cli.epilog": (
-        "退出码: 0=成功 / 1=稿件或门禁问题 / 3=docx 已生成但 PDF 未渲染\n"
+        "退出码: 0=成功 / 1=稿件或门禁问题 / 2=参数用法错误 / 3=docx 已生成但 PDF 未渲染\n"
         "快速起步：`md-to-word init` 生成一份格式声明与样例稿件；\n"
         "第一次用先过一遍 `md-to-word --guide`（流程、门禁、边界）。",
-        "Exit codes: 0=ok / 1=manuscript or gate failure / 3=docx written, PDF skipped\n"
+        "Exit codes: 0=ok / 1=manuscript or gate failure / 2=usage error / 3=docx written, PDF skipped\n"
         "To start quickly: `md-to-word init` writes a format file and a sample manuscript;\n"
         "read `md-to-word --guide` once (workflow, gates, boundaries).",
     ),
@@ -57,6 +57,20 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against requirements"),
     "cli.pdf": ("导出后再渲染一份 PDF 供核对（macOS + 本机 Word）", "Also render a PDF for review (macOS + local Word)"),
     "cli.input_required": ("缺少稿件路径：md-to-word 稿件.md", "Missing manuscript path: md-to-word paper.md"),
+    "cli.brief": (
+        "md-to-word {version} — 把 Markdown 编译成符合声明格式的 Word（.docx）\n\n"
+        "  md-to-word init                            生成一份格式声明与可直接导出的样例稿件\n"
+        "  md-to-word 稿件.md -o 稿件.docx             按稿件语种选内置预设导出\n"
+        "  md-to-word 稿件.md -o 稿件.docx --json      结果写成一行 JSON\n\n"
+        "流程、门禁与全部写法：md-to-word --guide\n"
+        "全部选项：md-to-word --help",
+        "md-to-word {version} — compile Markdown into Word (.docx) that matches a declared format\n\n"
+        "  md-to-word init                            write a format file and a sample manuscript\n"
+        "  md-to-word paper.md -o paper.docx          export with the preset for the manuscript's language\n"
+        "  md-to-word paper.md -o paper.docx --json   result as one JSON object\n\n"
+        "Workflow, gates and full vocabulary: md-to-word --guide\n"
+        "All options: md-to-word --help",
+    ),
     "cli.verbose": (
         "输出逐样式明细（排查格式没生效时用）",
         "Log every style as it is applied (for diagnosing formats that did not take effect)",
@@ -95,6 +109,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     # ── 流水线：路径与配置 ──────────────────────────────────────────
     "pipeline.input_missing": ("输入稿件不存在: {path}", "Input manuscript not found: {path}"),
+    "pipeline.write_failed": (
+        "写出 {path} 失败：{err}\n  目录只读、磁盘已满、或文件正被 Word 打开时都会这样。",
+        "Could not write {path}: {err}\n  This happens when the directory is read-only, the disk is full, or Word has the file open.",
+    ),
+    "pipeline.output_is_dir": (
+        "输出路径是一个目录: {path}\n  用 -o 指到一个文件名，例如 -o 稿件.docx。",
+        "The output path is a directory: {path}\n  Point -o at a file name, e.g. -o paper.docx.",
+    ),
     "pipeline.output_dir_missing": (
         "输出目录不存在: {dir}\n  先建目录，或用 -o 指到已存在的目录里。",
         "Output directory does not exist: {dir}\n  Create it first, or point -o at an existing directory.",
@@ -116,6 +138,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "No requirements given; using the only .txt beside the manuscript: {path} (pass -r to choose another).",
     ),
     "pipeline.template_missing": ("指定的模板文件不存在: {path}", "Template file not found: {path}"),
+    "pipeline.template_unreadable": (
+        "底模读取失败（{path}）：{err}\n  底模必须是能正常打开的 .docx。",
+        "Could not read the template ({path}): {err}\n  The base template must be a .docx that opens normally.",
+    ),
     "pipeline.no_spec": ("未提供格式要求或模板，无法生成样式文档。", "No requirements or template: cannot build the style template."),
     "pipeline.csl_error": ("文献库或 CSL 样式无法使用：{reason}", "Bibliography or CSL style unusable: {reason}"),
     "pipeline.requirements_template_failed": (
