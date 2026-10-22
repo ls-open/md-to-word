@@ -307,7 +307,16 @@ def malformed_table_issues(text: str) -> list[tuple[int, str]]:
             i += 1
         if len(block) < 2:
             continue
-        counts = [(no, len(line.strip().strip('|').split('|'))) for no, line in block]
+        from md_to_word.model.reader import split_table_cells
+        def _cnt(line_str: str) -> int:
+            s = line_str.strip()
+            if s.startswith("|"):
+                s = s[1:]
+            if s.endswith("|"):
+                s = s[:-1]
+            return len(split_table_cells(s))
+
+        counts = [(no, _cnt(line)) for no, line in block]
         expect = counts[0][1]
         bad = [(no, n) for no, n in counts[1:] if n != expect]
         if bad:
@@ -724,9 +733,13 @@ def dialect_issues(text: str) -> list[tuple[int, str]]:
         if code_free.count("**") % 2:
             issues.append((line_no, "`**` 没有在同一行内闭合；跨行加粗不支持，把它和文字写在同一行"))
             continue
-        if not in_display_math and code_free.count("$") % 2:
+        unescaped_dollars = re.sub(r"\\\$", "", code_free)
+        if not in_display_math and unescaped_dollars.count("$") % 2:
             issues.append((line_no, "`$` 没有在同一行内闭合；行内公式要写成 `$公式$`，与文字在同一行"))
             continue
+
+    if in_display_math:
+        issues.append((len(lines) + offset, "独占行公式 `$$` 未闭合；必须成对出现，结尾也应单独一行 `$$`"))
 
     # 首尾不带竖线的表格：连续两行都有竖线，却都不以竖线开头。按规则二维网格读不到，
     # 只会一行一段地把竖线原样印出去。

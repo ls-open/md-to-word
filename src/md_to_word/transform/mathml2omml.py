@@ -205,6 +205,89 @@ class _Converter:
     def _on_mfenced(self, element) -> list:
         return self._children(element)
 
+    def _on_mover(self, element) -> list:
+        kids = list(element)
+        if len(kids) < 2:
+            return self._children(element)
+        base, over = kids[0], kids[1]
+        over_text = (over.text or "").strip()
+        acc_map = {
+            "^": "\u0302",
+            "\u005e": "\u0302",
+            "\u00af": "\u0304",
+            "¯": "\u0304",
+            "→": "\u20d7",
+            "\u2192": "\u20d7",
+            "˙": "\u0307",
+            "\u02d9": "\u0307",
+            "¨": "\u0308",
+            "~": "\u0303",
+            "\u007e": "\u0303",
+            "―": "\u0304",
+            "\u2015": "\u0304",
+        }
+        if element.get("accent") == "true" or over_text in acc_map or len(over_text) <= 1:
+            acc = _el("acc")
+            pr = etree.SubElement(acc, _m("accPr"))
+            val = acc_map.get(over_text, over_text or "\u0302")
+            etree.SubElement(pr, _m("chr")).set(_m("val"), val)
+            e = etree.SubElement(acc, _m("e"))
+            for child in self.convert(base):
+                e.append(child)
+            return [acc]
+        lim = _el("limUpp")
+        e = etree.SubElement(lim, _m("e"))
+        for child in self.convert(base):
+            e.append(child)
+        lim_el = etree.SubElement(lim, _m("lim"))
+        for child in self.convert(over):
+            lim_el.append(child)
+        return [lim]
+
+    def _on_munder(self, element) -> list:
+        kids = list(element)
+        if len(kids) < 2:
+            return self._children(element)
+        base, under = kids[0], kids[1]
+        under_text = (under.text or "").strip()
+        if element.get("accentunder") == "true" or under_text in ("―", "_", "\u2015", "\u0332"):
+            acc = _el("acc")
+            pr = etree.SubElement(acc, _m("accPr"))
+            etree.SubElement(pr, _m("chr")).set(_m("val"), "\u0332")
+            e = etree.SubElement(acc, _m("e"))
+            for child in self.convert(base):
+                e.append(child)
+            return [acc]
+        lim = _el("limLow")
+        e = etree.SubElement(lim, _m("e"))
+        for child in self.convert(base):
+            e.append(child)
+        lim_el = etree.SubElement(lim, _m("lim"))
+        for child in self.convert(under):
+            lim_el.append(child)
+        return [lim]
+
+    def _on_munderover(self, element) -> list:
+        base, sub, sup = list(element)[:3]
+        base_nodes = self.convert(base)
+        if len(base_nodes) == 1 and _is_nary(base_nodes[0]):
+            nary = base_nodes[0]
+            _fill(nary.find(_m("sub")), self.convert(sub))
+            _fill(nary.find(_m("sup")), self.convert(sup))
+            _hide(nary, sub=True, sup=True)
+            return [nary]
+        node = _el("sSubSup")
+        e = etree.SubElement(node, _m("e"))
+        for child in self.convert(base):
+            e.append(child)
+        sub_el = etree.SubElement(node, _m("sub"))
+        for child in self.convert(sub):
+            sub_el.append(child)
+        sup_el = etree.SubElement(node, _m("sup"))
+        for child in self.convert(sup):
+            sup_el.append(child)
+        return [node]
+
     def _on_mtable(self, element) -> list:
         matrix = _el("m")
         for row in element:
@@ -272,4 +355,8 @@ def latex_to_omml(latex: str) -> list:
     """LaTeX 公式 → OMML 元素列表。"""
     from latex2mathml.converter import convert as latex_to_mathml
 
-    return mathml_to_omml(latex_to_mathml(latex))
+    try:
+        mathml = latex_to_mathml(latex)
+    except Exception as exc:
+        raise UnsupportedMath(f"LaTeX 语法解析失败（{exc}）") from exc
+    return mathml_to_omml(mathml)

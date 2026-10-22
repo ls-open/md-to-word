@@ -237,9 +237,44 @@ def _metadata(raw: str) -> Metadata:
     )
 
 
+def split_table_cells(body: str) -> list[str]:
+    """切分表格单元格，保护转义竖线 \|、行内代码 `...` 以及行内公式 $...$ 中的竖线。"""
+    cells: list[str] = []
+    current: list[str] = []
+    i = 0
+    n = len(body)
+    in_code = False
+    in_math = False
+    while i < n:
+        ch = body[i]
+        if ch == "\\" and i + 1 < n and body[i + 1] == "|":
+            current.append(r"\|")
+            i += 2
+            continue
+        elif ch == "`":
+            in_code = not in_code
+            current.append(ch)
+            i += 1
+            continue
+        elif ch == "$" and not in_code:
+            in_math = not in_math
+            current.append(ch)
+            i += 1
+            continue
+        elif ch == "|" and not in_code and not in_math:
+            cells.append("".join(current).strip())
+            current = []
+            i += 1
+            continue
+        current.append(ch)
+        i += 1
+    cells.append("".join(current).strip())
+    return cells
+
+
 def _table_cells(line: str) -> list[str]:
     body = _TABLE_ROW_RE.match(line).group("body")
-    return [c.strip() for c in body.split("|")]
+    return split_table_cells(body)
 
 
 def _column_widths(separator: str) -> Optional[list[float]]:

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from pathlib import Path
 from typing import Iterable
 
@@ -100,8 +101,12 @@ def _trim_citation_gap(nodes: Iterable[Inline]) -> list:
     for node in nodes:
         if isinstance(node, Citation) and out and isinstance(out[-1], Text):
             prev = out[-1]
-            if prev.value.endswith((" ", "\u00a0")) and _ends_with_cjk(prev.value):
-                out[-1] = Text(prev.value.rstrip(" \u00a0"))
+            if prev.value.endswith((" ", "\u00a0")):
+                if not prev.value.strip() and len(out) >= 2:
+                    if _ends_with_cjk(_plain_text([out[-2]])):
+                        out.pop()
+                elif _ends_with_cjk(prev.value):
+                    out[-1] = Text(prev.value.rstrip(" \u00a0"))
         out.append(node)
     return out
 
@@ -290,7 +295,8 @@ class _Writer:
         try:
             maths = latex_to_omml(block.latex)
         except UnsupportedMath as exc:
-            raise UnsupportedFeature(f"公式里有尚未支持的结构：{exc}") from exc
+            snippet = block.latex.strip().replace("\n", " ")[:40]
+            raise UnsupportedFeature(f"独立公式「{snippet}」解析失败：{exc}") from exc
 
         paragraph = self.docx.add_paragraph(style="Body Text")
         width = self._content_width_twips()
@@ -332,18 +338,25 @@ class _Writer:
         paragraph = self.docx.add_paragraph(style=f"Heading {block.level}")
         self.inlines(paragraph, block.inlines)
         self._after_heading = True
+        clean_title = re.sub(
+            r"^[0-9一二三四五六七八九十第\s.、章节附录]+", "", _plain_text(block.inlines).strip()
+        ).strip()
+        if clean_title in ("参考文献", "参考书目", "References", "Bibliography"):
+            self._write_bibliography()
 
     def _paragraph(self, block: Paragraph) -> None:
         """未指定样式的正文，按契约分流：紧跟标题的第一段用 First Paragraph，其余 Body Text。"""
         if block.style:
-            style = block.style
+            style = self._style_name(block.style) or (
+                "Heading 1" if block.style == "References Title" else "Normal"
+            )
         else:
             style = "First Paragraph" if self._after_heading else "Body Text"
         self._after_heading = False
-        paragraph = self.docx.add_paragraph(style=style)
+        paragraph = self.docx.add_paragraph(style=self._style_name(style) or "Normal")
         self._last_paragraph = paragraph
         self.inlines(paragraph, block.inlines)
-        if style == "References Title":
+        if block.style == "References Title":
             self._write_bibliography()
 
     def _code(self, block: CodeBlock) -> None:
@@ -474,6 +487,8 @@ class _Writer:
         data = ([block.header] if block.header else []) + block.rows
         for r, row in enumerate(data):
             for c, cell_inlines in enumerate(row):
+                if c >= cols:
+                    break
                 cell = table.cell(r, c)
                 paragraph = cell.paragraphs[0]
                 if cell_style:
@@ -481,6 +496,10 @@ class _Writer:
                 if block.alignments and c < len(block.alignments):
                     paragraph.alignment = _ALIGN.get(block.alignments[c], WD_ALIGN_PARAGRAPH.LEFT)
                 self.inlines(paragraph, cell_inlines)
+        for row in table.rows:
+            trPr = row._tr.get_or_add_trPr()
+            if trPr.find(qn("w:cantSplit")) is None:
+                trPr.append(trPr.makeelement(qn("w:cantSplit"), {}))
         if block.header:
             self._mark_header_row(table)
         if block.widths:
@@ -684,7 +703,8 @@ class _Writer:
             try:
                 nodes = latex_to_omml(node.latex)
             except UnsupportedMath as exc:
-                raise UnsupportedFeature(f"行内公式里有尚未支持的结构：{exc}") from exc
+                snippet = node.latex.strip()[:30]
+                raise UnsupportedFeature(f"行内公式「${snippet}$」解析失败：{exc}") from exc
             paragraph._p.append(self._omath(nodes))
         elif isinstance(node, Link):
             self._hyperlink(paragraph, node)

@@ -31,9 +31,22 @@ def extract_numbers(text: str) -> set[str]:
 
 
 def docx_text(docx_path: Path | str) -> str:
+    parts = []
     with zipfile.ZipFile(docx_path) as z:
-        xml = z.read("word/document.xml").decode("utf-8")
-    return " ".join(re.findall(r"<[wm]:t[^>]*>([^<]*)</[wm]:t>", xml))
+        for name in z.namelist():
+            if name.startswith("word/") and (
+                name == "word/document.xml"
+                or name.startswith("word/footnotes")
+                or name.startswith("word/endnotes")
+                or name.startswith("word/header")
+                or name.startswith("word/footer")
+            ):
+                try:
+                    xml = z.read(name).decode("utf-8")
+                    parts.extend(re.findall(r"<[wm]:t[^>]*>([^<]*)</[wm]:t>", xml))
+                except Exception:
+                    pass
+    return " ".join(parts)
 
 
 def verify_numeric_integrity(
