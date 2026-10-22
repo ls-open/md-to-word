@@ -450,7 +450,7 @@ class _Writer:
                 raise UnsupportedFeature(f"行内公式里有尚未支持的结构：{exc}") from exc
             paragraph._p.append(self._omath(nodes))
         elif isinstance(node, Link):
-            raise UnsupportedFeature("超链接写出尚未实现")
+            self._hyperlink(paragraph, node)
         elif isinstance(node, CrossRef):
             paragraph.add_run(self._resolve_crossref(node.target))
         elif isinstance(node, Citation):
@@ -459,6 +459,31 @@ class _Writer:
             self._footnote_reference(paragraph, node.label)
         else:
             paragraph.add_run(getattr(node, "value", str(node)))
+
+    def _hyperlink(self, paragraph, node: Link) -> None:
+        """超链接是关系（r:id）+ `w:hyperlink`，不是普通 run。"""
+        from docx.oxml.ns import nsdecls as _nsdecls
+
+        r_id = paragraph.part.relate_to(node.url, RT.HYPERLINK, is_external=True)
+        element = parse_xml(
+            f'<w:hyperlink {_nsdecls("w", "r")} r:id="{r_id}"/>'
+        )
+        style = self._style_name("Hyperlink")
+        for child in node.children:
+            text = getattr(child, "value", None)
+            if text is None:
+                raise UnsupportedFeature("超链接里目前只支持纯文本")
+            run = element.makeelement(qn("w:r"), {})
+            if style:
+                rpr = run.makeelement(qn("w:rPr"), {})
+                rpr.append(run.makeelement(qn("w:rStyle"), {qn("w:val"): style.replace(" ", "")}))
+                run.append(rpr)
+            t = run.makeelement(qn("w:t"), {})
+            t.text = text
+            t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+            run.append(t)
+            element.append(run)
+        paragraph._p.append(element)
 
     def _styled(self, paragraph, children, **fmt) -> None:
         run = paragraph.add_run()

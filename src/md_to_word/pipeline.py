@@ -46,6 +46,7 @@ class ExportOptions:
     audit: bool = True
     make_pdf: bool = False
     eq_number_style: str = "asis"  # asis | cjk
+    writer: str = "pandoc"  # pandoc（默认，成熟通道）| native（自研写出器）
 
 
 @dataclass
@@ -132,15 +133,17 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         except ValueError:
             spec = None  # 要求文件写法有问题时，预检会给出带行号的原因
 
-    # 3.5 渲染引擎体检：版本不对就别等到渲染完才失败（省掉一次几十秒的等待）
-    quarto_version, env_errors, env_warnings = check_quarto_environment()
-    if env_errors:
-        res.returncode = 2
-        res.errors.extend(env_errors)
-        return res
-    res.messages.extend(env_warnings)
-    if quarto_version:
-        res.messages.append(f"渲染引擎: Quarto {'.'.join(map(str, quarto_version))}")
+    # 3.5 渲染引擎体检：只有走 Pandoc 通道才需要 Quarto。
+    # 自研写出器不碰 Quarto，装了没装与它无关——这正是「内化」的意义。
+    if options.writer != "native":
+        quarto_version, env_errors, env_warnings = check_quarto_environment()
+        if env_errors:
+            res.returncode = 2
+            res.errors.extend(env_errors)
+            return res
+        res.messages.extend(env_warnings)
+        if quarto_version:
+            res.messages.append(f"渲染引擎: Quarto {'.'.join(map(str, quarto_version))}")
 
     # 按章编号 + 编号外观仍是默认 → 多半是漏带了 --eq-number-style cjk。
     # **这一项没有任何闸门能发现**：漏了就是静默产出 (5.1)（点号、半角括号），
@@ -217,31 +220,57 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             build_template(req_content, temp_tpl_path)
             tpl_for_render = temp_tpl_path
 
-        # 标记展开副本必须落在原稿同目录，以保持图片与文献的相对路径生效
-        expanded_text, marker_counts = expand_markers(raw_text, template_path=tpl_for_render)
-        expanded_md_file = in_p.parent / f"._{in_p.stem}_expanded_{os.getpid()}.md"
-        expanded_md_file.write_text(expanded_text, encoding="utf-8")
+        # v3 自研写出器：模型 → OOXML，跳过 Quarto 渲染与后处理
+        if options.writer == "native":
+            from md_to_word.model.reader import read_markdown
+            from md_to_word.utils.skill_utils import parse_bib_keys
+            from md_to_word.writer import UnsupportedFeature, write_docx
 
-        # 6. 编译渲染 (Renderer)
-        logger.info("⚙️ 调用渲染引擎编译 Markdown 到 Word DOCX...")
-        renderer = QuartoRenderer()
-        try:
-            renderer.render(
-                expanded_md_file,
-                tpl_for_render,
-                out_p,
-                csl_path=builtin_csl,
-                link_citations=True,
-                metadata_file=meta_file,
-            )
-        except Exception as exc:  # 渲染器缺失/调用失败属于环境问题，不是稿件问题
-            res.returncode = 2
-            res.errors.append(f"渲染引擎不可用：{exc}")
-            return res
+            citation_keys: set[str] = set()
+            if isinstance(fm_data, dict) and fm_data.get("bibliography"):
+                bib_path, how = resolve_manuscript_path(str(fm_data["bibliography"]), in_p)
+                if how:
+                    try:
+                        citation_keys = parse_bib_keys(Path(bib_path).read_text(encoding="utf-8"))
+                    except Exception:
+                        citation_keys = set()
+            try:
+                model = read_markdown(raw_text, citation_keys=citation_keys)
+                write_docx(model, tpl_for_render, out_p)
+            except UnsupportedFeature as exc:
+                res.returncode = 1
+                res.errors.append(
+                    f"自研写出器尚不支持该结构：{exc}\n"
+                    f"  可加 --writer pandoc 走成熟通道，或在 Word 里补完这一处。"
+                )
+                return res
+            res.messages.append("写出后端: 自研（native）")
+        else:
+            # 标记展开副本必须落在原稿同目录，以保持图片与文献的相对路径生效
+            expanded_text, marker_counts = expand_markers(raw_text, template_path=tpl_for_render)
+            expanded_md_file = in_p.parent / f"._{in_p.stem}_expanded_{os.getpid()}.md"
+            expanded_md_file.write_text(expanded_text, encoding="utf-8")
 
-        # 7. XML 深度后处理 (Postprocessor: 公式居中靠右编号 + 三线表)
-        logger.info("📐 执行公式排版优化与主题深度清理...")
-        postprocess_docx(out_p, manuscript_path=in_p, eq_number_style=options.eq_number_style)
+            # 6. 编译渲染 (Renderer)
+            logger.info("⚙️ 调用渲染引擎编译 Markdown 到 Word DOCX...")
+            renderer = QuartoRenderer()
+            try:
+                renderer.render(
+                    expanded_md_file,
+                    tpl_for_render,
+                    out_p,
+                    csl_path=builtin_csl,
+                    link_citations=True,
+                    metadata_file=meta_file,
+                )
+            except Exception as exc:  # 渲染器缺失/调用失败属于环境问题，不是稿件问题
+                res.returncode = 2
+                res.errors.append(f"渲染引擎不可用：{exc}")
+                return res
+
+            # 7. XML 深度后处理 (Postprocessor: 公式居中靠右编号 + 三线表)
+            logger.info("📐 执行公式排版优化与主题深度清理...")
+            postprocess_docx(out_p, manuscript_path=in_p, eq_number_style=options.eq_number_style)
 
         # 8. 产物数值防丢检查 (Audit: Post-flight)
         if options.postflight:

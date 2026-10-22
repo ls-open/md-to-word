@@ -52,6 +52,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="导出后再渲染一份 PDF 供核对（macOS + 本机 Word 专享）",
     )
     parser.add_argument(
+        "--writer",
+        choices=["pandoc", "native"],
+        default="pandoc",
+        help="写出后端：pandoc=成熟通道（默认）；native=自研写出器（公式/表格/脚注/目录均已支持，文献引用仍走 pandoc）",
+    )
+    parser.add_argument(
         "--eq-number-style",
         choices=["asis", "cjk"],
         default="asis",
@@ -76,6 +82,7 @@ def main(args: list[str] | None = None) -> int:
         audit=not parsed.no_audit,
         make_pdf=parsed.pdf,
         eq_number_style=parsed.eq_number_style,
+        writer=parsed.writer,
     )
 
     result = run_export_pipeline(options)

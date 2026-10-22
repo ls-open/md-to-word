@@ -238,3 +238,32 @@ def test_unsupported_mathml_fails_loudly() -> None:
     )
     with pytest.raises(UnsupportedMath, match="menclose"):
         mathml_to_omml(unsupported)
+
+
+def test_native_pipeline_needs_no_quarto(tmp_path: Path, monkeypatch) -> None:
+    """自研后端不碰 Quarto：把 quarto 从 PATH 上抹掉，导出照样成功。
+
+    这是「内化」的判据——不是"我们也能渲染"，而是"没有那个外部二进制也能渲染"。
+    """
+    from unittest.mock import patch
+
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    for name in ("hello.md", "requirements.txt"):
+        shutil.copy(DEMO / name, tmp_path / name)
+    if (DEMO / "figures").is_dir():
+        shutil.copytree(DEMO / "figures", tmp_path / "figures")
+
+    with patch("md_to_word.renderer.quarto.shutil.which", return_value=None):
+        result = run_export_pipeline(
+            ExportOptions(
+                input_path=tmp_path / "hello.md",
+                output_path=tmp_path / "out.docx",
+                writer="native",
+            )
+        )
+
+    assert result.returncode == 0, result.errors
+    assert (tmp_path / "out.docx").exists()
+    styles, text = _facts(tmp_path / "out.docx")
+    assert "Title" in styles and text
