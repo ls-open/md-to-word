@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Iterable
 
@@ -21,6 +22,7 @@ from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls, qn
 from docx.shared import Cm
 
+from md_to_word.preprocessor.markers import PAGE_NUMBER_FMT, section_paragraph_xml, toc_xml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
     Inline, Link, ListBlock, Math, PageBreak, Paragraph, Quote, SectionBreak, Strikethrough,
@@ -101,11 +103,36 @@ class _Writer:
         elif isinstance(block, Equation):
             raise UnsupportedFeature("公式写出（LaTeX → OMML）尚未实现；v3.1 补")
         elif isinstance(block, Toc):
-            raise UnsupportedFeature("目录域写出尚未实现")
+            self._insert_before_sectpr(parse_xml(toc_xml(block.depth)))
         elif isinstance(block, SectionBreak):
-            raise UnsupportedFeature("分节符写出尚未实现")
+            self._section(block)
         else:
             raise UnsupportedFeature(f"未支持的块类型：{type(block).__name__}")
+
+    def _body_sectpr(self):
+        return self.docx.element.body.find(qn("w:sectPr"))
+
+    def _insert_before_sectpr(self, element) -> None:
+        """插到文末 sectPr 之前：body 的 sectPr 必须是最后一个子元素。"""
+        body = self.docx.element.body
+        sectpr = self._body_sectpr()
+        if sectpr is not None:
+            sectpr.addprevious(element)
+        else:
+            body.append(element)
+
+    def _section(self, block: SectionBreak) -> None:
+        """分节符：它描述的是**上面那一节**（OOXML 里 sectPr 归前一节）。"""
+        params: dict = {}
+        fmt = PAGE_NUMBER_FMT.get(block.page_format)
+        if fmt:
+            params["fmt"] = fmt
+        if block.start:
+            params["start"] = block.start
+
+        template_sect = self._body_sectpr()
+        xml = section_paragraph_xml(params, copy.deepcopy(template_sect) if template_sect is not None else None)
+        self._insert_before_sectpr(parse_xml(xml))
 
     def _heading(self, block: Heading) -> None:
         paragraph = self.docx.add_paragraph(style=f"Heading {block.level}")

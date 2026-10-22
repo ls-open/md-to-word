@@ -77,8 +77,6 @@ def test_code_block_keeps_line_breaks(template: Path, tmp_path: Path) -> None:
     ("source", "fragment"),
     [
         ("$$E = mc^2$$\n", "公式"),
-        ("{{< toc >}}\n", "目录"),
-        ("{{< section 页码=罗马 >}}\n", "分节"),
         ("见 [@smith2024]。\n", "引文"),
     ],
 )
@@ -167,3 +165,36 @@ def test_footnotes_are_written_as_a_real_part(template: Path, tmp_path: Path) ->
     # 能重新打开，说明关系与内容类型都写对了
     from docx import Document as open_docx
     open_docx(str(out))
+
+
+def test_toc_field_and_section_break(template: Path, tmp_path: Path) -> None:
+    """目录是 Word 域，分节是挂在 pPr 里的 sectPr——都不是普通段落。"""
+    model = read_markdown(
+        "{{< toc 2 >}}\n\n{{< section 页码=小写罗马 起始=1 >}}\n\n# 一 引言\n\n正文。\n"
+    )
+    out = write_docx(model, template, tmp_path / "sec.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+
+    assert "instrText" in xml and "TOC" in xml, "目录必须是域，否则页码不会更新"
+    assert xml.count("<w:sectPr") == 2, "分节段落一个 + 文末一个"
+    assert '<w:pgNumType w:fmt="lowerRoman" w:start="1"/>' in xml
+
+
+@pytest.mark.skipif(shutil.which("quarto") is None, reason="Quarto is not installed")
+def test_matches_pandoc_output_on_toc_and_section(template: Path, tmp_path: Path) -> None:
+    source = (
+        '---\ntitle: "结构测试"\n---\n\n%% 目录标题 目录\n\n{{< toc 2 >}}\n\n'
+        "{{< section 页码=小写罗马 起始=1 >}}\n\n# 一 引言\n\n正文。\n"
+    )
+    (tmp_path / "m.md").write_text(source, encoding="utf-8")
+    (tmp_path / "requirements.txt").write_text(PRESET.read_text(encoding="utf-8"), encoding="utf-8")
+
+    ours = write_docx(read_markdown(source), template, tmp_path / "ours.docx")
+    subprocess.run(
+        ["bash", str(REPO_ROOT / "scripts" / "export.sh"), "m.md", "-o", "theirs.docx"],
+        cwd=tmp_path, capture_output=True, text=True, check=True,
+    )
+    our_styles, our_text = _facts(ours)
+    their_styles, their_text = _facts(tmp_path / "theirs.docx")
+    assert our_styles == their_styles
+    assert our_text.replace("（打开文档后目录会自动生成）", "") == their_text.replace("（打开文档后目录会自动生成）", "")

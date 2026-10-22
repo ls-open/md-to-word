@@ -67,14 +67,16 @@ def _openxml_block(xml: str) -> str:
     return "```{=openxml}\n" + xml + "\n```"
 
 
-def toc_block(level: Optional[int] = None) -> str:
+def toc_xml(level: Optional[int] = None) -> str:
+    """目录域（`w:sdt` 内的 TOC 域代码），供写出器直接插入文档树。"""
     depth = level if level is not None else 3
     if not 1 <= depth <= _MAX_TOC_DEPTH:
         raise MarkerError(f"目录收录级数要在 1–{_MAX_TOC_DEPTH} 之间，收到 {depth}")
     # 前后各留一个空格：与 Word 自己写出的域代码同形，也让两条流水线的产物逐字节可比。
     instr = f' TOC \\o "1-{depth}" \\h \\z \\u '
-    return _openxml_block(
-        '<w:sdt><w:sdtPr><w:docPartObj>'
+    return (
+        '<w:sdt xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        '<w:sdtPr><w:docPartObj>'
         '<w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/>'
         "</w:docPartObj></w:sdtPr><w:sdtContent>"
         '<w:p><w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
@@ -84,6 +86,10 @@ def toc_block(level: Optional[int] = None) -> str:
         '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
         "</w:sdtContent></w:sdt>"
     )
+
+
+def toc_block(level: Optional[int] = None) -> str:
+    return _openxml_block(toc_xml(level))
 
 
 def parse_section_params(raw: str) -> dict[str, Any]:
@@ -128,7 +134,8 @@ def template_section(template_path: Optional[Path | str]):
     return body.find(_W + "sectPr") if body is not None else None
 
 
-def section_block(params: dict, template_sect) -> str:
+def section_paragraph_xml(params: dict, template_sect) -> str:
+    """分节段落：pPr 里挂 sectPr，结束它上面那一节。"""
     sect = (
         copy.deepcopy(template_sect)
         if template_sect is not None
@@ -149,9 +156,16 @@ def section_block(params: dict, template_sect) -> str:
         pg.set(_W + "start", str(params["start"]))
     _insert_ordered(sect, pg, "pgNumType")
 
-    return _openxml_block(
-        "<w:p><w:pPr>" + etree.tostring(sect, encoding="unicode") + "</w:pPr></w:p>"
+    # 外层 p/pPr 也带命名空间声明：sectPr 上的声明只覆盖它自己，外层没有 w 前缀会解析失败
+    return (
+        f'<w:p xmlns:w="{_NS}"><w:pPr>'
+        + etree.tostring(sect, encoding="unicode")
+        + "</w:pPr></w:p>"
     )
+
+
+def section_block(params: dict, template_sect) -> str:
+    return _openxml_block(section_paragraph_xml(params, template_sect))
 
 
 def expand_markers(text: str, template_path: Optional[Path | str] = None) -> tuple[str, dict[str, int]]:
