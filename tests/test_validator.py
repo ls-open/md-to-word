@@ -14,9 +14,7 @@ from md_to_word.validator.check import caption_adjacency_issues
 
 def test_caption_adjacent_above_table():
     md = """
-::: {custom-style="Table Caption"}
-表 1 样本测试表
-:::
+%% 表题 表 1 样本测试表
 
 | 列 1 | 列 2 |
 |---|---|
@@ -32,9 +30,7 @@ def test_caption_adjacent_below_table():
 |---|---|
 | A | B |
 
-::: {custom-style="Table Caption"}
-表 1 样本测试表
-:::
+%% 表题 表 1 样本测试表
 """
     issues = caption_adjacency_issues(md)
     assert len(issues) == 0
@@ -42,9 +38,7 @@ def test_caption_adjacent_below_table():
 
 def test_orphaned_table_caption_fails():
     md = """
-::: {custom-style="Table Caption"}
-表 1 孤立的表格题注
-:::
+%% 表题 表 1 孤立的表格题注
 
 这里是一段毫无表格相伴的正文内容……
 
@@ -57,9 +51,7 @@ def test_orphaned_table_caption_fails():
 
 def test_orphaned_image_caption_fails():
     md = """
-::: {custom-style="Image Caption"}
-图 1 孤立的图片题注
-:::
+%% 图片题注 图 1 孤立的图片题注
 
 这里也是一段没有任何图片的正文内容……
 """
@@ -70,9 +62,7 @@ def test_orphaned_image_caption_fails():
 
 def test_image_caption_adjacent_above_and_below():
     md1 = """
-::: {custom-style="Image Caption"}
-图 1 架构图
-:::
+%% 图片题注 图 1 架构图
 
 ![架构图](figures/arch.png)
 """
@@ -81,9 +71,7 @@ def test_image_caption_adjacent_above_and_below():
     md2 = """
 ![架构图](figures/arch.png)
 
-::: {custom-style="Image Caption"}
-图 1 架构图
-:::
+%% 图片题注 图 1 架构图
 """
     assert len(caption_adjacency_issues(md2)) == 0
 
@@ -91,9 +79,7 @@ def test_image_caption_adjacent_above_and_below():
 def test_body_text_penetration_detected():
     """测试正文穿透漏洞已被修复：题注与远方图片之间夹带正文必须被判定为孤立题注。"""
     md = """
-::: {custom-style="Image Caption"}
-图 1 孤立题注
-:::
+%% 图片题注 图 1 孤立题注
 这是一段正文，分析了系统性能，但作者忘记在此处插入图表。
 这是一段更多的正文解释。
 ![图 2 另外一个图](figures/arch.png)
@@ -107,9 +93,7 @@ def test_ghost_container_detected():
     """测试空壳容器伪装漏洞已被修复：无真实实体的空容器不能欺骗门禁。"""
     md = """
 ::: {#fig-ghost}
-::: {custom-style="Image Caption"}
-图 1 幽灵题注
-:::
+%% 图片题注 图 1 幽灵题注
 :::
 """
     issues = caption_adjacency_issues(md)
@@ -124,17 +108,9 @@ def test_table_with_multiline_table_note_passes():
 |---|---|---|
 | 中西文分离 | 否 | 是 |
 
-::: {custom-style="Table Note"}
-注1：数据来源于基准测试环境；
-注2：判定以各家默认导出为准；
-注3：多行统计显著性 P < 0.01；
-注4：补充说明细节；
-注5：置信区间分析。
-:::
+%% 表注 注1：数据来源于基准测试环境； 注2：判定以各家默认导出为准； 注3：多行统计显著性 P < 0.01； 注4：补充说明细节； 注5：置信区间分析。
 
-::: {custom-style="Table Caption"}
-表 1 主流方案特性对照表
-:::
+%% 表题 表 1 主流方案特性对照表
 """
     issues = caption_adjacency_issues(md)
     assert len(issues) == 0

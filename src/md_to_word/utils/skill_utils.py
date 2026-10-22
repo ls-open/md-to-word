@@ -139,11 +139,11 @@ _HEADING_RE = re.compile(r"^\s*#{1,6}\s")
 
 
 def _is_prose_line(line: str) -> bool:
-    """该行是不是正文（非空、非 ---、非标题、非任何块级标记行）。"""
+    """该行是不是正文（非空、非 ---、非标题、非任何块级标记行，也不含 `%%` 段落样式行）。"""
     s = line.strip()
     if not s or s == "---" or _HEADING_RE.match(line):
         return False
-    if s[0] in "|>!" or s.startswith(":::"):
+    if s[0] in "|>!" or s.startswith(":::") or s.startswith("%%"):
         return False
     return not (_MATH_ONLY_RE.match(line) or _MATH_INLINE_RE.match(line)
                 or any(rex.match(line) for rex, _ in _SHORTCODE_MARKERS.values()))

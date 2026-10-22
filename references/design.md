@@ -397,9 +397,9 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 
 ### 2.19 代码块内 `:::` 包裹误检测
 
-症状：src/md_to_word/validator/check.py 报代码块内部的 `::: {custom-style="X"}` 为"未在模板中定义"。
+症状：预检把代码块内部的 `%% 样式名` 当成真的样式行来校验。
 原因：脚本未跟踪代码块围栏状态，将代码块内的示例包裹误认为正文包裹。
-`src/md_to_word/validator/check.py` 已跟踪代码块围栏状态，代码块内部出现的 `::: {custom-style="X"}` 不会被误检测。
+`src/md_to_word/validator/check.py` 已跟踪代码块围栏状态，代码块内部出现的 `%% 样式名` 不会被误检测。
 
 ### 2.20 含目录的文档每次打开都弹「是否更新这些域」
 

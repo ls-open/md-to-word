@@ -38,7 +38,7 @@ Pandoc 在 reference.docx 中识别的样式名是固定的，不能擅自改名
 | Footnote Reference | 脚注序号（字符样式，上标）| `doc.styles['Footnote Reference']` |
 | Table | 表格边框 | `doc.styles['Table']` |
 
-> **Pandoc 样式匹配规则**：按**样式名**或**styleId**匹配 `custom-style="X"`（「Table Note」「TableNote」都认）。两者都不存在时，Pandoc 会**静默**建一个空壳样式（继承 Normal/Body Text）——格式不生效且没有警告，`check_md.py` 能在导出前检出。
+> **样式名匹配规则**：`%% 样式名` 行在预处理阶段被翻成 Pandoc 的 `custom-style="X"`，按**样式名**或 **styleId** 匹配（「Table Note」「TableNote」都认）。两者都不存在时，Pandoc 会**静默**建一个空壳样式（继承 Normal/Body Text）——格式不生效且没有警告，预检能在导出前检出。
 
 > `Keywords`、`Table Note` 这类样式**已预置在底模里**——Pandoc 自带的参考文档没有它们，
 > 不预置就会静默建出空壳样式（继承 `Normal` 的格式，看不出对错）。
@@ -86,7 +86,7 @@ Pandoc 内部使用启发式规则将不同段落映射到不同样式：
 > ⚠ **图片不要加 `{#fig-xxx}` 标签**。加了 Quarto 会为「图 + 题注」生成一个单格表格以保持同页，
 > 而该表格走「表格：」那行声明的 `Table` 样式（实测 `w:tblStyle w:val="Table"`），图片上下
 > 因此被套上三线表的框线；图片段落也同时失去 `CaptionedFigure`，不再居中。
-> 图号一律**手写在题注文字里**（`**图 1** …`），表格题注走 `::: {custom-style="Table Caption"}`。
+> 图号一律**手写在题注文字里**（`**图 1** …`），表格题注走 `%% 表题 …`。
 > 本技能只支持公式的交叉引用（`{#eq-x}` + `@eq-x`）。
 
 **多节的页码切换**（如前置罗马 → 正文阿拉伯）：用正文里的 `{{< section >}}` 标记做，
@@ -272,17 +272,11 @@ crossref:
 title: "标题"
 ---
 
-::: {custom-style="Abstract Title"}
-摘要
-:::
+%% 摘要标题 摘要
 
-::: {custom-style="Abstract"}
-摘要正文……
-:::
+%% 摘要 摘要正文……
 
-::: {custom-style="Keywords"}
-关键词：甲；乙
-:::
+%% 关键词 关键词：甲；乙
 ```
 
 ### 1.9 块级标记必须独占一行、并与正文隔空行
@@ -305,9 +299,7 @@ title: "标题"
 
 $$Y = a + bX$$ {#eq-model1}
 
-::: {custom-style="Keywords"}
-关键词：甲；乙
-:::
+%% 关键词 关键词：甲；乙
 
 | 甲 | 乙 |
 |---|---|
@@ -337,9 +329,7 @@ $$Y = a + bX$$ {#eq-model1}
 机制见 `design.md §1.8.2`）。
 
 ```markdown
-::: {custom-style="TOC Heading"}
-目录
-:::
+%% 目录标题 目录
 
 {{< toc >}}
 
@@ -376,14 +366,14 @@ $$Y = a + bX$$ {#eq-model1}
 
 | 元素 | Markdown 语法形式 | 对应 Word 样式 | 机制与设计原因 |
 |:-----|:------------------|:---------------|:---------------|
-| **表格题注** | `::: {custom-style="Table Caption"}`<br>`**Table 1.** *Title*`<br>`:::` | `Table Caption` | **必须显式包裹**。Pandoc 无法自动识别紧邻表格上方的段落为题注，不包裹会被默认赋予 `Body Text`（与正文同大，如 12pt）。 |
-| **表格注释** | `::: {custom-style="Table Note"}`<br>`*Note:* Explanations...`<br>`:::` | `Table Note` | **必须显式包裹**。同上，Pandoc 无法识别下方段落为表注，不包裹会落入 `Body Text`。 |
+| **表格题注** | `%% 表题 …`<br>`**Table 1.** *Title*`<br>`:::` | `Table Caption` | **必须显式包裹**。Pandoc 无法自动识别紧邻表格上方的段落为题注，不包裹会被默认赋予 `Body Text`（与正文同大，如 12pt）。 |
+| **表格注释** | `%% 表注 …`<br>`*Note:* Explanations...`<br>`:::` | `Table Note` | **必须显式包裹**。同上，Pandoc 无法识别下方段落为表注，不包裹会落入 `Body Text`。 |
 | **图片及题注** | `![**Figure 1.** *Title*](path)` | `Image Caption`<br>+ `Captioned Figure` | **使用原生语法，严禁外层套 `:::` 围栏**。Pandoc 原生将图片 alt 文本映射为 `Image Caption` 样式并赋予图段 `Captioned Figure`（居中）。若外加块级围栏，会破坏 Pandoc 的图段流，造成图片居中失效。 |
 
 **内联格式控制（加粗与斜体）**：
 - 题注中的局部排版（如编号加粗 `**Table 1.**` / `**Figure 1.**`，题名斜体 `*Title*`，注释前缀 `*Note:*`）直接在 Markdown 源码中书写。Word 导出后会忠实保留内联标记。
 - 保证图表题注风格统一（例如图名与表名均采用“编号加粗、题名斜体”或均不加粗），源码撰写时即应保持一致。
-- 门禁机制：被拦下的只有**样式名**——导出前 `check_md.py` 校验 `custom-style` 在模板中存在（拼错会静默建空壳样式），导出后 `audit_export.py` 对账 `word/styles.xml` 的样式定义。**「题注有没有被包裹」本身没有门禁**：判据立不住（正文句同样可能以「表 N」起头），漏包裹在产物里表现为 `Body Text`（与正文同大），靠 §2.4 渲染抽查核对。
+- 门禁机制：被拦下的只有**样式名**——导出前预检校验该样式在模板中存在（拼错会静默建空壳样式），导出后对账 `word/styles.xml` 的样式定义。**「题注有没有写 `%% 表题`」本身没有门禁**：判据立不住（正文句同样可能以「表 N」起头），漏写在产物里表现为 `Body Text`（与正文同大），靠 §2.4 渲染抽查核对。
 
 ---
 
@@ -451,10 +441,10 @@ python3 scripts/generate_template.py requirements.txt -o template.docx
 - Obsidian `![[path]]` 图片语法和 `[[link]]` 链接语法（Pandoc 不识别，漏成文本）
 - `\newpage` / `\pagebreak` / `\clearpage`（docx 中不生效，分页用 `{{< pagebreak >}}`）
 - `\tag{}` 公式编号（不是 Pandoc 语法，会让整条公式退化成字面文本）
-- `custom-style="X"` 是否在模板中存在（按样式名或 styleId 匹配；不存在则 Pandoc 静默建空壳样式）
+- `%% 样式名` 里的样式是否在模板中存在（按样式名或 styleId 匹配；不存在则 Pandoc 静默建空壳样式）
 - **块级标记与正文没隔空行**（公式／`:::` 围栏／表格／图片行）
 - **白名单外的短代码**（Quarto 只打一行 WARNING 便把整段标记丢弃，标记凭空消失）
-- **标题层级与包裹规范**（拦截 `::: {custom-style}` 内误写 `#`、首个标题非 1 级、标题跳级、章节编号深度与 `#` 数量不匹配）
+- **标题层级规范**（拦截首个标题非 1 级、标题跳级、章节编号深度与 `#` 数量不匹配）
 - **稿件用到、格式要求却没声明的深层样式**（三~六级标题／目录／引用块——不声明就静默回退底模默认，只有给了 `-r` 才查）
 - **分节标记之后紧跟 `{{< pagebreak >}}`**（分节符已自带下一页，会多顶出一页）
 - **中文稿用了 `{#eq-/fig-/tbl-}` 交叉引用、YAML 却没写对应的 `crossref` 前缀**（会渲染成中英混排的 `Equation 1`）
@@ -475,7 +465,7 @@ python3 scripts/generate_template.py requirements.txt -o template.docx
 # 基本校验（不查模板样式）
 python3 scripts/check_md.py 稿件.md
 
-# 同时校验 custom-style 是否在模板中存在、稿件用到的深层结构样式是否已声明
+# 同时校验 %% 行的样式名是否在模板中存在、稿件用到的深层结构样式是否已声明
 python3 scripts/check_md.py 稿件.md -t template.docx -r 格式要求.txt
 ```
 

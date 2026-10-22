@@ -16,7 +16,8 @@ import yaml
 from md_to_word.config import get_csl_dir
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_requirements
-from md_to_word.preprocessor.blocks import style_block_names
+from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
+from md_to_word.preprocessor.blocks import resolve_style_name
 from md_to_word.template.generator import PAGE_SIZES_CM, missing_styles_for_body
 
 # 复用 utils 中的基础文本解析工具
@@ -85,6 +86,20 @@ def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
         s = line.strip()
         return bool(re.search(r"!\[.*?\]\(.*?\)", s) or re.search(r"<img\s+[^>]*src=", s, re.I))
 
+    def style_caption_kind(line: str) -> str | None:
+        """`%% 表题 …` / `%% 图片题注 …` / `%% 表注 …` → table / image / note。"""
+        split = split_style_line(line)
+        if split is None:
+            return None
+        resolved = resolve_style_name(split[0])
+        if resolved == "Table Caption":
+            return "table"
+        if resolved == "Image Caption":
+            return "image"
+        if resolved == "Table Note":
+            return "note"
+        return None
+
     def is_structural_wrapper(line: str) -> bool:
         s = line.strip()
         if not s or s == ":::":
@@ -93,10 +108,12 @@ def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
             return True
         if re.match(r"^\{#tbl-[^}]+\}$", s) or re.match(r"^\{#fig-[^}]+\}$", s):
             return True
-        return False
+        return style_caption_kind(line) is not None
 
     def skip_table_note_backward(curr_idx: int) -> int:
         idx = curr_idx
+        if style_caption_kind(lines[idx]) == "note":
+            return idx - 1
         if lines[idx].strip() == ":::":
             k = idx - 1
             while k >= 0:
@@ -110,6 +127,8 @@ def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
 
     def skip_table_note_forward(curr_idx: int) -> int:
         l_str = lines[curr_idx].strip()
+        if style_caption_kind(lines[curr_idx]) == "note":
+            return curr_idx + 1
         if "Table Note" in l_str or "表注" in l_str or "表格附注" in l_str:
             k = curr_idx + 1
             while k < n:
@@ -176,6 +195,27 @@ def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
         m_tbl = re.search(r'custom-style=["\'](Table Caption|表格题注|表名|表题)["\']', line, re.I)
         m_img = re.search(r'custom-style=["\'](Image Caption|图片题注|图名|图题)["\']', line, re.I)
         m_pandoc_tbl = re.search(r"^:\s+.*\{#tbl-", line)
+
+        kind = style_caption_kind(line)
+        if kind in ("table", "image"):
+            tbl_before, img_before = look_back(i)
+            tbl_after, img_after = look_forward(i)
+            if kind == "table" and not (tbl_before or tbl_after):
+                issues.append(
+                    (
+                        i + 1,
+                        "表格题注未紧邻表格（上下均未检测到表格实体）。表格题注必须置于对应表格紧邻的上方或下方。",
+                    )
+                )
+            if kind == "image" and not (img_before or img_after):
+                issues.append(
+                    (
+                        i + 1,
+                        "图片题注未紧邻图片（上下均未检测到图片实体）。图片题注必须置于对应图片紧邻的下方或上方。",
+                    )
+                )
+            i += 1
+            continue
 
         if m_tbl or m_img or m_pandoc_tbl:
             start_i = i
@@ -407,10 +447,9 @@ def validate_manuscript(
                 shown = "、".join(f"行 {n}" for n in bare_cites[:5])
                 report.errors.append(
                     f"正文有 {len(bare_cites)} 处 `[@key]` 引用语法，但稿件未声明 `bibliography:`（{shown}）；"
-                    f"不处理会把这几个字符原样印进 docx。三种处理方式（按现有习惯选其一）："
-                    f"① 在 YAML 加 `bibliography: refs.bib`；"
-                    f"② 改为手写编号（如 `[1]`），文末按手写文献排版；"
-                    f"③ 仅需展示语法字面量时用反引号包成行内代码"
+                    f"不处理会把这几个字符原样印进 docx。本技能只支持由 .bib 生成文献列表："
+                    f"在 YAML 里加 `bibliography: refs.bib`（配合 `csl:` 选样式），"
+                    f"若只是想展示语法字面量，用反引号包起来"
                 )
 
     # 2. 图片路径空格与存在性
@@ -520,19 +559,23 @@ def validate_manuscript(
             report.valid = False
             report.errors.append(f"行 {line_no} [结构样式缺失]: {why}")
 
-    # 16. 结构块短写法 `::: 摘要`：名字必须来自词表
-    for line_no, written, resolved in style_block_names(md_text):
-        if resolved is None:
+    # 15b. 旧包裹写法（v1 的 ::: {custom-style=…}）已停用
+    for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
+        if re.match(r"^\s*:::.*custom-style", line) or re.match(r"^\s*:::\s+[^\s{#.]", line):
             report.valid = False
             report.errors.append(
-                f"行 {line_no} [结构名]: 不认识的结构名「{written}」；"
-                f"请改用词表里的写法（如 摘要 / 关键词 / 表格题注 / 图片题注 / 参考文献标题），"
-                f"或写成 ::: {{custom-style=\"Word 样式名\"}}"
+                f"行 {line_no} [旧写法]: `:::` 样式包裹已停用；段落样式改用 `%% 样式名 内容`（一行写完，如 `%% 摘要 本文…`）。"
+                f"若只是给文献列表定位，用 `::: {{#refs}}`"
             )
+
+    # 16. 段落样式行 `%% 样式名 内容`
+    for line_no, why in style_line_issues(md_text):
+        report.valid = False
+        report.errors.append(f"行 {line_no} [段落样式]: {why}")
 
     # 17. custom-style 是否真的存在于模板（没给模板就跳过，由对账阶段兜底）
     styles_used = extract_custom_styles(md_text)
-    for line_no, _written, resolved in style_block_names(md_text):
+    for line_no, resolved in style_line_names(md_text):
         if resolved:
             styles_used.setdefault(resolved, []).append(line_no)
     if styles_used and template_docx is not None:

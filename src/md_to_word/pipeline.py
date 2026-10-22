@@ -18,7 +18,7 @@ from md_to_word.audit.inspector import audit_docx_against_spec
 from md_to_word.audit.postflight import verify_numeric_integrity
 from md_to_word.config import resolve_preset_path
 from md_to_word.postprocessor.equations import postprocess_docx
-from md_to_word.preprocessor.blocks import expand_style_blocks
+from md_to_word.preprocessor.blocks import expand_style_lines
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.preprocessor.markers import expand_markers
 from md_to_word.renderer.quarto import QuartoRenderer, check_quarto_environment
@@ -171,8 +171,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         raw_text = in_p.read_text(encoding="utf-8")
         if options.strip_comments:
             raw_text = strip_html_comments(raw_text)
-        # `::: 摘要` 这类短写法先还原成 Pandoc 的 fenced div，再交给标记展开
-        raw_text = expand_style_blocks(raw_text)
+        # `%% 摘要 …` 这类段落样式行先翻译成 Pandoc 的 fenced div，再交给标记展开
+        raw_text = expand_style_lines(raw_text)
 
         # 解析 CSL 路径（若是内置 CSL 自动转为绝对路径）
         builtin_csl: Optional[Path] = None

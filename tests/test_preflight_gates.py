@@ -43,7 +43,7 @@ CASES = {
     "clean": (BASE_YAML, None, False),
     "table_without_style_rows": (
         BASE_YAML
-        + '\n::: {custom-style="Table Caption"}\n表 1 测试\n:::\n\n| 甲 | 乙 |\n|:--|:--|\n| 1 | 2 |\n',
+        + "\n%% 表题 表 1 测试\n| 甲 | 乙 |\n|:--|:--|\n| 1 | 2 |\n",
         ("表格：", "表头："),
         True,
     ),
@@ -85,13 +85,13 @@ def test_preflight_verdict(name: str, tmp_path: Path) -> None:
 
 
 def test_custom_style_must_exist_in_template(tmp_path: Path) -> None:
-    """模板里没有该样式时 Quarto 会静默建空壳，格式不生效。"""
+    """模板里没有该样式时 Quarto 会静默建空壳，格式不生效；不认识的样式名预检直接拦。"""
     template = tmp_path / "template.docx"
     build_template(PRESET.read_text(encoding="utf-8"), template)
 
     manuscript = tmp_path / "manuscript.md"
     manuscript.write_text(
-        BASE_YAML + '\n::: {custom-style="不存在的样式"}\n正文。\n:::\n', encoding="utf-8"
+        BASE_YAML + "\n%% 不存在的样式 正文。\n", encoding="utf-8"
     )
 
     report = validate_manuscript(manuscript, template_docx=template)
