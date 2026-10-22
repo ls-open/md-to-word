@@ -214,27 +214,6 @@ def _split_frontmatter(text: str) -> tuple[str, str]:
     return text[4:end], text[after + 1 :] if after != -1 else ""
 
 
-def _multiline(value) -> list[str]:
-    """YAML 的多段文字：可能是 `|` 块（一个字符串含空行分段），也可能是列表。"""
-    if not value:
-        return []
-    if isinstance(value, str):
-        return [p.strip() for p in re.split(r"\n\s*\n", value.strip()) if p.strip()]
-    if isinstance(value, list):
-        return [str(v).strip() for v in value if str(v).strip()]
-    return [str(value)]
-
-
-def _keywords(value) -> list[str]:
-    if not value:
-        return []
-    if isinstance(value, str):
-        return [k.strip() for k in re.split(r"[；;，,]", value) if k.strip()]
-    if isinstance(value, list):
-        return [str(v).strip() for v in value if str(v).strip()]
-    return [str(value)]
-
-
 def _metadata(raw: str) -> Metadata:
     try:
         data = yaml.safe_load(raw) if raw.strip() else {}
@@ -256,9 +235,6 @@ def _metadata(raw: str) -> Metadata:
         crossref=crossref,
         chapters=bool(crossref.get("chapters")),
         link_citations=data.get("link-citations", True) is not False,
-        abstract=_multiline(data.get("abstract")),
-        keywords=_keywords(data.get("keywords")),
-        reference_section_title=data.get("reference-section-title"),
     )
 
 

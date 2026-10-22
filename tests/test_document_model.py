@@ -201,22 +201,3 @@ def test_triple_asterisk_is_bold_italic() -> None:
 def test_code_span_keeps_backslashes() -> None:
     node = parse_inlines(r"`a\*b`")[0]
     assert node.value == r"a\*b"
-
-
-# ── 前置区里的摘要与关键词 ──────────────────────────────────────────────
-# 正规写法在正文（`%% 摘要`，位置可管），但存量 Pandoc 稿件都写在 YAML 里。
-# 读取器不接这两项，整段摘要会静默消失——这是最贵的一种丢失。
-
-def test_yaml_abstract_and_keywords() -> None:
-    doc = read_markdown(
-        '---\ntitle: "题目"\nabstract: |\n  第一段。\n\n  第二段。\n'
-        'keywords:\n  - 甲\n  - 乙\nreference-section-title: 参考文献\n---\n\n正文\n'
-    )
-    assert doc.meta.abstract == ["第一段。", "第二段。"]
-    assert doc.meta.keywords == ["甲", "乙"]
-    assert doc.meta.reference_section_title == "参考文献"
-
-
-def test_yaml_keywords_as_string_are_split() -> None:
-    doc = read_markdown('---\nkeywords: "甲；乙，丙"\n---\n\n正文\n')
-    assert doc.meta.keywords == ["甲", "乙", "丙"]

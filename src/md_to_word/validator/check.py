@@ -307,7 +307,6 @@ def required_style_issues(md_text: str, spec: TemplateSpec, fm_data) -> list[tup
     if isinstance(fm_data, dict):
         for key, cn, en, feat in (
             ("bibliography", "参考文献", "Bibliography", "YAML bibliography 文献库"),
-            ("abstract", "摘要", "Abstract", "YAML abstract 摘要"),
         ):
             if fm_data.get(key) and en not in declared and en not in reported:
                 reported.add(en)
@@ -418,6 +417,23 @@ def validate_manuscript(
             if not how:
                 report.valid = False
                 report.errors.append(f"CSL 样式文件不存在: {fm_data['csl']}")
+
+        # 1b2. 写在 YAML 里的内容性字段：引擎只认正文的样式行，这里不静默丢
+        for key, form in (
+            ("abstract", "`%% 摘要标题 摘要` + 每段一行 `%% 摘要 正文…`"),
+            ("keywords", "一行 `%% 关键词 词一；词二`"),
+            ("reference-section-title", "一行 `%% 参考文献标题 参考文献`"),
+        ):
+            if fm_data.get(key):
+                message = (
+                    f"YAML 的 `{key}` 不参与排版（YAML 管不住位置），正文要写成：{form}。"
+                    f"请把内容移到正文，或删掉这个键。"
+                )
+                if key == "reference-section-title":
+                    report.warnings.append(message)
+                else:
+                    report.valid = False
+                    report.errors.append(message)
 
         # 1c. 未写 csl 的提示（默认样式由 config.default_csl_path 定，两条通道共用）
         if fm_data.get("bibliography") and not fm_data.get("csl"):
@@ -586,10 +602,23 @@ def validate_manuscript(
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         m = re.search(r"!\[([^\]]+)\]\(", line)
         if m and re.match(r"^\s*(?:图|表|Figure|Table)\s*\d", m.group(1)):
+            report.valid = False
+            report.errors.append(
+                f"行 {line_no}: 图片题注写在了 `![…]` 里，引擎不会把它当题注排出来。"
+                f"改成独立一行 `%% 图片题注 {m.group(1).strip()}`（写在图片上方或下方由你决定），"
+                f"`[…]` 里只留无障碍替代文字"
+            )
+
+    # 15d. 文献区标题：列表是引擎生成的，标题得稿子里写，两种写法都认
+    if isinstance(fm_data, dict) and fm_data.get("bibliography"):
+        has_style_title = bool(re.search(r"^%%\s*参考文献标题\s", md_text, re.M))
+        has_heading = bool(
+            re.search(r"^#{1,6}\s*(?:参考文献|参考书目|References|Bibliography)\s*$", md_text, re.M)
+        )
+        if not (has_style_title or has_heading):
             report.warnings.append(
-                f"行 {line_no}: 图片题注写在了 `![…]` 里。现在题注用独立段落："
-                f"`%% 图片题注 {m.group(1).strip()}`（写在图片上方或下方由你决定），"
-                f"`[…]` 只留无障碍替代文字"
+                "有 bibliography 但正文没写文献区标题：在文末补一行 `%% 参考文献标题 参考文献`"
+                "（或 `# 参考文献` 标题），否则生成的文献列表没有抬头"
             )
 
     # 16. 段落样式行 `%% 样式名 内容`

@@ -305,65 +305,6 @@ def test_bibtex_to_csl_json_maps_core_fields() -> None:
     assert [a.get("family") for a in entries[0]["author"]] == ["Zhang", "Li"]
 
 
-# ── 前置区与题注：存量稿件的写法必须照样出字 ────────────────────────────
-
-def test_yaml_abstract_and_keywords_are_rendered(template: Path, tmp_path: Path) -> None:
-    model = read_markdown(
-        '---\ntitle: "题目"\nabstract: |\n  第一段摘要。\n\n  第二段摘要。\n'
-        'keywords: [智能座舱, 满意度]\n---\n\n# 一 引言\n\n正文。\n'
-    )
-    out = write_docx(model, template, tmp_path / "a.docx")
-    styles, text = _facts(out)
-    assert "摘要" in text
-    assert styles.count("Abstract") == 2
-    assert "Keywords" in styles
-    assert "智能座舱；满意度" in text
-
-
-def test_body_abstract_wins_over_yaml(template: Path, tmp_path: Path) -> None:
-    """两处都写了摘要时只排正文那份，否则同一段摘要会出现两次。"""
-    model = read_markdown(
-        '---\ntitle: "题目"\nabstract: YAML 里的摘要\n---\n\n'
-        "%% 摘要标题 摘要\n\n%% 摘要 正文里的摘要\n"
-    )
-    out = write_docx(model, template, tmp_path / "a.docx")
-    _, text = _facts(out)
-    assert text.count("正文里的摘要") == 1
-    assert "YAML 里的摘要" not in text
-
-
-def test_figure_alt_text_becomes_caption(template: Path, tmp_path: Path) -> None:
-    """`![图1-1 框架图](x.png)` 是 Pandoc 时代的题注写法，丢掉就是丢内容。"""
-    png = tmp_path / "x.png"
-    shutil.copy(REPO_ROOT / "demo" / "01_chinese_thesis" / "figures" / "qa_pipeline.png", png)
-    model = read_markdown(f"![图1-1 框架图]({png}){{width=10cm}}\n")
-    out = write_docx(model, template, tmp_path / "a.docx")
-    styles, text = _facts(out)
-    assert "ImageCaption" in styles or "Image Caption" in styles
-    assert "图1-1 框架图" in text
-
-
-def test_bibliography_gets_title(template: Path, tmp_path: Path) -> None:
-    """文献区没有标题在正式稿件里不合格，而标题是读者一眼能看见的。"""
-    bib = tmp_path / "r.bib"
-    bib.write_text(
-        "@article{smith2024,\n  author={Smith, J.},\n  title={T},\n  year={2024},\n  journal={J}\n}\n",
-        encoding="utf-8",
-    )
-    from md_to_word.transform.citations import CitationEngine
-
-    from md_to_word.config import get_csl_dir
-
-    engine = CitationEngine(
-        bib.read_text(encoding="utf-8"), get_csl_dir() / "chinese-gb7714-2015-numeric.csl"
-    )
-    model = read_markdown('---\ntitle: "题"\nreference-section-title: 参考文献\n---\n\n见 [@smith2024]。\n')
-    out = write_docx(model, template, tmp_path / "a.docx", citations=engine)
-    styles, text = _facts(out)
-    assert "ReferencesTitle" in styles or "References Title" in styles
-    assert "参考文献" in text
-
-
 def test_nary_keeps_operand_inside(template: Path, tmp_path: Path) -> None:
     """`\\sum_{k} \\beta_k` 的求和号必须把被运算体吃进 `m:e`。
 

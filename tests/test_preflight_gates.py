@@ -61,6 +61,26 @@ CASES = {
         False,
     ),
     "undefined_crossref": (CROSSREF_YAML + "\n见 @eq-missing。\n", None, True),
+    # 引擎只认正文的样式行：YAML 里的摘要/关键词没有任何排版位置，静默丢一段摘要
+    # 比报错难查得多，所以这里拦下来并说清该写成什么样。
+    "yaml_abstract": (
+        '---\ntitle: "t"\nabstract: |\n  摘要正文。\n---\n\n# 一 引言\n\n正文。\n',
+        None,
+        True,
+    ),
+    "yaml_keywords": ('---\ntitle: "t"\nkeywords: [甲, 乙]\n---\n\n正文。\n', None, True),
+    # 题注写在 `![…]` 里：引擎不把它当题注排，等于丢内容
+    "caption_in_alt": (
+        BASE_YAML + "\n![图 1-1 框架图](figures/qa_pipeline.png){width=10cm}\n",
+        None,
+        True,
+    ),
+    # 正规写法：独立题注段 + 只留无障碍文字的图片行
+    "caption_as_style_line": (
+        BASE_YAML + "\n%% 图片题注 图 1-1 框架图\n\n![](figures/qa_pipeline.png){width=10cm}\n",
+        None,
+        False,
+    ),
 }
 
 
@@ -118,3 +138,40 @@ def test_visible_issues_warn_instead_of_blocking(tmp_path: Path) -> None:
     assert report.valid, f"看得见的问题不该阻断：{report.errors}"
     assert any("标题" in w for w in report.warnings)
     assert any("题注" in w for w in report.warnings)
+
+
+def test_bibliography_without_title_warns(tmp_path: Path) -> None:
+    """文献列表是引擎生成的，抬头得稿子自己写——没写只提醒，内容没丢。"""
+    bib = tmp_path / "refs.bib"
+    bib.write_text(
+        "@article{smith2024,\n  author={Smith, J.},\n  title={T},\n  year={2024},\n  journal={J}\n}\n",
+        encoding="utf-8",
+    )
+    manuscript = tmp_path / "m.md"
+    manuscript.write_text(
+        '---\ntitle: "t"\nbibliography: refs.bib\ncsl: apa.csl\n---\n\n# 一 引言\n\n见 [@smith2024]。\n',
+        encoding="utf-8",
+    )
+
+    report = validate_manuscript(manuscript)
+    assert report.valid, report.errors
+    assert any("文献区标题" in w for w in report.warnings), report.warnings
+
+
+def test_reference_section_title_in_yaml_only_warns(tmp_path: Path) -> None:
+    """写 YAML 的 reference-section-title 不拦：抬头缺失只影响观感，内容没丢。"""
+    bib = tmp_path / "refs.bib"
+    bib.write_text(
+        "@article{smith2024,\n  author={Smith, J.},\n  title={T},\n  year={2024},\n  journal={J}\n}\n",
+        encoding="utf-8",
+    )
+    manuscript = tmp_path / "m.md"
+    manuscript.write_text(
+        '---\ntitle: "t"\nbibliography: refs.bib\ncsl: apa.csl\n'
+        'reference-section-title: 参考文献\n---\n\n# 一 引言\n\n见 [@smith2024]。\n',
+        encoding="utf-8",
+    )
+
+    report = validate_manuscript(manuscript)
+    assert report.valid, report.errors
+    assert any("reference-section-title" in w for w in report.warnings), report.warnings

@@ -232,11 +232,6 @@ class Metadata:
     crossref: dict = field(default_factory=dict)
     chapters: bool = False
     link_citations: bool = True
-    # 摘要与关键词的正规写法是正文里的 `%% 摘要` / `%% 关键词` 样式行（那样才管得住位置）。
-    # 这两个字段只接住 Pandoc 时代写在 YAML 里的存量稿件——不接就是整段摘要静默消失。
-    abstract: list[str] = field(default_factory=list)
-    keywords: list[str] = field(default_factory=list)
-    reference_section_title: Optional[str] = None
 
 
 @dataclass
