@@ -125,6 +125,14 @@ def test_footnotes_are_written_as_a_real_part(template: Path, tmp_path: Path) ->
     open_docx(str(out))
 
 
+def test_toc_depth_follows_the_template_when_not_given(template: Path, tmp_path: Path) -> None:
+    """`{{< toc >}}` 不带级数时，收几级由模板声明到几级决定，不是写死 3。"""
+    model = read_markdown('---\ntitle: "t"\n---\n\n{{< toc >}}\n\n# 一 引言\n\n正文。\n')
+    out = write_docx(model, template, tmp_path / "toc.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    assert 'TOC \\o "1-3"' in xml, "预设只声明到三级"
+
+
 def test_toc_field_and_section_break(template: Path, tmp_path: Path) -> None:
     """目录是 Word 域，分节是挂在 pPr 里的 sectPr——都不是普通段落。"""
     model = read_markdown(

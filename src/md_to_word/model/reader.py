@@ -279,7 +279,7 @@ def _parse_shortcode(name: str, rest: str) -> Optional[Block]:
         return PageBreak()
     if name == "toc":
         arg = rest.strip()
-        return Toc(depth=int(arg) if arg.isdigit() else 3)
+        return Toc(depth=int(arg) if arg.isdigit() else None)
     if name == "section":
         return _parse_section_params(rest)
     return None

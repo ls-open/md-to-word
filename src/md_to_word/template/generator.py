@@ -104,12 +104,14 @@ STYLE_MAP = {
     '页眉': 'Header',
     '页脚': 'Footer',
     # 目录：标题与条目分属不同样式，两类都会静默建空壳（不写就字体字号全落空），故都列。
-    # 条目样式对应 Word 内置的 TOC 1/2/3，由目录域自己按级套用——模板里没有这三条，
+    # 条目样式对应 Word 内置的 TOC 1–5，由目录域自己按级套用——模板里没有这几条，
     # 生成的目录就会用 Word 内置默认（字体、缩进、间距都不是要求的那套）。
     '目录标题': 'TOC Heading',
     '目录一级': 'TOC 1',
     '目录二级': 'TOC 2',
     '目录三级': 'TOC 3',
+    '目录四级': 'TOC 4',
+    '目录五级': 'TOC 5',
 }
 
 STYLE_CN = {v: k for k, v in STYLE_MAP.items()}
@@ -549,10 +551,12 @@ class TemplateError(ValueError):
 
 # ── 样式操作函数 ──
 
-# Word 内置的目录条目样式：styleId = TOC1/TOC2/TOC3，名字是小写的 "toc 1/2/3"，
+# Word 内置的目录条目样式：styleId = TOC1…TOC5，名字是小写的 "toc 1/2/3"，
 # 且**不能带 `w:customStyle="1"`**。带了这个标记，Word 就把它们当用户自建样式，
 # 更新目录域时会按自己的内置默认重建，我们写的字体/字号/加粗全部丢失。
-_BUILTIN_TOC = {"TOC 1": ("TOC1", "toc 1"), "TOC 2": ("TOC2", "toc 2"), "TOC 3": ("TOC3", "toc 3")}
+_BUILTIN_TOC = {
+    f"TOC {n}": (f"TOC{n}", f"toc {n}") for n in range(1, 6)
+}
 
 
 def _ensure_builtin_toc_style(style, style_name: str) -> None:
@@ -897,12 +901,18 @@ CONDITIONAL_STYLE_ROWS = {
 # ── **条件成套必填（学位论文目录）** ──
 # 无目录时不强制写；一旦声明了目录相关样式中的任意一个，
 # 目录标题 + 一/二/三级目录条目必须成套写齐，防止漏写某一级导致该级退回 Word 默认缩进。
+# 三级是绝大多数规范的要求，故「成套」的最小集合到三级为止；四级、五级是可选延伸，
+# 声明了就要连着声明（见 TOC_EXTRA_LEVELS 的连贯性检查）——中间空一级，那一级会静默
+# 退回 Word 默认缩进。
 TOC_STYLE_GROUP = {
     'TOC Heading': '目录标题',
     'TOC 1': '目录一级',
     'TOC 2': '目录二级',
     'TOC 3': '目录三级',
 }
+
+# 可选的更深一级：第 n 级写了，第 n-1 级必须也写
+TOC_EXTRA_LEVELS = {4: ('TOC 4', '目录四级'), 5: ('TOC 5', '目录五级')}
 
 # ── **稿件结构 → 必须声明的样式** ──
 # 与 REQUIRED_STYLES（基础骨架无条件必填）互补：普通文档未必有摘要/关键词/参考文献/图表，
@@ -973,6 +983,8 @@ REQUIRED_FIELDS_BY_STYLE = {
         'TOC 1': _PARA,
         'TOC 2': _PARA,
         'TOC 3': _PARA,
+        'TOC 4': _PARA,
+        'TOC 5': _PARA,
         'Abstract': _PARA,
         'Keywords': _PARA,
         'Table Caption': _PARA,
@@ -1062,6 +1074,13 @@ def _check_required_fields(spec) -> bool:
         for s_name, s_alias in TOC_STYLE_GROUP.items():
             if s_name not in req_by_style:
                 missing_styles.append((s_name, f'{s_alias}（已声明目录样式，须成套配齐）'))
+
+    # 条件成套必填 1b：目录四级/五级可选，但声明了第 n 级就得连着声明到第 n-1 级
+    for level, (s_name, s_alias) in TOC_EXTRA_LEVELS.items():
+        if s_name in req_by_style:
+            prev_name, prev_alias = (f'TOC {level - 1}', f'目录{["", "一", "二", "三", "四"][level - 1]}级')
+            if prev_name not in req_by_style:
+                missing_styles.append((prev_name, f'{prev_alias}（已声明{s_alias}，须先有上一级）'))
 
     # 条件成套必填 2：若声明了「表格：」或「表头：」，则表格、表头、紧凑（单元格文字）三者必须配齐
     if spec.table or spec.table_header:

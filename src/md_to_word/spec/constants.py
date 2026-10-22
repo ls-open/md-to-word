@@ -90,6 +90,8 @@ STYLE_MAP: dict[str, str] = {
     "目录一级": "TOC 1",
     "目录二级": "TOC 2",
     "目录三级": "TOC 3",
+    "目录四级": "TOC 4",
+    "目录五级": "TOC 5",
     # ── 英文原生写法 ──
     "Title": "Title",
     "Subtitle": "Subtitle",
@@ -128,6 +130,8 @@ STYLE_MAP: dict[str, str] = {
     "TOC 1": "TOC 1",
     "TOC 2": "TOC 2",
     "TOC 3": "TOC 3",
+    "TOC 4": "TOC 4",
+    "TOC 5": "TOC 5",
 }
 
 STYLE_CN: dict[str, str] = {v: k for k, v in STYLE_MAP.items() if re.search(r"[\u4e00-\u9fff]", k)}
@@ -158,6 +162,8 @@ WRONG_KEY_HINTS: dict[str, str] = {
     "目录 1": "目录一级（或 TOC 1）",
     "目录 2": "目录二级（或 TOC 2）",
     "目录 3": "目录三级（或 TOC 3）",
+    "目录 4": "目录四级（或 TOC 4）",
+    "目录 5": "目录五级（或 TOC 5）",
     "英文": "西文字体（或 Font）",
     "全局西文字体": "西文字体（或 Font）",
 }

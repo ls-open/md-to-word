@@ -200,7 +200,8 @@ class PageBreak:
 
 @dataclass(frozen=True)
 class Toc:
-    depth: int = 3
+    # None = 不指定：写出器按模板里实际声明的目录条目样式定级数（声明到几级就收几级）
+    depth: int | None = None
 
 
 @dataclass(frozen=True)

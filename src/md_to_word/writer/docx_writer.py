@@ -191,7 +191,7 @@ class _Writer:
         elif isinstance(block, Equation):
             self._equation(block)
         elif isinstance(block, Toc):
-            self._insert_before_sectpr(parse_xml(toc_xml(block.depth)))
+            self._insert_before_sectpr(parse_xml(toc_xml(block.depth or self._toc_depth())))
         elif isinstance(block, SectionBreak):
             self._section(block)
         else:
@@ -265,6 +265,17 @@ class _Writer:
             sectpr.addprevious(element)
         else:
             body.append(element)
+
+    def _toc_depth(self) -> int:
+        """目录收录到第几级：模板里声明了 目录一/二/三…级 就收到几级。
+
+        声明与收录必须一致——要求文件写了「目录四级」，目录却只收到三级，
+        用户会以为第四条样式没生效；反之声明没写到，多收的那级只能退回 Word 默认。
+        模板里一条都没有时按 3 级（Word 的默认口径）。
+        """
+        names = {s.name.lower() for s in self.docx.styles}  # 内置样式名是小写 `toc 1`
+        levels = [n for n in range(1, 6) if f"toc {n}" in names]
+        return max(levels) if levels else 3
 
     def _section(self, block: SectionBreak) -> None:
         """分节符：它描述的是**上面那一节**（OOXML 里 sectPr 归前一节）。"""
