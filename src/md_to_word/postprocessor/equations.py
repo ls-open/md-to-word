@@ -91,12 +91,6 @@ _TBLPR_ORDER = ('tblStyle', 'tblpPr', 'tblOverlap', 'bidiVisual', 'tblStyleRowBa
                 'shd', 'tblLayout', 'tblCellMar', 'tblLook')
 
 
-def _cell_units(tc) -> int:
-    """单元格内容的宽度权重：中日韩与全角标点按 2 计，其余按 1。"""
-    text = ''.join(t.text or '' for t in tc.xpath('.//w:t', namespaces={'w': NS_W}))
-    return sum(2 if _CJK_CHAR.match(c) else 1 for c in text)
-
-
 def _put_ordered(parent, el, tag_local) -> None:
     """按 _TBLPR_ORDER 的顺序把 el 插到 parent 里（顺序错了 Word 判文档损坏）。"""
     rank = _TBLPR_ORDER.index(tag_local)

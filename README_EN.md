@@ -213,19 +213,33 @@ For users unfamiliar with academic bibliography workflows:
 
 ## 🛠️ Environment Prerequisites
 
-Running this skill requires only two lightweight prerequisites:
+**No external binary is required for the default writer.** Python dependencies only (≈3 MB, pure Python):
 
-1. **Python Dependencies** (Python 3.9+):
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Quarto Engine** (Quarto ≥ 1.4, includes Pandoc):
-   ```bash
-   # macOS
-   brew install quarto
+```bash
+pip install -r requirements.txt
+```
 
-   # Linux / Windows: Download installer from https://quarto.org/docs/get-started/
-   ```
+Optional: `--writer pandoc` is the fallback channel and needs Quarto ≥ 1.4 (bundled Pandoc). Use it to cross-check against the mature implementation, not for everyday exports.
+
+### Using it as a plain Python package
+
+The skill and the package are **the same code**: `src/md_to_word/` is a pip-installable package, and `SKILL.md` is the manual an AI agent reads. `presets/` (format presets) and `resources/` (CSL styles, base template) ship with the package.
+
+```bash
+pip install .
+md-to-word paper.md -o paper.docx          # default writer, no Quarto
+md-to-word paper.md --preset en-nature -o paper.docx
+md-to-word --help                          # all options and exit codes
+```
+
+Or call it from Python:
+
+```python
+from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+result = run_export_pipeline(ExportOptions(input_path="paper.md", preset="en-nature"))
+print(result.returncode, result.output_docx)
+```
 
 ---
 

@@ -115,32 +115,6 @@ STYLE_MAP = {
 
 STYLE_CN = {v: k for k, v in STYLE_MAP.items()}
 
-# 常见易错键名提示（纯报错引导：任何不在 STYLE_MAP 和 _LINE_KEYS 中的键都会直接报错）
-_WRONG_KEY_HINTS = {
-    '标题': '文档标题（或 论文标题）',
-    '主标题': '文档标题（或 论文标题）',
-    '大标题': '文档标题（或 论文标题）',
-    '摘要正文': '摘要',
-    '表题': '表格题注',
-    '表名': '表格题注',
-    '题注': '表格题注 / 图片题注',
-    '图题': '图片题注',
-    '图名': '图片题注',
-    '图注': '图片题注',
-    '图片': '图',
-    '表格附注': '表注',
-    '第一段': '首段',
-    '紧凑正文': '紧凑',
-    '块引用': '引用块',
-    '引用': '引用块',
-    '引用文本': '引用块',
-    '目录 1': '目录一级',
-    '目录 2': '目录二级',
-    '目录 3': '目录三级',
-    '英文': '西文字体',
-    '全局西文字体': '西文字体',
-}
-
 # ── 页眉/页脚内容行（键 → (页眉|页脚, default|even|first)）──
 # default = 奇偶未区分时的那一套；even = 偶数页；first = 首页（首页不同）
 DECOR_CONTENT_KEYS = {
@@ -1791,7 +1765,7 @@ def generate_template(requirements_text, output_path, margins=None):
     print()
     # 以前这里打印 `quarto render …` 的用法。默认后端已经是自研写出器，那行会误导人，
     # 改为说明模板的用途：它是样式来源，两条通道都吃它。
-    print(f'模板只提供样式（styles.xml），导出请用: bash scripts/export.sh 稿件.md -o 输出.docx')
+    print('模板只提供样式（styles.xml）。导出：md-to-word 稿件.md -o 输出.docx')
 
 
 def main():

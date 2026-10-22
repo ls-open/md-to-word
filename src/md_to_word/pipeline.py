@@ -233,7 +233,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             build_template(req_content, temp_tpl_path)
             tpl_for_render = temp_tpl_path
 
-        # v3 自研写出器：模型 → OOXML，跳过 Quarto 渲染与后处理
+        # 自研写出器：文档模型 → OOXML，跳过 Quarto 渲染与后处理
         if options.writer == "native":
             from md_to_word.model.reader import read_markdown
             from md_to_word.utils.skill_utils import parse_bib_keys

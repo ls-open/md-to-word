@@ -12,7 +12,10 @@ import re
 import sys
 from pathlib import Path
 from typing import Optional
+
 from lxml import etree
+
+from md_to_word.config import looks_chinese
 
 # ══════════════════════════════════════════════════════════════════════
 # 1. 统一日志配置
@@ -456,8 +459,8 @@ def crossref_prefix_issues(text: str, fm_data) -> list[tuple[int, str]]:
             kind = m.group("kind")
             if kind in reported or CROSSREF_PREFIX_FIELDS[kind] in crossref:
                 continue
-            if not _CJK_RE.search(text):
-                continue  # 非中文稿件保持 Quarto 默认，不算问题
+            if not looks_chinese(text):
+                continue  # 非中文稿件用英文默认前缀，不算问题
             reported.add(kind)
             issues.append((
                 i + 1,

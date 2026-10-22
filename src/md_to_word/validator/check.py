@@ -589,24 +589,24 @@ def validate_manuscript(
             report.valid = False
             report.errors.append(f"行 {line_no} [结构样式缺失]: {why}")
 
-    # 15b. 旧包裹写法（v1 的 ::: {custom-style=…}）已停用
+    # 15b. `:::` 不是本技能的段落写法
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         if re.match(r"^\s*:::.*custom-style", line) or re.match(r"^\s*:::\s+[^\s{#.]", line):
             report.valid = False
             report.errors.append(
-                f"行 {line_no} [旧写法]: `:::` 样式包裹已停用；段落样式改用 `%% 样式名 内容`（一行写完，如 `%% 摘要 本文…`）。"
-                f"若只是给文献列表定位，用 `::: {{#refs}}`"
+                f"行 {line_no} [段落样式]: `:::` 包裹不是本技能的写法。段落样式写成一行："
+                f"`%% 样式名 内容`（如 `%% 摘要 本文…`）"
             )
 
-    # 15c. 旧写法：图题写在 `![…]` 里。不再自动当题注用，给一条迁移提示
+    # 15c. 题注写进图片的方括号里：方括号只放无障碍替代文字
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         m = re.search(r"!\[([^\]]+)\]\(", line)
         if m and re.match(r"^\s*(?:图|表|Figure|Table)\s*\d", m.group(1)):
             report.valid = False
             report.errors.append(
-                f"行 {line_no}: 图片题注写在了 `![…]` 里，引擎不会把它当题注排出来。"
-                f"改成独立一行 `%% 图片题注 {m.group(1).strip()}`（写在图片上方或下方由你决定），"
-                f"`[…]` 里只留无障碍替代文字"
+                f"行 {line_no} [图片题注]: 方括号里的文字是无障碍替代文字，不会被排成题注。"
+                f"题注另起一行：`%% 图片题注 {m.group(1).strip()}`（写在图片上方或下方都可），"
+                f"`![](…)` 的方括号留空或写一句替代文字"
             )
 
     # 15d. 文献区标题：列表是引擎生成的，标题得稿子里写，两种写法都认

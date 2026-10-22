@@ -1,4 +1,4 @@
-"""md_to_word.writer — 文档模型 → OOXML（v3 自研渲染器的写出侧）。"""
+"""md_to_word.writer — 文档模型 → OOXML（自研写出器）。"""
 
 from md_to_word.writer.docx_writer import UnsupportedFeature, write_docx
 

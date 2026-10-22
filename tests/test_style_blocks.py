@@ -73,8 +73,8 @@ def test_unknown_name_fails_preflight(tmp_path) -> None:
     assert any("乱写的名字" in error for error in report.errors)
 
 
-def test_old_fenced_form_is_rejected(tmp_path) -> None:
-    """V2 只用段落样式行；旧包裹写法要明确拒绝，而不是当普通文本静默放过。"""
+def test_fenced_div_is_rejected(tmp_path) -> None:
+    """段落样式只有 `%%` 一行这一种写法；`:::` 包裹要明确拒绝，而不是当普通文本静默放过。"""
     manuscript = tmp_path / "m.md"
     manuscript.write_text(
         '---\ntitle: "t"\n---\n\n::: {custom-style="Abstract"}\n正文\n:::\n', encoding="utf-8"
@@ -82,7 +82,7 @@ def test_old_fenced_form_is_rejected(tmp_path) -> None:
 
     report = validate_manuscript(manuscript)
     assert not report.valid
-    assert any("旧写法" in error for error in report.errors)
+    assert any("段落样式" in error for error in report.errors)
 
 
 def test_style_names_are_collected_for_template_check() -> None:

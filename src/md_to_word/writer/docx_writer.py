@@ -1,6 +1,6 @@
 """md_to_word.writer.docx_writer — 文档模型 → .docx。
 
-这是 v3 自研渲染器的写出侧：只做机械映射，不做任何判断——样式名、段落顺序、表格线宽
+这是自研写出器：只做机械映射，不做任何判断——样式名、段落顺序、表格线宽
 这些决定在读取阶段和格式契约里已经定完。写出一层如果再"猜"，就等于把判据藏到了渲染里。
 
 能力边界写在 `SUPPORTED` 里，遇到没实现的结构抛 `UnsupportedFeature` 并说清楚缺什么，
@@ -22,6 +22,7 @@ from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls, qn
 from docx.shared import Cm, Emu
 
+from md_to_word.config import default_crossref_prefixes, looks_chinese
 from md_to_word.preprocessor.markers import PAGE_NUMBER_FMT, section_paragraph_xml, toc_xml
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
@@ -41,6 +42,19 @@ _ALIGN = {
 
 
 _W_FMT = {"bold": "b", "italic": "i", "strike": "strike", "underline": "u"}
+
+
+def _plain_text(nodes: Iterable[Inline]) -> str:
+    """行内节点里真正的文字（引用、交叉引用这类不是正文，判语种时不看它们）。"""
+    out: list[str] = []
+    for node in nodes:
+        if isinstance(node, Text):
+            out.append(node.value)
+        else:
+            children = getattr(node, "children", None)
+            if children:
+                out.append(_plain_text(children))
+    return "".join(out)
 
 
 def _ends_with_cjk(text: str) -> bool:
@@ -89,6 +103,10 @@ class _Writer:
         self._footnote_ids: dict[str, int] = {}
         self._eq_numbers: dict[str, str] = {}
         self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
+        self._crossref_prefixes = {
+            **default_crossref_prefixes(looks_chinese(self._prose_text())),
+            **(document.meta.crossref or {}),
+        }
 
     # ── 入口 ─────────────────────────────────────────────────────────
     def write(self) -> None:
@@ -538,14 +556,13 @@ class _Writer:
         return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
 
     def _resolve_crossref(self, target: str) -> str:
-        """`@eq-a` → 「式2.1」：前缀取自稿件 YAML 的 crossref，没有就用中文默认。"""
-        prefixes = self.model.meta.crossref or {}
+        """`@eq-a` → 「式2.1」/「Equation 2.1」：前缀先看 YAML 的 crossref，没有按语种给默认。"""
         if target.startswith("eq-"):
-            prefix = prefixes.get("eq-prefix", "式")
+            prefix = self._crossref_prefixes.get("eq-prefix", "式")
         elif target.startswith("fig-"):
-            prefix = prefixes.get("fig-prefix", "图")
+            prefix = self._crossref_prefixes.get("fig-prefix", "图")
         elif target.startswith("tbl-"):
-            prefix = prefixes.get("tbl-prefix", "表")
+            prefix = self._crossref_prefixes.get("tbl-prefix", "表")
         else:
             raise UnsupportedFeature(f"交叉引用 {target} 的类型尚未支持")
         number = self._eq_numbers.get(target)
@@ -658,6 +675,16 @@ class _Writer:
             run.append(t)
             element.append(run)
         paragraph._p.append(element)
+
+    def _prose_text(self) -> str:
+        """正文文字的前一小段：判语种用，不需要全量。"""
+        parts: list[str] = []
+        for block in self.model.blocks:
+            if isinstance(block, (Heading, Paragraph)):
+                parts.append(_plain_text(block.inlines))
+            if sum(len(p) for p in parts) > 800:
+                break
+        return "\n".join(parts)
 
     def _flatten_text(self, nodes, fmt=None):
         """把带格式的行内树摊平成 (文本, 格式) 序列，供超链接这类要自己造 run 的地方用。"""

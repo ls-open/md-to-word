@@ -1,4 +1,4 @@
-"""md_to_word.model.document — 文档模型（v3 的地基）。
+"""md_to_word.model.document — 文档模型（整个转换的地基）。
 
 这一层只描述「文档是什么」，不描述「怎么写成 OOXML」，也不描述「格式要求长什么样」。
 三层的关系：

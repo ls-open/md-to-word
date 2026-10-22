@@ -3,8 +3,7 @@
 只认本技能定义的语法子集（标题、段落样式行、列表、表格、图片、公式、引用块、代码块、
 脚注、短代码），不追求 CommonMark 全兼容：语法由我们定义，解析器自然也只认这一套。
 
-当前版本是行级状态机 + 内联扫描，够表达现有全部样例。v3 的写出器接上之后，若发现模型
-表达不了的写法，补在这里，而不是在输出端打补丁。
+实现是行级状态机 + 内联扫描。模型表达不了的写法，补在这里，而不是在输出端打补丁。
 """
 
 from __future__ import annotations
@@ -29,7 +28,6 @@ _FENCE_RE = re.compile(r"^(```|~~~)(.*)$")
 _SHORTCODE_RE = re.compile(r"^\{\{<\s*([a-z]+)(.*?)>\}\}\s*$")
 _IMAGE_ONLY_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<path>[^)\s]+)\)\s*(?P<attrs>\{[^}]*\})?\s*$")
 _WIDTH_RE = re.compile(r"width\s*=\s*([\d.]+)\s*(cm|mm|in|pt|%)?")
-_EQ_OPEN_RE = re.compile(r"^\$\$(?P<body>.*)")
 _LABEL_RE = re.compile(r"\{#(?P<label>[\w:.\-]+)\}\s*$")
 _BULLET_RE = re.compile(r"^(?P<indent>\s*)[-*+]\s+(?P<text>.*)$")
 _ORDERED_RE = re.compile(r"^(?P<indent>\s*)(?P<num>\d+)[.)]\s+(?P<text>.*)$")
@@ -66,7 +64,6 @@ _INLINE_RE = re.compile(
 )
 
 # 反斜杠转义：`\*` 要出字面星号而不是被当成强调符号。CommonMark 只对 ASCII 标点生效。
-_ESCAPABLE = set(string.punctuation)
 _ESCAPE_RE = re.compile(r"\\([%s])|\\text(asciitilde|less|greater|backslash)" % re.escape("".join(string.punctuation)))
 _TEXT_ESCAPES = {
     "asciitilde": "~",

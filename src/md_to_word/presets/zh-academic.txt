@@ -1,6 +1,6 @@
 # 中文学术 / 通用报告预设（zh-academic）
 #
-# 用法：bash scripts/export.sh 稿件.md -r presets/zh-academic.txt
+# 用法：md-to-word 稿件.md -r presets/zh-academic.txt
 #       不传 -r、稿件同目录也没有唯一 .txt 时，本文件就是默认格式要求。
 #
 # 改法：整行 `#` 是注释，行内 `#` 不是。只改要动的行，其余留原样；

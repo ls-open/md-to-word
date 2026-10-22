@@ -69,9 +69,27 @@ DEFAULT_CSL_ZH = "chinese-gb7714-2015-numeric.csl"
 DEFAULT_CSL_EN = "apa.csl"
 
 
+def looks_chinese(text: str, threshold: float = 0.05) -> bool:
+    """正文是不是中文写的。
+
+    只数**正文**里的汉字占比：`%% 表题`、`%% 图片题注` 这些样式名是词表的一部分，
+    英文稿里也会出现，拿它们判断语种会把英文稿认成中文稿。行首 `%%` 的行整行跳过。
+    """
+    lines = [line for line in (text or "").split("\n") if not line.lstrip().startswith("%%")]
+    dense = [ch for ch in "".join(lines) if not ch.isspace()]
+    if not dense:
+        return False
+    cjk = sum(1 for ch in dense if "\u4e00" <= ch <= "\u9fff")
+    return cjk / len(dense) > threshold
+
+
 def default_csl_path(text: str) -> Path:
     """按稿件的字种挑默认 CSL：中文稿走 GB/T 7714 数字制，其余走 APA。"""
-    dark = sum(1 for ch in text if "一" <= ch <= "鿿")
-    dense = sum(1 for ch in text if not ch.isspace())
-    name = DEFAULT_CSL_ZH if dense and dark / dense > 0.05 else DEFAULT_CSL_EN
-    return get_csl_dir() / name
+    return get_csl_dir() / (DEFAULT_CSL_ZH if looks_chinese(text) else DEFAULT_CSL_EN)
+
+
+def default_crossref_prefixes(chinese: bool) -> dict[str, str]:
+    """交叉引用前缀的默认值：`@eq-a` 该长成「式1」还是「Equation 1」。"""
+    if chinese:
+        return {"eq-prefix": "式", "fig-prefix": "图", "tbl-prefix": "表"}
+    return {"eq-prefix": "Equation ", "fig-prefix": "Figure ", "tbl-prefix": "Table "}

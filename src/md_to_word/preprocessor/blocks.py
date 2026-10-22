@@ -134,8 +134,8 @@ def style_line_issues(text: str) -> list[tuple[int, str]]:
             issues.append(
                 (
                     i,
-                    f"手写文献列表已不支持：在 YAML 里写 `bibliography: refs.bib` 与 `csl:`，"
-                    f"文献列表由引擎生成（样式仍由要求文件的「参考文献」行控制）",
+                    "手写文献列表已不支持：在 YAML 里写 `bibliography: refs.bib` 与 `csl:`，"
+                    "文献列表由引擎生成（样式仍由要求文件的「参考文献」行控制）",
                 )
             )
         elif not content:

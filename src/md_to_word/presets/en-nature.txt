@@ -1,6 +1,6 @@
 # English Nature / international journal preset (en-nature)
 #
-# Usage: bash scripts/export.sh manuscript.md --preset en-nature
+# Usage: md-to-word manuscript.md --preset en-nature
 #
 # Tune per journal: the body is set to 1.5 line spacing for readable review copies.
 # Journals that require double spacing only need `line-spacing 1.5` -> `line-spacing 2.0` on the body lines.
