@@ -156,7 +156,7 @@ skipped. Messages follow the manuscript's language.
 - Sum and integral limits stay to the right of the symbol in numbered equations (Word stacks limits
   only in display math). Content and symbols are correct; only the arrangement differs.
 - TOC page numbers and chapter headers are Word fields; Word asks once whether to update them.
-- Runtime: Python 3.9+ and nothing else. From a source checkout, `pip install -r requirements.txt`;
+- Runtime: Python 3.10+ and nothing else (3.9 is end-of-life and the math library no longer supports it). From a source checkout, `pip install -r requirements.txt`;
   where only the documentation is present, `pip install -U md-to-word-docx`. No Quarto, no Pandoc,
   no external binary.
 

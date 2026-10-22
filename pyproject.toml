@@ -7,7 +7,7 @@ name = "md-to-word-docx"
 dynamic = ["version"]
 description = "Deterministic Markdown to Word (.docx) compiler: declared typography, native equations, tables, cross-references, CSL bibliographies, pre- and post-export quality gates."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -21,10 +21,10 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Topic :: Text Processing :: Markup :: Markdown",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
 dependencies = [
