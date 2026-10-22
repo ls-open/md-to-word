@@ -16,7 +16,7 @@ from md_to_word.transform.citations import CitationEngine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CSL_DIR = REPO_ROOT / "resources" / "csl"
-REFERENCE = REPO_ROOT / "references" / "reference.md"
+REFERENCE = REPO_ROOT / "src" / "md_to_word" / "resources" / "manual.md"
 
 BIB = """@article{a, author={Smith, John and Doe, Jane}, title={A Study of Things},
   year={2020}, journal={Journal of Tests}, volume={3}, issue={2}, pages={10-20}}
@@ -56,4 +56,4 @@ def test_reference_manual_lists_every_style() -> None:
     documented = set(re.findall(r"`([a-z0-9\-]+\.csl)`", REFERENCE.read_text(encoding="utf-8")))
     documented = {name for name in documented if (CSL_DIR / name).exists()}
     missing = sorted(set(STYLES) - documented)
-    assert not missing, f"这些样式没写进 references/reference.md §3：{missing}"
+    assert not missing, f"这些样式没写进包内 manual.md §7：{missing}"

@@ -133,10 +133,6 @@ _SHORTCODE_MARKERS = {
     "toc": (TOC_MARKER_RE, "目录"),
     "section": (_SECTION_RE, "分节"),
 }
-_CROSSREF_LABEL_RE = re.compile(r"\{#(?P<kind>eq|fig|tbl)-")
-# crossref 标签种类 → YAML 里对应的前缀字段
-CROSSREF_PREFIX_FIELDS = {"eq": "eq-prefix", "fig": "fig-prefix", "tbl": "tbl-prefix"}
-_CJK_RE = re.compile(r"[㐀-鿿豈-﫿]")
 _SHORTCODE_RE = re.compile(r"\{\{<\s*([A-Za-z][\w-]*)")
 _DIV_OPEN_RE = re.compile(r"^\s*:::\s*\{.*\}\s*$")
 _TABLE_ROW_RE = re.compile(r"^\s*\|")
@@ -463,42 +459,6 @@ def citations_without_bibliography(text: str, line_offset: int = 0) -> list[int]
             seen.add(line_no)
             out.append(line_no)
     return out
-
-
-def crossref_prefix_issues(text: str, fm_data) -> list[tuple[int, str]]:
-    """中文稿件用了交叉引用标签、YAML 却没设中文字前缀 → [(行号, 说明)]。
-
-    不设前缀时渲染成 `Equation 1` / `Figure 1`，与正文中文混排。
-    判定条件都是硬事实，不做任何猜测：**正文含中日韩字符** + **出现 `{#eq-/fig-/tbl-}` 标签**
-    + **该标签在 YAML `crossref:` 下没有对应前缀**。三样都成立才报。
-
-    想要英文前缀就在 YAML 里显式写明（`eq-prefix: "Equation"`），一样能过。
-    """
-    if not text:
-        return []
-    body_lines = mask_code_fences(text).split("\n")
-    crossref = {}
-    if isinstance(fm_data, dict):
-        raw = fm_data.get("crossref")
-        if isinstance(raw, dict):
-            crossref = raw
-
-    issues: list[tuple[int, str]] = []
-    reported: set[str] = set()
-    for i, line in enumerate(body_lines):
-        for m in _CROSSREF_LABEL_RE.finditer(line):
-            kind = m.group("kind")
-            if kind in reported or CROSSREF_PREFIX_FIELDS[kind] in crossref:
-                continue
-            if not looks_chinese(text):
-                continue  # 非中文稿件用英文默认前缀，不算问题
-            reported.add(kind)
-            issues.append((
-                i + 1,
-                f"中文稿件用了 {kind} 交叉引用（{m.group(0)}…），"
-                f"但 YAML 的 crossref 下没写 {CROSSREF_PREFIX_FIELDS[kind]}",
-            ))
-    return issues
 
 
 def heading_issues(text: str) -> list[tuple[int, str]]:

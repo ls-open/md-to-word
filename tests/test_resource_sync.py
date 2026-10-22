@@ -1,4 +1,4 @@
-"""预设与资源两份拷贝必须一致。
+"""预设与资源两份拷贝必须一致（手册除外）。
 
 技能按目录分发（`presets/`、`resources/` 在仓库根），pip 安装则用包内的同名目录
 （`src/md_to_word/presets/`、`src/md_to_word/resources/`）。同一份事实两处存放，
@@ -6,6 +6,9 @@
 
 为什么不用软链接合并：本技能要在 Windows 上跑，而 Windows 的 git checkout 默认
 不落软链接。既然只能存两份，就让测试盯着它们不许分叉。
+
+`resources/manual.md` 是唯一例外：使用手册只随包发布，仓库根不放副本——它必须与代码
+同一个版本，而仓库根那份既没人读，也没人负责同步。
 """
 
 from __future__ import annotations
@@ -22,8 +25,16 @@ PKG_PRESETS = REPO_ROOT / "src" / "md_to_word" / "presets"
 PKG_RESOURCES = REPO_ROOT / "src" / "md_to_word" / "resources"
 
 
+# 只随包发布、仓库根不放副本的文件
+PACKAGE_ONLY = {"manual.md"}
+
+
 def _relative_files(root: Path) -> set[str]:
-    return {str(p.relative_to(root)) for p in root.rglob("*") if p.is_file()}
+    return {
+        str(p.relative_to(root))
+        for p in root.rglob("*")
+        if p.is_file() and p.name not in PACKAGE_ONLY
+    }
 
 
 @pytest.mark.parametrize(

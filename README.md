@@ -75,13 +75,14 @@ md-to-word hello.md -r requirements.txt -o hello.docx
 
 ## 安装
 
-实现只有一份：Python 包 `md-to-word`。技能、命令行、库调用都是它的入口。
+实现只有一份：Python 包 `md-to-word`。命令行、库调用、技能目录都是它的入口——技能目录整棵
+vendor 这份源码，因此不装包也能跑。
 
 | 用法 | 适合 | 安装 | 使用 |
 |:--|:--|:--|:--|
 | **命令行** | 本地导出、CI | `pip install md-to-word` | `md-to-word 稿件.md -o 输出.docx` |
 | **Python 库** | 写脚本、接自有流程 | 同上 | `from md_to_word import export` |
-| **AI 技能** | 让 Agent 代办 | 技能目录放 `SKILL.md` + `references/` + `scripts/`，再装包 | 「按学校的格式要求把这份稿子导出成 Word」 |
+| **AI 技能** | 让 Agent 代办、且不想装任何东西 | 用自包含的技能目录（整棵源码 + `SKILL.md` + `references/`），本仓库只发布引擎 | 「按学校的格式要求把这份稿子导出成 Word」 |
 
 **PyPI 状态**：尚未发布。发布前用源码或 Git 安装，发布后第一条命令即是上表的写法：
 
@@ -91,7 +92,8 @@ pip install -r requirements.txt    # 或在源码检出里装依赖
 ```
 
 更新：`pip install -U md-to-word`（隔离环境用 `pipx install` / `pipx upgrade`，避免装进系统环境）。
-技能文件只在文档变化时才需要重装——这是"实现放包里、技能只当入口"的原因。
+**实现与手册一起升级**：完整词表、契约与门禁说明都在包内 `manual.md`，与代码同一个版本，
+不存在"代码是新的、说明是旧的"。
 
 **依赖**：`python-docx`、`lxml`、`PyYAML`、`latex2mathml`、`citeproc-py`，5 个纯 Python 包。
 **导出不需要任何外部二进制**：没有 Pandoc，没有 Quarto，不调用 Word。`--pdf` 核对版才用到本机
@@ -112,8 +114,8 @@ md-to-word --help                                   # 全部选项；帮助语�
 
 退出码：`0` 完成；`1` 稿件、门禁或依赖问题；`3` `.docx` 已写出但 `--pdf` 未渲染（非 macOS）。
 
-`md-to-word --contract` 打印稿件契约速查（三条约定 + 样式名清单），
-只装了包、没有技能文档时用它入门。
+`md-to-word --contract` 打印稿件契约速查（三条约定 + 样式名清单），并给出包内完整手册与内置预设
+的真实路径——只装了包、手上一份文档都没有时，从这一条命令开始。
 
 
 **Python**：
@@ -128,8 +130,8 @@ print(result.output_docx)    # result.messages 是进度与提醒
 ```
 
 **AI 技能**：把 Markdown 交给 Agent 并说明格式要求即可，例如「按某某大学研究生学位论文的
-格式要求导出为 Word」。Agent 读 `SKILL.md`，依次完成格式提取、稿件规范化、模板生成与三道门禁。
-触发词与适用边界写在该文件的 frontmatter 里。
+格式要求导出为 Word」。技能目录是自包含的（整棵源码 + `SKILL.md` + `references/`），不依赖
+`pip`；Agent 在那边按 `SKILL.md` 走完格式提取、稿件规范化、模板生成与三道门禁。
 
 ---
 
@@ -157,17 +159,17 @@ print(result.output_docx)    # result.messages 是进度与提醒
 | 带编号公式里求和/积分的上下限上下排 | Word 只有显示式才把上下限排到符号上下，带编号公式是行内公式；内容与符号正确，排法不同 |
 | 行内文字颜色 | 颜色是样式属性，按样式行声明（`颜色#1F4E79`），不支持行内 `{color=…}` |
 
-完整词表与逐条原理见 [`references/reference.md`](references/reference.md)；放弃 Pandoc/Quarto
-之后的实现取舍见 [`references/design.md`](references/design.md)。
+完整词表与逐条原理见包内 [`manual.md`](src/md_to_word/resources/manual.md)（随 wheel 发布）；
+实现取舍见 [`references/design.md`](references/design.md)。
 
 ---
 
 ## 手上有现成的模板？
 
-学校、期刊或单位下发的 `.docx` 不必逐条抄成要求文件。用仓库自带的读取器反推一份草稿：
+学校、期刊或单位下发的 `.docx` 不必逐条抄成要求文件。用包内的读取器反推一份草稿：
 
 ```bash
-python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.txt
+md-to-word-template 学校模板.docx -o 论文_requirements.txt
 ```
 
 读出页面尺寸、页边距、页眉页脚距边界、页码格式与起始、各样式的中西文字体与字号、加粗倾斜、
@@ -180,17 +182,19 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 | 路径 | 读它做什么 |
 |:--|:--|
-| [`SKILL.md`](SKILL.md) | 技能主入口：Agent 代办流程、稿件契约、`requirements.txt` 组装、导出与核验 |
-| [`references/reference.md`](references/reference.md) | 完整词表与错误写法对照、排版推导默认值、内置 CSL 清单 |
+| [`src/md_to_word/resources/manual.md`](src/md_to_word/resources/manual.md) | **使用手册**：稿件契约、`requirements.txt` 完整词表、代办流程、门禁、能力边界、CSL 清单。随包发布 |
+| [`README.md`](README.md) / [`README_EN.md`](README_EN.md) | 是什么、怎么装、怎么跑 |
 | [`references/design.md`](references/design.md) | 设计原理与故障排查（导出结果不符合预期时先看它 §2） |
 | [`demo/`](demo/) | 四份样例：最小样例、中文学位论文、技术白皮书、英文期刊投稿 |
-| `scripts/` | `export.sh` 是转发壳；其余为开发工具（读模板、生成模板、检查稿件、规范化 CSL） |
+| `scripts/` | 开发与验收工具（见 [`scripts/README.md`](scripts/README.md)） |
 | `src/md_to_word/` | 实现本体：模型 → OOXML 写出器、样式生成、校验、对账 |
-| `resources/` | Word 365 底模与 29 份规范化 CSL 样式 |
+| `resources/` | Word 365 底模与 29 份规范化 CSL 样式；`manual.md` 也在这里 |
 | `presets/` | 内置格式预设：`zh-academic.txt`（默认）、`en-nature.txt` |
 
-仓库里什么会发到用户机器上：只发 `src/`、`presets/`、`resources/` 与包元数据（wheel 约 288 KB）；
-`tests/`、`demo/`、`scripts/`、`references/` 不进包——它们是仓库的验收面，不是运行时的依赖。
+仓库里什么会发到用户机器上：`src/`（含 `manual.md`）、`presets/`、`resources/` 与包元数据
+（wheel 约 300 KB）；`tests/`、`demo/`、`scripts/`、`references/` 不进包——它们是仓库的验收面，
+不是运行时的依赖。**技能文档不在本仓库**：自包含技能目录整棵 vendor 这里的源码，另有自己的
+`SKILL.md` 与 `references/`。
 
 ---
 

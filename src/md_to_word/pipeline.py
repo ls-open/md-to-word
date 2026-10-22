@@ -158,6 +158,9 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         if len(txt_candidates) == 1 and txt_candidates[0].is_file():
             req_file = txt_candidates[0]
             req_content = req_file.read_text(encoding="utf-8")
+            # 接管了哪一份必须报出来：同目录的 .txt 可能是笔记、也可能是格式要求，
+            # 不说是哪一份时，后面的报错看着就像凭空冒出来的。
+            res.messages.append(t("pipeline.txt_auto", res.lang, path=req_file.name))
         elif len(txt_candidates) > 1 and not options.template_path:
             res.returncode = 1
             res.errors.append(t("pipeline.many_txt", res.lang, dir=in_p.parent))

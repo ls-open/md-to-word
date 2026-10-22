@@ -210,6 +210,22 @@ def test_user_csl_direct_formatting_is_stripped(tmp_path: Path) -> None:
     assert any("hanging-indent" in m for m in result.messages), result.messages
 
 
+def test_auto_picked_requirements_are_announced(tmp_path: Path) -> None:
+    """没传 -r 时，同目录唯一的 .txt 会被当成格式要求——必须说出用了哪一份。
+
+    不说的话，那份文件写错时的报错会像凭空冒出来的：用户不记得目录里还有这么一份。
+    """
+    (tmp_path / "doc.md").write_text("# 引言\n\n正文。\n", encoding="utf-8")
+    (tmp_path / "随手记.txt").write_text("这是笔记\n", encoding="utf-8")
+
+    result = run_export_pipeline(
+        ExportOptions(input_path=tmp_path / "doc.md", output_path=tmp_path / "doc.docx")
+    )
+
+    assert result.returncode == 1
+    assert any("随手记.txt" in msg for msg in result.messages)
+
+
 def test_contract_cheatsheet_needs_no_manuscript(capsys) -> None:
     """只装了包、手上没有技能文档的调用方，要能自己问出稿件怎么写。"""
     from md_to_word.cli import main

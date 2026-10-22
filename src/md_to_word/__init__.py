@@ -10,7 +10,8 @@ from md_to_word.spec.serializer import serialize_requirements
 from md_to_word.template.builder import build_template
 from md_to_word.validator.check import ValidationReport, validate_manuscript
 
-__version__ = "2.0.0.dev1"
+# 包元数据从这里取这一行（pyproject 的 version 是 dynamic），不维护第二份
+__version__ = "2.0.0"
 
 
 def export(

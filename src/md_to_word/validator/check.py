@@ -32,7 +32,6 @@ from md_to_word.utils.skill_utils import (
     soft_wrap_issues,
     citation_key_issues,
     citations_without_bibliography,
-    crossref_prefix_issues,
     dialect_issues,
     has_declared_image_width,
     heading_issues,
@@ -342,7 +341,7 @@ def validate_manuscript(
                     f"若只是想展示语法字面量，用反引号包起来"
                 )
 
-    # 1d. 编号格式用了 {c}（章号），稿件却没说按章编号：两个文件各写一半，等式不成立
+    # 1e. 编号格式用了 {c}（章号），稿件却没说按章编号：两个文件各写一半，等式不成立
     eq_format = getattr(spec, "equation_number_format", "") or ""
     if "{c}" in eq_format:
         crossref = fm_data.get("crossref") if isinstance(fm_data, dict) else None
@@ -414,42 +413,28 @@ def validate_manuscript(
     for line_no, why in heading_issues(md_text):
         report.warnings.append(f"行 {line_no} [标题/分级]: {why}")
 
-    # 9. 交叉引用前缀：要求文件声明了中文校对语言时，导出阶段会补默认前缀，
-    #    这里只提示、不阻断（否则「自动补」永远走不到渲染那一步）
-    auto_prefix = spec is not None and (spec.proofing_lang or "").lower().startswith("zh")
-    for line_no, why in crossref_prefix_issues(md_text, fm_data):
-        if auto_prefix:
-            report.warnings.append(
-                f"行 {line_no} [交叉引用前缀]: {why}；导出时会按「式/图/表」自动补上"
-            )
-        else:
-            # 不写前缀会渲染成 Equation 1（中英混排），但内容没错，提醒即可
-            report.warnings.append(
-                f"行 {line_no} [交叉引用前缀]: {why}；不加要求文件里声明中文校对语言即可自动补"
-            )
-
-    # 10. 未定义交叉引用标签
+    # 9. 未定义交叉引用标签
     for line_no, why in undefined_crossref_issues(md_text):
         report.valid = False
         report.errors.append(f"行 {line_no} [交叉引用缺失目标]: {why}")
 
-    # 11. 畸变表格
+    # 10. 畸变表格
     for line_no, why in malformed_table_issues(md_text):
         report.valid = False
         report.errors.append(f"行 {line_no} [表格格式异常]: {why}")
 
-    # 12. 图表题注邻近性：题注离表格/图片远了，样式仍会生效，只是位置不对，提醒即可
+    # 11. 图表题注邻近性：题注离表格/图片远了，样式仍会生效，只是位置不对，提醒即可
     for line_no, why in caption_adjacency_issues(md_text):
         report.warnings.append(f"行 {line_no} [图表题注邻近性]: {why}")
 
-    # 12b. 折行段落：按「一行一段」读取会拆成几段，每段都吃一次首行缩进，看得见但内容没丢
+    # 11b. 折行段落：按「一行一段」读取会拆成几段，每段都吃一次首行缩进，看得见但内容没丢
     for line_no, snippet in soft_wrap_issues(md_text):
         report.warnings.append(
             f"行 {line_no} [折行段落]: 上一行没有句末标点而本行紧随其后（「{snippet}」）；"
             f"本引擎按「一行一段」读取，会拆成两段。若本意是同一段，请合并到一行"
         )
 
-    # 13. `\tag{}` 公式编号（不认这个写法，整条公式退化成字面文本）
+    # 12. `\tag{}` 公式编号（不认这个写法，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):
         report.valid = False
         report.errors.append(
@@ -457,9 +442,9 @@ def validate_manuscript(
             f"删掉 `\\tag{{X}}`，改写成 `$$…$$ {{#eq-标签}}`，编号由 crossref 生成"
         )
 
-    # 14/15. 依赖格式要求文件的两道门禁
+    # 13/14. 依赖格式要求文件的两道门禁
     if spec is not None:
-        # 14. 图片声明宽度超过版心：会被钳到版心宽，但图还在页内，提醒即可
+        # 13. 图片声明宽度超过版心：会被钳到版心宽，但图还在页内，提醒即可
         width_cm = content_width_cm(spec)
         if width_cm:
             for line_no, why in image_width_issues(md_text, width_cm):
@@ -467,12 +452,12 @@ def validate_manuscript(
         elif has_declared_image_width(md_text):
             report.warnings.append("要求文件没写页边距，算不出版心，图片宽度未校验")
 
-        # 15. 稿件结构 vs 要求文件声明的样式（缺一条就静默回退默认样式）
+        # 14. 稿件结构 vs 要求文件声明的样式（缺一条就静默回退默认样式）
         for line_no, why in required_style_issues(md_text, spec, fm_data):
             report.valid = False
             report.errors.append(f"行 {line_no} [结构样式缺失]: {why}")
 
-    # 15b. `:::` 不是本技能的写法
+    # 14b. `:::` 不是本技能的写法
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         if re.match(r"^\s*:::", line):
             report.valid = False
@@ -481,7 +466,7 @@ def validate_manuscript(
                 f"需要段落样式就写成一行 `%% 样式名 内容`；文献列表由引擎放在文末，不需要定位标记。"
             )
 
-    # 15c. 题注写进图片的方括号里：方括号只放无障碍替代文字
+    # 14c. 题注写进图片的方括号里：方括号只放无障碍替代文字
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         m = re.search(r"!\[([^\]]+)\]\(", line)
         if m and re.match(r"^\s*(?:图|表|Figure|Table)\s*\d", m.group(1)):
@@ -492,7 +477,7 @@ def validate_manuscript(
                 f"`![](…)` 的方括号留空或写一句替代文字"
             )
 
-    # 15d. 文献区标题：列表是引擎生成的，标题得稿子里写，两种写法都认
+    # 14d. 文献区标题：列表是引擎生成的，标题得稿子里写，两种写法都认
     if isinstance(fm_data, dict) and fm_data.get("bibliography"):
         has_style_title = bool(re.search(r"^%%\s*参考文献标题\s", md_text, re.M))
         has_heading = bool(
@@ -504,12 +489,12 @@ def validate_manuscript(
                 "（或 `# 参考文献` 标题），否则生成的文献列表没有抬头"
             )
 
-    # 16. 段落样式行 `%% 样式名 内容`
+    # 15. 段落样式行 `%% 样式名 内容`
     for line_no, why in style_line_issues(md_text):
         report.valid = False
         report.errors.append(f"行 {line_no} [段落样式]: {why}")
 
-    # 17. custom-style 是否真的存在于模板（没给模板就跳过，由对账阶段兜底）
+    # 16. custom-style 是否真的存在于模板（没给模板就跳过，由对账阶段兜底）
     styles_used: dict[str, list[int]] = {}
     for line_no, resolved in style_line_names(md_text):
         if resolved:

@@ -318,7 +318,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
                               for t in tab_list)
             doubt.append(f'用了 {len(tab_list)} 个制表位（{where}）——本技能的 `点线制表位` 只能'
                          f'表达「右对齐 + 点线 + 落在版心右边界」那一种，其余的草稿里没法表达，'
-                         f'需要在 Word 里手工设（任意制表位见 reference.md §1.4）')
+                         f'需要在 Word 里手工设（任意制表位见 manual.md §6）')
 
     # 字符间距（Word「字体 → 高级 → 字符间距」）：rPr/spacing 的 val 是二十分之一磅。
     # 注意别拿成 pPr/spacing——那是行距，同名不同容器（`.//` 会先撞上 pPr 那个）。

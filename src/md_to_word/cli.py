@@ -33,10 +33,12 @@ def _message_lang(argv: list[str]) -> str:
 
 
 def contract_cheatsheet() -> str:
-    """稿件契约速查。给「只装了包、手上没有技能文档」的调用方一个自足入口。
+    """稿件契约速查 + 手册与预设的真实路径。
 
-    样式名从 `STYLE_MAP` 现取，不在这里另抄一份——词表改了这里跟着变。
+    给「只装了包、手上没有任何文档」的调用方一个自足入口：一份够用的速查，加上
+    去哪儿读全部内容、去哪儿拿一份现成的要求文件。路径从安装位置现算，不写死。
     """
+    from md_to_word.config import resolve_preset_path
     from md_to_word.spec.constants import STYLE_MAP
 
     # 按词表声明顺序、每个样式只取第一个中文名：排序后的结果会变成「一级、三级、二级」，
@@ -48,6 +50,10 @@ def contract_cheatsheet() -> str:
             continue
         seen.add(target)
         zh_names.append(cn)
+    manual = Path(__file__).resolve().parent / "resources" / "manual.md"
+    presets = "\n".join(
+        f"  {name:<12} {resolve_preset_path(name)}" for name in ("zh-academic", "en-nature")
+    )
     return f"""稿件 = 普通 Markdown + 三条约定
 ================================
 
@@ -67,7 +73,11 @@ def contract_cheatsheet() -> str:
 
 格式要求：不传 -r 时用内置预设（中文 zh-academic、英文 --preset en-nature），
 每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
-完整词表：`md-to-word --help` 之外见仓库 references/reference.md。
+从预设起步最省事：把下面那份拷到稿件旁，只改需要的行。
+
+手册（完整词表、YAML、公式编号、CSL 清单、能力边界）：{manual}
+内置预设：
+{presets}
 """
 
 
@@ -122,6 +132,9 @@ def main(args: list[str] | None = None) -> int:
 
     for msg in result.messages:
         print(msg)
+    # 进度走 stdout、错误走 stderr。管道里 stdout 是块缓冲的，不先 flush 的话
+    # 「用了哪份要求文件」会印在报错后面，读起来像事后补的解释。
+    sys.stdout.flush()
 
     if result.returncode != 0 and result.returncode != 3:
         for err in result.errors:

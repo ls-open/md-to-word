@@ -54,6 +54,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Several .txt files in {dir}; cannot tell which one is the requirements.\n"
         "  Pass -r to select one, or use --preset zh-academic/en-nature.",
     ),
+    "pipeline.txt_auto": (
+        "未指定格式要求，自动使用同目录唯一的 {path}（要换一份就加 -r）。",
+        "No requirements given; using the only .txt beside the manuscript: {path} (pass -r to choose another).",
+    ),
     "pipeline.template_missing": ("指定的模板文件不存在: {path}", "Template file not found: {path}"),
     "pipeline.no_spec": ("未提供格式要求或模板，无法生成样式文档。", "No requirements or template: cannot build the style template."),
     "pipeline.csl_error": ("文献库或 CSL 样式无法使用：{reason}", "Bibliography or CSL style unusable: {reason}"),

@@ -79,14 +79,15 @@ and note — nothing was clicked in Word.
 
 ## Install
 
-There is one implementation: the Python package `md-to-word`. The skill, the command line and the
-library API are all entries into it.
+There is one implementation: the Python package `md-to-word`. The command line, the library API and
+the skill directory are all entries into it — the skill directory vendors this source tree, so it
+runs without installing anything.
 
 | Entry | For | Install | Use |
 |:--|:--|:--|:--|
 | **Command line** | local exports, CI | `pip install md-to-word` | `md-to-word paper.md -o paper.docx` |
 | **Python library** | scripts, custom pipelines | same | `from md_to_word import export` |
-| **AI skill** | handing the job to an agent | put `SKILL.md` + `references/` + `scripts/` in the skill directory, then install the package | "Export this manuscript as Word, following my school's format." |
+| **AI skill** | handing the job to an agent, without installing anything | use the self-contained skill directory (source + `SKILL.md` + `references/`); this repository publishes the engine | "Export this manuscript as Word, following my school's format." |
 
 **PyPI status**: not published yet. Until then install from source or Git; after the release the
 first command above is the one to use.
@@ -97,8 +98,8 @@ pip install -r requirements.txt    # or install dependencies inside a source che
 ```
 
 Updates: `pip install -U md-to-word` (use `pipx install` / `pipx upgrade` to keep it out of the
-system environment). Skill files only need reinstalling when the documentation changes — that is the
-point of keeping the implementation in the package.
+system environment). **Code and manual upgrade together**: the full vocabulary, contract and gate
+reference live in `manual.md` inside the package, at the same version as the code.
 
 **Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py` — five pure-Python
 packages. **Export needs no external binary**: no Pandoc, no Quarto, no Word. Only the optional
@@ -120,8 +121,9 @@ md-to-word --help                                    # all options; help follows
 Exit codes: `0` done; `1` manuscript, gate or dependency problem; `3` `.docx` written but `--pdf`
 was skipped (non-macOS).
 
-`md-to-word --contract` prints the manuscript contract (three conventions plus the
-style-name list) — the starting point when you have the package but not the skill docs.
+`md-to-word --contract` prints the manuscript contract (three conventions plus the style-name list)
+and the real paths of the bundled manual and presets — the starting point when you have the package
+and no documentation at all.
 
 
 **Python**:
@@ -135,9 +137,10 @@ if not result.ok:            # ok = the .docx was written (a skipped --pdf is no
 print(result.output_docx)    # result.messages holds progress notes and reminders
 ```
 
-**AI skill**: hand the Markdown to an agent together with the format requirement. The agent reads
-`SKILL.md` and runs format extraction, manuscript normalisation, template generation and the gates.
-Trigger phrases and scope are in that file's frontmatter.
+**AI skill**: hand the Markdown to an agent together with the format requirement. The skill
+directory is self-contained (full source + `SKILL.md` + `references/`) and needs no `pip`; the agent
+follows `SKILL.md` through format extraction, manuscript normalisation, template generation and the
+gates.
 
 ---
 
@@ -165,8 +168,8 @@ Trigger phrases and scope are in that file's frontmatter.
 | Limits above/below Σ and ∫ in numbered equations | Word only stacks limits in display maths, and numbered equations are inline; symbols and content are correct, placement differs |
 | Inline text colour | Colour is a style property (`颜色#1F4E79` on a style line); inline `{color=…}` is not supported |
 
-The full vocabulary and rationale live in [`references/reference.md`](references/reference.md)
-(Chinese); design decisions are in [`references/design.md`](references/design.md) (Chinese).
+The full vocabulary and rationale live in [`manual.md`](src/md_to_word/resources/manual.md) inside
+the package (Chinese); design decisions are in [`references/design.md`](references/design.md).
 
 ---
 
@@ -176,7 +179,7 @@ You do not have to transcribe a school or journal `.docx` by hand. Run the bundl
 to get a draft requirements file:
 
 ```bash
-python3 scripts/read_reference_docx.py school_template.docx -o paper_requirements.txt
+md-to-word-template school_template.docx -o paper_requirements.txt
 ```
 
 It reads page size, margins, header/footer distances, page number format and start, per-style fonts
@@ -191,18 +194,19 @@ to-confirm item** — it does not pretend to have read it.
 
 | Path | What it is for |
 |:--|:--|
-| [`SKILL.md`](SKILL.md) | Skill entry: agent workflow, manuscript contract, requirements assembly, export and verification |
-| [`references/reference.md`](references/reference.md) | Complete vocabulary with wrong-spelling comparisons, derived defaults, CSL inventory |
+| [`src/md_to_word/resources/manual.md`](src/md_to_word/resources/manual.md) | **The manual**: manuscript contract, full `requirements.txt` vocabulary, agent workflow, gates, limits, CSL inventory. Ships inside the package |
 | [`references/design.md`](references/design.md) | Design rationale and troubleshooting (start at its §2 when output looks wrong) |
 | [`demo/`](demo/) | Four samples: minimal, Chinese thesis, technical whitepaper, English journal submission |
-| `scripts/` | `export.sh` is a forwarding shell; the rest are development tools (read a template, build a template, check a manuscript, normalise CSL) |
+| `scripts/` | Development and acceptance tools (see [`scripts/README.md`](scripts/README.md)) |
 | `src/md_to_word/` | The implementation: model → OOXML writer, style generation, validation, reconciliation |
-| `resources/` | Word 365 base template and 29 normalised CSL styles |
+| `resources/` | Word 365 base template, 29 normalised CSL styles, and `manual.md` |
 | `presets/` | Built-in presets: `zh-academic.txt` (default), `en-nature.txt` |
 
-What ships to a user's machine: `src/`, `presets/`, `resources/` and package metadata
-(wheel ≈ 288 KB). `tests/`, `demo/`, `scripts/` and `references/` are the repository's acceptance
-surface, not runtime dependencies.
+What ships to a user's machine: `src/` (with `manual.md`), `presets/`, `resources/` and package
+metadata (wheel ≈ 300 KB). `tests/`, `demo/`, `scripts/` and `references/` are the repository's
+acceptance surface, not runtime dependencies. **Skill documentation is not in this repository**: the
+self-contained skill directory vendors this source tree and carries its own `SKILL.md` and
+`references/`.
 
 ---
 

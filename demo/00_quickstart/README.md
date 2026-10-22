@@ -44,4 +44,4 @@ bash ../../scripts/export.sh hello.md -r requirements.txt -o hello.docx --pdf
 
 - 想看更全的写法：`demo/01_chinese_thesis/`（学位论文：目录、分节页码、公式编号、国标文献）
 - 想看商业文档：`demo/02_modern_report/`（白皮书：全网格线表、APA 引用、极简页眉）
-- 想知道每个词的确切含义：`references/reference.md §1.5` 的完整词表
+- 想知道每个词的确切含义：包内 `manual.md §3.1` 的完整词表（`md-to-word --contract` 给路径）

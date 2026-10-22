@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "md-to-word"
-version = "2.0.0.dev1"
+dynamic = ["version"]
 description = "Deterministic academic Markdown to journal-compliant Word (.docx) compiler with dual presets and quality gates."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -43,6 +43,10 @@ test = [
 
 [project.scripts]
 md-to-word = "md_to_word.cli:main"
+md-to-word-template = "md_to_word.template.extractor:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "md_to_word.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
