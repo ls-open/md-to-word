@@ -622,6 +622,7 @@ def modify_style(doc, style_name, props, default_latin=None):
 #
 # 解析器已收敛到 md_to_word.spec.parser（中英双语词表、封闭取值、1 对 1 纠错提示）。
 # 这里只做转发：本文件负责「把 spec 写成 OOXML」，不负责「读懂格式要求文本」。
+from md_to_word.spec.constants import ROW_NAME_EN  # noqa: E402
 from md_to_word.spec.parser import (  # noqa: E402
     parse_requirements,
     parse_style_props,
@@ -649,9 +650,7 @@ def get_default_template():
     """取纯净现代 Word 365 基底模板（resources/pure_modern_base.docx）。"""
     local_base = get_base_template_path()
     if not local_base.exists():
-        raise TemplateError(
-            f'未找到基础模板 {local_base}；请运行 scripts/create_pure_modern_base.py 重新生成。'
-        )
+        raise TemplateError(t('template.base_template_missing', 'zh', path=local_base))
     logger.debug(f"使用内置纯净现代 Word 365 基底模板: {local_base}")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
     shutil.copyfile(str(local_base), tmp.name)
@@ -686,9 +685,10 @@ REQUIRED_ROWS = {}
 # ── **条件必填**：写了内容就必须给样式行 ──
 # 页眉/页脚本身可有可无（不写＝不加，不算错）；但写了「页眉内容：」却不给「页眉：」
 # 样式行，页眉就会套用底模默认字体——正是要防的那种静默错误。
+# 值是（中文行名, 示例行的消息 key）：示例得按读者的语言给，写在词表里，测试里过一遍解析
 CONDITIONAL_STYLE_ROWS = {
-    'Header': ('页眉', '页眉：宋体/Times New Roman 小五 不加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符'),
-    'Footer': ('页脚', '页脚：宋体/Times New Roman 小五 不加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符'),
+    'Header': ('页眉', 'template.example.header'),
+    'Footer': ('页脚', 'template.example.footer'),
 }
 
 # ── **条件成套必填（学位论文目录）** ──
@@ -712,23 +712,23 @@ TOC_EXTRA_LEVELS = {4: ('TOC 4', '目录四级'), 5: ('TOC 5', '目录五级')}
 # 不必强求纯文档也声明全套学术论文样式；但**稿件里真出现了**这些结构，要求文件就必须
 # 显式定义，否则静默回退到底模默认样式。
 STRUCT_TRIGGERS = [
-    (re.compile(r'^##\s+\S'), '二级标题 (##)', [('二级标题', 'Heading 2')]),
-    (re.compile(r'^###\s+\S'), '三级标题 (###)', [('三级标题', 'Heading 3')]),
-    (re.compile(r'^####\s+\S'), '四级标题 (####)', [('四级标题', 'Heading 4')]),
-    (re.compile(r'^#####\s+\S'), '五级标题 (#####)', [('五级标题', 'Heading 5')]),
-    (re.compile(r'^######\s+\S'), '六级标题 (######)', [('六级标题', 'Heading 6')]),
-    (TOC_MARKER_RE, '目录短代码 ({{< toc >}})',
+    (re.compile(r'^##\s+\S'), 'gate.feat.heading2', [('二级标题', 'Heading 2')]),
+    (re.compile(r'^###\s+\S'), 'gate.feat.heading3', [('三级标题', 'Heading 3')]),
+    (re.compile(r'^####\s+\S'), 'gate.feat.heading4', [('四级标题', 'Heading 4')]),
+    (re.compile(r'^#####\s+\S'), 'gate.feat.heading5', [('五级标题', 'Heading 5')]),
+    (re.compile(r'^######\s+\S'), 'gate.feat.heading6', [('六级标题', 'Heading 6')]),
+    (TOC_MARKER_RE, 'gate.feat.toc',
      [(cn, en) for en, cn in TOC_STYLE_GROUP.items()]),
-    (re.compile(r'^>\s+\S'), '引用块 (>)', [('引用块', 'Block Text')]),
-    (re.compile(r'custom-style=(["\'])Abstract Title\1'), '摘要标题包裹', [('摘要标题', 'Abstract Title')]),
-    (re.compile(r'custom-style=(["\'])Abstract\1'), '摘要正文包裹', [('摘要', 'Abstract')]),
-    (re.compile(r'custom-style=(["\'])Keywords\1'), '关键词包裹', [('关键词', 'Keywords')]),
-    (re.compile(r'custom-style=(["\'])References Title\1'), '参考文献标题包裹', [('参考文献标题', 'References Title')]),
-    (re.compile(r'(?:::\s*\{#refs\}|custom-style=(["\'])Bibliography\1)'), '参考文献区块', [('参考文献', 'Bibliography')]),
-    (re.compile(r'!\[[^\]]*\]\([^)]+\)'), '图片 (![](...))', [('图', 'Captioned Figure'), ('图片题注', 'Image Caption')]),
-    (re.compile(r'custom-style=(["\'])Table Caption\1'), '表格题注包裹', [('表格题注', 'Table Caption')]),
-    (re.compile(r'custom-style=(["\'])Table Note\1'), '表注包裹', [('表注', 'Table Note')]),
-    (re.compile(r'^\s*\|.*\|'), 'Markdown 表格 (|...|)', [
+    (re.compile(r'^>\s+\S'), 'gate.feat.block_text', [('引用块', 'Block Text')]),
+    (re.compile(r'custom-style=(["\'])Abstract Title\1'), 'gate.feat.abstract_title', [('摘要标题', 'Abstract Title')]),
+    (re.compile(r'custom-style=(["\'])Abstract\1'), 'gate.feat.abstract', [('摘要', 'Abstract')]),
+    (re.compile(r'custom-style=(["\'])Keywords\1'), 'gate.feat.keywords', [('关键词', 'Keywords')]),
+    (re.compile(r'custom-style=(["\'])References Title\1'), 'gate.feat.references_title', [('参考文献标题', 'References Title')]),
+    (re.compile(r'(?:::\s*\{#refs\}|custom-style=(["\'])Bibliography\1)'), 'gate.feat.bibliography', [('参考文献', 'Bibliography')]),
+    (re.compile(r'!\[[^\]]*\]\([^)]+\)'), 'gate.feat.image', [('图', 'Captioned Figure'), ('图片题注', 'Image Caption')]),
+    (re.compile(r'custom-style=(["\'])Table Caption\1'), 'gate.feat.table_caption', [('表格题注', 'Table Caption')]),
+    (re.compile(r'custom-style=(["\'])Table Note\1'), 'gate.feat.table_note', [('表注', 'Table Note')]),
+    (re.compile(r'^\s*\|.*\|'), 'gate.feat.markdown_table', [
         ('紧凑', 'Compact'),
         ('表格', '__ROW_table__'),
         ('表头', '__ROW_table_header__'),
@@ -736,22 +736,26 @@ STRUCT_TRIGGERS = [
 ]
 
 
-def missing_styles_for_body(masked_body: str, declared: set, start_line: int = 1) -> list:
+def missing_styles_for_body(
+    masked_body: str, declared: set, start_line: int = 1, lang: str = "zh"
+) -> list:
     """稿件正文用到的结构 → 要求文件漏声明的样式或配置行。
 
     `masked_body` 是**已掩码代码块**的正文（`skill_utils.mask_code_fences`）——方法学论文
     常在代码块里演示语法，那里的 `>`、`###` 不是稿件结构。
     返回 [(行号, 结构描述, 中文写法, Word 样式名)]，空列表 = 都声明了。
+    结构描述按 `lang` 取词（`gate.feat.*`）：报错里说「二级标题 (##)」还是
+    「level-2 heading (##)」，跟读者的稿子走。
     """
     issues, reported = [], set()
     for i, line in enumerate(masked_body.split('\n'), start_line):
-        for pat, feat, styles in STRUCT_TRIGGERS:
+        for pat, feat_key, styles in STRUCT_TRIGGERS:
             if not pat.search(line):
                 continue
             for cn, en in styles:
-                if en not in declared and (feat, en) not in reported:
-                    reported.add((feat, en))
-                    issues.append((i, feat, cn, en))
+                if en not in declared and (feat_key, en) not in reported:
+                    reported.add((feat_key, en))
+                    issues.append((i, t(feat_key, lang), cn, en))
     return issues
 
 _PARA = ['font_name', 'font_size', 'alignment', 'line_spacing', 'space_before', 'space_after']
@@ -803,40 +807,34 @@ REQUIRED_FIELDS_BY_STYLE = {
 # 又没自己写 w:ind 的样式都会跟着缩进 2 字符。图片段落、表格单元格这类一行就结束的，
 # 被顶右 2 字符再叠加居中会顶出右边界——肉眼看是"图片没居中"，实则是继承来的缩进。
 
-FIELD_CN = {
-    'font_name': '字体',
-    'font_size': '字号',
-    'alignment': '对齐方式',
-    'line_spacing': '行距',
-    'space_before': '段前',
-    'space_after': '段后',
-    'indent': '缩进（首行缩进/悬挂缩进，不需则填0）',
-    'bold': '加粗状态',
-    'italic': '倾斜状态',
-}
-
-FIELD_FIX_HINT = {
-    'font_name': '字体（如"宋体"或"Times New Roman"或"宋体/Times New Roman"）',
-    'font_size': '字号（如"12pt"或"小四"）',
-    'alignment': '对齐方式（如"居中"/"左对齐"/"右对齐"/"两端对齐"）',
-    'line_spacing': '行距（"行距2倍" / "行距20磅" / "行距最小值25磅"，不能用0）',
-    'space_before': '段前（如"段前0磅"，不需段间距填0）',
-    'space_after': '段后（如"段后6磅"，不需段间距填0）',
-    'indent': '缩进（正文写"首行缩进2字符"，参考文献写"悬挂缩进0.5英寸"，表格写"首行缩进0字符"）',
-    'bold': '加粗状态（如"加粗"或"不加粗"，标题类样式必须显式指定）',
-    'italic': '倾斜状态（如"倾斜"或"不倾斜"，标题类样式必须显式指定）',
-}
+# 字段名与「该写什么」都在 `i18n` 的词表里（`template.field.*` / `template.hint.*`）：
+# 英文那栏的示例是**能直接放进样式行**的片段，测试里逐个过 `parse_requirements`。
+FIELD_KEYS = (
+    'font_name', 'font_size', 'alignment', 'line_spacing',
+    'space_before', 'space_after', 'indent', 'bold', 'italic',
+)
 
 
-def _check_required_fields(spec) -> bool:
+def _style_label(style_name: str, lang: str) -> str:
+    """样式在诊断里的称呼：中文用词表里的中文名（沿用既有写法），英文用正典名。"""
+    return style_name if lang == "en" else STYLE_CN.get(style_name, style_name)
+
+
+def _row_label(row: str, lang: str) -> str:
+    """要求文件「行名」的英文回显：先查正典名（页眉 → Header），再查表格配置行（表格 → Table）。"""
+    return row if lang != "en" else (STYLE_MAP.get(row) or ROW_NAME_EN.get(row) or row)
+
+
+def _check_required_fields(spec, lang: str = "zh") -> bool:
     """校验必填项是否齐备：必填样式 / 样式的必填字段 / 条件成套必填行。"""
     req_by_style = {r['style_name']: r for r in spec.styles}
 
     missing_required = []   # (别名, 字段)
     missing_styles = []     # (样式名, 别名)
-    missing_rows = []       # (行名, 应写)
+    missing_rows = []       # (行名, 示例的消息 key)
 
-    for style_name, alias in REQUIRED_STYLES.items():
+    for style_name, cn_alias in REQUIRED_STYLES.items():
+        alias = style_name if lang == "en" else cn_alias
         if style_name not in req_by_style:
             missing_styles.append((style_name, alias))
             continue
@@ -852,7 +850,7 @@ def _check_required_fields(spec) -> bool:
     # 检查用户声明了但非无条件必选的样式（如二~六级标题、摘要、参考文献、页眉页脚、目录等）：声明了就必须全字段显式覆盖
     for req in spec.styles:
         style_name = req['style_name']
-        alias = req.get('alias') or STYLE_CN.get(style_name, style_name)
+        alias = req.get('alias') or _style_label(style_name, lang)
         if style_name in REQUIRED_FIELDS_BY_STYLE and style_name not in REQUIRED_STYLES:
             required_fields = REQUIRED_FIELDS_BY_STYLE[style_name]
             for fname in required_fields:
@@ -866,36 +864,48 @@ def _check_required_fields(spec) -> bool:
     if any(s in req_by_style for s in TOC_STYLE_GROUP):
         for s_name, s_alias in TOC_STYLE_GROUP.items():
             if s_name not in req_by_style:
-                missing_styles.append((s_name, f'{s_alias}（已声明目录样式，须成套配齐）'))
+                missing_styles.append((s_name, t('template.style.toc_group', lang,
+                                                  name=_style_label(s_name, lang))))
 
     # 条件成套必填 1b：目录四级/五级可选，但声明了第 n 级就得连着声明到第 n-1 级
     for level, (s_name, s_alias) in TOC_EXTRA_LEVELS.items():
         if s_name in req_by_style:
             prev_name, prev_alias = (f'TOC {level - 1}', f'目录{["", "一", "二", "三", "四"][level - 1]}级')
             if prev_name not in req_by_style:
-                missing_styles.append((prev_name, f'{prev_alias}（已声明{s_alias}，须先有上一级）'))
+                missing_styles.append((prev_name, t(
+                    'template.style.toc_prev_level', lang,
+                    name=prev_name if lang == 'en' else prev_alias,
+                    this=_style_label(s_name, lang),
+                )))
 
     # 条件成套必填 2：若声明了「表格：」或「表头：」，则表格、表头、紧凑（单元格文字）三者必须配齐
     if spec.table or spec.table_header:
         if not spec.table:
-            missing_rows.append(('表格', '表格：居中 三线表 线宽上1磅 线宽底1磅 线宽表头下0.25磅 单元格垂直居中'))
+            missing_rows.append(('表格', 'template.example.table'))
         if not spec.table_header:
-            missing_rows.append(('表头', '表头：宋体/Times New Roman 五号 加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符'))
+            missing_rows.append(('表头', 'template.example.table_header'))
         if 'Compact' not in req_by_style:
-            missing_styles.append(('Compact', '紧凑（已声明表格样式，须同时声明表内单元格文字样式）'))
+            missing_styles.append(('Compact', t('template.style.compact_group', lang,
+                                                name=_style_label('Compact', lang))))
 
     # 条件成套必填 3：图片与图片题注成套配齐
     if ('Captioned Figure' in req_by_style) != ('Image Caption' in req_by_style):
         if 'Captioned Figure' not in req_by_style:
-            missing_styles.append(('Captioned Figure', '图（已声明图片题注，须同时声明图片段落样式）'))
+            missing_styles.append(('Captioned Figure', t(
+                'template.style.figure_group', lang,
+                name=_style_label('Captioned Figure', lang))))
         else:
-            missing_styles.append(('Image Caption', '图片题注（已声明图样式，须同时声明图片题注样式）'))
+            missing_styles.append(('Image Caption', t(
+                'template.style.image_caption_group', lang,
+                name=_style_label('Image Caption', lang))))
 
     # 条件成套必填 4：写了摘要标题须配摘要正文；写了参考文献标题须配参考文献条目
     if 'Abstract Title' in req_by_style and 'Abstract' not in req_by_style:
-        missing_styles.append(('Abstract', '摘要（已声明摘要标题，须同时声明摘要正文样式）'))
+        missing_styles.append(('Abstract', t('template.style.abstract_group', lang,
+                                             name=_style_label('Abstract', lang))))
     if 'References Title' in req_by_style and 'Bibliography' not in req_by_style:
-        missing_styles.append(('Bibliography', '参考文献（已声明参考文献标题，须同时声明参考文献条目样式）'))
+        missing_styles.append(('Bibliography', t('template.style.bibliography_group', lang,
+                                                 name=_style_label('Bibliography', lang))))
 
     for key, (name, example) in REQUIRED_ROWS.items():
         if not getattr(spec, key, None):
@@ -906,10 +916,10 @@ def _check_required_fields(spec) -> bool:
         for fname in _PARA + ['indent']:
             if fname == 'indent':
                 if 'indent' not in spec.table_header or 'indent_type' not in spec.table_header:
-                    missing_required.append(('表头', fname))
+                    missing_required.append((_row_label('表头', lang), fname))
             elif (fname not in spec.table_header or spec.table_header[fname] is None
                   or spec.table_header[fname] == ''):
-                missing_required.append(('表头', fname))
+                missing_required.append((_row_label('表头', lang), fname))
 
     for style_name, (name, example) in CONDITIONAL_STYLE_ROWS.items():
         written = any(kind == ('header' if style_name == 'Header' else 'footer')
@@ -920,28 +930,30 @@ def _check_required_fields(spec) -> bool:
     has_errors = bool(missing_required or missing_styles or missing_rows)
 
     if missing_styles:
-        logger.warning('⚠️ 必填样式缺失（将沿用 Word 默认值，可能不符合期刊要求）:')
+        logger.warning(t('template.missing_styles_header', lang))
         for style_name, alias in missing_styles:
-            logger.info(f' - {alias}（{style_name}）')
-        logger.info(' 建议在 requirements.txt 中补充这些样式的定义')
+            logger.info(t('template.style_item', lang, alias=alias, style=style_name))
+        logger.info(t('template.missing_styles_hint', lang))
 
     if missing_rows:
-        logger.warning('⚠️ 必填行缺失（不写就会套用默认样式）:')
+        logger.warning(t('template.missing_rows_header', lang))
         for name, example in missing_rows:
-            logger.info(f' - {name}: 应写「{example}」')
+            logger.info(t('template.row_item', lang, name=_row_label(name, lang),
+                          example=t(example, lang)))
 
     if missing_required:
-        logger.warning('⚠️ 必填字段缺失（缺失会沿用 Word 默认值，可能导致格式不合规）:')
+        logger.warning(t('template.missing_fields_header', lang))
         for alias, field in missing_required:
-            hint = FIELD_FIX_HINT.get(field, field)
-            logger.info(f' - {alias}: 缺少{FIELD_CN.get(field, field)}')
-            logger.info(f' 应写: {hint}')
+            hint = t(f'template.hint.{field}', lang) if field in FIELD_KEYS else field
+            logger.info(t('template.field_item', lang, alias=alias,
+                          field=t(f'template.field.{field}', lang) if field in FIELD_KEYS else field))
+            logger.info(t('template.field_fix', lang, hint=hint))
 
     if has_errors:
-        logger.error('\n❌ 必填项或必填字段缺失，终止生成。')
-        logger.error(' 请按上方提示补齐缺失项（不需要间距或缩进时，也须显式填 0，如「段前0磅」「首行缩进0字符」）。')
+        logger.error(t('template.abort', lang))
+        logger.error(t('template.abort_hint', lang))
     else:
-        logger.debug('必填字段校验通过')
+        logger.debug(t('template.check_ok', lang))
 
     return has_errors
 
@@ -1035,7 +1047,7 @@ def ensure_style_alias(doc, style_name, alias):
     return True
 
 
-def apply_page_decorations(doc, spec):
+def apply_page_decorations(doc, spec, lang: str = "zh"):
     """写入页眉/页脚内容、奇偶与首页开关、页码格式。
 
     只在 requirements 里**真的出现了**的容器上动手：没写的容器保持"链接上一节"，
@@ -1045,9 +1057,7 @@ def apply_page_decorations(doc, spec):
         return
 
     if len(doc.sections) != 1:
-        raise TemplateError(
-            f'模板必须是单节（当前 {len(doc.sections)} 节），多节模板的页眉页脚会错位。'
-        )
+        raise TemplateError(t('template.multiple_sections', lang, count=len(doc.sections)))
 
     section = doc.sections[0]
 
@@ -1088,23 +1098,15 @@ def apply_page_decorations(doc, spec):
         # STYLEREF 只认 **Word 样式名**（Heading 1 这种），中文写法（一级标题）不是样式名，
         # 写进去 Word 会在页眉显示「错误!未找到引用源」。这里是导出最后一道能拦的地方。
         cn = STYLE_MAP.get(nm)
-        hint = (f'\n  「{nm}」是本工具的中文写法，对应 Word 样式名「{cn}」——'
-                f'域里要写后者：{{样式标题:{cn}}}') if cn else ''
-        raise TemplateError(
-            f'页眉/页脚域 {{样式标题:{nm}}} 指向的样式在模板里不存在。'
-            f'STYLEREF 只认 Word 样式名（如 Heading 1）。{hint}'
-        )
+        hint = t('template.styleref_alias_hint', lang, name=nm, cn=cn) if cn else ''
+        raise TemplateError(t('template.styleref_unknown', lang, name=nm, hint=hint))
 
     # 「页码：」只往 sectPr 写编号格式与起始值；页码要真的印在纸上，得有一行页眉/页脚
     # 内容带 {页码} 域。写了「页码：」却没有 {页码} 域 = 写了等于没写，且三道闸门全绿。
     if spec.page_number and not any(
             kind == 'field' and val.split()[0] == 'PAGE'
             for parts in spec.decor.values() for kind, val in parts):
-        raise TemplateError(
-            '写了「页码：」，但没有任何页眉/页脚内容带 {页码} 域。'
-            '「页码：」只定格式与起始值，把页码画到纸上的是 {页码} 域；'
-            '补一行「页脚内容：{页码}」，或删掉「页码：」这一行。'
-        )
+        raise TemplateError(t('template.page_number_without_field', lang))
 
     if spec.page_number:
         fmt, start = spec.page_number
@@ -1233,33 +1235,25 @@ def _write_cell_borders(tbl_style_pr, sides):
     return borders
 
 
-def apply_table_format(doc, spec, default_latin=None):
+def apply_table_format(doc, spec, default_latin=None, lang: str = "zh"):
     """写 Table 样式：对齐、边框（含三线表线宽）、表头行条件格式、单元格垂直对齐"""
     table = spec.table or {}
     table_align = table.get('align', 'center')
     table_style = table.get('style') or 'three-line'
     if table_style not in ('three-line', 'grid', 'top-bottom', 'none'):
-        raise TemplateError(
-            f'不支持的表格样式 "{table_style}"；可用：三线表 / 全网格线 / 顶底线 / 无边框。'
-        )
+        raise TemplateError(t('template.table_style_unsupported', lang, style=table_style))
     # 线宽旋钮只在**画得出来**的地方有意义：声明了却不生效比报错难查得多。
     declared_widths = table.get('widths') or {}
     if declared_widths and table_style == 'none':
-        raise TemplateError(
-            f'表格样式为「无边框」，不画任何线，不能写线宽（收到 {declared_widths}）；'
-            f'要保留某条线请改用「三线表」或「顶底线」。'
-        )
+        raise TemplateError(t('template.table_widths_without_lines', lang, widths=declared_widths))
     # 「线宽内」只对全网格线有意义：三线表/顶底线按定义没有内部横线，写了也不会生效。
     if 'inside' in declared_widths and table_style in ('three-line', 'top-bottom'):
-        raise TemplateError(
-            f'表格样式为「{table_style}」，没有内部横线，不能写「线宽内」；'
-            f'三线表的表头下线请用「线宽表头下」。'
-        )
+        raise TemplateError(t('template.table_no_inside_line', lang, style=table_style))
 
     try:
         style_el = doc.styles['Table'].element
     except KeyError:
-        logger.warning('表格样式 "Table" 不存在（跳过表格边框和对齐设置）')
+        logger.warning(t('template.table_style_missing', lang))
         return
 
     tbl_pr = ensure_ordered_child(style_el, 'tblPr', _STYLE_ORDER)
@@ -1410,10 +1404,7 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
     page_size = spec.page_size
     reqs, default_latin = spec.styles, spec.default_latin
     if not reqs:
-        raise TemplateError(
-            '未解析到任何样式要求；格式应为「样式名：属性」，'
-            '如「一级标题：黑体 三号 加粗 不倾斜 左对齐 行距1.5倍 段前12磅 段后6磅 首行缩进0字符」。'
-        )
+        raise TemplateError(t('template.no_styles_parsed', lang))
 
     if spec.margins:
         margins = spec.margins
@@ -1431,8 +1422,8 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
     if default_latin:
         logger.debug(f' 全局西文字体: {default_latin}')
 
-    if _check_required_fields(spec):
-        raise TemplateError('必填样式或必填字段缺失，详见上方逐条提示。')
+    if _check_required_fields(spec, lang):
+        raise TemplateError(t('template.required_missing', lang))
 
     logger.debug('加载纯净现代 Word 365 底模...')
     tmp_path = get_default_template()
@@ -1450,8 +1441,8 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
         modify_style(doc, style_name, _props_from_req(req, page_size, margins),
                      default_latin=default_latin)
 
-    apply_table_format(doc, spec, default_latin=default_latin)
-    apply_page_decorations(doc, spec)
+    apply_table_format(doc, spec, default_latin=default_latin, lang=lang)
+    apply_page_decorations(doc, spec, lang=lang)
     apply_footnote_format(doc, spec, page_size, margins, default_latin=default_latin)
 
     try:
@@ -1606,7 +1597,7 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
     except Exception as e:
         # 不吞：跳过这一步，主题字体/颜色就可能盖掉显式设置，而外表看不出异常。
         # 宁可当场失败，也不要交出一个看着正常的坏模板。
-        raise RuntimeError(f'模板已写出，但「styles.xml 主题属性清理」失败，产物不合格：{e}') from e
+        raise RuntimeError(t('template.theme_cleanup_failed', lang, err=e)) from e
 
     get_logger().info(t("template.built", lang, count=len(reqs)))
 

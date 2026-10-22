@@ -67,7 +67,8 @@ title: Broken
     )
     result = run_export_pipeline(options)
     assert result.returncode == 1
-    assert any("图片文件不存在" in e for e in result.errors)
+    # 稿件是英文，门禁也按英文报（`--preset zh-academic` 只决定版式，不决定消息语言）
+    assert any("image file not found" in e for e in result.errors)
 
 
 def _write_bib(directory: Path) -> None:
@@ -243,6 +244,24 @@ def test_default_preset_follows_the_manuscript_language(tmp_path: Path) -> None:
     assert 'w:firstLineChars="200"' in body_text_style(tmp_path / "zh.docx")
 
 
+def test_missing_output_directory_is_reported_not_raised(tmp_path: Path) -> None:
+    """输出目录不存在时要给一句话，而不是等流水线跑完再抛 FileNotFoundError。
+
+    对着 traceback 的人不会想到自己只是漏建了一个目录。
+    """
+    manuscript = tmp_path / "m.md"
+    manuscript.write_text("# 引言\n\n正文。\n", encoding="utf-8")
+
+    result = run_export_pipeline(
+        ExportOptions(
+            input_path=manuscript,
+            output_path=tmp_path / "no_such_dir" / "out.docx",
+            preset="zh-academic",
+        )
+    )
+
+    assert result.returncode == 1
+    assert any("输出目录不存在" in e for e in result.errors), result.errors
 def test_auto_picked_requirements_are_announced(tmp_path: Path) -> None:
     """没传 -r 时，同目录唯一的 .txt 会被当成格式要求——必须说出用了哪一份。
 

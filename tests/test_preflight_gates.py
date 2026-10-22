@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -180,3 +181,256 @@ def test_reference_section_title_in_yaml_only_warns(tmp_path: Path) -> None:
     report = validate_manuscript(manuscript)
     assert report.valid, report.errors
     assert any("reference-section-title" in w for w in report.warnings), report.warnings
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 门禁消息的语种
+#
+# 英文作者被拦下时必须读到英文：提示里的样式名举例也得是 `Abstract` 而不是「摘要」。
+# 判定与语言无关（上面那批用例锁的是判定），这里锁的是「同一份稿子换个读者，读到
+# 等价的话」。
+# ══════════════════════════════════════════════════════════════════════
+
+CJK_RE = re.compile(r"[一-鿿]")
+
+# 一份稿件同时踩四道阻断门禁：未定义交叉引用、图片不存在、未知样式名、
+# `[@key]` 却没有 bibliography。中英各写一份，结构一一对应。
+GATE_BODY = {
+    "en": (
+        '---\n---\n\n# 1 Introduction\n\n%% NoSuchStyleName hello\n\n'
+        "See [@missing2020] and @eq-nowhere.\n\n![](nope.png)\n"
+    ),
+    "zh": (
+        '---\n---\n\n# 1 引言\n\n%% 不存在的样式名 你好\n\n'
+        "见 [@missing2020] 与 @eq-nowhere。\n\n![](nope.png)\n"
+    ),
+}
+
+
+def _gate_report(tmp_path: Path, lang: str) -> list[str]:
+    manuscript = tmp_path / f"m_{lang}.md"
+    manuscript.write_text(GATE_BODY[lang], encoding="utf-8")
+    report = validate_manuscript(manuscript, lang=lang)
+    assert not report.valid, f"{lang}: 这份稿子应当被拦下"
+    return report.errors + report.warnings
+
+
+def test_english_manuscript_gets_english_gate_messages(tmp_path: Path) -> None:
+    messages = _gate_report(tmp_path, "en")
+    joined = "\n".join(messages)
+
+    assert "cross-reference target missing" in joined, joined
+    assert "image file not found" in joined, joined
+    assert "unknown style name" in joined, joined
+    assert "no `bibliography:`" in joined, joined
+    # 中文一个都不能漏进来（含样式名举例）
+    assert not CJK_RE.search(joined), [m for m in messages if CJK_RE.search(m)]
+
+
+def test_chinese_manuscript_keeps_chinese_gate_messages(tmp_path: Path) -> None:
+    messages = _gate_report(tmp_path, "zh")
+    joined = "\n".join(messages)
+
+    assert "交叉引用缺失目标" in joined, joined
+    assert "图片文件不存在" in joined, joined
+    assert "不认识样式名" in joined, joined
+    assert "但稿件未声明 `bibliography:`" in joined, joined
+    # 中文消息里不该冒出英文句子（bib key 一类标识符除外）
+    assert "cross-reference target missing" not in joined
+    assert "image file not found" not in joined
+
+
+def test_style_name_examples_follow_the_manuscript_language(tmp_path: Path) -> None:
+    """同一道「样式名不认识」门禁，中文稿举中文名，英文稿举正典名。"""
+    en = "\n".join(_gate_report(tmp_path, "en"))
+    zh = "\n".join(_gate_report(tmp_path, "zh"))
+
+    assert "Abstract / Keywords / Table Caption / Table Note / References Title" in en
+    assert "摘要 / 关键词 / 表题 / 表注 / 参考文献标题" in zh
+
+
+def test_gate_language_does_not_change_the_verdict(tmp_path: Path) -> None:
+    """语种只换措辞：同一条判据的中英两栏必须一起拦、一起放。"""
+    cases = (
+        ("---\n---\n\n# 1 Introduction\n\nSee [@missing2020].\n",
+         "---\n---\n\n# 1 引言\n\n见 [@missing2020]。\n"),
+        ("---\n---\n\n# 1 Introduction\n\nSee @eq-nowhere.\n",
+         "---\n---\n\n# 1 引言\n\n见 @eq-nowhere。\n"),
+        ("---\n---\n\n# 1 Introduction\n\n%% BadStyleName hello\n",
+         "---\n---\n\n# 1 引言\n\n%% 不存在的样式名 你好\n"),
+        ("---\n---\n\n# 1 Introduction\n\n![](nope.png)\n",
+         "---\n---\n\n# 1 引言\n\n![](nope.png)\n"),
+        ("---\n---\n\n# 1 Introduction\n\nBody text.\n",
+         "---\n---\n\n# 1 引言\n\n正文一段。\n"),
+    )
+    for i, (en_body, zh_body) in enumerate(cases):
+        verdicts = {}
+        for lang, body in (("en", en_body), ("zh", zh_body)):
+            manuscript = tmp_path / f"v{i}_{lang}.md"
+            manuscript.write_text(body, encoding="utf-8")
+            verdicts[lang] = validate_manuscript(manuscript, lang=lang).valid
+        assert verdicts["en"] == verdicts["zh"], f"case {i}: {verdicts}"
+
+
+def test_pipeline_passes_the_manuscript_language_to_the_gate(tmp_path: Path) -> None:
+    """端到端：英文稿经流水线被拦下时，报错是英文（`lang` 一路传到门禁）。"""
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    manuscript = tmp_path / "paper.md"
+    manuscript.write_text(
+        '---\n---\n\n# 1 Introduction\n\nSee [@missing2020].\n', encoding="utf-8"
+    )
+    result = run_export_pipeline(
+        ExportOptions(input_path=manuscript, output_path=tmp_path / "o.docx", preset="en-nature")
+    )
+    assert result.returncode == 1
+    joined = "\n".join(result.errors)
+    assert "no `bibliography:`" in joined, joined
+    assert not CJK_RE.search(joined), result.errors
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 文献区标题：认名字走词表，别只认中文
+#
+# 曾经写成 `^%%\s*参考文献标题\s` 的中文字面量正则：英文稿写 `%% References Title …`
+# 时文献列表其实生成成功，预检却还提醒「没写抬头」，而让他补的就是他已写的那一行——
+# 按提示改永远清不掉。
+# ══════════════════════════════════════════════════════════════════════
+
+BIB_REF = "@article{smith2024,\n  author={Smith, J.},\n  title={T},\n  year={2024},\n  journal={J}\n}\n"
+
+
+def _reference_title_report(tmp_path: Path, lang: str, title_line: str | None):
+    (tmp_path / "refs.bib").write_text(BIB_REF, encoding="utf-8")
+    body = "# 1 Introduction\n\nSee [@smith2024].\n" if lang == "en" else "# 1 引言\n\n见 [@smith2024]。\n"
+    if title_line:
+        body += f"\n{title_line}\n"
+    manuscript = tmp_path / f"m_{lang}.md"
+    manuscript.write_text(
+        f"---\nbibliography: refs.bib\ncsl: apa.csl\n---\n\n{body}", encoding="utf-8"
+    )
+    return validate_manuscript(manuscript, lang=lang)
+
+
+@pytest.mark.parametrize("lang,title_line", [
+    ("en", "%% References Title References"),
+    ("en", "%% Bibliography Title References"),   # 词表里的别名
+    ("zh", "%% 参考文献标题 参考文献"),
+])
+def test_reference_section_title_accepts_every_vocabulary_spelling(
+    tmp_path: Path, lang: str, title_line: str
+) -> None:
+    """词表里指向 `References Title` 的写法都算写了抬头——提醒不该对着已写的行喊。"""
+    report = _reference_title_report(tmp_path, lang, title_line)
+    assert not any("文献区标题" in w or "reference-section title" in w for w in report.warnings), \
+        report.warnings
+
+
+@pytest.mark.parametrize("lang,missing", [("en", "reference-section title"), ("zh", "文献区标题")])
+def test_missing_reference_section_title_warns_in_the_right_language(
+    tmp_path: Path, lang: str, missing: str
+) -> None:
+    report = _reference_title_report(tmp_path, lang, None)
+    assert any(missing in w for w in report.warnings), report.warnings
+    assert report.valid, report.errors
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 写出器 / 公式 / 文献渲染的报错也得跟语言走
+#
+# 这些异常的原文会经 `pipeline.unsupported` / `pipeline.csl_error` 露给用户。外壳双语了、
+# 里面还是中文，英文作者看到的仍是半截话。
+# ══════════════════════════════════════════════════════════════════════
+
+def test_writer_errors_follow_the_language(tmp_path: Path) -> None:
+    from md_to_word.model.reader import read_markdown
+    from md_to_word.template.builder import build_template
+    from md_to_word.writer import UnsupportedFeature, write_docx
+
+    template = tmp_path / "tpl.docx"
+    build_template(PRESET.read_text(encoding="utf-8"), template)
+
+    # 交叉引用指向不存在的标签：写出器是最后一道，按语言报错
+    for lang, fragment in (("en", "the label eq-nowhere does not exist"),
+                           ("zh", "指向的标签不存在")):
+        model = read_markdown("见 @eq-nowhere。\n")
+        with pytest.raises(UnsupportedFeature) as exc:
+            write_docx(model, template, tmp_path / f"{lang}.docx", lang=lang)
+        message = str(exc.value)
+        assert fragment in message, message
+        assert not (CJK_RE.search(message) if lang == "en" else ""), message
+
+
+def test_math_errors_follow_the_language() -> None:
+    from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml, mathml_to_omml
+
+    # 没覆盖的 MathML 元素
+    mathml = "<math><reallweird/></math>"
+    with pytest.raises(UnsupportedMath) as exc:
+        mathml_to_omml(mathml, "en")
+    assert "unsupported MathML element: reallweird" in str(exc.value), str(exc.value)
+    assert not CJK_RE.search(str(exc.value))
+
+    with pytest.raises(UnsupportedMath) as exc:
+        mathml_to_omml(mathml, "zh")
+    assert "尚未支持的 MathML 元素" in str(exc.value), str(exc.value)
+
+    # LaTeX 解析失败（`\frac{1}{` 括号不闭合，latex2mathml 直接抛）
+    with pytest.raises(UnsupportedMath) as exc:
+        latex_to_omml(r"\frac{1}{", "en")
+    assert "LaTeX could not be parsed" in str(exc.value), str(exc.value)
+    assert not CJK_RE.search(str(exc.value))
+
+
+def test_citation_errors_follow_the_language(tmp_path: Path) -> None:
+    from md_to_word.config import default_csl_path
+    from md_to_word.transform.citations import CitationEngine, CitationError
+
+    csl = default_csl_path("# Introduction\n\nBody.\n")
+    for lang, fragment in (("en", "the bibliography has no usable entries"),
+                           ("zh", "文献库里没有可用条目")):
+        with pytest.raises(CitationError) as exc:
+            CitationEngine("", csl, lang)
+        assert fragment in str(exc.value), str(exc.value)
+
+
+def test_pipeline_reports_writer_failure_in_the_manuscript_language(tmp_path: Path) -> None:
+    """端到端：跳过门禁、让写出器自己撞上未定义的交叉引用，理由也必须是英文。"""
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    manuscript = tmp_path / "paper.md"
+    manuscript.write_text(
+        '---\n---\n\n# 1 Introduction\n\nSee @eq-nowhere.\n', encoding="utf-8"
+    )
+    result = run_export_pipeline(
+        ExportOptions(
+            input_path=manuscript, output_path=tmp_path / "o.docx",
+            preset="en-nature", check_md=False,
+        )
+    )
+    assert result.returncode == 1
+    joined = "\n".join(result.errors)
+    assert "the label eq-nowhere does not exist" in joined, joined
+    assert not CJK_RE.search(joined), result.errors
+
+
+def test_toc_depth_overflow_errors_instead_of_crashing(tmp_path: Path) -> None:
+    """`{{< toc 99 >}}` 以前会带着中文 traceback 崩掉；现在走正常的「写不出来」路径。"""
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    for lang, fragment in (("en", "the TOC depth must be between 1 and 9; got 99"),
+                           ("zh", "目录收录级数要在 1–9 之间，收到 99")):
+        manuscript = tmp_path / f"toc_{lang}.md"
+        body = "# 1 Introduction\n\nBody.\n" if lang == "en" else "# 一 引言\n\n正文。\n"
+        manuscript.write_text(
+            f"---\n---\n\n{body}\n{{{{< toc 99 >}}}}\n", encoding="utf-8"
+        )
+        result = run_export_pipeline(
+            ExportOptions(
+                input_path=manuscript, output_path=tmp_path / f"o_{lang}.docx",
+                preset="en-nature" if lang == "en" else "zh-academic",
+            )
+        )
+        assert result.returncode == 1, result.errors
+        joined = "\n".join(result.errors)
+        assert fragment in joined, joined

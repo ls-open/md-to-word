@@ -16,6 +16,7 @@ from typing import Optional
 from lxml import etree
 
 from md_to_word.config import looks_chinese
+from md_to_word.i18n import t
 
 # ══════════════════════════════════════════════════════════════════════
 # 1. 统一日志配置
@@ -129,9 +130,9 @@ TOC_MARKER_RE = re.compile(r"^\s*\{\{<\s*toc(?:\s+(?P<depth>\d+))?\s*>\}\}\s*$")
 _SECTION_RE = re.compile(r"^\s*\{\{<\s*section\b[^>]*>\}\}\s*$")
 
 _SHORTCODE_MARKERS = {
-    "pagebreak": (_PAGEBREAK_RE, "分页"),
-    "toc": (TOC_MARKER_RE, "目录"),
-    "section": (_SECTION_RE, "分节"),
+    "pagebreak": (_PAGEBREAK_RE, "gate.marker.pagebreak"),
+    "toc": (TOC_MARKER_RE, "gate.marker.toc"),
+    "section": (_SECTION_RE, "gate.marker.section"),
 }
 _SHORTCODE_RE = re.compile(r"\{\{<\s*([A-Za-z][\w-]*)")
 _DIV_OPEN_RE = re.compile(r"^\s*:::\s*\{.*\}\s*$")
@@ -189,7 +190,7 @@ def unknown_shortcode_issues(text: str) -> list:
     return issues
 
 
-def block_marker_issues(text: str) -> list:
+def block_marker_issues(text: str, lang: str = "zh") -> list:
     """块级标记写法问题 → [(行号, 说明)]；空列表 = 全部规范。"""
     if not text:
         return []
@@ -210,39 +211,40 @@ def block_marker_issues(text: str) -> list:
         if _MATH_ONLY_RE.match(scan):
             in_math = not in_math
             if not in_math and after_glued(i):
-                issues.append((no, "公式收尾行后无空行"))
+                issues.append((no, t("gate.block.math_close_no_blank", lang)))
             continue
         if in_math:
             continue
         if "$$" in scan:
             if not _MATH_INLINE_RE.match(scan):
-                issues.append((no, "公式与文字同行（未独立成行）"))
+                issues.append((no, t("gate.block.math_inline_with_text", lang)))
             elif after_glued(i):
-                issues.append((no, "公式后无空行"))
+                issues.append((no, t("gate.block.math_no_blank", lang)))
         elif (marker := _shortcode_marker(scan)) is not None:
-            whole_line_re, label = _SHORTCODE_MARKERS[marker]
+            whole_line_re, label_key = _SHORTCODE_MARKERS[marker]
+            label = t(label_key, lang)
             if not whole_line_re.match(scan):
-                issues.append((no, f"{label}短代码未独占一行"))
+                issues.append((no, t("gate.block.marker_not_alone", lang, label=label)))
             elif after_glued(i):
-                issues.append((no, f"{label}短代码后无空行"))
+                issues.append((no, t("gate.block.marker_no_blank", lang, label=label)))
         elif _DIV_OPEN_RE.match(line):
             if before_glued(i):
-                issues.append((no, "围栏块首行前无空行"))
+                issues.append((no, t("gate.block.div_no_blank", lang)))
         elif _IMAGE_ONLY_RE.match(line):
             if before_glued(i):
-                issues.append((no, "图片行前无空行"))
+                issues.append((no, t("gate.block.image_no_blank_before", lang)))
             if after_glued(i):
-                issues.append((no, "图片行后无空行"))
+                issues.append((no, t("gate.block.image_no_blank_after", lang)))
         elif _TABLE_ROW_RE.match(line) and not (i and _TABLE_ROW_RE.match(lines[i - 1])):
             if before_glued(i):
-                issues.append((no, "表格首行前无空行"))
+                issues.append((no, t("gate.block.table_no_blank", lang)))
     return issues
 
 
 _IMG_WIDTH_CM_RE = re.compile(r'!\[[^\]]*\]\([^)]+\)\s*\{[^}]*\bwidth\s*=\s*([\d.]+)cm')
 
 
-def image_width_issues(text: str, content_cm: float) -> list[tuple[int, str]]:
+def image_width_issues(text: str, content_cm: float, lang: str = "zh") -> list[tuple[int, str]]:
     """图片声明宽度超过版心 → [(行号, 说明)]。`content_cm` 是版心宽度（cm）。
 
     **写超了不会报错，会被静默改小**：实测 A4 + 2.54cm 边距下写 `{width=25cm}`，
@@ -260,9 +262,7 @@ def image_width_issues(text: str, content_cm: float) -> list[tuple[int, str]]:
             if w > content_cm + 0.01:
                 issues.append((
                     i + 1,
-                    f"图片声明宽 {w:g}cm，超过版心 {content_cm:.2f}cm——"
-                    f"导出时会被**静默钳成版心宽**（不报错、也没有警告），"
-                    f"实际拿到的不是 {w:g}cm。改成 {content_cm:.2f}cm 以内，或调小页边距",
+                    t("gate.image_width.over", lang, width=w, content=content_cm),
                 ))
     return issues
 
@@ -280,7 +280,7 @@ def has_declared_image_width(text: str) -> bool:
                if not line.lstrip().startswith("|"))
 
 
-def malformed_table_issues(text: str) -> list[tuple[int, str]]:
+def malformed_table_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
     """Markdown 表格各行列数不一致 → [(行号, 说明)]。
 
     **这不是排版问题，是内容丢失**：列数对不上时不报错，多出来的单元格连同其中的文字
@@ -319,13 +319,12 @@ def malformed_table_issues(text: str) -> list[tuple[int, str]]:
             first_bad, n = bad[0]
             issues.append((
                 first_bad,
-                f"表格第 1 行有 {expect} 列，第 {first_bad} 行是 {n} 列——"
-                f"列数对不上时多出来的单元格会被静默丢掉（连字一起丢）",
+                t("gate.table.column_count", lang, expect=expect, line=first_bad, actual=n),
             ))
     return issues
 
 
-def section_pagebreak_issues(text: str) -> list[tuple[int, str]]:
+def section_pagebreak_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
     """`{{< section … >}}` 后面紧跟 `{{< pagebreak >}}` → [(行号, 说明)]。
 
     分节标记底层已自带「下一页」分节符，后面再加一个分页符会多顶出一页
@@ -343,7 +342,7 @@ def section_pagebreak_issues(text: str) -> list[tuple[int, str]]:
             if not lines[j].strip():
                 continue
             if _PAGEBREAK_RE.match(lines[j]):
-                issues.append((j + 1, f"分节标记（行 {i + 1}）之后紧跟分页短代码，会多顶出一页"))
+                issues.append((j + 1, t("gate.section.extra_page", lang, section=i + 1)))
             break
     return issues
 
@@ -392,7 +391,9 @@ def defined_labels(text: str) -> set:
     return set(_DEFINED_LABEL_RE.findall(text or ''))
 
 
-def citation_key_issues(text: str, known_keys: set, line_offset: int = 0) -> list[tuple[int, str]]:
+def citation_key_issues(
+    text: str, known_keys: set, line_offset: int = 0, lang: str = "zh"
+) -> list[tuple[int, str]]:
     """正文引用了 `.bib` 里没有的 key → [(行号, 说明)]，每个 key 只报一次。
 
     属于「能确定」的一类：文献库是纯文本，正文引了哪些 key 也是纯文本，两边取差集即可，
@@ -418,11 +419,13 @@ def citation_key_issues(text: str, known_keys: set, line_offset: int = 0) -> lis
         if key in reported:
             continue
         reported.add(key)
-        issues.append((line_no, f'引用了 {key}，但文献库里没有这个条目'))
+        issues.append((line_no, t("gate.citation.unknown_key", lang, key=key)))
     return issues
 
 
-def undefined_crossref_issues(text: str, line_offset: int = 0) -> list[tuple[int, str]]:
+def undefined_crossref_issues(
+    text: str, line_offset: int = 0, lang: str = "zh"
+) -> list[tuple[int, str]]:
     """正文引用了 `@eq-x` / `@fig-x` / `@tbl-x`，但稿子里没有 `{#eq-x}` 定义。
 
     与引文 key 是同一类失败：渲染成 **`?@eq-x`**，残骸直接印在正文里，而导出全程不报错。
@@ -434,7 +437,7 @@ def undefined_crossref_issues(text: str, line_offset: int = 0) -> list[tuple[int
         if not _CROSSREF_PREFIX_RE.match(key) or key in labels or key in reported:
             continue
         reported.add(key)
-        issues.append((line_no, f'引用了 {key}，但稿子里没有 {{#{key}}} 这个标签定义'))
+        issues.append((line_no, t("gate.crossref.undefined", lang, key=key)))
     return issues
 
 
@@ -461,7 +464,7 @@ def citations_without_bibliography(text: str, line_offset: int = 0) -> list[int]
     return out
 
 
-def heading_issues(text: str) -> list[tuple[int, str]]:
+def heading_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
     """检查标题层级的规范问题 → [(行号, 说明)]。
 
     检查项：
@@ -494,14 +497,14 @@ def heading_issues(text: str) -> list[tuple[int, str]]:
         if prev_level == 0 and level != 1:
             issues.append((
                 line_no,
-                f'首个章节标题是 {level} 级（`{hashes} {title[:30]}`），必须从 1 级（`#`）开始'
+                t("gate.heading.first_level", lang, level=level, hashes=hashes, title=title[:30]),
             ))
         # 2. 标题不得跳级
         elif prev_level > 0 and level > prev_level + 1:
             issues.append((
                 line_no,
-                f'标题层级跳级：从 {prev_level} 级直接跳到 {level} 级（`{hashes} {title[:30]}`），'
-                f'应为 `{"#" * (prev_level + 1)}`'
+                t("gate.heading.level_jump", lang, prev=prev_level, level=level, hashes=hashes,
+                  title=title[:30], expected="#" * (prev_level + 1)),
             ))
 
         # 3. 章节数字编号深度必须等于 # 数量（如 # 1. / ## 2.1 / ### 2.1.1）
@@ -512,9 +515,8 @@ def heading_issues(text: str) -> list[tuple[int, str]]:
             if number_depth != level:
                 issues.append((
                     line_no,
-                    f'章节编号深度与 `#` 数量不匹配：`{hashes} {title[:30]}` 有 {level} 个 `#`，'
-                    f'但编号 `{number_str}` 深度为 {number_depth}（常见原因：把论文主标题写成了 `# 标题`，'
-                    f'主标题应写在 YAML `title:` 中，正文一级章节用 `# 1. ...`）'
+                    t("gate.heading.number_depth", lang, hashes=hashes, title=title[:30], level=level,
+                      number=number_str, depth=number_depth),
                 ))
 
         prev_level = level
@@ -612,7 +614,7 @@ def _looks_like_block_start(line: str) -> bool:
     )
 
 
-def dialect_issues(text: str) -> list[tuple[int, str]]:
+def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
     """稿件里用了本引擎没实现的 Markdown 写法 → [(行号, 说明)]；空列表 = 全部规范。
 
     这些写法不会报错，只会把原始语法原样印进 Word：`---` 印成三条短横、`<br>` 印成
@@ -643,63 +645,62 @@ def dialect_issues(text: str) -> list[tuple[int, str]]:
             continue
 
         if _HTML_TAG_RE.search(code_free) or _AUTOLINK_RE.search(code_free):
-            issues.append((line_no, "不支持 HTML 标签；换行用行尾两空格，换页用 `{{< pagebreak >}}`，"
-                                    "网址直接写或写成 `[文字](网址)`"))
+            issues.append((line_no, t("gate.dialect.html", lang)))
             continue
         if _HR_RE.match(code_free):
-            issues.append((line_no, "不支持横向分隔线；需要分页用 `{{< pagebreak >}}`，需要分段用空行"))
+            issues.append((line_no, t("gate.dialect.hr", lang)))
             continue
         if _SETEXT_RE.match(code_free):
-            issues.append((line_no, "不支持 `====` 下划线式标题；标题一律写成 `# 标题`"))
+            issues.append((line_no, t("gate.dialect.setext", lang)))
             continue
         if _DEF_LIST_RE.match(code_free):
-            issues.append((line_no, "不支持定义列表（`术语` + `: 定义`）；两项各写成一段"))
+            issues.append((line_no, t("gate.dialect.def_list", lang)))
             continue
         if _TASK_ITEM_RE.match(code_free):
-            issues.append((line_no, "不支持待办勾选框（`- [ ]`）；去掉 `[ ]` 写成普通无序列表"))
+            issues.append((line_no, t("gate.dialect.task_item", lang)))
             continue
         if _NO_SPACE_HEADING_RE.match(code_free):
-            issues.append((line_no, "标题的 `#` 后面要空一格；不空格的 `#` 会连同井号一起当成正文印出来"))
+            issues.append((line_no, t("gate.dialect.heading_no_space", lang)))
             continue
         for img in _IMAGE_ATTR_RE.finditer(code_free):
             attrs = img.group('attrs')
             if '%' in attrs:
-                issues.append((line_no, "图片宽度按绝对长度写（`{width=8cm}`），百分比宽度不支持"))
+                issues.append((line_no, t("gate.dialect.image_percent", lang)))
                 break
             if not _IMAGE_ATTR_OK.match(attrs):
-                issues.append((line_no, "图片行只认 `{width=…}`；对齐请写要求文件的「图：… 左对齐」"))
+                issues.append((line_no, t("gate.dialect.image_attr", lang)))
                 break
         if _EMPTY_HEADING_RE.match(code_free):
-            issues.append((line_no, "标题只有 `#` 没有文字；补上标题文字，或删掉这一行"))
+            issues.append((line_no, t("gate.dialect.empty_heading", lang)))
             continue
         if _NOEDGE_TABLE_RE.match(code_free):
-            issues.append((line_no, "表格首尾都要加竖线：把 `名称 | 值` 写成 `| 名称 | 值 |`"))
+            issues.append((line_no, t("gate.dialect.table_no_edge", lang)))
             continue
         if _NESTED_QUOTE_RE.match(code_free):
-            issues.append((line_no, "不支持引用块再套引用块；把内层内容改成普通段落"))
+            issues.append((line_no, t("gate.dialect.nested_quote", lang)))
             continue
         if _WIDE_STYLE_RE.match(code_free):
-            issues.append((line_no, "样式行的 `%%` 必须是半角；全角 `％％` 会被当成正文印出来"))
+            issues.append((line_no, t("gate.dialect.wide_style_marker", lang)))
             continue
         if (
             _INDENT_CODE_RE.match(code_free)
             and (index == 0 or not lines[index - 1].strip())
             and not _LIST_ITEM_ANY_RE.match(code_free)
         ):
-            issues.append((line_no, "不支持四空格缩进的代码块；代码一律用 ``` 围栏包起来"))
+            issues.append((line_no, t("gate.dialect.indented_code", lang)))
             continue
 
         # 强调与行内公式必须在同一行内闭合：跨行时不会配对，符号会原样印出去
         if code_free.count("**") % 2:
-            issues.append((line_no, "`**` 没有在同一行内闭合；跨行加粗不支持，把它和文字写在同一行"))
+            issues.append((line_no, t("gate.dialect.unclosed_bold", lang)))
             continue
         unescaped_dollars = re.sub(r"\\\$", "", code_free)
         if not in_display_math and unescaped_dollars.count("$") % 2:
-            issues.append((line_no, "`$` 没有在同一行内闭合；行内公式要写成 `$公式$`，与文字在同一行"))
+            issues.append((line_no, t("gate.dialect.unclosed_dollar", lang)))
             continue
 
     if in_display_math:
-        issues.append((len(lines) + offset, "独占行公式 `$$` 未闭合；必须成对出现，结尾也应单独一行 `$$`"))
+        issues.append((len(lines) + offset, t("gate.dialect.unclosed_display_math", lang)))
 
     # 首尾不带竖线的表格：连续两行都有竖线，却都不以竖线开头。按规则二维网格读不到，
     # 只会一行一段地把竖线原样印出去。
@@ -707,7 +708,7 @@ def dialect_issues(text: str) -> list[tuple[int, str]]:
         here, nxt = lines[index], lines[index + 1]
         if "|" in here and "|" in nxt and not here.lstrip().startswith("|") \
                 and not nxt.lstrip().startswith("|") and not _LIST_ITEM_ANY_RE.match(here):
-            issues.append((index + 1 + offset, "表格每一行都要以 `|` 开头、以 `|` 结尾；否则整行会当成正文印出来"))
+            issues.append((index + 1 + offset, t("gate.dialect.table_needs_pipes", lang)))
             break
 
     # 列表项后面的缩进段落：Markdown 里算列表项的第二段，本引擎会当成独立正文段落，
@@ -719,7 +720,6 @@ def dialect_issues(text: str) -> list[tuple[int, str]]:
             continue
         if lines[index + 2].startswith(("  ", "\t")) and not _looks_like_block_start(lines[index + 2]):
             issues.append(
-                (index + 1 + offset,
-                 "列表项里不支持第二段（空行加缩进）；把它写成列表项之外的一段，或用第二个列表项")
+                (index + 1 + offset, t("gate.dialect.list_second_paragraph", lang))
             )
     return sorted(issues)

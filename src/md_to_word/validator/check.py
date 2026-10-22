@@ -20,6 +20,8 @@ from lxml import etree
 import yaml
 
 from md_to_word.config import get_csl_dir
+from md_to_word.i18n import t
+from md_to_word.spec.constants import ROW_NAME_EN
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_requirements
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
@@ -56,7 +58,7 @@ class ValidationReport:
     warnings: list[str] = field(default_factory=list)
 
 
-def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
+def caption_adjacency_issues(md_text: str, lang: str = "zh") -> list[tuple[int, str]]:
     """题注是否紧邻其实体（表格/图片）——孤立题注在成稿里很明显，提醒即可。
 
     题注是独立段落（`%% 表题 …` / `%% 图片题注 …`），所以"紧邻"要跨过空行与表注：
@@ -114,9 +116,9 @@ def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
         table_near = scan(i - 1, -1)[0] or scan(i + 1, 1)[0]
         image_near = scan(i - 1, -1)[1] or scan(i + 1, 1)[1]
         if kind == "table" and not table_near:
-            issues.append((i + 1, "表格题注未紧邻表格（上下均未检测到表格实体），会被排成孤立题注。"))
+            issues.append((i + 1, t("gate.caption.table_far", lang)))
         elif kind == "image" and not image_near:
-            issues.append((i + 1, "图片题注未紧邻图片（上下均未检测到图片实体），会被排成孤立题注。"))
+            issues.append((i + 1, t("gate.caption.image_far", lang)))
     return issues
 
 
@@ -140,7 +142,9 @@ def content_width_cm(spec: TemplateSpec) -> Optional[float]:
     return width - spec.margins["left"] - spec.margins["right"] - (spec.gutter_cm or 0)
 
 
-def required_style_issues(md_text: str, spec: TemplateSpec, fm_data) -> list[tuple[int, str]]:
+def required_style_issues(
+    md_text: str, spec: TemplateSpec, fm_data, lang: str = "zh"
+) -> list[tuple[int, str]]:
     """稿件用到了结构、要求文件却没声明对应样式 → 导出会静默回退默认样式。
 
     这是本工具最要紧的一道门禁：产物外观正常，但格式根本没映射上。
@@ -156,24 +160,32 @@ def required_style_issues(md_text: str, spec: TemplateSpec, fm_data) -> list[tup
     issues: list[tuple[int, str]] = []
     reported: set[str] = set()
     for line_no, feat, cn, en in missing_styles_for_body(
-        mask_code_fences(body), declared, start_line=start_line
+        mask_code_fences(body), declared, start_line=start_line, lang=lang
     ):
         reported.add(en)
-        label = f"「{cn}：…」配置行" if en.startswith("__ROW_") else f"「{cn}」（{en}）定义"
-        issues.append((line_no, f"用到了 {feat}，要求文件缺少 {label}，将静默回退默认样式"))
+        label = (
+            # 配置行（「表格：…」/「表头：…」）没有 Word 样式名可回显，英文稿另给一份名字
+            t("gate.label.row_settings", lang, name=cn if lang != "en" else ROW_NAME_EN.get(cn, cn))
+            if en.startswith("__ROW_")
+            else t("gate.label.style_def", lang, cn=cn, en=en)
+        )
+        issues.append((line_no, t("gate.style.required_missing", lang, feat=feat, label=label)))
 
     if isinstance(fm_data, dict):
-        for key, cn, en, feat in (
-            ("bibliography", "参考文献", "Bibliography", "YAML bibliography 文献库"),
+        for key, cn, en, feat_key in (
+            ("bibliography", "参考文献", "Bibliography", "gate.feat.bibliography_yaml"),
         ):
             if fm_data.get(key) and en not in declared and en not in reported:
                 reported.add(en)
-                issues.append((1, f"{feat}，要求文件缺少「{cn}」（{en}）定义，将静默回退默认样式"))
+                issues.append((
+                    1,
+                    t("gate.bib.required_missing", lang, cn=cn, en=en, feat=t(feat_key, lang)),
+                ))
     return issues
 
 
 def template_style_issues(
-    styles_used: dict[str, list[int]], template_path: Path | str
+    styles_used: dict[str, list[int]], template_path: Path | str, lang: str = "zh"
 ) -> tuple[list[str], list[str]]:
     """稿件用到的段落样式是否真的存在于模板 → (errors, warnings)。
 
@@ -181,12 +193,12 @@ def template_style_issues(
     """
     template = Path(template_path)
     if not template.is_file():
-        return [f"模板不存在: {template}"], []
+        return [t("gate.template.missing", lang, path=template)], []
     try:
         with zipfile.ZipFile(template) as archive:
             root = etree.fromstring(archive.read("word/styles.xml"))
     except (KeyError, zipfile.BadZipFile, etree.XMLSyntaxError) as exc:
-        return [f"模板存在但读不出样式表（{exc}）: {template}"], []
+        return [t("gate.template.unreadable", lang, err=exc, path=template)], []
 
     ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
     names: set[str] = set()
@@ -204,8 +216,7 @@ def template_style_issues(
         if style_name.casefold() in names or style_name.casefold() in ids:
             continue
         errors.append(
-            f"行 {lines[0]} 样式「{style_name}」在模板中不存在，格式不会生效；"
-            f"请在格式要求文件里补上这一条，或核对写法"
+            t("gate.template.style_absent", lang, line=lines[0], name=style_name)
         )
     return errors, []
 
@@ -217,21 +228,26 @@ def validate_manuscript(
     spec: Optional[TemplateSpec] = None,
     spec_path: Optional[Path | str] = None,
     csl_dir: Optional[Path] = None,
+    lang: str = "zh",
 ) -> ValidationReport:
-    """对稿件进行全套严格校验，返回 ValidationReport。"""
+    """对稿件进行全套严格校验，返回 ValidationReport。
+
+    `lang` 决定报错语言（"zh"/"en"），默认中文——中文串是既有测试与既有用户的契约，
+    英文只是新增的一条路径。判据、阈值、阻断/提醒的划分与语言无关。
+    """
     md_path = Path(md_path)
     report = ValidationReport()
 
     if not md_path.exists():
         report.valid = False
-        report.errors.append(f"稿件文件不存在: {md_path}")
+        report.errors.append(t("gate.manuscript.missing", lang, path=md_path))
         return report
 
     try:
         md_text = md_path.read_text(encoding="utf-8")
     except Exception as e:
         report.valid = False
-        report.errors.append(f"无法读取稿件 {md_path}: {e}")
+        report.errors.append(t("gate.manuscript.unreadable", lang, path=md_path, err=e))
         return report
 
     csl_dir = csl_dir or get_csl_dir()
@@ -241,13 +257,15 @@ def validate_manuscript(
         req_file = Path(spec_path)
         if not req_file.is_file():
             report.valid = False
-            report.errors.append(f"格式要求文件不存在: {req_file}")
+            report.errors.append(t("gate.requirements.missing", lang, path=req_file))
             return report
         try:
             spec = parse_requirements(req_file.read_text(encoding="utf-8"))
         except Exception as e:
             report.valid = False
-            report.errors.append(f"格式要求文件解析失败（{req_file}）: {e}")
+            report.errors.append(
+                t("gate.requirements.parse_failed", lang, path=req_file, err=e)
+            )
             return report
 
     # 1. Frontmatter 检查
@@ -259,7 +277,7 @@ def validate_manuscript(
             fm_data = yaml.safe_load(fm_raw) or {}
         except Exception as e:
             report.valid = False
-            report.errors.append(f"YAML frontmatter 解析失败: {e}")
+            report.errors.append(t("gate.yaml.parse_failed", lang, err=e))
 
     if isinstance(fm_data, dict):
         # 1a. bibliography 路径
@@ -267,32 +285,31 @@ def validate_manuscript(
             bib_path, how = resolve_manuscript_path(str(fm_data["bibliography"]), md_path)
             if not how:
                 report.valid = False
-                report.errors.append(f"文献库不存在: {fm_data['bibliography']}")
+                report.errors.append(
+                    t("gate.bib.missing", lang, path=fm_data["bibliography"])
+                )
 
         # 1b. csl 路径
         if fm_data.get("csl"):
             csl_path, how = resolve_manuscript_path(str(fm_data["csl"]), md_path, csl_dir)
             if not how:
                 report.valid = False
-                report.errors.append(f"CSL 样式文件不存在: {fm_data['csl']}")
+                report.errors.append(t("gate.csl.missing", lang, path=fm_data["csl"]))
 
         # 1b2. 写在 YAML 里的内容性字段：引擎只认正文的样式行，这里不静默丢。
         # 判据是「位置」——标题、副标题、作者、日期、摘要、关键词各自该落在哪一页哪一段，
         # 由作者决定；YAML 没有位置，写在那里等于被钉死在正文最前面。
-        for key, form in (
-            ("title", "`%% 文档标题 标题文字`"),
-            ("subtitle", "`%% 副标题 副标题文字`"),
-            ("author", "`%% 作者 姓名`（多位作者各写一行）"),
-            ("date", "`%% 日期 2026 年 1 月`"),
-            ("abstract", "`%% 摘要标题 摘要` + 每段一行 `%% 摘要 正文…`"),
-            ("keywords", "一行 `%% 关键词 词一；词二`"),
-            ("reference-section-title", "一行 `%% 参考文献标题 参考文献`"),
+        for key, form_key in (
+            ("title", "gate.yaml.form.title"),
+            ("subtitle", "gate.yaml.form.subtitle"),
+            ("author", "gate.yaml.form.author"),
+            ("date", "gate.yaml.form.date"),
+            ("abstract", "gate.yaml.form.abstract"),
+            ("keywords", "gate.yaml.form.keywords"),
+            ("reference-section-title", "gate.yaml.form.reference_section_title"),
         ):
             if fm_data.get(key):
-                message = (
-                    f"YAML 的 `{key}` 不参与排版（YAML 管不住位置），正文要写成：{form}。"
-                    f"请把内容移到正文，或删掉这个键。"
-                )
+                message = t("gate.yaml.key_unused", lang, key=key, form=t(form_key, lang))
                 if key == "reference-section-title":
                     report.warnings.append(message)
                 else:
@@ -304,8 +321,7 @@ def validate_manuscript(
             from md_to_word.config import default_csl_path
 
             report.warnings.append(
-                f"未写 csl:，将按默认样式排版：{default_csl_path(md_text).name}"
-                "（中文稿 GB/T 7714 数字制，英文稿 APA）；如需其他样式请写 csl:。"
+                t("gate.csl.default", lang, name=default_csl_path(md_text).name)
             )
 
         # 1d. 正文引用的 key 是否在 .bib 里
@@ -322,23 +338,26 @@ def validate_manuscript(
                     if bare:
                         report.valid = False
                         report.errors.append(
-                            f"文献库 {Path(bib_path).name} 里一条条目都没有，但正文有 {len(bare)} 处引用"
+                            t("gate.bib.empty", lang,
+                              name=Path(bib_path).name, count=len(bare))
                         )
-                cite_issues = citation_key_issues(body_text, known_keys, fm_offset)
+                cite_issues = citation_key_issues(body_text, known_keys, fm_offset, lang)
                 if cite_issues:
                     report.valid = False
                     for line_no, why in cite_issues:
-                        report.errors.append(f"行 {line_no} [引文 key 缺失]: {why}")
+                        report.errors.append(
+                            t("gate.line", lang,
+                              line=line_no, tag=t("gate.tag.citation_key", lang), why=why)
+                        )
         else:
             bare_cites = citations_without_bibliography(body_text, fm_offset)
             if bare_cites:
                 report.valid = False
-                shown = "、".join(f"行 {n}" for n in bare_cites[:5])
+                sep = t("gate.list_sep", lang)
+                shown = sep.join(t("gate.line_item", lang, line=n) for n in bare_cites[:5])
                 report.errors.append(
-                    f"正文有 {len(bare_cites)} 处 `[@key]` 引用语法，但稿件未声明 `bibliography:`（{shown}）；"
-                    f"不处理会把这几个字符原样印进 docx。本工具只支持由 .bib 生成文献列表："
-                    f"在 YAML 里加 `bibliography: refs.bib`（配合 `csl:` 选样式），"
-                    f"若只是想展示语法字面量，用反引号包起来"
+                    t("gate.citation.no_bibliography", lang,
+                      count=len(bare_cites), shown=shown)
                 )
 
     # 1e. 编号格式用了 {c}（章号），稿件却没说按章编号：两个文件各写一半，等式不成立
@@ -348,11 +367,7 @@ def validate_manuscript(
         by_chapter = isinstance(crossref, dict) and bool(crossref.get("chapters"))
         if not by_chapter:
             report.valid = False
-            report.errors.append(
-                f"要求文件的「公式编号格式」是 {eq_format}，里面有 {{c}}（章号），"
-                f"但稿件 YAML 的 crossref 下没有 chapters: true。二选一："
-                f"在 `crossref:` 下加 `chapters: true`，或把格式改成不含 {{c}} 的写法（如 （{{n}}））"
-            )
+            report.errors.append(t("gate.equation.chapters", lang, fmt=eq_format))
 
     # 2. 图片路径空格与存在性
     in_code = False
@@ -370,76 +385,98 @@ def validate_manuscript(
             # 空格检查
             if " " in raw_path and not raw_path.startswith("<") and not re.search(r'["\'].*["\']', raw_path):
                 report.valid = False
-                report.errors.append(f"行 {i}: 图片路径含未转义空格「{raw_path}」")
+                report.errors.append(t("gate.image.path_space", lang, line=i, path=raw_path))
             # 存在性检查
             clean_path = raw_path.split()[0].strip("<>\"'")
             img_file = md_path.parent / clean_path
             if not img_file.exists():
                 report.valid = False
-                report.errors.append(f"行 {i}: 图片文件不存在「{clean_path}」")
+                report.errors.append(t("gate.image.missing", lang, line=i, path=clean_path))
 
     # 3. Obsidian WikiLinks
     for i, line in enumerate(md_text.split("\n"), 1):
         if re.search(r"!\[\[.*?\]\]|\[\[.*?\]\]", line):
             report.valid = False
-            report.errors.append(f"行 {i}: 发现未转换的 Obsidian WikiLink 语法（请改用标准 Markdown 链接）")
+            report.errors.append(t("gate.wikilink", lang, line=i))
 
     # 4. LaTeX 分页符
     for i, line in enumerate(md_text.split("\n"), 1):
         if re.search(r"\\(?:newpage|pagebreak|clearpage)", line):
             report.valid = False
-            report.errors.append(f"行 {i}: 发现 LaTeX 分页命令（请改用 `{{{{< pagebreak >}}}}`）")
+            report.errors.append(t("gate.latex.pagebreak", lang, line=i))
 
     # 4b. 本引擎没实现的 Markdown 方言：写了不会报错，只会把原始语法印进成品
-    for line_no, why in dialect_issues(md_text):
+    for line_no, why in dialect_issues(md_text, lang):
         report.valid = False
-        report.errors.append(f"行 {line_no} [写法不支持]: {why}")
+        report.errors.append(
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.unsupported_syntax", lang), why=why)
+        )
 
     # 5. 块级标记空行分隔
-    for line_no, why in block_marker_issues(md_text):
+    for line_no, why in block_marker_issues(md_text, lang):
         report.valid = False
-        report.errors.append(f"行 {line_no} [块级标记空行缺失]: {why}")
+        report.errors.append(
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.block_marker", lang), why=why)
+        )
 
     # 6. 未知短代码
     for line_no, why in unknown_shortcode_issues(md_text):
         report.valid = False
-        report.errors.append(f"行 {line_no} [未知短代码]: {why}")
+        report.errors.append(
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.unknown_shortcode", lang), why=why)
+        )
 
     # 7. 分节符后又写分页：多顶出一页空白。看得见，只提醒
-    for line_no, why in section_pagebreak_issues(md_text):
-        report.warnings.append(f"行 {line_no} [分节标记]: {why}")
+    for line_no, why in section_pagebreak_issues(md_text, lang):
+        report.warnings.append(
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.section_marker", lang), why=why)
+        )
 
     # 8. 标题层级：跳级会让大纲级别错位，但内容与样式都还在，提醒即可
-    for line_no, why in heading_issues(md_text):
-        report.warnings.append(f"行 {line_no} [标题/分级]: {why}")
+    for line_no, why in heading_issues(md_text, lang):
+        report.warnings.append(
+            t("gate.line", lang, line=line_no, tag=t("gate.tag.heading", lang), why=why)
+        )
 
     # 9. 未定义交叉引用标签
-    for line_no, why in undefined_crossref_issues(md_text):
+    for line_no, why in undefined_crossref_issues(md_text, lang=lang):
         report.valid = False
-        report.errors.append(f"行 {line_no} [交叉引用缺失目标]: {why}")
+        report.errors.append(
+            t("gate.line", lang, line=line_no, tag=t("gate.tag.crossref", lang), why=why)
+        )
 
     # 10. 畸变表格
-    for line_no, why in malformed_table_issues(md_text):
+    for line_no, why in malformed_table_issues(md_text, lang):
         report.valid = False
-        report.errors.append(f"行 {line_no} [表格格式异常]: {why}")
+        report.errors.append(
+            t("gate.line", lang, line=line_no, tag=t("gate.tag.table", lang), why=why)
+        )
 
     # 11. 图表题注邻近性：题注离表格/图片远了，样式仍会生效，只是位置不对，提醒即可
-    for line_no, why in caption_adjacency_issues(md_text):
-        report.warnings.append(f"行 {line_no} [图表题注邻近性]: {why}")
+    for line_no, why in caption_adjacency_issues(md_text, lang):
+        report.warnings.append(
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.caption_adjacency", lang), why=why)
+        )
 
     # 11b. 折行段落：按「一行一段」读取会拆成几段，每段都吃一次首行缩进，看得见但内容没丢
     for line_no, snippet in soft_wrap_issues(md_text):
         report.warnings.append(
-            f"行 {line_no} [折行段落]: 上一行没有句末标点而本行紧随其后（「{snippet}」）；"
-            f"本引擎按「一行一段」读取，会拆成两段。若本意是同一段，请合并到一行"
+            t("gate.line", lang, line=line_no, tag=t("gate.tag.soft_wrap", lang),
+              why=t("gate.soft_wrap", lang, snippet=snippet))
         )
 
     # 12. `\tag{}` 公式编号（不认这个写法，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):
         report.valid = False
         report.errors.append(
-            f"行 {line_no} [公式编号]: 发现 `\\tag{{}}`，这不是本工具的编号写法，整条公式会退化成字面文本（{snippet}）；"
-            f"删掉 `\\tag{{X}}`，改写成 `$$…$$ {{#eq-标签}}`，编号由 crossref 生成"
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.equation_number", lang),
+              why=t("gate.latex.tag", lang, snippet=snippet))
         )
 
     # 13/14. 依赖格式要求文件的两道门禁
@@ -447,23 +484,30 @@ def validate_manuscript(
         # 13. 图片声明宽度超过版心：会被钳到版心宽，但图还在页内，提醒即可
         width_cm = content_width_cm(spec)
         if width_cm:
-            for line_no, why in image_width_issues(md_text, width_cm):
-                report.warnings.append(f"行 {line_no} [图片宽度超过版心]: {why}")
+            for line_no, why in image_width_issues(md_text, width_cm, lang):
+                report.warnings.append(
+                    t("gate.line", lang, line=line_no,
+                      tag=t("gate.tag.image_width", lang), why=why)
+                )
         elif has_declared_image_width(md_text):
-            report.warnings.append("要求文件没写页边距，算不出版心，图片宽度未校验")
+            report.warnings.append(t("gate.image_width.no_margins", lang))
 
         # 14. 稿件结构 vs 要求文件声明的样式（缺一条就静默回退默认样式）
-        for line_no, why in required_style_issues(md_text, spec, fm_data):
+        for line_no, why in required_style_issues(md_text, spec, fm_data, lang):
             report.valid = False
-            report.errors.append(f"行 {line_no} [结构样式缺失]: {why}")
+            report.errors.append(
+                t("gate.line", lang, line=line_no,
+                  tag=t("gate.tag.style_missing", lang), why=why)
+            )
 
     # 14b. `:::` 不是本工具的写法
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         if re.match(r"^\s*:::", line):
             report.valid = False
             report.errors.append(
-                f"行 {line_no} [段落样式]: `:::` 不是本工具的写法。"
-                f"需要段落样式就写成一行 `%% 样式名 内容`；文献列表由引擎放在文末，不需要定位标记。"
+                t("gate.line", lang, line=line_no,
+                  tag=t("gate.tag.style_line", lang),
+                  why=t("gate.style.triple_colon", lang))
             )
 
     # 14c. 题注写进图片的方括号里：方括号只放无障碍替代文字
@@ -472,27 +516,32 @@ def validate_manuscript(
         if m and re.match(r"^\s*(?:图|表|Figure|Table)\s*\d", m.group(1)):
             report.valid = False
             report.errors.append(
-                f"行 {line_no} [图片题注]: 方括号里的文字是无障碍替代文字，不会被排成题注。"
-                f"题注另起一行：`%% 图片题注 {m.group(1).strip()}`（写在图片上方或下方都可），"
-                f"`![](…)` 的方括号留空或写一句替代文字"
+                t("gate.line", lang, line=line_no,
+                  tag=t("gate.tag.caption_image", lang),
+                  why=t("gate.caption.in_alt", lang, text=m.group(1).strip()))
             )
 
     # 14d. 文献区标题：列表是引擎生成的，标题得稿子里写，两种写法都认
     if isinstance(fm_data, dict) and fm_data.get("bibliography"):
-        has_style_title = bool(re.search(r"^%%\s*参考文献标题\s", md_text, re.M))
+        # 认名字走词表：`参考文献标题` / `References Title` / `Bibliography Title` 都指向
+        # 同一个样式。写成中文字面量正则，英文稿写了 `%% References Title …` 照样被提醒
+        # 「没写抬头」——而让他补的正是他已经写了的那一行，按提示改也清不掉。
+        has_style_title = any(
+            resolved == "References Title" for _, resolved in style_line_names(md_text)
+        )
         has_heading = bool(
             re.search(r"^#{1,6}\s*(?:参考文献|参考书目|References|Bibliography)\s*$", md_text, re.M)
         )
         if not (has_style_title or has_heading):
-            report.warnings.append(
-                "有 bibliography 但正文没写文献区标题：在文末补一行 `%% 参考文献标题 参考文献`"
-                "（或 `# 参考文献` 标题），否则生成的文献列表没有抬头"
-            )
+            report.warnings.append(t("gate.bib.title_missing", lang))
 
     # 15. 段落样式行 `%% 样式名 内容`
-    for line_no, why in style_line_issues(md_text):
+    for line_no, why in style_line_issues(md_text, lang):
         report.valid = False
-        report.errors.append(f"行 {line_no} [段落样式]: {why}")
+        report.errors.append(
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.style_line", lang), why=why)
+        )
 
     # 16. custom-style 是否真的存在于模板（没给模板就跳过，由对账阶段兜底）
     styles_used: dict[str, list[int]] = {}
@@ -500,7 +549,7 @@ def validate_manuscript(
         if resolved:
             styles_used.setdefault(resolved, []).append(line_no)
     if styles_used and template_docx is not None:
-        errors, warnings = template_style_issues(styles_used, template_docx)
+        errors, warnings = template_style_issues(styles_used, template_docx, lang)
         if errors:
             report.valid = False
             report.errors.extend(f"[custom-style] {e}" for e in errors)

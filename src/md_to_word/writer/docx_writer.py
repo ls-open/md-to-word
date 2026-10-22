@@ -12,7 +12,7 @@ from __future__ import annotations
 import copy
 import re
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
 
 from docx import Document as open_docx
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
@@ -24,8 +24,9 @@ from docx.oxml.ns import nsdecls, qn
 from docx.shared import Cm, Emu
 
 from md_to_word.config import default_crossref_prefixes, looks_chinese
+from md_to_word.i18n import t
 from md_to_word.utils.docx_zip import normalize_zip
-from md_to_word.preprocessor.markers import section_paragraph_xml, toc_xml
+from md_to_word.preprocessor.markers import MarkerError, section_paragraph_xml, toc_xml
 from md_to_word.spec.constants import PAGE_NUMBER_FMT
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
@@ -126,6 +127,7 @@ class _Writer:
         equation_number_placement="right",
         equation_number_format="",
         no_row_split: bool = False,
+        lang: Optional[str] = None,
     ) -> None:
         self.model = document
         self.docx = docx
@@ -140,6 +142,8 @@ class _Writer:
         self._bibliography_written = False  # 文献表只在「参考文献标题」后写一次
         self.no_row_split = no_row_split  # 表格行是否禁止跨页断开（要求文件写「行不跨页」）
         chinese = looks_chinese(self._prose_text())
+        # 报错语言：流水线按 `--lang`/稿件语种传进来；直接调库时按正文自己判
+        self.lang = lang or ("zh" if chinese else "en")
         self._crossref_prefixes = {
             **default_crossref_prefixes(chinese),
             **(document.meta.crossref or {}),
@@ -189,11 +193,17 @@ class _Writer:
         elif isinstance(block, Equation):
             self._equation(block)
         elif isinstance(block, Toc):
-            self._insert_before_sectpr(parse_xml(toc_xml(block.depth or self._toc_depth())))
+            try:
+                toc = toc_xml(block.depth or self._toc_depth(), self.lang)
+            except MarkerError as exc:
+                # 级数写超（`{{< toc 99 >}}`）是稿件写法问题，不该以 traceback 收场
+                raise UnsupportedFeature(t("writer.toc_failed", self.lang, err=exc)) from exc
+            self._insert_before_sectpr(parse_xml(toc))
         elif isinstance(block, SectionBreak):
             self._section(block)
         else:
-            raise UnsupportedFeature(f"未支持的块类型：{type(block).__name__}")
+            raise UnsupportedFeature(t("writer.unsupported_block", self.lang,
+                                       type=type(block).__name__))
 
         if not isinstance(block, Paragraph):
             self._after_heading = True
@@ -296,10 +306,11 @@ class _Writer:
     def _equation(self, block: Equation) -> None:
         """独立公式：居中，编号靠右。编号用中心制表位 + 右制表位实现，是 Word 里的常规写法。"""
         try:
-            maths = latex_to_omml(block.latex)
+            maths = latex_to_omml(block.latex, self.lang)
         except UnsupportedMath as exc:
             snippet = block.latex.strip().replace("\n", " ")[:40]
-            raise UnsupportedFeature(f"独立公式「{snippet}」解析失败：{exc}") from exc
+            raise UnsupportedFeature(t("writer.equation_failed", self.lang,
+                                       snippet=snippet, err=exc)) from exc
 
         paragraph = self.docx.add_paragraph(style="Body Text")
         width = self._content_width_twips()
@@ -381,7 +392,7 @@ class _Writer:
             elif isinstance(inner, CodeBlock):
                 self._code(inner)
             else:
-                raise UnsupportedFeature("引用块里目前只支持段落、列表与代码块")
+                raise UnsupportedFeature(t("writer.quote_children", self.lang))
 
     def _list(self, block: ListBlock, base_left: int = 0) -> None:
         """列表写出：真实编号（numbering.xml），不是字面量序号。
@@ -400,7 +411,7 @@ class _Writer:
             num_id = num_ids[ordered]
             for inner in item.blocks:
                 if not isinstance(inner, Paragraph):
-                    raise UnsupportedFeature("列表项里目前只支持段落")
+                    raise UnsupportedFeature(t("writer.list_item_children", self.lang))
                 # 列表项是正文，不是表格单元格：套 Body Text 而不是 Compact。
                 # Compact 常被设成「居中 + 不缩进」（表格里就该这样），列表项跟着它
                 # 会被逐行居中，看着像手打的「• 一句话」——排版对不上，内容却没错。
@@ -635,7 +646,7 @@ class _Writer:
 
     def _footnote_paragraph(self, block) -> str:
         if not isinstance(block, Paragraph):
-            raise UnsupportedFeature("脚注内容目前只支持段落")
+            raise UnsupportedFeature(t("writer.footnote_paragraph_only", self.lang))
         style = (block.style or "Footnote Text").replace(" ", "")
         runs = "".join(self._run_xml(node) for node in block.inlines)
         return f'<w:p><w:pPr><w:pStyle w:val="{style}"/></w:pPr>{runs}</w:p>'
@@ -646,7 +657,8 @@ class _Writer:
             return f'<w:r><w:t xml:space="preserve">{_escape(text)}</w:t></w:r>'
         children = getattr(node, "children", None)
         if children is None:
-            raise UnsupportedFeature(f"脚注里的 {type(node).__name__} 尚未支持")
+            raise UnsupportedFeature(t("writer.footnote_node", self.lang,
+                                       type=type(node).__name__))
         inner = "".join(self._run_xml(c) for c in children)
         props = ""
         if isinstance(node, Strong):
@@ -661,9 +673,7 @@ class _Writer:
         fmt = self.eq_number_format
         if "{c}" in fmt:
             if not self.model.meta.chapters:
-                raise UnsupportedFeature(
-                    "要求文件的「公式编号格式」用了 {c}（章号），但稿件 YAML 的 crossref 下没有 chapters: true"
-                )
+                raise UnsupportedFeature(t("writer.equation_chapter_without_yaml", self.lang))
             fmt = fmt.replace("{c}", str(chapter))
         return fmt.replace("{n}", str(index))
 
@@ -676,10 +686,10 @@ class _Writer:
         elif target.startswith("tbl-"):
             prefix = self._crossref_prefixes.get("tbl-prefix", "表")
         else:
-            raise UnsupportedFeature(f"交叉引用 {target} 的类型尚未支持")
+            raise UnsupportedFeature(t("writer.crossref_type", self.lang, target=target))
         parts = self._eq_numbers.get(target)
         if parts is None:
-            raise UnsupportedFeature(f"交叉引用 {target} 指向的标签不存在")
+            raise UnsupportedFeature(t("writer.crossref_missing", self.lang, target=target))
         return f"{prefix}{self._render_eq_number(*parts)}"
 
     def _style_name(self, name: str) -> str | None:
@@ -716,10 +726,11 @@ class _Writer:
             self._styled(paragraph, node.children, subscript=True)
         elif isinstance(node, Math):
             try:
-                nodes = latex_to_omml(node.latex)
+                nodes = latex_to_omml(node.latex, self.lang)
             except UnsupportedMath as exc:
                 snippet = node.latex.strip()[:30]
-                raise UnsupportedFeature(f"行内公式「${snippet}$」解析失败：{exc}") from exc
+                raise UnsupportedFeature(t("writer.inline_equation_failed", self.lang,
+                                           snippet=snippet, err=exc)) from exc
             paragraph._p.append(self._omath(nodes))
         elif isinstance(node, Link):
             self._hyperlink(paragraph, node)
@@ -727,9 +738,7 @@ class _Writer:
             paragraph.add_run(self._resolve_crossref(node.target))
         elif isinstance(node, Citation):
             if self.citations is None:
-                raise UnsupportedFeature(
-                    "稿件声明了 citation，但未提供文献库或 CSL 样式；请检查 YAML 的 bibliography/csl"
-                )
+                raise UnsupportedFeature(t("writer.citation_without_bibliography", self.lang))
             keys = [(item.key, item.locator) for item in node.items]
             segments = self.citations.cite(keys, narrative=node.narrative)
             # 中文行文里「基石 [1]」应为「基石[1]」；西文保留空格
@@ -821,7 +830,8 @@ class _Writer:
             else:
                 text = getattr(node, "value", None)
                 if text is None:
-                    raise UnsupportedFeature(f"超链接里放不下 {type(node).__name__}")
+                    raise UnsupportedFeature(t("writer.link_child", self.lang,
+                                               type=type(node).__name__))
                 yield text, fmt
 
     _FORMAT_ATTR = {
@@ -845,13 +855,15 @@ class _Writer:
             elif type(child) in self._FORMAT_ATTR:
                 self._styled(paragraph, child.children, **{**fmt, self._FORMAT_ATTR[type(child)]: True})
             elif isinstance(child, Math):
-                paragraph._p.append(self._omath(latex_to_omml(child.latex)))
+                paragraph._p.append(self._omath(latex_to_omml(child.latex, self.lang)))
             elif hasattr(child, "children"):
-                raise UnsupportedFeature(f"「{type(child).__name__}」还不能写在行内格式里")
+                raise UnsupportedFeature(t("writer.inline_format_child", self.lang,
+                                           type=type(child).__name__))
             else:
                 text = getattr(child, "value", None)
                 if text is None:
-                    raise UnsupportedFeature(f"未支持的行内节点：{type(child).__name__}")
+                    raise UnsupportedFeature(t("writer.inline_node", self.lang,
+                                               type=type(child).__name__))
                 run = paragraph.add_run(text)
                 self._apply_font(run, fmt)
 
@@ -870,6 +882,7 @@ def write_docx(
     equation_number_placement: str = "right",
     equation_number_format: str = "",
     no_row_split: bool = False,
+    lang: Optional[str] = None,
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
 
@@ -889,6 +902,7 @@ def write_docx(
         equation_number_placement=equation_number_placement,
         equation_number_format=equation_number_format,
         no_row_split=no_row_split,
+        lang=lang,
     ).write()
     out = Path(output)
     docx.save(str(out))

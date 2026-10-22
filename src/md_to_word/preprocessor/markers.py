@@ -9,6 +9,7 @@ import copy
 from typing import Optional
 
 from lxml import etree
+from md_to_word.i18n import t
 
 _NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _W = "{" + _NS + "}"
@@ -55,11 +56,11 @@ def _insert_ordered(parent, element, tag: str) -> None:
 
 
 
-def toc_xml(level: Optional[int] = None) -> str:
+def toc_xml(level: Optional[int] = None, lang: str = "zh") -> str:
     """目录域（`w:sdt` 内的 TOC 域代码），供写出器直接插入文档树。"""
     depth = level if level is not None else 3
     if not 1 <= depth <= _MAX_TOC_DEPTH:
-        raise MarkerError(f"目录收录级数要在 1–{_MAX_TOC_DEPTH} 之间，收到 {depth}")
+        raise MarkerError(t("markers.toc_depth", lang, max=_MAX_TOC_DEPTH, depth=depth))
     # 前后各留一个空格：与 Word 自己写出的域代码同形，用户在 Word 里改域时不会对不上。
     instr = f' TOC \\o "1-{depth}" \\h \\z \\u '
     return (

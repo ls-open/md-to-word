@@ -19,6 +19,7 @@ from citeproc import Citation, CitationItem, CitationStylesBibliography, Citatio
 from citeproc.source.json import CiteProcJSON
 
 from md_to_word.transform.bibtex import parse_bibtex
+from md_to_word.i18n import t
 
 
 class CitationError(RuntimeError):
@@ -28,14 +29,15 @@ class CitationError(RuntimeError):
 class CitationEngine:
     """一份文献库 + 一个 CSL 样式 = 一个渲染器。"""
 
-    def __init__(self, bib_text: str, csl_path: Path | str) -> None:
+    def __init__(self, bib_text: str, csl_path: Path | str, lang: str = "zh") -> None:
+        self.lang = lang
         self.entries = parse_bibtex(bib_text)
         if not self.entries:
-            raise CitationError("文献库里没有可用条目")
+            raise CitationError(t("citations.empty_library", lang))
         try:
             style = CitationStylesStyle(str(csl_path), validate=False)
         except Exception as exc:  # 样式文件本身有问题
-            raise CitationError(f"CSL 样式无法解析：{csl_path}（{exc}）") from exc
+            raise CitationError(t("citations.style_unparsable", lang, path=csl_path, err=exc)) from exc
         # html 而不是 plain：CSL 里的斜体、上标（Nature 的引文编号就是上标）只有带标记
         # 才能还原。返回给我们自己解析，最终落成带格式的 run。
         self._bibliography = CitationStylesBibliography(
@@ -62,7 +64,7 @@ class CitationEngine:
 
         for key, _locator in pairs:
             if key not in self._known:
-                raise CitationError(f"文献库里没有条目：{key}")
+                raise CitationError(t("citations.key_missing", self.lang, key=key))
         for key, _locator in pairs:
             if key not in self._order:
                 self._order.append(key)

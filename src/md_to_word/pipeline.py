@@ -82,7 +82,7 @@ def _normalized_csl(path: Path, temp_dir: Path, res: ExportResult) -> Path:
     return target
 
 
-def _prepare_custom_template(src: Path, dst: Path) -> Path:
+def _prepare_custom_template(src: Path, dst: Path, lang: str = "zh") -> Path:
     """第三方模板入场前的清理：剥主题属性，并确认它只有一节。
 
     主题字体与主题色的优先级高于显式字体，外来的 `.docx`（期刊/学校下发）几乎都带着
@@ -104,10 +104,7 @@ def _prepare_custom_template(src: Path, dst: Path) -> Path:
 
     sections = len(Document(str(dst)).sections)
     if sections != 1:
-        raise TemplateError(
-            f"模板必须是单节（当前 {sections} 节）。多节模板的页面几何与页眉页脚无法逐节沿用，"
-            f"导出后会错位。请在 Word 里把模板合并成一节，或改用生成的模板（不传 -t）。"
-        )
+        raise TemplateError(t("pipeline.template_multiple_sections", lang, count=sections))
     return dst
 
 
@@ -131,6 +128,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     else:
         out_p = in_p.with_suffix(".docx").resolve()
     res.output_docx = out_p
+    # 目录不存在时当场说清楚：否则要等整条流水线跑完、写文件那一刻才抛 FileNotFoundError，
+    # 对着 traceback 的人不会想到是自己漏建了一个目录。
+    if not out_p.parent.is_dir():
+        res.returncode = 1
+        res.errors.append(t("pipeline.output_dir_missing", res.lang, dir=out_p.parent))
+        return res
 
     # 2. 确定格式要求 (Requirements Spec)
     req_file: Optional[Path] = None
@@ -194,7 +197,9 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     # 4. 导前预检门禁 (Validator)
     if options.check_md:
         logger.info("🔍 " + t("pipeline.precheck", res.lang))
-        v_report = validate_manuscript(in_p, template_docx=custom_template, spec_path=req_file)
+        v_report = validate_manuscript(
+            in_p, template_docx=custom_template, spec_path=req_file, lang=res.lang
+        )
         if not v_report.valid:
             res.returncode = 1
             res.errors.append(t("pipeline.rejected", res.lang, count=len(v_report.errors)))
@@ -241,7 +246,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         if tpl_for_render:
             try:
                 tpl_for_render = _prepare_custom_template(
-                    tpl_for_render, Path(temp_dir) / "template.docx"
+                    tpl_for_render, Path(temp_dir) / "template.docx", res.lang
                 )
             except TemplateError as exc:
                 res.returncode = 1
@@ -257,7 +262,9 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 build_template(req_content, temp_tpl_path, lang=res.lang)
             except TemplateError as exc:
                 res.returncode = 1
-                res.errors.append(f"格式要求无法生成样式模板：{exc}")
+                res.errors.append(
+                    t("pipeline.requirements_template_failed", res.lang, reason=exc)
+                )
                 return res
             tpl_for_render = temp_tpl_path
 
@@ -294,7 +301,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             # 不这么做的话，同一份要求文件换个 CSL，悬挂缩进与行距就跟着变。
             csl_path = _normalized_csl(csl_path, Path(temp_dir), res)
             try:
-                engine = CitationEngine(bib_text, csl_path)
+                engine = CitationEngine(bib_text, csl_path, res.lang)
             except (CitationError, OSError) as exc:
                 res.returncode = 1
                 res.errors.append(t("pipeline.csl_error", res.lang, reason=exc))
@@ -311,6 +318,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 equation_number_format=spec.equation_number_format if spec else "",
                 equation_number_placement=spec.equation_number if spec else "right",
                 no_row_split=bool(spec and spec.table.get("no_row_split")),
+                lang=res.lang,
             )
         except UnsupportedFeature as exc:
             res.returncode = 1

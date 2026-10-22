@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from lxml import etree
 
+from md_to_word.i18n import t
+
 MATHML_NS = "http://www.w3.org/1998/Math/MathML"
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -52,10 +54,13 @@ def _run(text: str, upright: bool = False):
 
 
 class _Converter:
+    def __init__(self, lang: str = "zh") -> None:
+        self.lang = lang
+
     def convert(self, element) -> list:
         handler = getattr(self, f"_on_{_local(element)}", None)
         if handler is None:
-            raise UnsupportedMath(f"尚未支持的 MathML 元素：{_local(element)}")
+            raise UnsupportedMath(t("mathml.unknown_element", self.lang, name=_local(element)))
         return handler(element)
 
     # ── 基础 ────────────────────────────────────────────────────────
@@ -298,7 +303,7 @@ class _Converter:
         matrix = _el("m")
         for row in element:
             if _local(row) != "mtr":
-                raise UnsupportedMath(f"mtable 里出现了 {_local(row)}")
+                raise UnsupportedMath(t("mathml.mtable_child", self.lang, name=_local(row)))
             mr = etree.SubElement(matrix, _m("mr"))
             for cell in row:
                 for node in self.convert(cell):
@@ -351,18 +356,21 @@ def _nary(symbol: str):
     return nary
 
 
-def mathml_to_omml(mathml: str | bytes):
-    """MathML 字符串 → OMML 元素列表（`m:r` / `m:f` / `m:sSup` …）。"""
+def mathml_to_omml(mathml: str | bytes, lang: str = "zh"):
+    """MathML 字符串 → OMML 元素列表（`m:r` / `m:f` / `m:sSup` …）。
+
+    `lang` 决定解析失败时的报错语言：英文稿的公式出错，读到的得是英文。
+    """
     root = etree.fromstring(mathml.encode("utf-8") if isinstance(mathml, str) else mathml)
-    return _Converter().convert(root)
+    return _Converter(lang).convert(root)
 
 
-def latex_to_omml(latex: str) -> list:
+def latex_to_omml(latex: str, lang: str = "zh") -> list:
     """LaTeX 公式 → OMML 元素列表。"""
     from latex2mathml.converter import convert as latex_to_mathml
 
     try:
         mathml = latex_to_mathml(latex)
     except Exception as exc:
-        raise UnsupportedMath(f"LaTeX 语法解析失败（{exc}）") from exc
-    return mathml_to_omml(mathml)
+        raise UnsupportedMath(t("mathml.latex_failed", lang, err=exc)) from exc
+    return mathml_to_omml(mathml, lang)

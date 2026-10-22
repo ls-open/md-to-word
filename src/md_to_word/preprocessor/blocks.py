@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import re
 
+from md_to_word.i18n import style_examples, t
 from md_to_word.spec.constants import STYLE_MAP
 
 # `%%` 后必须有一个空格，再接样式名与正文
@@ -47,7 +48,7 @@ def resolve_style_name(name: str) -> str | None:
     return STYLE_MAP.get(name.strip())
 
 
-def style_line_issues(text: str) -> list[tuple[int, str]]:
+def style_line_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
     """样式行的三类错误 → [(行号, 说明)]：名字不认识、写成标题类、缺正文。"""
     issues: list[tuple[int, str]] = []
     lines = (text or "").split("\n")
@@ -66,31 +67,18 @@ def style_line_issues(text: str) -> list[tuple[int, str]]:
         name, content = split
         resolved = resolve_style_name(name)
         if resolved is None:
+            # 举例的样式名跟消息语言走：英文稿举 Abstract，中文稿举「摘要」
             issues.append(
-                (i, f"不认识样式名「{name}」；请写词表里的名字（如 摘要 / 关键词 / 表题 / 表注 / 参考文献标题）")
+                (i, t("gate.style.unknown_name", lang, name=name, examples=style_examples(lang)))
             )
         elif resolved in _HEADING_STYLES:
-            issues.append(
-                (i, f"「{name}」是标题类样式，章节层级请用 Markdown 的 # 写法（## 为二级，依此类推）")
-            )
+            issues.append((i, t("gate.style.heading_style", lang, name=name)))
         elif resolved in GENERATED_STYLES:
-            issues.append(
-                (
-                    i,
-                    "手写文献列表已不支持：在 YAML 里写 `bibliography: refs.bib` 与 `csl:`，"
-                    "文献列表由引擎生成（样式仍由要求文件的「参考文献」行控制）",
-                )
-            )
+            issues.append((i, t("gate.style.manual_bibliography", lang)))
         elif not content:
-            issues.append((i, f"「{name}」后面没有正文；这一行要写成「%% {name} 内容」"))
+            issues.append((i, t("gate.style.empty_content", lang, name=name)))
         elif _looks_like_continuation(lines, i - 1):
-            issues.append(
-                (
-                    i,
-                    f"「{name}」的下一行紧接正文，疑似软换行；本工具的段落样式以这一行为界，"
-                    f"续行不会被并进来。请把整段合并到这一行",
-                )
-            )
+            issues.append((i, t("gate.style.continuation", lang, name=name)))
     return issues
 
 
