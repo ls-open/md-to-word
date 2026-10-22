@@ -147,3 +147,34 @@ def test_default_csl_follows_language(tmp_path: Path) -> None:
 
     assert default_csl_path("这是一份中文稿件。" * 20).name == "chinese-gb7714-2015-numeric.csl"
     assert default_csl_path("This is an English manuscript. " * 20).name == "apa.csl"
+
+
+def test_export_reminds_to_open_the_result(tmp_path: Path) -> None:
+    """门禁全绿 ≠ 版面没问题。行高列宽、公式与题注的落版只有真 Word 能看，
+    所以每次成功导出都要带一条"打开看一眼"的提醒，让它成为交付动作的一部分。"""
+    (tmp_path / "m.md").write_text('---\ntitle: "t"\n---\n\n# 一 引言\n\n正文。\n', encoding="utf-8")
+    result = run_export_pipeline(
+        ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx", preset="zh-academic")
+    )
+    assert result.returncode == 0, result.errors
+    assert any("用 Word 打开核对" in m for m in result.messages), result.messages
+
+
+def test_image_paths_are_relative_to_the_manuscript(tmp_path: Path, monkeypatch) -> None:
+    """稿里的图片路径相对稿件目录，不相对进程 cwd——否则换个目录调用就全是"图不存在"。"""
+    work = tmp_path / "paper"
+    (work / "figures").mkdir(parents=True)
+    shutil.copy(
+        Path(__file__).resolve().parents[1] / "demo/01_chinese_thesis/figures/qa_pipeline.png",
+        work / "figures" / "x.png",
+    )
+    (work / "m.md").write_text(
+        '---\ntitle: "t"\n---\n\n![](figures/x.png){width=8cm}\n\n%% 图片题注 图 1 示意图\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)  # 站在别的目录调用
+    result = run_export_pipeline(
+        ExportOptions(input_path=work / "m.md", output_path=work / "o.docx", preset="zh-academic")
+    )
+    assert result.returncode == 0, result.errors
+    assert "drawing" in __import__("zipfile").ZipFile(work / "o.docx").read("word/document.xml").decode()

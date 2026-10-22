@@ -79,10 +79,11 @@ class UnsupportedFeature(NotImplementedError):
 
 
 class _Writer:
-    def __init__(self, document: Document, docx, citations=None) -> None:
+    def __init__(self, document: Document, docx, citations=None, base_dir=None) -> None:
         self.model = document
         self.docx = docx
         self.citations = citations
+        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         self._after_heading = False  # 下一段正文若是「标题后的第一段」，落 First Paragraph
         self._compact_style = self._style_name("Compact")
         self._footnote_ids: dict[str, int] = {}
@@ -433,34 +434,38 @@ class _Writer:
         """题注与图必须同页，不管题注写在上方还是下方。
 
         Word 只有「与下段同页」（keepNext）一个方向：题注在上，靠样式里的这一条就够
-        （要求文件的「表格题注」就是这么写的）；题注在下，得给**图片段**加 keepNext。
-        两条都补齐，作者按中文惯例把题注写在图下也不会被分页拆开。
+        （要求文件的「表格题注」就是这么写的）；题注在下，得给**图片段**补。所以按相邻
+        关系判断，谁是这一对里的前一件，就给谁加——两个方向都成立，不用作者操心。
         """
-        block, here = blocks[index], self._last_paragraph
-        if here is None:
+        here = self._last_paragraph
+        if here is None or index + 1 >= len(blocks):
             return
-        pair = None
-        if isinstance(block, Figure) and index + 1 < len(blocks):
-            nxt = blocks[index + 1]
-            if isinstance(nxt, Paragraph) and nxt.style == "Image Caption":
-                pair = here  # 图在上，给定这段
-        elif isinstance(block, Paragraph) and block.style == "Image Caption":
-            prev = blocks[index - 1] if index else None
-            if isinstance(prev, Figure):
-                pair = here  # 图在下，给定题注这段
-        if pair is not None:
-            ppr = pair._p.get_or_add_pPr()
-            if ppr.find(qn("w:keepNext")) is None:
-                ppr.append(parse_xml(f'<w:keepNext {nsdecls("w")}/>'))
+
+        def is_figure(node: Block) -> bool:
+            return isinstance(node, Figure)
+
+        def is_caption(node: Block) -> bool:
+            return isinstance(node, Paragraph) and node.style == "Image Caption"
+
+        this, nxt = blocks[index], blocks[index + 1]
+        if not ((is_figure(this) and is_caption(nxt)) or (is_caption(this) and is_figure(nxt))):
+            return
+        ppr = here._p.get_or_add_pPr()
+        if ppr.find(qn("w:keepNext")) is None:
+            ppr.append(parse_xml(f'<w:keepNext {nsdecls("w")}/>'))
 
     def _figure(self, block: Figure) -> None:
         paragraph = self.docx.add_paragraph(style="Captioned Figure")
         self._last_paragraph = paragraph
+        # 稿里的路径相对稿件目录，不按进程 cwd 猜
+        path = Path(block.path)
+        if not path.is_absolute():
+            path = self.base_dir / path
         run = paragraph.add_run()
         if block.width_cm:
-            run.add_picture(block.path, width=Cm(block.width_cm))
+            run.add_picture(str(path), width=Cm(block.width_cm))
         else:
-            run.add_picture(block.path)
+            run.add_picture(str(path))
 
     # ── 内联 ─────────────────────────────────────────────────────────
     def inlines(self, paragraph, nodes: Iterable[Inline]) -> None:
@@ -705,14 +710,22 @@ class _Writer:
             setattr(run.font, key, value)
 
 
-def write_docx(model: Document, template: Path | str, output: Path | str, citations=None) -> Path:
+def write_docx(
+    model: Document,
+    template: Path | str,
+    output: Path | str,
+    citations=None,
+    base_dir: Path | str | None = None,
+) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
 
     `citations` 是 `transform.citations.CitationEngine`：有文献库时传进来，文献引用与
     文末列表都由它渲染；不传时遇到 citation 会明确失败。
+    `base_dir` 是稿件所在目录：稿里的图片路径都是相对它的，不能按进程 cwd 解析——
+    否则从别的目录调用时图全找不到（预览与流水线走的是同一个入口）。
     """
     docx = open_docx(str(template))
-    _Writer(model, docx, citations=citations).write()
+    _Writer(model, docx, citations=citations, base_dir=base_dir).write()
     out = Path(output)
     docx.save(str(out))
     return out

@@ -274,7 +274,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
             try:
                 model = read_markdown(contract_text, citation_keys=citation_keys)
-                write_docx(model, tpl_for_render, out_p, citations=engine)
+                write_docx(model, tpl_for_render, out_p, citations=engine, base_dir=in_p.parent)
             except UnsupportedFeature as exc:
                 res.returncode = 1
                 res.errors.append(
@@ -346,6 +346,13 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 res.returncode = 3
 
         logger.info(f"✅ Word 文档导出成功: {out_p}")
+        # 机器验得了文字与结构，验不了"看起来对不对"。表格行高列宽按内容自适应、公式与
+        # 题注的实际落版、页眉页脚——这些只有拿真 Word 打开才知道。统一提醒一次，
+        # 别让"门禁全绿"被当成"版面没问题"。
+        res.messages.append(
+            "提醒：导出后请用 Word 打开核对一遍——表格的行高与列宽由内容自适应，"
+            "公式、三线表、图片与题注的上下位置、页眉页脚，这些只有真看才能确认。"
+        )
         return res
 
     finally:
