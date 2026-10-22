@@ -38,8 +38,8 @@
 
 为杜绝"设置了样式却不生效"的隐蔽 Bug，框架实行**三重纵深防御机制**：
 1. **底模生成阶段（源头零污染）**：`create_pure_modern_base.py` 构建 `styles.xml` 时不写入任何 `asciiTheme`、`eastAsiaTheme`、`themeColor` 属性或非黑颜色；
-2. **模板刷样阶段（过程净化）**：`generate_template.py` 保存时刻对 `styles.xml` 再次执行递归清理；
-3. **最终导出阶段（末端兜底与防御）**：`fix_docx_equations.py` 在后处理公式的同时对最终 docx 再次执行样式净化。**此步的双重必要性**：
+2. **模板刷样阶段（过程净化）**：`src/md_to_word/template/generator.py` 保存时刻对 `styles.xml` 再次执行递归清理；
+3. **最终导出阶段（末端兜底与防御）**：`src/md_to_word/postprocessor/equations.py` 在后处理公式的同时对最终 docx 再次执行样式净化。**此步的双重必要性**：
    - **第三方模板兜底**：用户直接使用期刊官方现有 `.docx` 模板（非脚本生成）时，也能自动拔除其中残留的主题属性；
    - **编译器隐式注入拦截**：Quarto 编译过程中若动态补齐某些特定样式节点，可能会自动带上系统默认主题标记，末端扫描可确保交到作者手中的 Word 终稿 100% 纯净。
 
@@ -95,7 +95,7 @@ Pandoc 的 docx writer 在确定图片显示宽度时，会从模板的 `sectPr`
 
 **`{width=15cm}` 被静默截断为 14.82cm 的根因**——Pandoc 默认 reference.docx 的 sectPr 不含 pgSz/pgMar。
 
-`generate_template.py` 现在在保存模板前自动设置：
+`src/md_to_word/template/generator.py` 现在在保存模板前自动设置：
 - `section.page_width` / `section.page_height`（写入 `<w:pgSz>`）
 - `section.left_margin` 等（写入 `<w:pgMar>`，默认 2.54cm）
 - 纸张尺寸由 requirements 文件的 `纸张：A4|Letter` 行设定（不写默认 A4，见 reference.md §1.5）
@@ -112,7 +112,7 @@ Word 打印时会把它加到左边距之外，但 **pandoc 算 `envPrintWidth` 
 改法是把装订线**加进 `pgMar/@w:left`**（2.54 + 1 = 3.54cm），不写 `w:gutter`。单节、不开
 镜像页边距时，两者在打印上等效，但折进去之后 pandoc 与本技能算的都是**真实版心**
 （14.92cm），图片、公式网格表、点线制表位的落点一起跟着对——是"算得对"，不是"再补一刀"。
-对账侧（`audit_export.py`）左边的期望值相应加上装订线。
+对账侧（`src/md_to_word/audit/inspector.py`）左边的期望值相应加上装订线。
 
 ### 1.6 原生图语法居中
 
@@ -120,7 +120,7 @@ Word 打印时会把它加到左边距之外，但 **pandoc 算 `envPrintWidth` 
 
 ### 1.7 缩进单位换算技术细节
 
-`generate_template.py` 的缩进子句支持两种单位（单写法收敛，厘米单位已移除）：
+`src/md_to_word/template/generator.py` 的缩进子句支持两种单位（单写法收敛，厘米单位已移除）：
 
 | 单位 | OOXML 属性 | 换算关系 | 用途 |
 |------|-----------|---------|------|
@@ -162,7 +162,7 @@ pandoc 只从参考文档拿走三类东西，其余一概忽略：
   标记在渲染前展开成 OOXML 分节符（§1.8.2）：它整段继承参考模板正文节的页面几何与页脚
   引用，只改分节类型与页码格式——另外**剥掉 `headerReference` 与 `titlePg`**（前置件不排页眉；`titlePg` 是「文档起始页」的概念，中间节带着它只会让本节首页改用 first 页脚）。所以参考模板仍须是单节。
 
-`generate_template.py` 生成后强制校验单节，多节直接报错——多节模板会让页眉页脚错位且无人察觉。
+`src/md_to_word/template/generator.py` 生成后强制校验单节，多节直接报错——多节模板会让页眉页脚错位且无人察觉。
 
 #### 1.8.2 分节与目录：为什么在 Markdown 里展开，而不是导出后改 docx
 
@@ -170,9 +170,9 @@ pandoc 只从参考文档拿走三类东西，其余一概忽略：
 的围栏块，产物里就真多一个 `sectPr`）。于是分节符、目录域这类 Pandoc 语法里没有的东西都能
 停在标记层表达，不必再写"改产物 XML"的后处理。
 
-`expand_markers.py` 在**预检之后、渲染之前**把标记换成 OOXML 块：
+`src/md_to_word/preprocessor/markers.py` 在**预检之后、渲染之前**把标记换成 OOXML 块：
 
-- 放在预检之后，是为了让 `check_md.py` 校验的仍是作者写的标记本身（未独占一行、拼错的
+- 放在预检之后，是为了让 `src/md_to_word/validator/check.py` 校验的仍是作者写的标记本身（未独占一行、拼错的
   短代码都该在那一层报错），而 Quarto 只看到展开后的结果。
 - 展开要读参考模板的 `word/document.xml`：新节的页面几何与页脚引用整段抄正文节。
   rId 是模板自己的编号，**pandoc 会照搬**（实测两次渲染一致），故抄过来在产物里同样有效。
@@ -182,7 +182,7 @@ pandoc 只从参考文档拿走三类东西，其余一概忽略：
 
 ### 1.9 requirements.txt 是一门**封闭**的小语言
 
-它是本技能唯一的用户界面，只有两级语法，两级各由**一张表**实现（都在 `generate_template.py`）：
+它是本技能唯一的用户界面，只有两级语法，两级各由**一张表**实现（都在 `src/md_to_word/template/generator.py`）：
 
 | 层级 | 例子 | 表 |
 |:--|:--|:--|
@@ -210,14 +210,14 @@ pandoc 只从参考文档拿走三类东西，其余一概忽略：
 
 | # | 改哪 | 做什么 | 能不能不填 |
 |:--|:--|:--|:--|
-| ① | `generate_template.py` | `_LINE_KEYS` 或 `_CLAUSE_TABLE` 加一行 | 必须 |
+| ① | `src/md_to_word/template/generator.py` | `_LINE_KEYS` 或 `_CLAUSE_TABLE` 加一行 | 必须 |
 | ② | `reference.md §1.5` | 唯一写法 + 示例 + 错误写法（常用项再加进 `SKILL.md §2.1`）| 必须 |
-| ③ | `audit_export.py` | 导出后对账能从 XML 里把这条读出来核一遍 | 可以，但要写明**为什么核不了** |
-| ④ | `read_reference_docx.py` | 参考 `.docx` 里读得出这条，能写进草稿 | 可以，但要写明**为什么读不出** |
+| ③ | `src/md_to_word/audit/inspector.py` | 导出后对账能从 XML 里把这条读出来核一遍 | 可以，但要写明**为什么核不了** |
+| ④ | `src/md_to_word/template/extractor.py` | 参考 `.docx` 里读得出这条，能写进草稿 | 可以，但要写明**为什么读不出** |
 
 后两处是「说了要能验」的两个端头——**新写法只加进①，就会出现「写了没人查、别人的模板里也读不出来」
 的灰色写法**：`装订线` / `文档网格` / `字距` 三项当初就只加进了①，对账与读取两头都空着，
-导出全绿而漏读漏检（后来三项都补齐了：对账见 `audit_export.py`，读取见 `read_reference_docx.py`；
+导出全绿而漏读漏检（后来三项都补齐了：对账见 `src/md_to_word/audit/inspector.py`，读取见 `src/md_to_word/template/extractor.py`；
 `文档网格` 靠 `doc_grid_lines_from_pitch` 反推得回来）。判据很简单：
 **这条写法落到 XML 的哪个节点上？** 指得出来就该能对账。
 
@@ -238,7 +238,7 @@ pandoc 只从参考文档拿走三类东西，其余一概忽略：
 | `docProps/core.xml` 的 `dcterms:created` / `dcterms:modified` | 就是 Word「属性」里显示的创建/修改时间 | 写死为 `1970-01-01T00:00:00Z` |
 | zip 每个条目的时间戳 | `ZipFile.writestr(name, data)` 默认取当前时刻，改的是压缩包本身 | 统一写 `1980-01-01 00:00:00`（DOS 时间起点） |
 
-两个值都一眼看得出是钉死的，不会与真实时间混淆。实现在 `fix_docx_equations.py` 的
+两个值都一眼看得出是钉死的，不会与真实时间混淆。实现在 `src/md_to_word/postprocessor/equations.py` 的
 `process_docx`：用显式的 `ZipInfo` 写入，并在写之前把 core.xml 的时间戳换掉。
 
 > 只改这两处就够——实测两份产物逐部件比对，差异只出在 `docProps/core.xml`。
@@ -279,7 +279,7 @@ Markdown 没有表达表格列宽的语法（pandoc 对 pipe 表一律均分，�
 
 配套的导前拦截：表格各行列数对不上时 pandoc **不报错，直接把多出来的单元格连同内容
 丢掉**（实测表头 3 列、分隔行 2 格 → 产物只剩两列）。这是丢内容不是排版问题，
-`check_md.py` 会拦。
+`src/md_to_word/validator/check.py` 会拦。
 
 ---
 
@@ -288,7 +288,7 @@ Markdown 没有表达表格列宽的语法（pandoc 对 pipe 表一律均分，�
 ### 2.1 中文字体不对
 
 原因：Pandoc 默认模板中 Heading 1、Heading 2 等样式的 rFonts 带有 `eastAsiaTheme="majorEastAsia"`，Word 的主题优先级高于 `eastAsia` 显式指定，导致中文字体被宋体覆盖。
-解决：用 `generate_template.py` 重新生成模板——它改样式时会清掉 `eastAsiaTheme` 属性。
+解决：用 `src/md_to_word/template/generator.py` 重新生成模板——它改样式时会清掉 `eastAsiaTheme` 属性。
 
 ### 2.2 字体被主题属性覆盖
 
@@ -311,7 +311,7 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 
 症状：MD 中写 `{width=15cm}`，导出后图片实际宽度只有 14.817cm。
 原因与解决见 §1.5——模板 sectPr 缺 `pgSz`/`pgMar` 时 Pandoc 回退到 420pt；用
-`generate_template.py` 重新生成模板即可（它按 requirements 的 `纸张：` 行写入这两个元素）。
+`src/md_to_word/template/generator.py` 重新生成模板即可（它按 requirements 的 `纸张：` 行写入这两个元素）。
 
 ### 2.6 图片因文件名空格无法加载
 
@@ -346,31 +346,31 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 
 症状：requirements.txt 写了 `表格：居中`，但导出的表格仍左对齐，右边剩大片空白。
 原因：Pandoc 生成的表格**不输出**表格级 `<w:jc>` 元素，但会**继承** Table 样式的 `tblPr/jc`（OOXML 规范 ECMA-376 §17.7.6 规定 Table 样式属性 "always applied" 除非被表格实例覆盖）。所以只要模板的 Table 样式 `tblPr` 里有 `<w:jc w:val="center"/>`，所有表格自动居中。
-解决：在 requirements.txt 中写 `表格：居中`，`generate_template.py` 会在 Table 样式的 tblPr 中插入 jc 元素。
+解决：在 requirements.txt 中写 `表格：居中`，`src/md_to_word/template/generator.py` 会在 Table 样式的 tblPr 中插入 jc 元素。
 
 ### 2.12 OOXML schema 顺序要求（jc 必须在 tblBorders 之前）
 
 症状：Table 样式 tblPr 中有 jc 元素，但表格仍左对齐，Word 忽略了 jc。
 原因：`jc` 元素必须在 `tblBorders` **之前**（OOXML schema 顺序：`tblStyle → tblW → jc → tblInd → tblBorders → tblLayout → tblLook`）。如果 jc 在 tblBorders 之后，Word 会忽略 jc。
-解决：`generate_template.py` 按 OOXML schema 顺序插入（`ensure_ordered_child(tbl_pr, 'jc', _TBLPR_ORDER)`，`jc` 排在 `tblBorders` 之前）——不是 append/insert(0)：`w:tblPr` 的顺序错了 Word 会整段忽略。
+解决：`src/md_to_word/template/generator.py` 按 OOXML schema 顺序插入（`ensure_ordered_child(tbl_pr, 'jc', _TBLPR_ORDER)`，`jc` 排在 `tblBorders` 之前）——不是 append/insert(0)：`w:tblPr` 的顺序错了 Word 会整段忽略。
 
 ### 2.13 First Paragraph 必填原理
 
 症状：requirements.txt 只定义了 `正文 Body Text`，未定义 `首段 First Paragraph`，章节首段格式错误（无缩进或缩进错误）。
 原因：Pandoc 把章节首段映射为 `First Paragraph` 样式（不是 `Body Text`）。如果只定义了 `Body Text` 而没定义 `First Paragraph`，章节首段会用 Pandoc 默认样式。
-解决：requirements.txt 必须显式定义 `首段` 样式，通常 `首行缩进0字符`（APA 标准章节首段不缩进），与正文（`首行缩进2字符`）区分。generate_template.py 将 First Paragraph 列为必填样式之一（必填样式清单见 `REQUIRED_STYLES`，会随需求演进）。
+解决：requirements.txt 必须显式定义 `首段` 样式，通常 `首行缩进0字符`（APA 标准章节首段不缩进），与正文（`首行缩进2字符`）区分。src/md_to_word/template/generator.py 将 First Paragraph 列为必填样式之一（必填样式清单见 `REQUIRED_STYLES`，会随需求演进）。
 
 ### 2.14 间距清零原理（段前段后显式写 0）
 
 症状：requirements.txt 写 `行距2倍` 但未写段前段后，导出后正文段落之间仍有额外间距，"双倍行距贯穿全文"未实现。
 原因：Pandoc 默认模板中大多数样式自带段前/段后间距（如 Body Text 默认段前段后各 9pt）。仅设置行距不清零段间距，最终间距 = 双倍行距 + 段前 9pt + 段后 9pt。
-解决：在 requirements.txt 中显式写 `段前0磅 段后0磅`（必须显式写 `0` 才能覆盖默认值）。generate_template.py 将段前段后列为必填字段。
+解决：在 requirements.txt 中显式写 `段前0磅 段后0磅`（必须显式写 `0` 才能覆盖默认值）。src/md_to_word/template/generator.py 将段前段后列为必填字段。
 
 ### 2.15 LaTeX 分页符对 docx 无效
 
 症状：MD 中用 `\newpage` 分页，导出的 docx 中不生效，段落连在一起。
 原因：`\newpage` 是 LaTeX 命令，Pandoc 的 docx writer 不支持（已知限制，GitHub #6358/#1934）。
-解决：改用 Quarto 标准短代码 `{{< pagebreak >}}`（`check_md.py` 会拦下 LaTeX 那几个写法
+解决：改用 Quarto 标准短代码 `{{< pagebreak >}}`（`src/md_to_word/validator/check.py` 会拦下 LaTeX 那几个写法
 并给出这一句）。它在 docx 下产出 `<w:br w:type="page"/>`，与手写 raw openxml 块等效，
 但不必写 XML。不生效时再在导出的 Word 文档中手动插入分页符。
 
@@ -393,17 +393,17 @@ Pandoc 将表格单元格映射为 `Compact` 样式。正文段落映射为 `Bod
 解决：
 1. 绝对路径（`/Users/...`）与相对路径均可；`export.sh` 已自动追加 `--resource-path "$RESOURCE_PATH:/"`（含输入目录、git 仓库根目录与根 `/`）。根 `/` 使绝对路径不被 Quarto 误解析为 `./Users/...`（否则图片静默丢弃、仅有 warning）；
 2. 图片放在稿件同目录、子目录或同一 Git 仓库下均可，写相对路径或绝对路径即可，无需在 YAML 配置 `resource-path`；
-3. 图片文件不存在时 `check_md.py` 会在导出前拦截（预检报图片缺失），不静默失败。
+3. 图片文件不存在时 `src/md_to_word/validator/check.py` 会在导出前拦截（预检报图片缺失），不静默失败。
 
 ### 2.19 代码块内 `:::` 包裹误检测
 
-症状：check_md.py 报代码块内部的 `::: {custom-style="X"}` 为"未在模板中定义"。
+症状：src/md_to_word/validator/check.py 报代码块内部的 `::: {custom-style="X"}` 为"未在模板中定义"。
 原因：脚本未跟踪代码块围栏状态，将代码块内的示例包裹误认为正文包裹。
-`check_md.py` 已跟踪代码块围栏状态，代码块内部出现的 `::: {custom-style="X"}` 不会被误检测。
+`src/md_to_word/validator/check.py` 已跟踪代码块围栏状态，代码块内部出现的 `::: {custom-style="X"}` 不会被误检测。
 
 ### 2.20 含目录的文档每次打开都弹「是否更新这些域」
 
-**不是故障，是有意保留的行为**。目录域带 `w:dirty="true"`（`expand_markers.py` 写入），
+**不是故障，是有意保留的行为**。目录域带 `w:dirty="true"`（`src/md_to_word/preprocessor/markers.py` 写入），
 Word 见到脏域就询问一次，点「是」当场把页码算好。
 
 这个提示**不会因为保存过就消失**（域可能引用外部文件，Word 出于安全不记住选择），
@@ -414,7 +414,7 @@ Word 见到脏域就询问一次，点「是」当场把页码算好。
 
 ### 2.21 读参考 .docx 为什么不能直接用 python-docx
 
-`read_reference_docx.py` 走纯 XML，是因为这些格式在 python-docx 的 API 层够不着：
+`src/md_to_word/template/extractor.py` 走纯 XML，是因为这些格式在 python-docx 的 API 层够不着：
 
 | 格式 | 真实位置 | API 读成什么 |
 |:--|:--|:--|
@@ -510,7 +510,7 @@ Word 的 TOC 1–9 默认开着它（Word MVP Barnhill《Whole Document Reformat
 
 | 档 | 范围 | 要动的地方 | 估量 |
 | :-- | :-- | :-- | :-- |
-| ① | 标题区单栏 + 正文起全双栏 | `generate_template.py` 认新词写 `<w:cols>`；**外带 `check_md.py` 图片宽度门禁** | 小改 |
+| ① | 标题区单栏 + 正文起全双栏 | `src/md_to_word/template/generator.py` 认新词写 `<w:cols>`；**外带 `src/md_to_word/validator/check.py` 图片宽度门禁** | 小改 |
 | ② | 分节控制（摘要单栏／正文双栏／目录单栏） | `parse_section_params()` 加 `分栏=` 覆写本节 | 中改 |
 | ③ | 跨栏的表格与大图 | `section_block()` 支持 `continuous`；前后各包一个单栏节 | **大改，真难点** |
 
@@ -519,7 +519,7 @@ Word 的 TOC 1–9 默认开着它（Word MVP Barnhill《Whole Document Reformat
 （能导出、能打开、版面是坏的）。
 
 **③为什么最难**：Word 的分栏是**节级属性**，一节中间切不回单栏，只能靠连续分节符单独包一段。
-`section_block()` 现在把分节类型写死为 `nextPage`（`expand_markers.py:155`），要先让它支持
+`section_block()` 现在把分节类型写死为 `nextPage`（`src/md_to_word/preprocessor/markers.py`），要先让它支持
 `continuous`；而连续分节符在 Word 里历来容易多出空行、页码乱跳。**这条没实测过，耗时不作估计。**
 
 > 以上是读代码得出的可行性判断，**一行都没跑过**。

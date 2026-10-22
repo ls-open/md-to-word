@@ -23,7 +23,8 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 | `SKILL.md` | 技能主入口。理解 Agent 代办流程、模块化组装 `requirements.txt`、改造导出稿件并执行导出 |
 | `references/reference.md` | 查 `requirements.txt` 完整合法词表（§1.5）、排版推导默认值（§1.6）、内置 CSL 清单（§3）时查阅 |
 | `references/design.md` | **导出行为不符合预期**时（参见其 §2 故障排查定位原因）；或**需要修改 `scripts/` 下的脚本**时查阅 |
-| `scripts/` | 导出与校验全链路脚本（主入口 `scripts/export.sh`） |
+| `scripts/` | 入口壳与开发工具：`export.sh`（导出入口）、`check_md.py`（预检命令）、`generate_template.py`、`read_reference_docx.py`、`normalize_csl.py`、`render_via_word.sh` |
+| `src/md_to_word/` | **全部实现**（流水线、样式生成、校验、后处理、对账）。`bash scripts/export.sh` 等价于 `python -m md_to_word`，是同一份代码 |
 | `resources/` | 纯净 Word 365 底模 `pure_modern_base.docx` 与内置规范化引用样式库 `resources/csl/*.csl` |
 | `presets/` | 开箱即用的格式预设：`zh-academic.txt`（中文学术/通用报告，默认）与 `en-nature.txt`（英文期刊投稿）。用户没给格式要求时直接用这两份 |
 

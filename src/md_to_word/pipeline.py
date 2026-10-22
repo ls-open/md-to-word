@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -125,6 +126,17 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         custom_template = p_tpl
 
     # 4. 导前预检门禁 (Validator)
+    # 按章编号 + 编号外观仍是默认 → 多半是漏带了 --eq-number-style cjk。
+    # **这一项没有任何闸门能发现**：漏了就是静默产出 (5.1)（点号、半角括号），
+    # 三道闸门全部照绿。只提醒、不阻断：英文稿开了 chapters 而用 (5.1) 是合法的。
+    if options.eq_number_style == "asis":
+        _text = in_p.read_text(encoding="utf-8", errors="replace")
+        if re.search(r"^chapters:\s*true", _text, re.MULTILINE) and "{#eq-" in _text:
+            res.messages.append(
+                "提示: 稿件 YAML 开了 crossref.chapters（按章编号），但公式编号外观是默认的 (5.1)。"
+                "中文学位论文通常写作 （5-1）——需要的话加 --eq-number-style cjk。"
+            )
+
     if options.check_md:
         logger.info("🔍 执行导出前语法与排版契约预检...")
         v_report = validate_manuscript(in_p, template_docx=custom_template, spec_path=req_file)

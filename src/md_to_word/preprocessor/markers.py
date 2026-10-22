@@ -69,7 +69,8 @@ def toc_block(level: Optional[int] = None) -> str:
     depth = level if level is not None else 3
     if not 1 <= depth <= _MAX_TOC_DEPTH:
         raise MarkerError(f"目录收录级数要在 1–{_MAX_TOC_DEPTH} 之间，收到 {depth}")
-    instr = f'TOC \\o "1-{depth}" \\h \\z \\u'
+    # 前后各留一个空格：与 Word 自己写出的域代码同形，也让两条流水线的产物逐字节可比。
+    instr = f' TOC \\o "1-{depth}" \\h \\z \\u '
     return _openxml_block(
         '<w:sdt><w:sdtPr><w:docPartObj>'
         '<w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/>'

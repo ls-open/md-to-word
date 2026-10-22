@@ -24,10 +24,10 @@ import os
 import re
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from skill_utils import configure_logging, get_logger  # noqa: E402
-
-sys.path.pop(0)
+_SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
+if os.path.isdir(_SRC) and _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+from md_to_word.utils.skill_utils import configure_logging, get_logger  # noqa: E402
 logger = get_logger(__name__)
 
 # 需要去掉的 direct formatting 属性

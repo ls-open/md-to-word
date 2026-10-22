@@ -389,7 +389,7 @@ $$Y = a + bX$$ {#eq-model1}
 
 ## 2. 脚本概览
 
-脚本位于本技能 `scripts/` 目录下，详细用法见各脚本的 `--help` 输出。
+入口脚本位于 `scripts/`，实现位于 `src/md_to_word/`（`bash scripts/export.sh` 与 `python -m md_to_word` 等价）。详细用法见各脚本的 `--help` 输出。
 
 ### 2.1 scripts/export.sh
 
@@ -411,7 +411,7 @@ $$Y = a + bX$$ {#eq-model1}
 - 依赖 Quarto 渲染器（要求 >= 1.4）
 - 其余参数见 `bash scripts/export.sh --help`：`--preset zh-academic|en-nature` 选内置预设（`-r` 优先）；`--strip-comments` 先去 HTML 注释再导出；`--no-check` / `--no-postflight` / `--no-audit` 分别关掉三道闸门（**不推荐**——关掉等于把静默失败的判读交回人眼）；`--eq-number-style cjk` 用中文编号写法。
 - **产物完整性闸门（默认开）**：稿件里每个三位以上小数都必须出现在 docx 里，缺一个即
-  阻断导出（`post_flight_check.py`）。这是导出链上唯一的数据丢失守护——后处理
+  阻断导出（`src/md_to_word/audit/postflight.py`）。这是导出链上唯一的数据丢失守护——后处理
   （公式重构）历史上丢过段。逃逸 `--no-postflight`（不推荐）
 - `--pdf`：**可选**，导出后顺带用本机 Word 渲染一份同名 PDF（调 `render_via_word.sh`，见 §2.4）。
   **定位是「抽查核对」，不是「每次导出都跑一遍」**——docx 才是交付物；PDF 只在需要
