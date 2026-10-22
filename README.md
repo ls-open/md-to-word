@@ -69,6 +69,16 @@ md-to-word 稿件.md -r format.txt -o 稿件.docx
 
 约 0.2 秒。不传 `-r` 时用内置预设，按稿件语种选：中文走 `zh-academic`，其他语言走 `en-nature`。
 
+## 样例
+
+四份样例都真导出、真在 Word 里开过；下面的页图直接由导出的 PDF 生成，不是效果图。
+
+| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png" width="250"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/01_chinese_thesis/thesis_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/01_chinese_thesis/page-1.png" width="250"></a> |
+|:--:|:--:|
+| **最小样例** · 一页纸，从稿件到成品的最短路径 | **中文学位论文** · 目录域、分节页码、按章编号、双线章名页眉 |
+| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/02_modern_report/report_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/02_modern_report/page-1.png" width="250"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/03_english_paper/paper.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/03_english_paper/page-1.png" width="250"></a> |
+| **技术白皮书** · 全网格表、引用块、彩色一级标题 | **英文期刊投稿** · APA 作者-年份制、`Equation 1` 交叉引用 |
+
 ## 能做什么
 
 - **页面与正文**：纸张、页边距、装订线、文档网格、中西文字体、字号、行距、缩进、段距、对齐、颜色
@@ -85,6 +95,20 @@ md-to-word 稿件.md -r format.txt -o 稿件.docx
 做不到什么、为什么，以及完整词表见[使用手册](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md)——
 `md-to-word --contract` 会打印它的路径（中英各一份）；实现取舍见
 [`design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md)。
+
+## 常用写法
+
+| 你要写的 | 写成 |
+|:--|:--|
+| 章节标题 | `# 引言`、`## 2.1 方法`；一个 `#` 一级，不跳级 |
+| 给某一段指定样式 | 行首写 `%% 摘要 本文提出……`（一行即一段，无闭合符号） |
+| 带编号的公式 | `$$E=mc^2$$ {#eq-mass}`，正文用 `@eq-mass` 引用 |
+| 参考文献 | YAML 里 `bibliography: refs.bib`，正文写 `[@smith2024]` |
+| 图 | `![](figures/arch.png){width=13cm}`，下一行 `%% 图片题注 图 1 系统架构` |
+| 表 | 表上方 `%% 表题 **表 1** ……`，表下 `%% 表注 注：……` |
+| 目录 | 单独一行 `{{< toc >}}` |
+| 分节、换页码 | 单独一行 `{{< section page_number=lowerRoman start=1 >}}` |
+| 分页 | 单独一行 `{{< pagebreak >}}` |
 
 ## 与其他方案的区别
 

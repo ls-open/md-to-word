@@ -83,6 +83,17 @@ md-to-word manuscript.md -r format.txt -o manuscript.docx
 About 0.2 s. Without `-r` the built-in preset applies, chosen by the manuscript's language:
 `zh-academic` for Chinese, `en-nature` for everything else.
 
+## Samples
+
+Four samples, all really exported and opened in Word; the page images below are rendered from the
+exported PDFs, not mock-ups.
+
+| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png" width="250"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/01_chinese_thesis/thesis_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/01_chinese_thesis/page-1.png" width="250"></a> |
+|:--:|:--:|
+| **Minimal** · one page, shortest path from manuscript to file | **Chinese thesis** · TOC field, per-section page numbers, per-chapter equation numbers |
+| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/02_modern_report/report_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/02_modern_report/page-1.png" width="250"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/03_english_paper/paper.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/03_english_paper/page-1.png" width="250"></a> |
+| **Technical whitepaper** · full-grid table, block quote, coloured heading | **English journal submission** · APA author-date, `Equation 1` cross-reference |
+
 ## What it does
 
 - **Page and body text**: paper size, margins, gutter, document grid, CJK/Latin fonts, size, line spacing, indent, space before/after, alignment, colour
@@ -101,6 +112,20 @@ What it cannot do, and why, is in the manual
 §6) — `md-to-word --contract` prints its path — together with the full vocabulary, in English and
 Chinese. Design decisions are in
 [`design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md).
+
+## Common notations
+
+| What you want | What to write |
+|:--|:--|
+| A section heading | `# Introduction`, `## 2.1 Method` — one `#` per level, no skipped levels |
+| A styled paragraph | Start the line with `%% Abstract …` (one line is one paragraph, no closing fence) |
+| A numbered equation | `$$E=mc^2$$ {#eq-mass}`, referenced in the text as `@eq-mass` |
+| A citation | `bibliography: refs.bib` in YAML, `[@smith2024]` in the text |
+| A figure | `![](figures/arch.png){width=13cm}` then `%% Image Caption Figure 1 Architecture` |
+| A table | `%% Table Caption **Table 1** …` above it, `%% Table Note Note: …` below it |
+| A table of contents | `{{< toc >}}` on its own line |
+| A new section with restarting page numbers | `{{< section page_number=lowerRoman start=1 >}}` on its own line |
+| A page break | `{{< pagebreak >}}` on its own line |
 
 ## How it differs
 
