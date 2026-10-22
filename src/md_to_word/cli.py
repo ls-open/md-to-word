@@ -126,6 +126,19 @@ Built-in presets:
 """
 
 
+def guide_document(lang: str = "zh") -> str:
+    """入门文档：与技能入口 `SKILL.md` 同一份正文（测试盯着两者不许分叉）。
+
+    只装了包、手上没有技能目录的调用方，从这一份读"按什么顺序做"；手册仍是细节的
+    唯一出处，中文稿读中文手册。
+    """
+    resources = Path(__file__).resolve().parent / "resources"
+    text = (resources / "guide.md").read_text(encoding="utf-8")
+    if lang == "zh":
+        text += f"\n---\n\n中文细节见手册：{resources / 'manual.md'}\n"
+    return text
+
+
 def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="md-to-word",
@@ -149,6 +162,7 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help=t("cli.verbose", lang))
     parser.add_argument("--contract", action="store_true", help=t("cli.contract", lang))
     parser.add_argument("--json", dest="as_json", action="store_true", help=t("cli.json", lang))
+    parser.add_argument("--guide", action="store_true", help=t("cli.guide", lang))
     parser.add_argument(
         "--version",
         action="version",
@@ -165,6 +179,9 @@ def main(args: list[str] | None = None) -> int:
     parsed = parser.parse_args(argv)
     configure_logging("DEBUG" if parsed.verbose else "INFO", force=True)
 
+    if parsed.guide:
+        print(guide_document(lang))
+        return 0
     if parsed.contract:
         print(contract_cheatsheet(lang))
         return 0

@@ -10,6 +10,10 @@ Turns a Markdown manuscript into a `.docx` whose typography comes from a declare
 engine is deterministic — the same manuscript and the same declarations produce a byte-identical
 file on every run — so do not substitute a hand-written python-docx script; run this pipeline.
 
+**Read this before the first run.** The flags are not enough to drive it: the manuscript has a
+contract (§2) and the format file has a closed vocabulary (§3), and neither can be guessed from
+`--help`. Work through §1 once, then the commands are enough for everything after.
+
 **The facts live in the manual. This file is the order of work.** `md-to-word --contract` prints the
 manual's absolute path (Chinese or English, following the manuscript), the built-in preset paths and
 a one-screen contract summary. When a spelling is not certain, read the manual rather than guess:
@@ -107,7 +111,8 @@ exit 1); otherwise the preset follows the **manuscript's language**. Report whic
 ```bash
 md-to-word manuscript.md -o manuscript.docx                    # preset by language
 md-to-word manuscript.md -r format.txt -o manuscript.docx      # explicit format
-md-to-word manuscript.md --contract                            # contract + manual and preset paths
+md-to-word --guide                                             # this file, printed (pip-only entry)
+md-to-word manuscript.md --contract                            # contract + guide, manual and preset paths
 ```
 
 From a source checkout the same commands run through `bash <skill-dir>/scripts/export.sh`. Run it

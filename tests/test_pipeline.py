@@ -328,3 +328,19 @@ def test_json_output_reports_a_missing_manuscript(tmp_path: Path, capsys) -> Non
     assert code == payload["returncode"] == 1
     assert payload["ok"] is False and payload["errors"]
     assert payload["output"] is None
+
+
+def test_guide_is_readable_without_the_skill_directory(capsys) -> None:
+    """只装了 pip 包的人也要能一条命令读到‘按什么顺序做’。"""
+    from md_to_word.cli import main
+
+    assert main(["--guide"]) == 0
+    out = capsys.readouterr().out
+    assert "Read this before the first run" in out and "## 1. The work, in order" in out
+
+
+def test_guide_and_skill_entry_are_one_text() -> None:
+    """技能用户读 SKILL.md、pip 用户读 guide.md，两份必须是同一份流程。"""
+    root = Path(__file__).resolve().parents[1]
+    body = (root / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2].lstrip("\n")
+    assert (root / "src/md_to_word/resources/guide.md").read_text(encoding="utf-8") == body

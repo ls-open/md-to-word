@@ -33,8 +33,9 @@ The distribution carries a `-docx` suffix because plain `md-to-word` is too clos
 projects; the command is still `md-to-word`. Use `pipx install md-to-word-docx` to stay out of the
 system environment, and `pip install -U md-to-word-docx` to update.
 
-Not sure what to write? `md-to-word --contract` prints the manuscript conventions and the paths of
-the getting-started guide, the full manual and the built-in presets.
+This is not a tool you drive from `--help` alone: **read the getting-started guide once** —
+`md-to-word --guide` prints it, `md-to-word --contract` gives the manuscript conventions plus the
+paths of the manual and the built-in presets.
 
 ## In 30 seconds
 

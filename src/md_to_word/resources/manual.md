@@ -38,13 +38,14 @@ Markdown → 规范 Word（`.docx`）。内容与排版分离：Markdown 是源�
 | Python | `from md_to_word import export` |
 | 从参考 `.docx` 反推要求草稿 | `md-to-word-template 参考.docx -o format.txt` |
 | AI 技能 | 技能目录的 `export.sh` 调用已安装的 `md-to-word`；克隆本仓库时直接用仓库里的 `src/` |
-| 入门文档 | 包内 `guide.md`：按什么顺序做、门禁怎么读、边界在哪。只装了包时先读它（`--contract` 打印路径） |
+| 入门文档 | 包内 `guide.md`：按什么顺序做、门禁怎么读、边界在哪。只装了包时先读它：`md-to-word --guide` 直接打印 |
 
 ```bash
 md-to-word 稿件.md -o 输出.docx                      # 内置中文预设 zh-academic
 md-to-word 稿件.md --preset en-nature -o out.docx    # 英文期刊预设
 md-to-word 稿件.md -r format.txt -o out.docx        # 显式指定要求文件
-md-to-word --contract                               # 契约速查 + 本手册路径 + 预设路径
+md-to-word --guide                                  # 入门文档（代办流程、门禁、边界）
+md-to-word --contract                               # 契约速查 + 手册与预设路径
 md-to-word --contract --lang en                     # 同上，英文版（样式名用英文正典名）
 md-to-word 稿件.md -o 输出.docx --verbose            # 逐样式明细，排查「格式没生效」
 ```

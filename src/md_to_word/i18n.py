@@ -63,6 +63,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "打印稿件契约速查、手册与预设的路径后退出（--lang en 得英文版）",
         "Print the manuscript contract, manual and preset paths, then exit (--lang en for English)",
     ),
+    "cli.guide": (
+        "打印入门文档后退出：按什么顺序做、门禁怎么读、边界在哪（第一次用先读它）",
+        "Print the getting-started guide, then exit: order of work, how to read the gates, boundaries",
+    ),
     "cli.json": (
         "把结果写成一行 JSON 到 stdout（给程序与 Agent 解析，键名不随版本变）",
         "Print the result as one JSON object on stdout (for programs and agents; keys are stable)",
