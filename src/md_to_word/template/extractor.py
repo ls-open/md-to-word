@@ -20,6 +20,8 @@
 一并解决的还有：继承（样式属性沿 `basedOn` 链与 `docDefaults` 生效，API 读到的是 None）、
 以及段落下边框 / 页码格式 / 表格边框 / 校对语言这些 API 根本没有的属性。
 """
+
+from __future__ import annotations
 import argparse
 import re
 import sys

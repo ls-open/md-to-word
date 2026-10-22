@@ -7,6 +7,8 @@
   3. Markdown 文本解析与块级/标题结构校验（frontmatter 拆分、代码块掩码、短代码与块级分隔、CSL/bib 路径解析）
 """
 
+from __future__ import annotations
+
 import logging
 import re
 import sys

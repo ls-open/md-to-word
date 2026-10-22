@@ -12,6 +12,8 @@
   python3 -m md_to_word.audit.inspector <产物.docx> --requirements <格式要求.txt> [--quiet]
 退出码: 0=全部对上 / 1=有对不上的（逐条打印）/ 2=用法或读取错误
 """
+
+from __future__ import annotations
 import argparse
 import re
 import sys
