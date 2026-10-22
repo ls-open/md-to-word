@@ -43,7 +43,6 @@ test = [
 
 [project.scripts]
 md-to-word = "md_to_word.cli:main"
-md2word = "md_to_word.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
