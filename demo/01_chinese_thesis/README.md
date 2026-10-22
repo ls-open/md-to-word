@@ -42,12 +42,10 @@ demo/01_chinese_thesis/
 
 ```bash
 # 1. 导出规范 Word 文档（.docx）
-bash ../../scripts/export.sh thesis_sample.md -r requirements.txt -o thesis_sample.docx \
-    --eq-number-style cjk
+bash ../../scripts/export.sh thesis_sample.md -r requirements.txt -o thesis_sample.docx
 
 # 2. （可选，仅限 macOS 且装有 Word）顺带输出排版 PDF 对照样张
-bash ../../scripts/export.sh thesis_sample.md -r requirements.txt -o thesis_sample.docx --pdf \
-    --eq-number-style cjk
+bash ../../scripts/export.sh thesis_sample.md -r requirements.txt -o thesis_sample.docx --pdf
 ```
 
 ---
@@ -56,6 +54,6 @@ bash ../../scripts/export.sh thesis_sample.md -r requirements.txt -o thesis_samp
 
 如果您是 AI 编码/写作助手，在为用户生成类似的学位论文或学术稿件时，请参照本样例中的以下黄金契约：
 1. **分节符位置与语义**：`{{< section 页码=小写罗马 起始=1 >}}` 必须独占一行且前后留空行，紧跟在目录后、第一章 `#` 之前；**它描述的是它上面那一节（前置件），不是后面的正文**——正文页码由 `requirements.txt` 的 `页码：` 决定；**它后面不要再写 `{{< pagebreak >}}`**（会多顶出一页，导前预检会拦）；
-2. **公式写法**：带编号公式统一用 `$$...$$ {#eq-xxx}`，正文中用 `@eq-xxx` 引用；要按章编号就在 YAML 的 `crossref:` 下加 `chapters: true`；**要中文学位论文的括号写法（`（2-1）`）就再加 `--eq-number-style cjk`**——它会把公式旁的编号与正文里的引用一起改，两边始终一致；
+2. **公式写法**：带编号公式统一用 `$$...$$ {#eq-xxx}`，正文中用 `@eq-xxx` 引用；要按章编号就在 YAML 的 `crossref:` 下加 `chapters: true`；中文稿默认就是学位论文的写法 `（2-1）`（全角括号 + 短横），英文稿默认 `(2.1)`，要别的外观就在 `requirements.txt` 写一行 `公式编号格式：（{c}-{n}）`；
 3. **表格题注**：上方表题写 `%% 表题 表 1 …`，下方表注写 `%% 表注 注：…`；
 4. **图片语法**：使用纯原生语法 `![**图 1** 题注](path){width=13cm}`，题注内联加粗，不带 `{#fig-xxx}` 标签以避免继承表格边框。

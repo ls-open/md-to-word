@@ -678,6 +678,34 @@ def _line_equation_number(spec: TemplateSpec, desc: str, lineno: int) -> None:
     spec.equation_number = value
 
 
+_EQ_FORMAT_KNOWN = ("{c}", "{n}")
+
+
+def _line_equation_format(spec: TemplateSpec, desc: str, lineno: int) -> None:
+    """编号长什么样：`（{c}-{n}）`。
+
+    `{n}` 是序号（必写），`{c}` 是章号（可选，要求稿件开了 `crossref.chapters`）。
+    括号、分隔符、中间的空格都写在这行里——不枚举"全角括号""短横线"这些变体，
+    一种写法就是一层组合爆炸，而模板能一字不差地表达用户要的样子。
+    """
+    value = desc.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1]
+    if value.count("{") != value.count("}"):
+        raise _bad_value(lineno, "公式编号格式/Equation Number Format", desc,
+                         "（{c}-{n}）", why="花括号要成对：{n} 是序号，{c} 是章号")
+    found = set(re.findall(r"\{[^{}]*\}", value))
+    unknown = found - set(_EQ_FORMAT_KNOWN)
+    if unknown:
+        raise _bad_value(lineno, "公式编号格式/Equation Number Format", desc,
+                         "（{c}-{n}）",
+                         why=f"只认 {{n}}（序号）与 {{c}}（章号），认不出 {'、'.join(sorted(unknown))}")
+    if "{n}" not in found:
+        raise _bad_value(lineno, "公式编号格式/Equation Number Format", desc,
+                         "（{n}）", why="必须包含 {n}——它是编号里的序号")
+    spec.equation_number_format = value
+
+
 def _line_decor(container: str, key: str) -> Callable[[TemplateSpec, str, int], None]:
     def handler(spec: TemplateSpec, desc: str, lineno: int) -> None:
         spec.decor[DECOR_CONTENT_KEYS[key]] = (
@@ -698,6 +726,7 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "装订线": _line_gutter,
     "文档网格": _line_doc_grid,
     "公式编号": _line_equation_number,
+    "公式编号格式": _line_equation_format,
     "页码": lambda s, d, l: setattr(s, "page_number", parse_page_number(d, l)),
     "表格": lambda s, d, l: setattr(s, "table", parse_table_props(d, l)),
     "表头": lambda s, d, l: setattr(s, "table_header", parse_style_props("表头", d, l)),
@@ -714,6 +743,7 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "Gutter": _line_gutter,
     "Document Grid": _line_doc_grid,
     "Equation Number": _line_equation_number,
+    "Equation Number Format": _line_equation_format,
     "Page Number": lambda s, d, l: setattr(s, "page_number", parse_page_number(d, l)),
     "Table": lambda s, d, l: setattr(s, "table", parse_table_props(d, l)),
     "Table Header": lambda s, d, l: setattr(s, "table_header", parse_style_props("表头", d, l)),

@@ -148,8 +148,8 @@ def test_equations_become_omml_with_numbers(template: Path, tmp_path: Path) -> N
     xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
 
     assert xml.count("<m:oMath") == 2, "行内一条 + 显示一条"
-    assert "(1)" in xml, "带标签的公式要编号"
-    assert "式1" in xml, "交叉引用要解析成前缀 + 编号"
+    assert "（1）" in xml, "中文稿默认全角括号"
+    assert "式（1）" in xml, "交叉引用与公式旁的编号用同一份格式"
 
 
 def test_equation_numbering_follows_chapters(template: Path, tmp_path: Path) -> None:
@@ -160,7 +160,37 @@ def test_equation_numbering_follows_chapters(template: Path, tmp_path: Path) -> 
     model.meta.chapters = True
     out = write_docx(model, template, tmp_path / "ch.docx")
     xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
-    assert "(1.1)" in xml and "(2.1)" in xml
+    assert "（1-1）" in xml and "（2-1）" in xml, "中文稿按章编号默认用短横"
+
+
+def test_equation_number_format_is_a_plain_template(template: Path, tmp_path: Path) -> None:
+    """括号与分隔符不枚举变体：一行模板写什么就是什么，中英文稿都照办。"""
+    model = read_markdown('---\ntitle: "t"\ncrossref:\n  chapters: true\n---\n\n# A\n\n$$a$$ {#eq-a}\n')
+    out = write_docx(
+        model, template, tmp_path / "fmt.docx",
+        equation_number_format="[第{c}章 · {n}]",
+    )
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    assert "[第1章 · 1]" in xml
+
+
+def test_english_manuscript_defaults_to_half_width(template: Path, tmp_path: Path) -> None:
+    """默认外观跟稿件语种走：英文稿 (1.1)，不靠命令行开关。"""
+    model = read_markdown(
+        '---\ntitle: "T"\ncrossref:\n  chapters: true\n---\n\n# Intro\n\n$$a$$ {#eq-a}\n\nSee @eq-a.\n'
+    )
+    out = write_docx(model, template, tmp_path / "en.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    assert "(1.1)" in xml and "Equation (1.1)" in xml
+
+
+def test_chapter_format_without_chapters_fails_loudly(template: Path, tmp_path: Path) -> None:
+    """模板用了 {c} 而稿件没按章编号：当场报错，不产出 （0-1）。"""
+    from md_to_word.writer.docx_writer import UnsupportedFeature
+
+    model = read_markdown('---\ntitle: "t"\n---\n\n# 一\n\n$$a$$ {#eq-a}\n')
+    with pytest.raises(UnsupportedFeature, match="chapters"):
+        write_docx(model, template, tmp_path / "bad.docx", equation_number_format="（{c}-{n}）")
 
 
 def test_unsupported_mathml_fails_loudly() -> None:

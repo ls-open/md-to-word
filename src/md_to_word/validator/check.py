@@ -335,6 +335,19 @@ def validate_manuscript(
                     f"若只是想展示语法字面量，用反引号包起来"
                 )
 
+    # 1d. 编号格式用了 {c}（章号），稿件却没说按章编号：两个文件各写一半，等式不成立
+    eq_format = getattr(spec, "equation_number_format", "") or ""
+    if "{c}" in eq_format:
+        crossref = fm_data.get("crossref") if isinstance(fm_data, dict) else None
+        by_chapter = isinstance(crossref, dict) and bool(crossref.get("chapters"))
+        if not by_chapter:
+            report.valid = False
+            report.errors.append(
+                f"要求文件的「公式编号格式」是 {eq_format}，里面有 {{c}}（章号），"
+                f"但稿件 YAML 的 crossref 下没有 chapters: true。二选一："
+                f"在 `crossref:` 下加 `chapters: true`，或把格式改成不含 {{c}} 的写法（如 （{{n}}））"
+            )
+
     # 2. 图片路径空格与存在性
     in_code = False
     for i, line in enumerate(md_text.split("\n"), 1):

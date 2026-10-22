@@ -6,6 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from md_to_word import __version__
 from md_to_word.i18n import SUPPORTED, resolve_lang, t
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.utils.skill_utils import configure_logging
@@ -48,12 +49,7 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("--no-postflight", action="store_true", help=t("cli.no_postflight", lang))
     parser.add_argument("--no-audit", action="store_true", help=t("cli.no_audit", lang))
     parser.add_argument("--pdf", action="store_true", help=t("cli.pdf", lang))
-    parser.add_argument(
-        "--eq-number-style",
-        choices=["asis", "cjk"],
-        default="asis",
-        help=t("cli.eq_number_style", lang),
-    )
+    parser.add_argument("--version", action="version", version=f"md-to-word {__version__}")
     return parser
 
 
@@ -75,7 +71,6 @@ def main(args: list[str] | None = None) -> int:
         postflight=not parsed.no_postflight,
         audit=not parsed.no_audit,
         make_pdf=parsed.pdf,
-        eq_number_style=parsed.eq_number_style,
         lang=None if parsed.lang == "auto" else parsed.lang,
     )
 

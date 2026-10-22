@@ -116,6 +116,8 @@ def serialize_requirements(spec: TemplateSpec) -> str:
         lines.append(f"文档网格：每页{spec.doc_grid_lines}行")
     if spec.equation_number and spec.equation_number != "right":
         lines.append("公式编号：紧跟")
+    if spec.equation_number_format:
+        lines.append(f"公式编号格式：{spec.equation_number_format}")
 
     for style in spec.styles:
         lines.append(_style_line(style))

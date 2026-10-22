@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -43,7 +42,6 @@ class ExportOptions:
     postflight: bool = True
     audit: bool = True
     make_pdf: bool = False
-    eq_number_style: str = "asis"  # asis=(5.1) | cjk=（5-1）
     lang: Optional[str] = None  # 消息语言：None=按稿件语种 | "zh" | "en"
 
 
@@ -57,6 +55,11 @@ class ExportResult:
     messages: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     lang: str = "zh"
+
+    @property
+    def ok(self) -> bool:
+        """docx 是否已经写出来了（`--pdf` 跳过不算失败）。"""
+        return self.returncode in (0, 3)
 
 
 def run_export_pipeline(options: ExportOptions) -> ExportResult:
@@ -132,13 +135,6 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         spec = parse_requirements(req_content) if req_content else None
     except ValueError:
         spec = None
-
-    # 按章编号 + 编号外观仍是默认 → 多半是漏带了 --eq-number-style cjk。
-    # **这一项没有任何闸门能发现**：漏了就是静默产出 (5.1)（点号、半角括号），
-    # 三道闸门全部照绿。只提醒、不阻断：英文稿开了 chapters 而用 (5.1) 是合法的。
-    if options.eq_number_style == "asis":
-        if re.search(r"^chapters:\s*true", manuscript_text, re.MULTILINE) and "{#eq-" in manuscript_text:
-            res.messages.append(t("pipeline.eq_cjk_hint", res.lang))
 
     # 4. 导前预检门禁 (Validator)
     if options.check_md:
@@ -245,7 +241,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 out_p,
                 citations=engine,
                 base_dir=in_p.parent,
-                eq_number_style=options.eq_number_style,
+                equation_number_format=spec.equation_number_format if spec else "",
                 equation_number_placement=spec.equation_number if spec else "right",
             )
         except UnsupportedFeature as exc:

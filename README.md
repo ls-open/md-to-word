@@ -219,24 +219,52 @@ pip install -r requirements.txt
 
 **导出不需要任何外部二进制**：没有 Pandoc、没有 Quarto、不调用 Word。`--pdf` 核对版才会用到本机 Word（仅 macOS）。
 
-### 也可以当普通 Python 包用
+### 三种用法，同一份代码
 
-技能与包是**同一份代码**：`src/md_to_word/` 就是一个 pip 安装包，技能只是给它配了一份说明书（`SKILL.md`）和一个转发参数的入口壳（`scripts/export.sh`）。`presets/`（格式预设）与 `resources/`（CSL 样式、底模）随包安装，装完即用。
+`src/md_to_word/` 就是一个 pip 安装包；技能只是给它配了一份说明书（`SKILL.md`）和一个转发参数的入口壳（`scripts/export.sh`）。`presets/`（格式预设）与 `resources/`（CSL 样式、底模）随包安装，装完即用。
+
+| 用法 | 适合谁 | 怎么装 | 怎么用 |
+|:--|:--|:--|:--|
+| **技能** | 让 AI 代办的作者 | 克隆到技能目录，再 `pip install -r requirements.txt` | 「帮我把这份稿子按学校要求导出成 Word」，由 Agent 读 `SKILL.md` 执行 |
+| **命令行** | 本地批量导出、CI | `pipx install .`（隔离，推荐）或 `pip install .` | `md-to-word 稿件.md -o 输出.docx` |
+| **Python 包** | 写脚本、接自己的流程 | `pip install .` | `from md_to_word import export` |
+
+**命令行**：
 
 ```bash
-pip install .                                  # 或 pip install -e .（开发）
-md-to-word 稿件.md -o 输出.docx                 # 默认中文预设
-md-to-word 稿件.md --preset en-nature -o out.docx
-md-to-word --help                              # 全部选项；帮助语言跟随稿件语种
+md-to-word 稿件.md -o 输出.docx                     # 默认中文预设
+md-to-word 稿件.md --preset en-nature -o out.docx   # 英文期刊预设
+md-to-word 稿件.md -r 格式要求.txt -o out.docx       # 指定格式要求
+md-to-word --help                                   # 全部选项；帮助语言跟随稿件语种
+md-to-word --version
 ```
 
-代码里调用：
+还没发布到 PyPI，所以先按源码装；发布后同一行命令换成 `pipx install md-to-word` 即可。用 Git 直装也行：
+
+```bash
+pip install "git+https://github.com/ls-open/md-to-word@main"
+```
+
+**Python 里调用**——一个函数，返回值里带全部结论：
 
 ```python
-from md_to_word.pipeline import ExportOptions, run_export_pipeline
+from md_to_word import export
 
-result = run_export_pipeline(ExportOptions(input_path="稿件.md", preset="zh-academic"))
-print(result.returncode, result.output_docx)
+result = export("稿件.md", "输出.docx", preset="zh-academic")
+if not result.ok:                 # ok = docx 已写出（--pdf 跳过不算失败）
+    raise SystemExit("\n".join(result.errors))
+print(result.output_docx)         # 路径；result.messages 是进度与提醒
+```
+
+需要更细的控制（关掉某道闸门、指定模板、顺手出 PDF）就用 `ExportOptions`：
+
+```python
+from md_to_word import ExportOptions, run_export_pipeline
+
+result = run_export_pipeline(ExportOptions(
+    input_path="稿件.md", output_path="输出.docx",
+    requirements_path="格式要求.txt", template_path="学校模板.docx", make_pdf=True,
+))
 ```
 
 ### 自研与借用的边界

@@ -219,24 +219,50 @@ For users unfamiliar with academic bibliography workflows:
 pip install -r requirements.txt
 ```
 
-### Using it as a plain Python package
+### Three ways to use it — one codebase
 
-The skill and the package are **the same code**: `src/md_to_word/` is a pip-installable package, and `SKILL.md` is the manual an AI agent reads. `presets/` (format presets) and `resources/` (CSL styles, base template) ship with the package.
+`src/md_to_word/` is a pip-installable package; the skill is just a manual (`SKILL.md`) plus a thin entry shell (`scripts/export.sh`) over the same code. `presets/` and `resources/` (CSL styles, base template) ship with the package.
+
+| Way | For | Install | Use |
+|:--|:--|:--|:--|
+| **Skill** | authors who hand off to an AI agent | clone into your skills directory, then `pip install -r requirements.txt` | "Export this paper as Word per my school's rules" — the agent reads `SKILL.md` |
+| **CLI** | batch jobs, CI | `pipx install .` (isolated, recommended) or `pip install .` | `md-to-word paper.md -o paper.docx` |
+| **Python** | your own scripts and pipelines | `pip install .` | `from md_to_word import export` |
 
 ```bash
-pip install .
-md-to-word paper.md -o paper.docx          # Chinese thesis preset by default
-md-to-word paper.md --preset en-nature -o paper.docx
-md-to-word --help                          # all options and exit codes
+md-to-word paper.md -o paper.docx                  # Chinese thesis preset by default
+md-to-word paper.md --preset en-nature -o out.docx # international journal preset
+md-to-word paper.md -r requirements.txt -o out.docx
+md-to-word --help                                  # every option; help follows the manuscript language
+md-to-word --version
 ```
 
-Or call it from Python:
+Not on PyPI yet — install from source for now; once published, the same line becomes `pipx install md-to-word`. Installing straight from Git works too:
+
+```bash
+pip install "git+https://github.com/ls-open/md-to-word@main"
+```
+
+From Python — one call, all the answers in the result:
 
 ```python
-from md_to_word.pipeline import ExportOptions, run_export_pipeline
+from md_to_word import export
 
-result = run_export_pipeline(ExportOptions(input_path="paper.md", preset="en-nature"))
-print(result.returncode, result.output_docx)
+result = export("paper.md", "paper.docx", preset="en-nature")
+if not result.ok:                 # ok = docx written (a skipped --pdf is not a failure)
+    raise SystemExit("\n".join(result.errors))
+print(result.output_docx)         # path; result.messages carries progress and reminders
+```
+
+For finer control (skip a gate, pass a template, also render a PDF) use `ExportOptions`:
+
+```python
+from md_to_word import ExportOptions, run_export_pipeline
+
+result = run_export_pipeline(ExportOptions(
+    input_path="paper.md", output_path="paper.docx",
+    requirements_path="requirements.txt", template_path="school.docx", make_pdf=True,
+))
 ```
 
 ---

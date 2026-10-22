@@ -67,6 +67,17 @@ def _ends_with_cjk(text: str) -> bool:
     return "\u4e00" <= last <= "\u9fff" or last in "”’」』）】》"
 
 
+def _default_eq_format(chinese: bool, by_chapter: bool) -> str:
+    """没写「公式编号格式」时的默认外观。
+
+    中文稿全角括号、章内用短横（`（5-1）`，学位论文与多数中文期刊的写法）；
+    英文稿半角括号、点号（`(5.1)`）。
+    """
+    if chinese:
+        return "（{c}-{n}）" if by_chapter else "（{n}）"
+    return "({c}.{n})" if by_chapter else "({n})"
+
+
 def _escape(text: str) -> str:
     return (
         text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -100,24 +111,28 @@ class _Writer:
         docx,
         citations=None,
         base_dir=None,
-        eq_number_style="asis",
         equation_number_placement="right",
+        equation_number_format="",
     ) -> None:
         self.model = document
         self.docx = docx
         self.citations = citations
-        self.eq_number_style = eq_number_style
         self.equation_number_placement = equation_number_placement
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         self._after_heading = False  # 下一段正文若是「标题后的第一段」，落 First Paragraph
         self._compact_style = self._style_name("Compact")
         self._footnote_ids: dict[str, int] = {}
-        self._eq_numbers: dict[str, str] = {}
+        self._eq_numbers: dict[str, tuple[int, int]] = {}  # 标签 → (章号, 序号)
         self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
+        chinese = looks_chinese(self._prose_text())
         self._crossref_prefixes = {
-            **default_crossref_prefixes(looks_chinese(self._prose_text())),
+            **default_crossref_prefixes(chinese),
             **(document.meta.crossref or {}),
         }
+        # 编号外观：要求文件写了就照写的来，没写按语种给默认（中文全角短横、英文半角点）
+        self.eq_number_format = equation_number_format or _default_eq_format(
+            chinese, document.meta.chapters
+        )
 
     # ── 入口 ─────────────────────────────────────────────────────────
     def write(self) -> None:
@@ -225,9 +240,7 @@ class _Writer:
                 index = 0
             elif isinstance(block, Equation) and block.label:
                 index += 1
-                self._eq_numbers[block.label] = (
-                    f"{chapter}.{index}" if self.model.meta.chapters else str(index)
-                )
+                self._eq_numbers[block.label] = (chapter, index)
 
     def _content_width_twips(self) -> int:
         sect = self._body_sectpr()
@@ -292,12 +305,13 @@ class _Writer:
         paragraph._p.append(math_el)
 
         number = self._eq_numbers.get(block.label or "")
-        if number:
+        if number is not None:
+            text = self._render_eq_number(*number)
             if self.equation_number_placement == "inline":
-                paragraph.add_run(self._display_eq_number(number))
+                paragraph.add_run(text)
             else:
                 paragraph.add_run().add_tab()
-                paragraph.add_run(self._display_eq_number(number))
+                paragraph.add_run(text)
 
     @staticmethod
     def _omath(nodes):
@@ -574,14 +588,20 @@ class _Writer:
             props = "<w:i/>"
         return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
 
-    def _display_eq_number(self, number: str) -> str:
-        """公式右侧的编号外观：`asis` 出 `(5.1)`，`cjk` 出 `（5-1）`。"""
-        if self.eq_number_style == "cjk":
-            return f"（{number.replace('.', '-')}）"
-        return f"({number})"
+    def _render_eq_number(self, chapter: int, index: int) -> str:
+        """按模板渲染编号。公式旁的编号与正文里的 `@eq-x` 走的是同一个函数——
+        两处必须长得一样，否则就是同一个事实的两个真相源。"""
+        fmt = self.eq_number_format
+        if "{c}" in fmt:
+            if not self.model.meta.chapters:
+                raise UnsupportedFeature(
+                    "要求文件的「公式编号格式」用了 {c}（章号），但稿件 YAML 的 crossref 下没有 chapters: true"
+                )
+            fmt = fmt.replace("{c}", str(chapter))
+        return fmt.replace("{n}", str(index))
 
     def _resolve_crossref(self, target: str) -> str:
-        """`@eq-a` → 「式2.1」/「Equation 2.1」：前缀先看 YAML 的 crossref，没有按语种给默认。"""
+        """`@eq-a` → 「式（5-1）」/「Equation (5.1)」：前缀看 YAML 的 crossref，编号按同一份格式。"""
         if target.startswith("eq-"):
             prefix = self._crossref_prefixes.get("eq-prefix", "式")
         elif target.startswith("fig-"):
@@ -590,14 +610,10 @@ class _Writer:
             prefix = self._crossref_prefixes.get("tbl-prefix", "表")
         else:
             raise UnsupportedFeature(f"交叉引用 {target} 的类型尚未支持")
-        number = self._eq_numbers.get(target)
-        if number is None:
+        parts = self._eq_numbers.get(target)
+        if parts is None:
             raise UnsupportedFeature(f"交叉引用 {target} 指向的标签不存在")
-        if not prefix:
-            return number
-        if self.eq_number_style == "cjk" and number:
-            return f"{prefix}（{number.replace('.', '-')}）"
-        return f"{prefix}{number}"
+        return f"{prefix}{self._render_eq_number(*parts)}"
 
     def _style_name(self, name: str) -> str | None:
         """按名称取样式名（没有就返回 None，不静默套用别的样式）。"""
@@ -772,8 +788,8 @@ def write_docx(
     output: Path | str,
     citations=None,
     base_dir: Path | str | None = None,
-    eq_number_style: str = "asis",
     equation_number_placement: str = "right",
+    equation_number_format: str = "",
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
 
@@ -781,8 +797,8 @@ def write_docx(
     文末列表都由它渲染；不传时遇到 citation 会明确失败。
     `base_dir` 是稿件所在目录：稿里的图片路径都是相对它的，不能按进程 cwd 解析——
     否则从别的目录调用时图全找不到（预览与流水线走的是同一个入口）。
-    `eq_number_style`：`asis` 出 (5.1)，`cjk` 出 （5-1）——中文学位论文多用前者以外的写法。
     `equation_number_placement`：`right` 编号靠版心右边（默认），`inline` 紧跟公式。
+    `equation_number_format`：编号外观模板（`（{c}-{n}）`）；空串按语种给默认。
     """
     docx = open_docx(str(template))
     _Writer(
@@ -790,8 +806,8 @@ def write_docx(
         docx,
         citations=citations,
         base_dir=base_dir,
-        eq_number_style=eq_number_style,
         equation_number_placement=equation_number_placement,
+        equation_number_format=equation_number_format,
     ).write()
     out = Path(output)
     docx.save(str(out))

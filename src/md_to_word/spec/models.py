@@ -38,6 +38,8 @@ class TemplateSpec:
     gutter_cm: Optional[float] = None
     doc_grid_lines: Optional[int] = None
     equation_number: str = "right"  # right=编号靠右（默认）| inline=紧跟公式
+    # 编号外观模板：`（{c}-{n}）`。空串=按语种与是否按章编号自动给默认
+    equation_number_format: str = ""
     proofing_lang: Optional[str] = None
     header_distance: Optional[float] = None
     footer_distance: Optional[float] = None

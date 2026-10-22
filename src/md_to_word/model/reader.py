@@ -182,11 +182,16 @@ def parse_inlines(
         elif kind == "citation":
             nodes.append(_parse_citation_body(raw, narrative=False))
         elif kind == "crossref":
-            key = raw[1:]
+            # 西文句末的 `@eq-a.`：句号是标点，不是标签的一部分，否则标签名带点上，
+            # 查不到就报「标签不存在」。剥下来的标点要原样还回去。
+            key = raw[1:].rstrip(".")
+            trailing = raw[1 + len(key) :]
             if citation_keys and key in citation_keys:
                 nodes.append(Citation(items=(CitationItem(key=key),), narrative=True))
             else:
                 nodes.append(CrossRef(target=key))
+            if trailing:
+                nodes.append(Text(trailing))
         elif kind == "sup":
             nodes.append(Superscript(children=sub(raw[1:-1])))
         elif kind == "sub":

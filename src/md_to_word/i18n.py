@@ -43,10 +43,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.no_postflight": ("跳过产物数值防丢检查（不推荐）", "Skip the numeric-integrity check (not recommended)"),
     "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against requirements"),
     "cli.pdf": ("导出后再渲染一份 PDF 供核对（macOS + 本机 Word）", "Also render a PDF for review (macOS + local Word)"),
-    "cli.eq_number_style": (
-        "公式编号外观：asis=(1)/(1.1)；cjk=中文学位论文 （5-1）",
-        "Equation numbering: asis=(1)/(1.1); cjk=（5-1）for Chinese theses",
-    ),
     # ── 流水线：路径与配置 ──────────────────────────────────────────
     "pipeline.input_missing": ("输入稿件不存在: {path}", "Input manuscript not found: {path}"),
     "pipeline.requirements_missing": ("指定的格式要求文件不存在: {path}", "Requirements file not found: {path}"),
@@ -80,11 +76,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.unsupported": ("稿件里有写不出来的结构：{reason}", "A structure could not be written: {reason}"),
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
     "pipeline.pdf_skipped": ("docx 已正常生成，但 PDF 渲染被跳过或未完成。", "docx written, but the PDF was skipped."),
-    "pipeline.eq_cjk_hint": (
-        "提示: 稿件 YAML 开了 crossref.chapters（按章编号），但公式编号外观是默认的 (5.1)；"
-        "中文学位论文通常写作 （5-1），需要的话加 --eq-number-style cjk。",
-        "Note: crossref.chapters is on but equations still read (5.1); add --eq-number-style cjk for （5-1）.",
-    ),
     "pipeline.reminder": (
         "提醒：导出后请用 Word 打开核对一遍——表格的行高与列宽由内容自适应，"
         "公式、三线表、图片与题注的上下位置、页眉页脚，这些只有真看才能确认。",

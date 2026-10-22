@@ -12,7 +12,36 @@ from md_to_word.validator.check import ValidationReport, validate_manuscript
 
 __version__ = "2.0.0.dev1"
 
+
+def export(
+    manuscript,
+    output=None,
+    *,
+    requirements=None,
+    preset=None,
+    template=None,
+    pdf=False,
+    lang=None,
+) -> "ExportResult":
+    """一行导出：`export("稿.md", "稿.docx", preset="zh-academic")`。
+
+    返回 `ExportResult`；`result.returncode` 为 0 即成功，`result.errors` 是失败原因。
+    这一层只是把 `ExportOptions` 的默认值摆好——等价于命令行 `md-to-word`。
+    """
+    return run_export_pipeline(
+        ExportOptions(
+            input_path=manuscript,
+            output_path=output,
+            requirements_path=requirements,
+            preset=preset,
+            template_path=template,
+            make_pdf=pdf,
+            lang=lang,
+        )
+    )
+
 __all__ = [
+    "export",
     "run_export_pipeline",
     "ExportOptions",
     "ExportResult",

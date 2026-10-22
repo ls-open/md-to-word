@@ -61,8 +61,14 @@
 
 | | 谁定 | 在哪 |
 |:--|:--|:--|
-| 数字本身 | 写出器按出现顺序：`(1)`；YAML 开 `crossref.chapters: true` 时按章 `(5.1)` | `writer/docx_writer.py::_collect_equation_numbers` |
-| 括号与分隔符 | `--eq-number-style`：`asis` 保持 `(5.1)` / `cjk` 改写成 `（5-1）`，正文里的交叉引用同步跟着改 | `_display_eq_number` / `_resolve_crossref` |
+| 哪些公式有编号 | 只有带 `{#eq-标签}` 的公式进编号序列，没标签的不编号也不占号 | `writer/docx_writer.py::_collect_equation_numbers` |
+| 章号与序号 | 写出器按出现顺序给序号；YAML 开 `crossref.chapters: true` 时再按一级标题数出章号 | 同上（存成 `(章号, 序号)` 二元组） |
+| 括号与分隔符 | 要求文件的 `公式编号格式：`，一个 `{n}`／`{c}` 模板；不写按语种给默认 | `_render_eq_number` |
+| 正文交叉引用 | 前缀（YAML `crossref.eq-prefix`）+ 同一份模板渲染，两处永远一致 | `_resolve_crossref` |
+
+**为什么是模板而不是枚举**：「全角括号 / 半角括号 / 短横 / 点号 / 中间加空格」拆成开关就是
+组合爆炸，每一种还得各配一条文档与一个测试。模板一行说完，且写错了当场报错（只认 `{n}`
+与 `{c}`，缺 `{n}` 也报）。默认值按稿件语种给，所以多数稿件一个字都不用写。
 
 ### 1.4 工作流程图
 
