@@ -31,16 +31,15 @@ def extract_numbers(text: str) -> set[str]:
 
 
 def docx_text(docx_path: Path | str) -> str:
+    """正文 + 脚注 + 尾注的文字。脚注不在 document.xml 里，漏了就会把注释里的数字误判为丢失。
+
+    页眉页脚**不算**：它们的内容来自要求文件而不是稿件，算进来只会让「正文里真的丢了
+    一个数字」被页眉上恰好相同的数字盖过去——这是把闸门放松，不是修误报。
+    """
     parts = []
     with zipfile.ZipFile(docx_path) as z:
         for name in z.namelist():
-            if name.startswith("word/") and (
-                name == "word/document.xml"
-                or name.startswith("word/footnotes")
-                or name.startswith("word/endnotes")
-                or name.startswith("word/header")
-                or name.startswith("word/footer")
-            ):
+            if name == "word/document.xml" or name.startswith(("word/footnotes", "word/endnotes")):
                 try:
                     xml = z.read(name).decode("utf-8")
                     parts.extend(re.findall(r"<[wm]:t[^>]*>([^<]*)</[wm]:t>", xml))
