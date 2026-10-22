@@ -100,7 +100,7 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 | 学位论文样例 | 8 页 | 0.43 s | 目录、分节页码、双线章名页眉、跨页表头 |
 ```
 
-**You declare** ([`demo/00_quickstart/format.txt`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/requirements.txt), excerpt):
+**You declare** ([`demo/00_quickstart/format.txt`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/format.txt), excerpt):
 
 ```text
 纸张：A4
