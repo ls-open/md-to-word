@@ -32,13 +32,52 @@ def _message_lang(argv: list[str]) -> str:
     return resolve_lang(text, override) if text else (override if override in SUPPORTED else "zh")
 
 
+def contract_cheatsheet() -> str:
+    """稿件契约速查。给「只装了包、手上没有技能文档」的调用方一个自足入口。
+
+    样式名从 `STYLE_MAP` 现取，不在这里另抄一份——词表改了这里跟着变。
+    """
+    from md_to_word.spec.constants import STYLE_MAP
+
+    # 按词表声明顺序、每个样式只取第一个中文名：排序后的结果会变成「一级、三级、二级」，
+    # 读的人以为词表就这么乱。
+    seen: set[str] = set()
+    zh_names: list[str] = []
+    for cn, target in STYLE_MAP.items():
+        if cn.isascii() or target in seen:
+            continue
+        seen.add(target)
+        zh_names.append(cn)
+    return f"""稿件 = 普通 Markdown + 三条约定
+================================
+
+1. 标题用 # / ## / ###，层级连续不跳级。
+2. 一行一段；要给某一段指定样式，在行首写 `%% 样式名 内容`（一行即一段，没有闭合符号）：
+       %% 摘要标题 摘要
+       %% 摘要 本文提出……
+       %% 表题 **表 1** 各方案对照
+       %% 图片题注 图 1 系统架构
+3. 带编号公式写 `$$公式$$ {{#eq-标签}}`，正文用 `@eq-标签` 引用。
+   文献用 `[@key]`，在 YAML 里写 `bibliography: refs.bib` 与 `csl: apa.csl`。
+
+块级标记（独占一行，前后留空行）：`{{{{< pagebreak >}}}}`、`{{{{< toc 2 >}}}}`、
+`{{{{< section 页码=小写罗马 起始=1 >}}}}`。
+
+样式名（写错会带行号报错）：{'、'.join(zh_names)}
+
+格式要求：不传 -r 时用内置预设（中文 zh-academic、英文 --preset en-nature），
+每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
+完整词表：`md-to-word --help` 之外见仓库 references/reference.md。
+"""
+
+
 def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="md-to-word",
         description=t("cli.description", lang),
         epilog=t("cli.exit_codes", lang),
     )
-    parser.add_argument("input", help=t("cli.input", lang))
+    parser.add_argument("input", nargs="?", help=t("cli.input", lang))
     parser.add_argument("-o", "--output", help=t("cli.output", lang))
     parser.add_argument("-r", "--requirements", help=t("cli.requirements", lang))
     parser.add_argument("--preset", help=t("cli.preset", lang))
@@ -48,6 +87,7 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("--no-postflight", action="store_true", help=t("cli.no_postflight", lang))
     parser.add_argument("--no-audit", action="store_true", help=t("cli.no_audit", lang))
     parser.add_argument("--pdf", action="store_true", help=t("cli.pdf", lang))
+    parser.add_argument("--contract", action="store_true", help=t("cli.contract", lang))
     parser.add_argument("--version", action="version", version=f"md-to-word {__version__}")
     return parser
 
@@ -58,6 +98,12 @@ def main(args: list[str] | None = None) -> int:
     lang = _message_lang(argv)
     parser = build_parser(lang)
     parsed = parser.parse_args(argv)
+
+    if parsed.contract:
+        print(contract_cheatsheet())
+        return 0
+    if not parsed.input:
+        parser.error(t("cli.input_required", lang))
 
     options = ExportOptions(
         input_path=parsed.input,

@@ -53,8 +53,8 @@ SIZE_MAP: dict[str, Pt] = {
 # ── 样式名映射（中英双语键名 → Word 内部 style_name）──
 STYLE_MAP: dict[str, str] = {
     # ── 中文写法 ──
-    "论文标题": "Title",
     "文档标题": "Title",
+    "论文标题": "Title",
     "副标题": "Subtitle",
     "作者": "Author",
     "日期": "Date",

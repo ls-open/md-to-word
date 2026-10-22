@@ -21,18 +21,14 @@ normalize_csl.py — 规范化 CSL 文件：去掉 direct formatting 属性
 
 import argparse
 import os
-import re
 import sys
 
 _SRC = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src")
 if os.path.isdir(_SRC) and _SRC not in sys.path:
     sys.path.insert(0, _SRC)
 from md_to_word.utils.skill_utils import configure_logging, get_logger  # noqa: E402
+from md_to_word.transform.csl_clean import strip_direct_formatting  # noqa: E402
 logger = get_logger(__name__)
-
-# 需要去掉的 direct formatting 属性
-DIRECT_FORMAT_ATTRS = {'hanging-indent', 'second-field-align', 'line-spacing'}
-
 
 def normalize_csl(input_path, output_path=None, check_only=False):
     """规范化单个 CSL 文件
@@ -42,45 +38,27 @@ def normalize_csl(input_path, output_path=None, check_only=False):
                即这不是 CSL。「不是 CSL」与「已规范化」必须分开报——混同会把
                "没看懂这个文件"打印成 "✓ 无需修改"，调用方据此认为已核查通过。
       removed_attrs: 被去掉的属性列表
+
+    清理逻辑只有一份，在 `md_to_word.transform.csl_clean`：导出时用户自带的 CSL 走的是
+    同一段代码，脚本只是给它一个批量入口。
     """
     if output_path is None:
         output_path = input_path
 
-    # 保留 XML 声明和命名空间，用文本处理更可靠
     with open(input_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # 找 <bibliography ...> 标签
-    pattern = r'(<bibliography)([^>]*)(>)'
-    m = re.search(pattern, content)
-    if not m:
+    if '<bibliography' not in content:
         return None, []
 
-    attrs_str = m.group(2)
-    removed = []
-
-    # 逐个去掉 direct formatting 属性
-    new_attrs = attrs_str
-    for attr in DIRECT_FORMAT_ATTRS:
-        # 匹配 attr="value" 或 attr='value'
-        attr_pattern = rf'\s+{re.escape(attr)}\s*=\s*["\'][^"\']*["\']'
-        if re.search(attr_pattern, new_attrs):
-            removed.append(attr)
-            new_attrs = re.sub(attr_pattern, '', new_attrs)
-
+    cleaned, removed = strip_direct_formatting(content)
     if not removed:
         return False, []
-
     if check_only:
         return True, removed
 
-    # 重组标签
-    new_tag = m.group(1) + new_attrs + m.group(3)
-    new_content = content[:m.start()] + new_tag + content[m.end():]
-
     with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(new_content)
-
+        f.write(cleaned)
     return True, removed
 
 

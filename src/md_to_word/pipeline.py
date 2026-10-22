@@ -61,6 +61,27 @@ class ExportResult:
         return self.returncode in (0, 3)
 
 
+def _normalized_csl(path: Path, temp_dir: Path, res: ExportResult) -> Path:
+    """把 CSL 里的 direct formatting 去掉，返回可用的路径（就地清理要写副本）。"""
+    from md_to_word.transform.csl_clean import is_csl, strip_direct_formatting
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return path  # 读不出来就交给 CSL 引擎去报错，不在这里吞掉
+    if not is_csl(text):
+        return path
+    cleaned, removed = strip_direct_formatting(text)
+    if not removed:
+        return path
+    target = temp_dir / "csl-normalized.csl"
+    target.write_text(cleaned, encoding="utf-8")
+    res.messages.append(
+        t("pipeline.csl_normalized", res.lang, name=path.name, attrs=", ".join(removed))
+    )
+    return target
+
+
 def _prepare_custom_template(src: Path, dst: Path) -> Path:
     """第三方模板入场前的清理：剥主题属性，并确认它只有一节。
 
@@ -263,6 +284,9 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                     csl_path = resolved
             if csl_path is None:
                 csl_path = default_csl_path(contract_text)
+            # 用户自带的 CSL：现场剥掉会覆盖模板的 direct formatting（内置样式发布前已规范化）。
+            # 不这么做的话，同一份要求文件换个 CSL，悬挂缩进与行距就跟着变。
+            csl_path = _normalized_csl(csl_path, Path(temp_dir), res)
             try:
                 engine = CitationEngine(bib_text, csl_path)
             except (CitationError, OSError) as exc:

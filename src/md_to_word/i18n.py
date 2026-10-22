@@ -42,6 +42,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.no_postflight": ("跳过产物数值防丢检查（不推荐）", "Skip the numeric-integrity check (not recommended)"),
     "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against requirements"),
     "cli.pdf": ("导出后再渲染一份 PDF 供核对（macOS + 本机 Word）", "Also render a PDF for review (macOS + local Word)"),
+    "cli.input_required": ("缺少稿件路径：md-to-word 稿件.md", "Missing manuscript path: md-to-word paper.md"),
+    "cli.contract": ("打印稿件契约速查后退出（不导出）", "Print the manuscript contract cheatsheet and exit"),
     # ── 流水线：路径与配置 ──────────────────────────────────────────
     "pipeline.input_missing": ("输入稿件不存在: {path}", "Input manuscript not found: {path}"),
     "pipeline.requirements_missing": ("指定的格式要求文件不存在: {path}", "Requirements file not found: {path}"),
@@ -55,6 +57,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.template_missing": ("指定的模板文件不存在: {path}", "Template file not found: {path}"),
     "pipeline.no_spec": ("未提供格式要求或模板，无法生成样式文档。", "No requirements or template: cannot build the style template."),
     "pipeline.csl_error": ("文献库或 CSL 样式无法使用：{reason}", "Bibliography or CSL style unusable: {reason}"),
+    "pipeline.csl_normalized": (
+        "引文样式 {name} 里的 {attrs} 已忽略：段落格式（悬挂缩进、行距）由要求文件的「参考文献」样式决定，"
+        "否则同一份要求换个 CSL，排版就会变。",
+        "Ignored {attrs} in citation style {name}: paragraph formatting (hanging indent, line spacing) "
+        "comes from the Bibliography style in the requirements file, otherwise the same requirements "
+        "would lay out differently under a different CSL.",
+    ),
     # ── 流水线：进度与结论 ──────────────────────────────────────────
     "pipeline.precheck": ("执行导出前语法与排版契约预检…", "Running the pre-flight check…"),
     "pipeline.rejected": (

@@ -527,6 +527,8 @@ python3 scripts/read_reference_docx.py 参考.docx -o 名称_requirements.txt
 
 技能 `resources/csl/` 目录下的 CSL 文件覆盖主要出版商和顶级期刊。所有 CSL 的 `<bibliography>` 标签均已规范化（去掉 `hanging-indent`/`second-field-align`/`line-spacing`，段落格式由模板 Bibliography 样式控制）。
 
+**用户自带的 CSL 也照此处理**：`csl:` 指向自己的 `.csl` 时，导出时自动去掉这三个属性并提示一行——直接格式的优先级高于样式，不剥掉的话，同一份 `requirements.txt` 换个 CSL，参考文献的悬挂缩进和行距就变了。
+
 ### 3.1 通用样式（先看这一组）
 
 | 样式 | 适用论文 | 文件名 | 引用风格 |

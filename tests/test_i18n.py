@@ -25,7 +25,8 @@ def test_every_message_has_both_languages(key: str) -> None:
 
 def test_messages_format_without_keyword_errors() -> None:
     """带占位符的条目必须能被格式化——少一个参数会在导出中途炸掉。"""
-    samples = {"path": "/tmp/x", "name": "zh", "dir": "/tmp", "reason": "r", "count": 1, "sample": "s"}
+    samples = {"path": "/tmp/x", "name": "zh", "dir": "/tmp", "reason": "r", "count": 1,
+               "sample": "s", "attrs": "hanging-indent"}
     for key, (zh, en) in _MESSAGES.items():
         for text in (zh, en):
             text.format(**samples)  # 多余的 kwargs 不会报错，缺参才会

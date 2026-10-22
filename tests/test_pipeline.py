@@ -178,3 +178,42 @@ def test_custom_template_must_be_single_section(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert any("单节" in e for e in result.errors), result.errors
+
+
+def test_user_csl_direct_formatting_is_stripped(tmp_path: Path) -> None:
+    """用户自带的 CSL 里若有 hanging-indent 之类的直接格式，导出时要忽略它。
+
+    直接格式的优先级高于样式：不剥，同一份 requirements.txt 换个 CSL，参考文献的
+    悬挂缩进和行距就跟着变——「同一份稿件重跑一致」当场作废。
+    """
+    (tmp_path / "refs.bib").write_text(
+        "@article{a2020, author={Doe, Jane}, title={A Paper}, journal={J}, year={2020}}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "mine.csl").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0">\n'
+        "<info><title>Mine</title><id>http://example.com/mine</id></info>\n"
+        "<citation><layout><text variable=\"title\"/></layout></citation>\n"
+        '<bibliography hanging-indent="true" second-field-align="flush">\n'
+        "<layout><text variable=\"title\"/></layout></bibliography></style>\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "m.md").write_text(
+        "---\nbibliography: refs.bib\ncsl: mine.csl\n---\n\n# 一 引言\n\n见 [@a2020]。\n\n"
+        "%% 参考文献标题 参考文献\n",
+        encoding="utf-8",
+    )
+
+    result = run_export_pipeline(ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx"))
+    assert result.returncode == 0, result.errors
+    assert any("hanging-indent" in m for m in result.messages), result.messages
+
+
+def test_contract_cheatsheet_needs_no_manuscript(capsys) -> None:
+    """只装了包、手上没有技能文档的调用方，要能自己问出稿件怎么写。"""
+    from md_to_word.cli import main
+
+    assert main(["--contract"]) == 0
+    out = capsys.readouterr().out
+    assert "%% 样式名" in out and "文档标题" in out and "@eq-" in out

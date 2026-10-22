@@ -120,6 +120,10 @@ md-to-word --help                                    # all options; help follows
 Exit codes: `0` done; `1` manuscript, gate or dependency problem; `3` `.docx` written but `--pdf`
 was skipped (non-macOS).
 
+`md-to-word --contract` prints the manuscript contract (three conventions plus the
+style-name list) — the starting point when you have the package but not the skill docs.
+
+
 **Python**:
 
 ```python
