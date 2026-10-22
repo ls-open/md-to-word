@@ -24,6 +24,7 @@ from docx.oxml.ns import nsdecls, qn
 from docx.shared import Cm, Emu
 
 from md_to_word.config import default_crossref_prefixes, looks_chinese
+from md_to_word.utils.docx_zip import normalize_zip
 from md_to_word.preprocessor.markers import section_paragraph_xml, toc_xml
 from md_to_word.spec.constants import PAGE_NUMBER_FMT
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
@@ -212,7 +213,7 @@ class _Writer:
         if not entries:
             return
         for key, segments in entries:
-            paragraph = self.docx.add_paragraph(style="Bibliography")
+            paragraph = self.docx.add_paragraph(style=self._style_ref("Bibliography"))
             self._bookmark(paragraph, f"_Ref_{key}", segments)
 
     _bookmark_seq = 100
@@ -362,7 +363,7 @@ class _Writer:
             self._write_bibliography()
 
     def _code(self, block: CodeBlock) -> None:
-        paragraph = self.docx.add_paragraph(style="SourceCode")
+        paragraph = self.docx.add_paragraph(style=self._style_ref("SourceCode"))
         lines = block.value.split("\n")
         for i, line in enumerate(lines):
             if i:
@@ -685,6 +686,17 @@ class _Writer:
         """按名称取样式名（没有就返回 None，不静默套用别的样式）。"""
         return name if name in {s.name for s in self.docx.styles} else None
 
+    def _style_ref(self, name: str) -> str:
+        """样式名或 styleId → 该样式在本 docx 里的**名字**。
+
+        `add_paragraph(style=…)` 按名字查；传 styleId（如 `SourceCode`）时 python-docx
+        会退回按 id 查并发一条弃用警告。这里先换成名字，调用处不刷警告。
+        """
+        for style in self.docx.styles:
+            if style.name == name or style.style_id == name:
+                return style.name
+        return name
+
     def inline(self, paragraph, node: Inline) -> None:
         if isinstance(node, Code):
             run = paragraph.add_run(node.value)
@@ -880,4 +892,6 @@ def write_docx(
     ).write()
     out = Path(output)
     docx.save(str(out))
+    # 时间戳钉死：同一份稿件重复导出要逐字节一致，否则 Git 里每次都是「内容没改却变了」
+    normalize_zip(out)
     return out

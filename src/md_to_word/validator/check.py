@@ -300,7 +300,7 @@ def validate_manuscript(
                     report.valid = False
                     report.errors.append(message)
 
-        # 1c. 未写 csl 的提示（默认样式由 config.default_csl_path 定，两条通道共用）
+        # 1c. 未写 csl 的提示（默认样式由 config.default_csl_path 决定）
         if fm_data.get("bibliography") and not fm_data.get("csl"):
             from md_to_word.config import default_csl_path
 

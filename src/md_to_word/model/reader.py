@@ -238,7 +238,7 @@ def _metadata(raw: str) -> Metadata:
 
 
 def split_table_cells(body: str) -> list[str]:
-    """切分表格单元格，保护转义竖线 \|、行内代码 `...` 以及行内公式 $...$ 中的竖线。"""
+    r"""切分表格单元格，保护转义竖线 \|、行内代码 `...` 以及行内公式 $...$ 中的竖线。"""
     cells: list[str] = []
     current: list[str] = []
     i = 0

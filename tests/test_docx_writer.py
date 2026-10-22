@@ -397,3 +397,14 @@ def test_table_rows_split_unless_declared(template: Path, tmp_path: Path) -> Non
     pinned_xml = zipfile.ZipFile(pinned).read("word/document.xml").decode("utf-8")
     assert "cantSplit" not in plain_xml
     assert pinned_xml.count("cantSplit") == 2, "表头行与数据行都要钉住"
+
+
+def test_two_exports_are_byte_identical(template: Path, tmp_path: Path) -> None:
+    """同一份稿件导出两次，文件要逐字节一致——否则 Git 里每次提交都拖着"没改却变了"的二进制。
+
+    原先档案里靠后处理器钉时间戳，那条通道删掉之后这项保证静默失效；这条测试把它锁回来。
+    """
+    model = read_markdown("# 一 引言\n\n正文。\n")
+    first = write_docx(model, template, tmp_path / "a.docx")
+    second = write_docx(model, template, tmp_path / "b.docx")
+    assert first.read_bytes() == second.read_bytes()

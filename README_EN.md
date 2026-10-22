@@ -1,4 +1,4 @@
-# md-to-word: Compliant Word (.docx) Typesetting Skill for AI Agents & Markdown
+# md-to-word
 
 [![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
 [![Ecosystem: Academic Research Skills](https://img.shields.io/badge/Ecosystem-Academic%20Research%20Skills%20(51k+%E2%98%85)-0969da?logo=github&logoColor=white)](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects)
@@ -6,320 +6,213 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-brightgreen.svg)](https://www.python.org/)
 
-[English](README_EN.md) | [简体中文](README.md)
+English | [简体中文](README.md)
 
-> **Write with Markdown and track with Git; let AI deliver compliant Word (`.docx`) documents automatically.**  
-> Effortlessly produce Word files meeting the rigorous formatting standards of **university theses, academic journals, corporate whitepapers, and official reports**.
+Compiles Markdown into compliant Word (`.docx`) files: **theses, journal manuscripts, technical
+reports and official documents**. Layout lives in a `requirements.txt` that goes into Git together
+with the manuscript. Export is deterministic — the same sources produce the same output on every
+run. A pre-flight check runs before export and a reconciliation pass after it; anything off-contract
+stops the run with a line number.
 
----
-
-## 💡 Why Markdown + md-to-word?
-
-When writing academic theses, technical reports, and corporate proposals, teams often suffer from Word's inherent collaboration bottlenecks:
-
-* **Word (`.docx`) is an Opaque Binary Black Box**: Git cannot perform line-by-line diffs on binary files. Branch merges frequently corrupt documents, forcing teams to rely on painful file names like `thesis_final_v2_really_final.docx`.
-* **Format Tuning Wastes Endless Time**: Authors spend hours manually formatting styles, unlinking headers, adjusting table borders, and pressing spaces to align equations—only to lose all formatting when text content changes.
-
-**The Modern Engineering Workflow of md-to-word**:
-1. **Decouple Content from Typography**: Authors write pure Markdown, enjoying the full benefits of Git version control, branching, Pull Request reviews, and CI/CD pipelines.
-2. **AI-Agent Native**: LLMs excel at generating and refactoring Markdown; paired with this skill, AI agents can execute end-to-end typesetting and delivery autonomously.
-3. **Deterministic Delivery**: Powered by a clean Word 365 base template and declarative specifications, the tool automatically compiles standardized Word documents that satisfy strict review requirements.
+> Two premises: **content and layout are separate** (Markdown is the source, layout is declared);
+> **an AI agent can do the whole job** (the user states the requirement, the agent extracts formats,
+> normalises the manuscript and closes the quality loop).
 
 ---
 
-## ⚡ 30 seconds: what you write vs. what you get
-
-Layout rules live in `requirements.txt` — **one per line, diffable in Git**, no clicking around in Word.
+## 30-second example
 
 **You write** ([`demo/00_quickstart/hello.md`](demo/00_quickstart/hello.md), excerpt):
 
 ```markdown
 ---
 crossref:
-  tbl-prefix: "表"                  # table numbering prefix
+  tbl-prefix: "表"
 ---
 
-%% 文档标题 我的第一份规范 Word 文档   # "My first properly formatted Word document"
+%% 文档标题 我的第一份规范 Word 文档
 
 # 引言
 
-这是一份最小样例：一页纸、二十六行 Markdown。中文首行缩进两个字符、西文用
+这是一份最小样例：一页纸、二十二行 Markdown。中文首行缩进两个字符、西文用
 Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在 Word 里点。
 
 # 一个三线表
 
-| 样例 | 篇幅 | 端到端耗时 | 主要演示的排版要素 |
-|:------|:--|:---|:--------------|
-| 最小样例（本文） | 1 页 | 0.15 s | 中西文字体、首行缩进、多级标题、三线表 |
-| 技术白皮书样例 | 5 页 | 0.30 s | 全网格数据表、APA 引用、单线极简页眉 |
-| 学位论文样例 | 8 页 | 0.43 s | 目录、分节页码、双线章名页眉、跨页表头 |
+%% 表题 **表 1** 三套样例的端到端导出耗时
 
-…(the table-caption wrapper and the surrounding prose are elided — see the source file)
+| 样例 | 篇幅 | 耗时 |
+|:------|:--|:---|
+| 最小样例（本文） | 1 页 | 0.15 s |
+| 技术白皮书样例 | 5 页 | 0.30 s |
+| 学位论文样例 | 8 页 | 0.43 s |
+```
+
+**You declare** ([`demo/00_quickstart/requirements.txt`](demo/00_quickstart/requirements.txt), excerpt):
+
+```text
+纸张：A4
+页边距：上2.54cm 下2.54cm 左2.54cm 右2.54cm
+西文字体：Times New Roman
+
+文档标题：黑体/Times New Roman 二号 加粗 不倾斜 居中 行距1.5倍 段前0磅 段后12磅 首行缩进0字符 无边框
+一级标题：黑体/Times New Roman 三号 加粗 不倾斜 左对齐 行距1.5倍 段前12磅 段后6磅 首行缩进0字符 与下段同页
+正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符
+表格：居中 三线表 线宽上1.5磅 线宽底1.5磅 线宽表头下0.75磅 单元格垂直居中
+表头：宋体/Times New Roman 五号 加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 跨页重复
 ```
 
 **You run**:
 
 ```bash
-bash scripts/export.sh hello.md -r requirements.txt -o hello.docx
+md-to-word hello.md -r requirements.txt -o hello.docx
 ```
 
-> No requirements file? `bash scripts/export.sh hello.md -o hello.docx` falls back to the built-in Chinese preset `presets/zh-academic.txt`; add `--preset en-nature` for an English journal manuscript.
+**You get** (about 0.2 s, one page):
 
-**You get** (about one second):
+[![Output of the minimal demo](demo/00_quickstart/page-1.png)](demo/00_quickstart/hello.docx)
 
-[![Output of the 30-second example](demo/00_quickstart/page-1.png)](demo/00_quickstart/hello.docx)
-
-Two-character first-line indent, Times New Roman for Latin, a three-line table with caption and note — **none of it clicked together by hand**.
-
-### Reading that `requirements.txt`
-
-It is the skill's only user-facing language, and it holds two kinds of lines:
-
-- a **document setting** — `<key>：<value>`, e.g. page size, margins, page numbering;
-- a **style definition** — `<style name>：<font> <size> <attributes…>`, one line per Word style.
-
-A line whose **first character** is `#` is a comment (useful for recording where a rule came
-from). An inline `#` is *not* a comment — it is an unknown word and gets rejected, like any
-other typo.
-
-Here is [`demo/00_quickstart/requirements.txt`](demo/00_quickstart/requirements.txt) — all 16
-lines, of which 14 carry a rule (the rest are blank) — glossed:
-
-| Line as written | What it says |
-|:--|:--|
-| `纸张：A4` | Paper size — `A4` or `Letter` (A4 if omitted) |
-| `页边距：上2.54cm 下2.54cm 左2.54cm 右2.54cm` | Margins — top / bottom / left / right. All four required, cm only |
-| `西文字体：Times New Roman` | Global Latin font, used by any style that does not name its own |
-| `校对语言：zh-CN` | Proofing language — without it Word flags the whole document as misspelled |
-| `文档标题：黑体/Times New Roman 二号 加粗 不倾斜 居中 行距1.5倍 段前0磅 段后12磅 首行缩进0字符 无边框` | **Title**: Chinese / Latin font, `二号` (22pt), **bold**, *not* italic, centered, 1.5× line spacing, 0pt before / 12pt after, 0 first-line indent, no border |
-| `一级标题：… 与下段同页` | **Heading 1** — same field order, ending in "keep with next paragraph" |
-| `正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符` | **Body Text**: SimSun / Times New Roman, `小四` (12pt), **not** bold, **not** italic, justified, 1.5× spacing, 0pt/0pt, 2-character first-line indent |
-| `首段：…` | **First Paragraph** — the paragraph right after a heading; spelled out in full, same as Body Text here |
-| `普通：…` | **Normal** — the inheritance root; must be spelled out or the base template's values propagate to every style derived from it |
-| `紧凑：宋体/Times New Roman 五号 … 行距1.0倍 段前0磅 段后0磅 首行缩进0字符` | **Compact** — every table cell *and* every Markdown list item: one size down (`五号` = 10.5pt), single spacing, no indent |
-| `表格：居中 三线表 线宽上1.5磅 线宽底1.5磅 线宽表头下0.75磅 单元格垂直居中` | **Table**: centered, three-line layout, 1.5pt top and bottom rules, 0.75pt under the header row, cells vertically centered |
-| `表头：… 跨页重复` | **Header row** — its own font/size/bold, plus "repeat on every page" |
-| `表格题注：…` / `表注：…` | **Table Caption** / **Table Note** |
-
-**Every attribute has exactly one accepted spelling.** Anything outside the vocabulary is a
-hard error that names the line, the word and the expected form — never a silent fallback to
-some default. That is the whole point: a rule that is *written but ignored* produces a
-document that looks fine and is wrong. The complete vocabulary is
-[`references/reference.md §1.5`](references/reference.md).
-
-## 📄 Already have a template? (from your school, journal, or employer)
-
-No need to transcribe its formatting by hand. Hand the `.docx` to your assistant and have it reverse-engineer a `requirements.txt` draft:
-
-```bash
-python3 scripts/read_reference_docx.py school_template.docx -o thesis_requirements.txt
-```
-
-It reads page size, margins, header/footer distances, page-number format and start, per-style CJK and Latin fonts, sizes, bold/italic, alignment, line spacing (**distinguishing multiple / exact / at-least**), space before/after, indentation (**including character units**), paragraph bottom borders, table borders and header rows, and header/footer content and fields. **Anything it cannot read is listed as a to-confirm list** — it does not pretend.
-
-
-## 🚀 Install It: three steps, all handed to your AI assistant
-
-This skill is tuned for **AI agents** — you never touch a terminal; hand the repository to your assistant and it does the rest.
-
-1. **Let the assistant install it** — paste this line verbatim. Every assistant keeps skills somewhere different, and so does every OS; **let it work that out for itself**:
-
-   > Install this skill for me: https://github.com/ls-open/md-to-word
-   > Clone it into your skills directory, then read SKILL.md and tell me what it can do and how it is triggered.
-
-2. **Verify the install** — ask it to run the smallest sample in the repo. Seeing `✅ Word 文档导出成功` means you are set:
-
-   ```bash
-   cd demo/00_quickstart
-   bash ../../scripts/export.sh hello.md -r requirements.txt -o hello.docx
-   ```
-
-3. **Start using it** — send your Markdown and state the target format:
-
-   > Export this Markdown document to Word (.docx) according to my university's master's thesis formatting guidelines.
-
-   It then handles everything: layout and font requirements, a compliant base template, OOXML cleanup, three quality gates, and the finished `.docx`.
-
-> 💡 **CLI / CI**: you can also call it directly:
-> `bash scripts/export.sh input.md [-r requirements.txt | --preset zh-academic|en-nature] -o output.docx`
->
-> Add `--pdf` to also render a PDF through the local Word — **the only way to actually expand the table-of-contents page numbers and chapter-name headers**, and the most direct way to check the finished document (**macOS only**, and it needs Word installed and launched at least once; when unavailable it is skipped and the `.docx` is unaffected).
-
-## 📸 Typesetting Showcase (Self-Documenting Demos)
-
-Besides the minimal sample above, the repository bundles **two complete demos**, both written about md-to-word's engineering principles and benchmarks, demonstrating real-world formatting performance:
-
-### Showcase 1: Academic Thesis & Journal Paper (Full Elements)
-> Independent lowercase Roman front-matter page numbers (`i, ii`), a native dynamic TOC (down to level 2), dual-line chapter headers, **a three-line table whose header row repeats when it spans pages**, chapter-scoped equation numbers (`（2-1）`, the CJK thesis form) centred with the number hard right, GB/T 7714-2015 numeric citations — plus a **1 cm gutter**, **22 lines per page**, and **1 pt character spacing** on the title.
-
-📁 Source, formatting rules and one-command reproduction → **[demo/01_chinese_thesis](demo/01_chinese_thesis/README.md)**
-
-| Title & Abstract (Centered Title / No Header) | Dynamic TOC (Dot Leaders / Roman Page Numbers) | Dynamic Chapter Header & Architecture Chart |
-| :---: | :---: | :---: |
-| ![Thesis Title](demo/01_chinese_thesis/page-1.png) | ![Thesis TOC](demo/01_chinese_thesis/page-2.png) | ![Figures and Text](demo/01_chinese_thesis/page-3.png) |
-
-| Centered Math Equations & Convergence Chart | Three-Line Academic Table & GB/T 7714 References |
-| :---: | :---: |
-| ![Equation and QA Pipeline](demo/01_chinese_thesis/page-4.png) | ![Header Row Repeating Across Pages](demo/01_chinese_thesis/page-7.png) |
+Two-character first-line indent, Times New Roman for Latin text, a three-line table with caption
+and note — nothing was clicked in Word.
 
 ---
 
-### Showcase 2: Modern Enterprise Whitepaper & Research Report
-> Flat single-section structure, executive summary, sleek single-line header, full-grid data tables, and APA 7th author-date citation style.
+## Install
 
-📁 Source, formatting rules and one-command reproduction → **[demo/02_modern_report](demo/02_modern_report/README.md)**
+There is one implementation: the Python package `md-to-word`. The skill, the command line and the
+library API are all entries into it.
 
-| Executive Summary & Section 1 | Efficiency Model & Benchmark Chart | Full-Grid Data Table & APA References |
-| :---: | :---: | :---: |
-| ![Report Front](demo/02_modern_report/page-1.png) | ![Benchmark](demo/02_modern_report/page-2.png) | ![Grid Table and References](demo/02_modern_report/page-3.png) |
-
----
-
-## 🔍 Comparison: the same result, and what each tool needs to get there
-
-Ground rules: every tool is judged on its **default output** (no custom template, no filter). ⚠️ = possible, but you hand-edit the base template, set it paragraph-by-paragraph and table-by-table, or write XML yourself; ✅ = comes out of the box; ❌ = not available by default. **The last column is what this skill actually asks you to write.**
-
-| Typesetting element | Native Pandoc default | Quarto default Word | Manual Word tuning | 🌟 md-to-word: write this |
-|:---|:---:|:---:|:---:|:---|
-| Centered display math, equation number hard right | ❌ No numbering (`{#eq-x}` leaks into the text) | ⚠️ Equation centres, number trails it | ⚠️ Manual 3-column tab stops | `$$…$$ {#eq-x}` handles both |
-| Dynamic chapter-name header (double rule) | ❌ Edit template + insert field | ❌ Edit template + insert field | ⚠️ Break sections + insert field | `页眉内容：{样式标题:Heading 1}` |
-| Roman front matter / Arabic body pagination | ❌ | ❌ | ⚠️ Insert section break by hand | `{{< section 页码=小写罗马 起始=1 >}}` |
-| Layout rules declared in text, reviewable in Git | ❌ Buried in XML and manual steps | ❌ | ❌ | One `requirements.txt` states it all |
-| Failure mode: error, or silent drift? | ⚠️ Mostly silent | ⚠️ Mostly silent | ❌ Eyes only | Pre-flight check, reported by line number |
-| Quality gates before delivery | ❌ | ❌ | ❌ | Three: pre-flight / number diff / item-by-item audit |
-
-> **The table lists only what sets this apart.** Where the default paths already deliver — separated CJK/Latin fonts and first-line indent, three-line tables with adjustable rules, header rows repeating across pages, formatted bibliographies — this skill supports them too, but they are not a differentiator, so they are left out.
->
-> **Also supported**: footnotes (`[^1]`), Word's native dynamic TOC via `{{< toc 2 >}}`, odd/even and first-page headers and footers plus the `{总页数}` field, four table border styles (three-line / full grid / top-and-bottom / none), using an existing `.docx` as the base template (`-t`), multi-level lists (up to three), and per-style colours (`颜色#1F4E79`). HTML comments in the manuscript are always stripped (code blocks are left untouched).
->
-> The ✅ marks under Pandoc and Quarto are **honest** — repeating header rows and citeproc bibliographies, for instance, do come out of the box. The value here isn't that others *can't*; it's that a single `requirements.txt` settles **all of it at once**, with no base-template surgery, no XML, and no per-paragraph clicking.
-
----
-
-## 📚 FAQ: What is a BibTeX (.bib) File and How to Get It?
-
-For users unfamiliar with academic bibliography workflows:
-
-* **What is `.bib`?**  
-  `.bib` (BibTeX) is the global standard plain-text format for structured reference databases. Each entry includes publication type, authors, title, journal, volume, and year.
-* **How to Obtain It? (No Manual Coding Required)**:
-  1. **One-Click Web Export (Google Scholar, CNKI, Baidu Scholar)**:  
-     Search for the paper → click the **"Cite"** button → select **"BibTeX"** → copy the text into `references.bib`.
-  2. **Batch Export from Reference Managers (Zotero, EndNote, Mendeley)**:  
-     Select papers in your library → right click **"Export Library / Items"** → choose **BibTeX** format.
-* **How to Cite in Markdown?**  
-  Simply write `[@citekey]` (e.g., `[@vaswani2017]`) in your prose. The compiler will automatically format in-text citations and generate the end-of-document bibliography according to your chosen CSL style (e.g., `chinese-gb7714-2015-numeric.csl`, the newer `china-national-standard-gb-t-7714-2025-numeric.csl`, or `apa.csl`).
-
----
-
-## 🛠️ Environment Prerequisites
-
-**No external binary is required.** Python dependencies only:
-
-```bash
-pip install md-to-word           # from the package (pipx install md-to-word for an isolated env)
-pip install -r requirements.txt  # or install deps for a source checkout
-```
-
-Five pure-Python packages, ≈3 MB: `python-docx` (writes OOXML), `lxml` (XML), `PyYAML` (front matter), `latex2mathml` (equations), `citeproc-py` (citations). **Layout, numbering and the quality gates are this project's own code** — the borrowed parts are exactly the two that have public standards: LaTeX parsing and CSL rendering.
-
-### Three ways to use it — one codebase
-
-The implementation exists once: the pip package in `src/md_to_word/`. The skill, the CLI and the Python call are all entries into it — **the skill ships no implementation**, only the manual (`SKILL.md`) and a thin shell that forwards arguments (`scripts/export.sh`).
-
-That split decides how updates work: ship a release and users run `pip install -U md-to-word`; the skill files only change when the docs do. Bundle the implementation into the skill and even a one-line fix forces everyone to reinstall it.
-
-| Way | For | Install | Use |
+| Entry | For | Install | Use |
 |:--|:--|:--|:--|
-| **Skill** | authors who hand off to an AI agent | put `SKILL.md` + `references/` in your skills directory, then `pip install md-to-word` | "Export this paper as Word per my school's rules" — the agent reads `SKILL.md` |
-| **CLI** | batch jobs, CI | `pip install md-to-word` (or `pipx` to keep it out of your env) | `md-to-word paper.md -o paper.docx` |
-| **Python** | your own scripts and pipelines | `pip install md-to-word` | `from md_to_word import export` |
+| **Command line** | local exports, CI | `pip install md-to-word` | `md-to-word paper.md -o paper.docx` |
+| **Python library** | scripts, custom pipelines | same | `from md_to_word import export` |
+| **AI skill** | handing the job to an agent | put `SKILL.md` + `references/` + `scripts/` in the skill directory, then install the package | "Export this manuscript as Word, following my school's format." |
 
-**Updating**:
-
-```bash
-pip install -U md-to-word       # or: pipx upgrade md-to-word
-md-to-word --version
-```
-
-```bash
-md-to-word paper.md -o paper.docx                  # Chinese thesis preset by default
-md-to-word paper.md --preset en-nature -o out.docx # international journal preset
-md-to-word paper.md -r requirements.txt -o out.docx
-md-to-word --help                                  # every option; help follows the manuscript language
-md-to-word --version
-```
-
-Not on PyPI yet — install from source for now; once published, the same line becomes `pip install md-to-word`. Installing straight from Git works too:
+**PyPI status**: not published yet. Until then install from source or Git; after the release the
+first command above is the one to use.
 
 ```bash
 pip install "git+https://github.com/ls-open/md-to-word@main"
+pip install -r requirements.txt    # or install dependencies inside a source checkout
 ```
 
-### What ships, and where
+Updates: `pip install -U md-to-word` (use `pipx install` / `pipx upgrade` to keep it out of the
+system environment). Skill files only need reinstalling when the documentation changes — that is the
+point of keeping the implementation in the package.
 
-One repository, trimmed at publish time — not every directory belongs on a user's machine:
+**Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py` — five pure-Python
+packages. **Export needs no external binary**: no Pandoc, no Quarto, no Word. Only the optional
+`--pdf` proof uses the local Word installation (macOS only; skipped elsewhere, `.docx` unaffected).
 
-| Artifact | Contains | Size |
-|:--|:--|:--|
-| **pip package** (wheel) | `src/md_to_word/` + `presets/` + `resources/` (Word 365 base template, 29 CSL styles) | ≈280 KB |
-| **Skill** | `SKILL.md` + `references/` + `scripts/export.sh` | tens of KB |
-| **Repository only** | `tests/` (regression net), `demo/` sources and page screenshots, dev tools | — |
+---
 
-For scale: a Pandoc- or Quarto-based equivalent asks the user to install several hundred MB of binaries first. Base template and style library included, this is under 300 KB — because the layout engine is our own code, so there is no external engine to install.
+## Usage
 
-From Python — one call, all the answers in the result:
+**Command line**:
+
+```bash
+md-to-word paper.md -o paper.docx                    # default Chinese preset (zh-academic)
+md-to-word paper.md --preset en-nature -o out.docx   # English journal preset
+md-to-word paper.md -r format.txt -o out.docx        # explicit requirements file
+md-to-word --help                                    # all options; help follows manuscript language
+```
+
+Exit codes: `0` done; `1` manuscript, gate or dependency problem; `3` `.docx` written but `--pdf`
+was skipped (non-macOS).
+
+**Python**:
 
 ```python
 from md_to_word import export
 
-result = export("paper.md", "paper.docx", preset="en-nature")
-if not result.ok:                 # ok = docx written (a skipped --pdf is not a failure)
+result = export("paper.md", "paper.docx", preset="zh-academic")
+if not result.ok:            # ok = the .docx was written (a skipped --pdf is not a failure)
     raise SystemExit("\n".join(result.errors))
-print(result.output_docx)         # path; result.messages carries progress and reminders
+print(result.output_docx)    # result.messages holds progress notes and reminders
 ```
 
-For finer control (skip a gate, pass a template, also render a PDF) use `ExportOptions`:
+**AI skill**: hand the Markdown to an agent together with the format requirement. The agent reads
+`SKILL.md` and runs format extraction, manuscript normalisation, template generation and the gates.
+Trigger phrases and scope are in that file's frontmatter.
 
-```python
-from md_to_word import ExportOptions, run_export_pipeline
+---
 
-result = run_export_pipeline(ExportOptions(
-    input_path="paper.md", output_path="paper.docx",
-    requirements_path="requirements.txt", template_path="school.docx", make_pdf=True,
-))
+## Capabilities and limits
+
+| Supported | Notes |
+|:--|:--|
+| Page and body text | paper size, margins, gutter, document grid, CJK/Latin fonts, size, spacing, indent, alignment, colour |
+| Headings, headers, footers | six heading levels, odd/even and first-page variants, page number format and start, sections, `{页码}` `{总页数}` `{样式标题}` fields |
+| Tables | three-line / full grid / top-and-bottom / none, border widths, repeating header rows, cell alignment and padding, column width ratios |
+| Equations | native OMML, centred with the number set hard right, per-chapter numbering, number template, `@eq-` cross-references |
+| Figures and captions | image width clamped to the text block, caption bound to the figure, caption placement chosen by the author |
+| Bibliography | `.bib` + CSL, 29 bundled styles (GB/T 7714, APA, Nature, IEEE, Vancouver and more) |
+| Inline text | bold, italic, strikethrough, underline, super/subscript, inline code, inline maths, links, footnotes |
+| Lists | ordered, unordered, three nesting levels, lists inside block quotes |
+| Gates | pre-flight contract/style/citation check, post-export number audit, element-by-element style reconciliation |
+
+**Not supported** (finish in Word, or restructure the manuscript):
+
+| Not possible | Why, and what to do instead |
+|:--|:--|
+| Custom cover pages (crests, fill-in fields, signature sheets) | `%% 文档标题` produces one standard title block; merge the cover in Word, or typeset a simple one as a table |
+| Merged cells, diagonal header rules, cell shading | Markdown tables are a regular 2-D grid; export the grid, merge in Word |
+| Multi-column text, floating figures with text wrap | Single-column is the only layout; figures are standalone centred blocks; wrapping is a Word-side edit |
+| Limits above/below Σ and ∫ in numbered equations | Word only stacks limits in display maths, and numbered equations are inline; symbols and content are correct, placement differs |
+| Inline text colour | Colour is a style property (`颜色#1F4E79` on a style line); inline `{color=…}` is not supported |
+
+The full vocabulary and rationale live in [`references/reference.md`](references/reference.md)
+(Chinese); design decisions are in [`references/design.md`](references/design.md) (Chinese).
+
+---
+
+## Already have a template?
+
+You do not have to transcribe a school or journal `.docx` by hand. Run the bundled reader against it
+to get a draft requirements file:
+
+```bash
+python3 scripts/read_reference_docx.py school_template.docx -o paper_requirements.txt
 ```
 
----
-
-## 📖 Skill Routing & Documentation
-
-| Path | Purpose & Target Audience |
-| :--- | :--- |
-| [`demo/00_quickstart/`](demo/00_quickstart/) | **Smallest runnable sample** (1 page): a 26-line manuscript plus a 14-line `requirements.txt` (blank lines excluded). Use it to grasp input vs. output in 30 seconds, and to verify the install. |
-| [`presets/`](presets/) | **Ready-made format presets**: `zh-academic.txt` (Chinese academic/report, the default when no spec is given) and `en-nature.txt` (English journal submission). Use via `--preset`, or copy one and edit. |
-| [`SKILL.md`](SKILL.md) | **Must-read for AI Agents**: Agent automation workflows, Markdown syntax contracts, and best practices. |
-| [`references/reference.md`](references/reference.md) | **Advanced Customization**: Complete vocabulary for `requirements.txt`, default inference rules, and the 20 built-in CSL styles. |
-| [`references/design.md`](references/design.md) | **Developers & Hackers**: In-depth architecture, pure Word 365 base template, 3-column equation alignment, and OpenXML internals. |
+It reads page size, margins, header/footer distances, page number format and start, per-style fonts
+and sizes, bold/italic, alignment, line spacing (multiple, exact and minimum are distinguished),
+space before and after, indents (including character units), paragraph bottom borders, table borders
+and header rows, and header/footer content with fields. **Anything it cannot read is listed as a
+to-confirm item** — it does not pretend to have read it.
 
 ---
 
-## 🤝 Recommended Upstream Ecosystem & Workflows
+## Repository layout
 
-`md-to-word` focuses on deterministic downstream Word layout and delivery. We enthusiastically recommend pairing it with upstream academic research agent frameworks:
+| Path | What it is for |
+|:--|:--|
+| [`SKILL.md`](SKILL.md) | Skill entry: agent workflow, manuscript contract, requirements assembly, export and verification |
+| [`references/reference.md`](references/reference.md) | Complete vocabulary with wrong-spelling comparisons, derived defaults, CSL inventory |
+| [`references/design.md`](references/design.md) | Design rationale and troubleshooting (start at its §2 when output looks wrong) |
+| [`demo/`](demo/) | Four samples: minimal, Chinese thesis, technical whitepaper, English journal submission |
+| `scripts/` | `export.sh` is a forwarding shell; the rest are development tools (read a template, build a template, check a manuscript, normalise CSL) |
+| `src/md_to_word/` | The implementation: model → OOXML writer, style generation, validation, reconciliation |
+| `resources/` | Word 365 base template and 29 normalised CSL styles |
+| `presets/` | Built-in presets: `zh-academic.txt` (default), `en-nature.txt` |
 
-* **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)** (51k+ ★, **officially listed in its [`THIRD_PARTY.md`](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects) ecosystem directory**): A comprehensive 5-stage academic research pipeline by [@Imbad0202](https://github.com/Imbad0202). When Stage 5 (FINALIZE) produces manuscript Markdown and bibliographies, `md-to-word` seamlessly handles deterministic `.docx` typesetting.
-* **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)**: A high-impact academic paper crafting skill suite by [@Yuan1z0825](https://github.com/Yuan1z0825).
+What ships to a user's machine: `src/`, `presets/`, `resources/` and package metadata
+(wheel ≈ 288 KB). `tests/`, `demo/`, `scripts/` and `references/` are the repository's acceptance
+surface, not runtime dependencies.
 
 ---
 
-## 📄 License
+## Built here, borrowed elsewhere
 
-Open-sourced under the [MIT License](LICENSE).
+Layout, numbering, gates and the OOXML writer are this project's own code. Two pieces with public
+standards are borrowed: LaTeX parsing (`latex2mathml`) and CSL citation rendering (`citeproc-py`).
+The rule: **borrow what is standardised, build what is not**.
 
-### Third-party assets
+---
 
-The citation styles under `resources/csl/` come from
-[citation-style-language/styles](https://github.com/citation-style-language/styles) and are each licensed
-under **CC BY-SA 3.0** (declared in a `<rights>` element inside every file).
-The MIT license covering this project's original code does not apply to those files.
+## License
+
+Code is [MIT](LICENSE). Citation styles under `resources/csl/` come from
+[citation-style-language/styles](https://github.com/citation-style-language/styles) and are used
+under CC BY-SA 3.0. `resources/pure_modern_base.docx` is generated by this project and released
+under MIT.

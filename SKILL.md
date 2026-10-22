@@ -6,46 +6,40 @@ license: MIT
 
 # Markdown → Word 现代文档与学术排版导出技能
 
-把 Markdown 导出成符合规范的 Word (`.docx`)。两类稿子：**通用正式文档**（报告、技术方案、公文）与**学术论文**（期刊/学位论文，含摘要、公式编号右对齐、三线表、CSL 参考文献、动态目录）。
+把 Markdown 导出成符合规范的 Word（`.docx`）：**通用正式文档**（报告、技术方案、公文）与
+**学术论文**（期刊/学位论文，含摘要、公式编号右对齐、三线表、CSL 参考文献、动态目录）。
 
-> **核心设计哲学**：内容与排版解耦（Markdown 为源，格式全交给本技能编译，于是文档能进 Git 做行级 diff）；AI 全流程代办（用户提需求，Agent 包办格式提取、稿件改造、样式装配与质量闭环）。
+> **设计前提**：内容与排版分离（Markdown 为源，格式全部声明在 `requirements.txt`）；
+> AI 全流程代办（用户提需求，Agent 负责格式提取、稿件规范化与质量闭环）。
 >
-> **统一入口**：`bash <本技能目录>/scripts/export.sh <稿件.md> [-r <格式要求.txt> | --preset zh-academic|en-nature] [-o <输出.docx>]`（若稿件同目录有唯一的 `.txt`，`-r` 可省略；两者都没有时默认用内置预设 `presets/zh-academic.txt`，模板每次导出实时生成）
-> **核心引擎**：自研写出器（模型 → OOXML）+ 纯净 Word 365 底模 (`resources/pure_modern_base.docx`) + 公式居中与编号靠右对齐引擎 + 自动质量门禁（导前预检 / 导后防丢数 / XML 样式对账）
->
-> **首次使用前**：安装实现（技能本身不含实现）：`pip install md-to-word`；想让它不搅乱当前环境就用 `pipx install md-to-word`（pipx 是 pip 的隔离包装，只给命令行工具用）。更新：`pip install -U md-to-word`（或 `pipx upgrade md-to-word`）——**技能文件几乎不用动**，这是把实现放进包而不是放进技能的原因。`bash scripts/export.sh --version` 可确认引擎版本。
->
-> **导出不需要任何外部二进制**：没有 Pandoc、没有 Quarto、不调用 Word（只有 `--pdf` 核对才用到本机 Word）。
+> **入口**：`bash <本技能目录>/scripts/export.sh 稿件.md [-r 要求.txt | --preset zh-academic|en-nature] [-o 输出.docx]`
+> 稿件同目录有唯一 `.txt` 时 `-r` 可省略；都没有时用内置预设，模板每次导出实时生成。
+> **技能本身不含实现**：先 `pip install md-to-word`（隔离环境用 `pipx`），更新是
+> `pip install -U md-to-word`，技能文件只在文档变化时才需要重装。导出不需要任何外部二进制。
 
 ## Quick start (English)
 
 ```bash
 pip install md-to-word                     # the skill is a thin entry; install the engine
-pip install -U md-to-word                  # updates need nothing else — the skill files stay put
-md-to-word paper.md -o paper.docx          # default: Chinese thesis preset
 md-to-word paper.md --preset en-nature -o paper.docx
 md-to-word --help                          # all options; help follows the manuscript language
 ```
 
-A manuscript is plain Markdown with three extra conventions:
+A manuscript is plain Markdown plus three conventions:
 
 - `#`, `##`, `###` set heading levels; inline formatting works as usual.
-- A line starting with `%% ` names the paragraph style: `%% Abstract Title Abstract`, `%% Table Caption Table 1. …`, `%% Image Caption Figure 1. …`. One line is one paragraph — no closing marker.
-- `$$…$$ {#eq-model}` for a numbered display equation; `@eq-model` refers to it. `[@key]` comes from `references.bib` plus a CSL style (`csl:` in the YAML, or GB/T 7714 for Chinese and APA for English by default).
+- A line starting with `%% ` names the paragraph style: `%% Abstract Title Abstract`,
+  `%% Table Caption Table 1. …`, `%% Image Caption Figure 1. …`. One line is one paragraph.
+- `$$…$$ {#eq-model}` for a numbered display equation; `@eq-model` refers to it. `[@key]` comes from
+  `references.bib` plus a CSL style (`csl:` in the YAML; GB/T 7714 for Chinese and APA for English
+  by default).
 
-Exit codes: `0` ok, `1` manuscript/gate failure, `3` `.docx` written but the `--pdf` step was skipped. Known limits are listed in §四; the most common ones are a custom cover page (do it in Word) and merged table cells (Markdown has no rowspan).
+Exit codes: `0` ok, `1` manuscript/gate failure, `3` `.docx` written but `--pdf` skipped.
+Known limits are in §四. Full vocabulary: `references/reference.md`.
 
-**技能目录结构与文档路由**：
-
-| 路径 | 用途与何时查阅 |
-|:--|:--|
-| `SKILL.md` | 技能主入口。理解 Agent 代办流程、模块化组装 `requirements.txt`、改造导出稿件并执行导出 |
-| `references/reference.md` | 查 `requirements.txt` 完整合法词表（§1.5）、排版推导默认值（§1.6）、内置 CSL 清单（§3）时查阅 |
-| `references/design.md` | **导出行为不符合预期**时（参见其 §2 故障排查定位原因）；或**需要修改 `scripts/` 下的脚本**时查阅 |
-| `scripts/` | `export.sh` 是**浅入口**：找到已安装的 `md-to-word` 并转发参数，实现一行都不在这里。其余是开发工具（`check_md.py`、`generate_template.py`、`read_reference_docx.py`、`normalize_csl.py`、`render_via_word.sh`） |
-| `src/md_to_word/` | 实现本体（流水线、文档模型、写出器、样式生成、校验、对账）。技能分发时**不必带上它**——装了包就用包里的；只有开发检出、且没装过包时才由 `export.sh` 兜底使用 |
-| `resources/` | 纯净 Word 365 底模 `pure_modern_base.docx` 与内置规范化引用样式库 `resources/csl/*.csl` |
-| `presets/` | 开箱即用的格式预设：`zh-academic.txt`（中文学术/通用报告，默认）与 `en-nature.txt`（英文期刊投稿）。用户没给格式要求时直接用这两份 |
+**文档路由**：本文件写「怎么做」；`references/reference.md` 是完整词表与原理（查写法、推导默认值、
+内置 CSL 清单）；`references/design.md` 是设计取舍与故障排查（导出结果不符合预期时看 §2）；
+`demo/` 是四份验收样例；`scripts/` 里除 `export.sh` 外都是开发工具。
 
 ---
 
@@ -90,7 +84,7 @@ Exit codes: `0` ok, `1` manuscript/gate failure, `3` `.docx` written but the `--
 - **有参考文献**：YAML 写 `bibliography: refs.bib` 与 `csl: <样式>.csl`，文献列表由引擎生成，用户**不写**列表、不写「参考文献」样式行。
   - **手写文献列表不受支持**：`%% 参考文献 …` 会被预检拒绝。若用户手上只有手写条目，由 Agent 据此生成 `references.bib` 后再引用；仅需要展示语法字面量时，用反引号包成行内代码。
   - `csl:` 直接写本技能 `resources/csl/` 下的内置文件名（如 `apa.csl`、`chinese-gb7714-2015-numeric.csl`），脚本自动寻路挂载。
-  - **不写 `csl:` 时的默认样式**：中文稿按 GB/T 7714-2015 数字制、其他按 APA 7th（作者-年份制）。两条写出通道共用这一个默认，不会因为换后端换出两种文献表。
+  - **不写 `csl:` 时的默认样式**：中文稿按 GB/T 7714-2015 数字制、其他按 APA 7th（作者-年份制）。默认样式只有这一处定义（`config.default_csl_path`），不会因为换入口换出两种文献表。
   - **正文引用写法**（citeproc 实测支持；建议只用前两种，其余给既成稿件兜底）：
     - **括号引用 `[@key]`**：多篇分号隔开 `[@zhang2024; @smith2023]`；带页码 `[@zhang2024, p. 33]`；带前缀 `[see @zhang2024]`；只出年份 `[-@zhang2024]`；
     - **叙述引用 `@key`**：`正如 @zhang2024 所指出`；带页码写 `@zhang2024 [p. 33]`；

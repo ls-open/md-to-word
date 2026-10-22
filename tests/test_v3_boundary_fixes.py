@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from docx import Document as open_docx
 
-from md_to_word.audit.postflight import verify_numeric_integrity
 from md_to_word.model.reader import read_markdown
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.transform.citations import CitationEngine
@@ -102,8 +100,6 @@ def test_mover_distinguishes_accent_from_overset() -> None:
     把 `=` 排成 `≙`；`\\overset{*}{x}` 只写一个字符，同样不是重音。
     """
     from lxml import etree
-
-    ns = {"m": "http://schemas.openxmlformats.org/officeDocument/2006/math"}
 
     def kinds(latex: str) -> list[str]:
         nodes = latex_to_omml(latex)

@@ -15,8 +15,6 @@ import re
 import shutil
 import sys
 import tempfile
-from dataclasses import dataclass, field
-from typing import Optional
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -115,17 +113,6 @@ STYLE_MAP = {
 }
 
 STYLE_CN = {v: k for k, v in STYLE_MAP.items()}
-
-# ── 页眉/页脚内容行（键 → (页眉|页脚, default|even|first)）──
-# default = 奇偶未区分时的那一套；even = 偶数页；first = 首页（首页不同）
-DECOR_CONTENT_KEYS = {
-    '页眉内容': ('header', 'default'),
-    '偶数页页眉内容': ('header', 'even'),
-    '首页页眉内容': ('header', 'first'),
-    '页脚内容': ('footer', 'default'),
-    '偶数页页脚内容': ('footer', 'even'),
-    '首页页脚内容': ('footer', 'first'),
-}
 
 # ── 页码格式（唯一写法）──
 PAGE_NUMBER_FMT = {
@@ -575,11 +562,23 @@ def _ensure_builtin_toc_style(style, style_name: str) -> None:
     name_el.set(W('val'), name)
 
 
+def _find_style(doc, name: str):
+    """按名字或 styleId 找样式。
+
+    目录条目会被改写成 Word 的内置样式（`TOC 1` → 名 `toc 1`、id `TOC1`），此后按
+    名字就查不到了。python-docx 的 `doc.styles[name]` 会退回按 id 查、并对这种用法发
+    弃用警告——每次导出刷一屏无关警告。这里自己按「名字或 id」找，不触发那条路径。
+    """
+    for style in doc.styles:
+        if style.name == name or style.style_id == name:
+            return style
+    return None
+
+
 def modify_style(doc, style_name, props, default_latin=None):
     """修改或创建样式的属性"""
-    try:
-        style = doc.styles[style_name]
-    except KeyError:
+    style = _find_style(doc, style_name)
+    if style is None:
         style = doc.styles.add_style(style_name, WD_STYLE_TYPE.PARAGRAPH)
         try:
             normal_style = doc.styles['Normal']
@@ -626,214 +625,7 @@ def modify_style(doc, style_name, props, default_latin=None):
 from md_to_word.spec.parser import (  # noqa: E402
     parse_requirements,
     parse_style_props,
-    parse_table_props,
 )
-
-_S = "style"
-_T = "table"
-TABLE_ALIGN_MAP = {cn: v for cn, v in ALIGN_VAL.items() if cn != "两端对齐"}
-TABLE_STYLE_MAP = {"三线表": "three-line", "全网格线": "grid", "顶底线": "top-bottom", "无边框": "none"}
-TABLE_VALIGN_MAP = {"居中": "center", "顶端": "top", "底端": "bottom"}
-TABLE_WIDTH_KEYS = {"线宽上": "top", "线宽底": "bottom", "线宽表头下": "header_bottom", "线宽内": "inside"}
-
-
-def decor_token_to_field(tok):
-    """把 {…} 标记翻成 Word 域指令；不认识返回 None（由调用方报错，不静默漏掉）"""
-    if tok == '页码':
-        return 'PAGE   \\* MERGEFORMAT '
-    if tok == '总页数':
-        return 'NUMPAGES   \\* MERGEFORMAT '
-    m = _RE_STYLEREF.match(tok)
-    if m:
-        return 'STYLEREF  "%s"   \\* MERGEFORMAT ' % m.group(1)
-    return None
-
-
-def parse_decor_content(text, lineno=None, key=None):
-    """把页眉/页脚内容串切成 [('text', s) | ('field', 域指令)]"""
-    parts = []
-    pos = 0
-    for m in _RE_DECOR_TOKEN.finditer(text):
-        if m.start() > pos:
-            parts.append(('text', text[pos:m.start()]))
-        tok = m.group(1).strip()
-        instr = decor_token_to_field(tok)
-        if instr is None:
-            where = f'第 {lineno} 行' if lineno else ''
-            whose = f'「{key}」' if key else ''
-            raise ValueError(
-                f'{where}{whose}未知的页眉/页脚域标记 "{{{tok}}}"；'
-                f'可用：{{页码}} {{总页数}} {{样式标题:<样式名>}}')
-        parts.append(('field', instr))
-        pos = m.end()
-    if pos < len(text):
-        parts.append(('text', text[pos:]))
-    return parts
-
-
-@dataclass
-class TemplateSpec:
-    """requirements.txt 的**唯一**解析结果：各写入器都从这里取料"""
-    styles: list = field(default_factory=list)
-    default_latin: Optional[str] = None
-    margins: Optional[dict] = None
-    table: dict = field(default_factory=dict)          # 表格：对齐/边框/线宽/单元格垂直
-    table_header: Optional[dict] = None                # 表头：表头行（firstRow）属性
-    decor: dict = field(default_factory=dict)          # (header|footer, default|even|first) → 内容串
-    page_number: Optional[tuple] = None                # (fmt, start)
-    page_size: str = 'a4'                              # 纸张：a4|letter
-    gutter_cm: Optional[float] = None                  # 装订线：左侧额外留出的装订距离
-    doc_grid_lines: Optional[int] = None               # 文档网格：每页多少行
-    proofing_lang: Optional[str] = None                # 校对语言（zh-CN 等）
-    header_distance: Optional[float] = None            # 页眉距边界（cm）
-    footer_distance: Optional[float] = None            # 页脚距边界（cm）
-
-
-def _bad_value(lineno, key, desc, should, why=''):
-    """行级键取值不认识时的**统一**报错：行号 + 键 + 原值 + 应写什么。"""
-    return ValueError(
-        f'第 {lineno} 行「{key}」的值不认识：{desc}'
-        + (f'\n  {why}' if why else '')
-        + f'\n  应写：{key}：{should}')
-
-
-# ── 行级键（`<键>：<值>`）──
-def _line_latin_font(spec, desc, lineno):
-    spec.default_latin = desc
-
-
-def _line_margins(spec, desc, lineno):
-    spec.margins = parse_margins(desc, lineno)
-
-
-def _line_proofing_lang(spec, desc, lineno):
-    if not re.fullmatch(r'[A-Za-z]{2}(?:-[A-Za-z]{2,4})?', desc):
-        raise _bad_value(lineno, '校对语言', desc, 'zh-CN', why='整行只写一个语言代码，不写语言名')
-    spec.proofing_lang = desc
-
-
-def _line_distance(field, key):
-    """页眉/页脚距边界：单值 + 单位 cm。"""
-    def handler(spec, desc, lineno):
-        m = re.fullmatch(r'(\d+(?:\.\d+)?)cm', desc)
-        if not m:
-            raise _bad_value(lineno, key, desc, '1.4cm', why='整行只写一个值，单位用 cm（无空格）')
-        setattr(spec, field, float(m.group(1)))
-    return handler
-
-
-def _line_gutter(spec, desc, lineno):
-    """装订线：整行一个 cm 值。"""
-    m = re.fullmatch(r'(\d+(?:\.\d+)?)cm', desc)
-    if not m:
-        raise _bad_value(lineno, '装订线', desc, '1cm', why='整行只写一个值，单位用 cm（无空格）')
-    spec.gutter_cm = float(m.group(1))
-
-
-def _line_doc_grid(spec, desc, lineno):
-    """文档网格：`每页22行`。
-
-    中文学位论文与公文常按「每页 N 行」规定版式（GB/T 9704 就是每页 22 行）。
-    Word 里对应「页面设置 → 文档网格 → 指定行网格」，写的是 `w:docGrid` 的
-    `linePitch`——每行占多少 twips，由版心高度除以行数算出。
-    """
-    m = re.fullmatch(r'每页(\d+)行', desc)
-    if not m:
-        raise _bad_value(lineno, '文档网格', desc, '每页22行',
-                         why='只支持按行数指定；「每行多少字」得靠字号与字距自己凑')
-    n = int(m.group(1))
-    if not 1 <= n <= 200:
-        raise _bad_value(lineno, '文档网格', desc, '每页22行', why='行数要在 1–200 之间')
-    spec.doc_grid_lines = n
-
-
-def _line_paper(spec, desc, lineno):
-    if desc not in PAGE_SIZE_MAP:
-        raise _bad_value(lineno, '纸张', desc, 'A4|Letter')
-    spec.page_size = PAGE_SIZE_MAP[desc]
-
-
-def _line_page_number(spec, desc, lineno):
-    spec.page_number = parse_page_number(desc, lineno)
-
-
-def _line_table(spec, desc, lineno):
-    spec.table = parse_table_props(desc, lineno)
-
-
-def _line_table_header(spec, desc, lineno):
-    # 「跨页重复」由子句表消费（_check_clause_preconditions 里限定它只能出现在这一行）
-    spec.table_header = parse_style_props('表头', desc, lineno)
-
-
-def _line_decor(container, key):
-    def handler(spec, desc, lineno):
-        spec.decor[container] = [] if desc == '无' else parse_decor_content(desc, lineno, key)
-    return handler
-
-
-_LINE_KEYS = {
-    '西文字体': _line_latin_font,
-    '页边距': _line_margins,
-    '校对语言': _line_proofing_lang,
-    '页眉距边界': _line_distance('header_distance', '页眉距边界'),
-    '页脚距边界': _line_distance('footer_distance', '页脚距边界'),
-    '纸张': _line_paper,
-    '装订线': _line_gutter,
-    '文档网格': _line_doc_grid,
-    '页码': _line_page_number,
-    '表格': _line_table,
-    '表头': _line_table_header,
-    **{key: _line_decor(container, key) for key, container in DECOR_CONTENT_KEYS.items()},
-}
-
-
-def parse_page_number(desc, lineno=None):
-    """解析「页码：<格式> [起始<N>]」→ (OOXML fmt, start)"""
-    tokens = desc.split()
-    if not (1 <= len(tokens) <= 2) or tokens[0] not in PAGE_NUMBER_FMT:
-        raise _bad_value(lineno, '页码', desc, '阿拉伯 起始1',
-                         why=f'第一个词须为 {"/".join(PAGE_NUMBER_FMT)} 之一，可选第二个词为 起始<正整数>')
-    fmt = PAGE_NUMBER_FMT[tokens[0]]
-    start = None
-    if len(tokens) == 2:
-        m = re.fullmatch(r'起始(\d+)', tokens[1])
-        if not m:
-            raise _bad_value(lineno, '页码', desc, '阿拉伯 起始1',
-                             why=f'不认识「{tokens[1]}」，起始页码应写为 起始1')
-        start = int(m.group(1))
-    return fmt, start
-
-
-_MARGIN_SIDE_MAP = {'上': 'top', '下': 'bottom', '左': 'left', '右': 'right'}
-_MARGIN_TOKEN_RE = re.compile(r'^(?P<side>[上下左右])(?P<val>\d+(?:\.\d+)?)cm$')
-
-
-def parse_margins(desc, lineno=None):
-    """解析「页边距：上Xcm 下Xcm 左Xcm 右Xcm」。四边必填、单位只认 cm。"""
-    margins = {}
-    bad_tokens = []
-    for tok in desc.split():
-        m = _MARGIN_TOKEN_RE.fullmatch(tok)
-        if not m:
-            bad_tokens.append(tok)
-            continue
-        en = _MARGIN_SIDE_MAP[m.group('side')]
-        if en in margins:
-            raise _bad_value(lineno, '页边距', desc, '上2.54cm 下2.54cm 左2.54cm 右2.54cm',
-                             why=f'「{m.group("side")}」重复写了两次')
-        margins[en] = float(m.group('val'))
-    missing = [cn for cn, en in _MARGIN_SIDE_MAP.items() if en not in margins]
-    if missing or bad_tokens:
-        why = []
-        if missing:
-            why.append(f'缺了「{"」「".join(missing)}」')
-        if bad_tokens:
-            why.append(f'不认识「{"」「".join(bad_tokens)}」')
-        raise _bad_value(lineno, '页边距', desc, '上2.54cm 下2.54cm 左2.54cm 右2.54cm',
-                         why='；'.join(why) + '（四边必填、单位用 cm，如 上2.54cm）')
-    return margins
-
 
 def apply_proofing_language(doc, lang):
     """把校对语言写进 docDefaults。
@@ -1187,7 +979,7 @@ def append_field(paragraph, instr):
 
 
 def write_decor_container(container, parts, style_name):
-    """把 parse_decor_content() 的结果写进一个页眉/页脚容器"""
+    """把要求文件里解析出来的页眉/页脚内容写进容器"""
     container.is_linked_to_previous = False   # 先强制建出部件，否则写进去会被继承覆盖
     p = container.paragraphs[0] if container.paragraphs else container.add_paragraph()
     _clear_runs(p)
@@ -1222,9 +1014,8 @@ def ensure_style_alias(doc, style_name, alias):
     因此这里把要求在文件里写的那个名字原样注册成别名——用户写什么，域就用什么，
     不依赖使用者 Word 的界面语言。
     """
-    try:
-        style = doc.styles[style_name]
-    except KeyError:
+    style = _find_style(doc, style_name)
+    if style is None:
         return False
 
     el = style.element

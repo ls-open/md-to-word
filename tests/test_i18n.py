@@ -6,13 +6,12 @@
 
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import pytest
 
 from md_to_word.cli import build_parser
-from md_to_word.i18n import _MESSAGES, SUPPORTED, resolve_lang, t
+from md_to_word.i18n import _MESSAGES, resolve_lang
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 

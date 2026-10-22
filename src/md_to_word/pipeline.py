@@ -61,6 +61,21 @@ class ExportResult:
         return self.returncode in (0, 3)
 
 
+def _strip_theme_from_template(src: Path, dst: Path) -> Path:
+    """把模板里的主题属性剥掉，写成一份干净的副本。"""
+    import zipfile
+
+    from md_to_word.utils.skill_utils import strip_theme_attrs_from_xml
+
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            data = zin.read(item.filename)
+            if item.filename in ("word/styles.xml", "word/stylesWithEffects.xml"):
+                data = strip_theme_attrs_from_xml(data)
+            zout.writestr(item, data)
+    return dst
+
+
 def run_export_pipeline(options: ExportOptions) -> ExportResult:
     """执行完整的纯 Python 学术导出流水线。"""
     res = ExportResult(returncode=0)
@@ -182,6 +197,10 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
         # 临时模板生成
         tpl_for_render = custom_template
+        if tpl_for_render:
+            # 第三方模板（期刊/学校下发的 .docx）常带主题字体与主题色，它们优先级高于
+            # 显式字体，会让"设置了样式却不生效"。用之前先剥一遍，和自生成模板同一标准。
+            tpl_for_render = _strip_theme_from_template(tpl_for_render, Path(temp_dir) / "template.docx")
         if not tpl_for_render:
             if not req_content:
                 res.returncode = 1

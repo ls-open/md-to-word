@@ -39,9 +39,11 @@
 为杜绝"设置了样式却不生效"的隐蔽 Bug，框架实行**三重纵深防御机制**：
 1. **底模生成阶段（源头零污染）**：`create_pure_modern_base.py` 构建 `styles.xml` 时不写入任何 `asciiTheme`、`eastAsiaTheme`、`themeColor` 属性或非黑颜色；
 2. **模板刷样阶段（过程净化）**：`src/md_to_word/template/generator.py` 保存时刻对 `styles.xml` 再次执行递归清理；
-3. **最终导出阶段（末端兜底与防御）**：`src/md_to_word/postprocessor/equations.py` 在后处理公式的同时对最终 docx 再次执行样式净化。**此步的双重必要性**：
-   - **第三方模板兜底**：用户直接使用期刊官方现有 `.docx` 模板（非脚本生成）时，也能自动拔除其中残留的主题属性；
-   - **写出后复扫**：写出器只按模板套样式，理论上不会再引入主题标记；导出前的这一步是保险，确保交到作者手里的终稿 100% 纯净。
+3. **外部模板入场时（第三方兜底）**：用户用 `-t` 拿期刊或学校下发的 `.docx` 当底模时，
+   `pipeline._strip_theme_from_template` 先把它复制一份、剥掉 `styles.xml` 里的全部主题属性，
+   再交给写出器——第三方模板里的 `asciiTheme` 同样会盖掉显式字体，不剥就还是"设了不生效"。
+
+前两层针对自己生成的模板，第三层针对别人的模板；写出器本身不再引入主题标记，所以没有第四层。
 
 ### 1.3 学术公式居中与编号靠右对齐
 
@@ -138,7 +140,7 @@ Word 打印时会把它加到左边距之外，但**算版心的公式里没有�
 - 参考文献 `悬挂缩进0.5英寸`（= 36pt = 1.27cm，APA/MLA/Chicago/Vancouver 国际标准）
 - **⚠️ 2 字符 ≠ 0.5 inch**：APA 标准的 0.5 inch = 36pt = 1.27cm，中文排版的 2 字符在 12pt 字号下 = 24pt = 0.85cm，两者是不同体系的数值，不能混用。英文论文用 `首行缩进0.5英寸`，中文论文用 `首行缩进2字符`。
 
-### 1.8 参考文档被带走了什么（**改模板前必读**）
+### 1.8 底模里哪些东西会被带走（**改模板前必读**）
 
 **为什么要自己生成模板**：Word 的样式槽位是封闭的，用的样式不在 `styles.xml` 里就只能退成普通段落。生成器只从底模拿走三类东西，其余一概不用：
 
@@ -147,9 +149,6 @@ Word 打印时会把它加到左边距之外，但**算版心的公式里没有�
 | `word/styles.xml` 样式表 | 正文内容（`document.xml` 的段落一概忽略） |
 | 文档属性：页面尺寸、页边距、**页眉、页脚** | 多节结构（见 §1.8.1） |
 | `word/header*.xml`、`word/footer*.xml` 全部部件 | 域的计算结果（域由 Word 更新） |
-
-> 官方手册：*"The contents of the reference docx are ignored, but its stylesheets and
-> document properties (including margins, page size, header, and footer) are used."*
 
 所以**页眉 / 页脚 / 页码是模板能力，不是导出后手工补的活**——`reference.md §1.4` 把它列进
 「完全支持」的理由就在这里。
@@ -183,7 +182,7 @@ Word 打印时会把它加到左边距之外，但**算版心的公式里没有�
 
 ### 1.9 requirements.txt 是一门**封闭**的小语言
 
-它是本技能唯一的用户界面，只有两级语法，两级各由**一张表**实现（都在 `src/md_to_word/template/generator.py`）：
+它是本技能唯一的用户界面，只有两级语法，两级各由**一张表**实现（都在 `src/md_to_word/spec/parser.py`）：
 
 | 层级 | 例子 | 表 |
 |:--|:--|:--|
@@ -211,7 +210,7 @@ Word 打印时会把它加到左边距之外，但**算版心的公式里没有�
 
 | # | 改哪 | 做什么 | 能不能不填 |
 |:--|:--|:--|:--|
-| ① | `src/md_to_word/template/generator.py` | `_LINE_KEYS` 或 `_CLAUSE_TABLE` 加一行 | 必须 |
+| ① | `src/md_to_word/spec/parser.py` | `_LINE_KEYS` 或 `_CLAUSE_TABLE` 加一行 | 必须 |
 | ② | `reference.md §1.5` | 唯一写法 + 示例 + 错误写法（常用项再加进 `SKILL.md §2.1`）| 必须 |
 | ③ | `src/md_to_word/audit/inspector.py` | 导出后对账能从 XML 里把这条读出来核一遍 | 可以，但要写明**为什么核不了** |
 | ④ | `src/md_to_word/template/extractor.py` | 参考 `.docx` 里读得出这条，能写进草稿 | 可以，但要写明**为什么读不出** |
@@ -239,10 +238,12 @@ Word 打印时会把它加到左边距之外，但**算版心的公式里没有�
 | `docProps/core.xml` 的 `dcterms:created` / `dcterms:modified` | 就是 Word「属性」里显示的创建/修改时间 | 写死为 `1970-01-01T00:00:00Z` |
 | zip 每个条目的时间戳 | `ZipFile.writestr(name, data)` 默认取当前时刻，改的是压缩包本身 | 统一写 `1980-01-01 00:00:00`（DOS 时间起点） |
 
-两个值都一眼看得出是钉死的，不会与真实时间混淆。实现在 `src/md_to_word/postprocessor/equations.py` 的
-`process_docx`：用显式的 `ZipInfo` 写入，并在写之前把 core.xml 的时间戳换掉。
+两个值都一眼看得出是钉死的，不会与真实时间混淆。实现在 `src/md_to_word/utils/docx_zip.py` 的
+`normalize_zip`：写出后重写一遍压缩包，只换时间戳、条目内容原样搬运；`write_docx` 结尾调用。
+`tests/test_docx_writer.py` 里有一条「导出两次、逐字节比对」的断言守着它——这项保证曾经随着
+旧后处理通道一起被删掉，谁都没发现。
 
-> 只改这两处就够——实测两份产物逐部件比对，差异只出在 `docProps/core.xml`。
+> 只改这两处就够——实测两份产物逐部件比对，差异只出在 `docProps/core.xml` 与 zip 时间戳。
 
 ### 1.11 文档网格为什么要按行距倍数补偿
 
