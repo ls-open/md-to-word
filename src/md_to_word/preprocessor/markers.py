@@ -60,7 +60,7 @@ def toc_xml(level: Optional[int] = None) -> str:
     depth = level if level is not None else 3
     if not 1 <= depth <= _MAX_TOC_DEPTH:
         raise MarkerError(f"目录收录级数要在 1–{_MAX_TOC_DEPTH} 之间，收到 {depth}")
-    # 前后各留一个空格：与 Word 自己写出的域代码同形，也让两条流水线的产物逐字节可比。
+    # 前后各留一个空格：与 Word 自己写出的域代码同形，用户在 Word 里改域时不会对不上。
     instr = f' TOC \\o "1-{depth}" \\h \\z \\u '
     return (
         '<w:sdt xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'

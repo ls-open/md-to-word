@@ -1,6 +1,6 @@
 """md_to_word.audit.postflight — 产物数值防丢完整性检查。
 
-确定性比对原稿中的每个三位以上小数，确保在导出的 DOCX 中完整保留，杜绝后处理丢段。
+确定性比对原稿中的每个三位以上小数，确保在导出的 DOCX 中完整保留。
 """
 
 from __future__ import annotations
