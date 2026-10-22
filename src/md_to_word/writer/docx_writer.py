@@ -130,6 +130,7 @@ class _Writer:
         self._footnote_ids: dict[str, int] = {}
         self._eq_numbers: dict[str, tuple[int, int]] = {}  # 标签 → (章号, 序号)
         self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
+        self._bibliography_written = False  # 文献表只在「参考文献标题」后写一次
         chinese = looks_chinese(self._prose_text())
         self._crossref_prefixes = {
             **default_crossref_prefixes(chinese),
@@ -192,9 +193,14 @@ class _Writer:
             self._after_heading = False
 
     def _write_bibliography(self) -> None:
-        """文献列表由引擎生成，放在文末；样式由要求文件的「参考文献」行控制。"""
-        if self.citations is None:
+        """文献列表由引擎生成；样式由要求文件的「参考文献」行控制。
+
+        插在 `%% 参考文献标题` 那一行**之后**，而不是无条件押到文末——文献后面接附录、
+        接致谢都是正常的稿子结构，押到文末会把它们排到文献列表前面去。
+        """
+        if self._bibliography_written or self.citations is None:
             return
+        self._bibliography_written = True
         entries = self.citations.bibliography_entries()
         if not entries:
             return
@@ -337,6 +343,8 @@ class _Writer:
         paragraph = self.docx.add_paragraph(style=style)
         self._last_paragraph = paragraph
         self.inlines(paragraph, block.inlines)
+        if style == "References Title":
+            self._write_bibliography()
 
     def _code(self, block: CodeBlock) -> None:
         paragraph = self.docx.add_paragraph(style="SourceCode")

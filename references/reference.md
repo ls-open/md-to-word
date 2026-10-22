@@ -30,7 +30,7 @@
 | Captioned Figure | 图片所在的段落（对齐由 `图：` 样式行控制，默认模板设为居中） | `doc.styles['Captioned Figure']` |
 | Table Note | 表注 | `doc.styles['Table Note']` |
 | Bibliography | 参考文献条目（列表由引擎生成在文末） | `doc.styles['Bibliography']` |
-| References Title | 参考文献抬头，正文写 `%% 参考文献标题 参考文献` | `doc.styles['References Title']` |
+| References Title | 参考文献抬头，正文写 `%% 参考文献标题 参考文献`；文献条目紧跟在这一段之后 | `doc.styles['References Title']` |
 | Keywords | 关键词 | `doc.styles['Keywords']` |
 | Footnote Text | 脚注正文 | `doc.styles['Footnote Text']` |
 | Footnote Reference | 脚注序号（字符样式，上标）| `doc.styles['Footnote Reference']` |
@@ -286,7 +286,7 @@ crossref:
 | 标题、副标题、作者、日期 | 正文 `%% 文档标题` / `%% 副标题` / `%% 作者` / `%% 日期` | 位置由这一行的位置决定 |
 | 摘要 | 正文 `%% 摘要标题` + 每段一行 `%% 摘要` | 可放在标题后，也可放在致谢前 |
 | 关键词 | 正文 `%% 关键词` 一行 | 同上 |
-| 文献区标题 | 正文 `%% 参考文献标题 参考文献` | 文献列表由 `.bib` 生成，抬头得作者自己写 |
+| 文献区标题 | 正文 `%% 参考文献标题 参考文献` | 文献列表由 `.bib` 生成，抬头得作者自己写。**条目就插在这一行之后**——文献后面接附录、接致谢都按稿子的顺序排 |
 
 > **YAML 里写 `title` / `subtitle` / `author` / `date` / `abstract` / `keywords` 会被预检拦下**，
 > 报错直接给出该写成哪一行样式行。这不是兼容性缺口：标题被钉死在第一页，或一段摘要静默

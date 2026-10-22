@@ -356,3 +356,32 @@ def test_equation_number_placement_is_configurable(template: Path, tmp_path: Pat
     assert 'w:val="right"' in right_xml and "(1)" in right_xml
     assert 'w:val="right"' not in inline_xml, "紧跟时不设右制表位"
     assert "(1)" in inline_xml
+
+
+def test_bibliography_is_inserted_at_the_references_title(template: Path, tmp_path: Path) -> None:
+    """文献列表插在 `%% 参考文献标题` 那一行之后，不是无条件押到文末。
+
+    文献后面接附录、接致谢都是常见结构；押到文末会把附录排到文献列表前面去，
+    读起来就是「参考文献」标题下面挂着附录，条目反而在最后。
+    """
+    from md_to_word.transform.citations import CitationEngine
+
+    bib = Path(tmp_path) / "refs.bib"
+    bib.write_text(
+        "@article{smith2024,\n  author = {Smith, John},\n  title = {A Study},\n"
+        "  journal = {Nature},\n  year = {2024},\n}\n",
+        encoding="utf-8",
+    )
+    csl = REPO_ROOT / "src" / "md_to_word" / "resources" / "csl" / "chinese-gb7714-2015-numeric.csl"
+    engine = CitationEngine(bib.read_text(encoding="utf-8"), csl)
+
+    model = read_markdown(
+        "---\n---\n\n# 一 引言\n\n见 [@smith2024]。\n\n%% 参考文献标题 参考文献\n\n# 附录 A 补充\n\n附录正文。\n"
+    )
+    out = write_docx(model, template, Path(tmp_path) / "cite.docx", citations=engine)
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+
+    bib_at = xml.find('w:val="Bibliography"')
+    appendix_at = xml.find("附录 A 补充")
+    assert bib_at != -1 and appendix_at != -1
+    assert bib_at < appendix_at, "文献条目要在附录之前"
