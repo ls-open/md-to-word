@@ -33,3 +33,25 @@ def test_round_trip_is_lossless(preset: str) -> None:
 def test_serialized_text_declares_schema_version() -> None:
     spec = parse_requirements((PRESETS / "zh-academic.txt").read_text(encoding="utf-8"))
     assert serialize_requirements(spec).startswith("# schema:")
+
+
+def test_page_grid_round_trip() -> None:
+    """`文档网格：每页N行` 存的是「渲染完真的 N 行」，不是把 N 直接当行距。
+
+    行距倍数会把网格间距再乘一遍（实测 22 行配 1.5 倍只落 14 行），所以写入时除掉了
+    倍数；反解把倍数乘回去之后必须还是 22——公文版式（GB/T 9704）靠这个数。
+    """
+    from md_to_word.template.generator import (
+        body_line_spacing_multiple, doc_grid_lines_from_pitch, doc_grid_pitch,
+    )
+
+    spec = parse_requirements(
+        (PRESETS / "zh-academic.txt").read_text(encoding="utf-8").rstrip() + "\n文档网格：每页22行\n"
+    )
+    assert spec.doc_grid_lines == 22
+    pitch = doc_grid_pitch(spec, spec.margins)
+    assert pitch > 0
+    back = doc_grid_lines_from_pitch(
+        pitch, body_line_spacing_multiple(spec.styles), spec.page_size, spec.margins
+    )
+    assert back == 22
