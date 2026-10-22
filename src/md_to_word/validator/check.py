@@ -121,7 +121,7 @@ def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
 
 
 def latex_tag_issues(md_text: str) -> list[tuple[int, str]]:
-    """`\\tag{}` 不是本技能支持的编号写法，整条公式会退化成字面文本。
+    """`\\tag{}` 不是本工具支持的编号写法，整条公式会退化成字面文本。
 
     公式编号只有 `{#eq-xxx}` 一种写法；写错就拦下，不做自动转换。
     """
@@ -143,7 +143,7 @@ def content_width_cm(spec: TemplateSpec) -> Optional[float]:
 def required_style_issues(md_text: str, spec: TemplateSpec, fm_data) -> list[tuple[int, str]]:
     """稿件用到了结构、要求文件却没声明对应样式 → 导出会静默回退默认样式。
 
-    这是本技能最要紧的一道门禁：产物外观正常，但格式根本没映射上。
+    这是本工具最要紧的一道门禁：产物外观正常，但格式根本没映射上。
     """
     declared = {s.get("style_name") for s in spec.styles}
     if spec.table:
@@ -336,7 +336,7 @@ def validate_manuscript(
                 shown = "、".join(f"行 {n}" for n in bare_cites[:5])
                 report.errors.append(
                     f"正文有 {len(bare_cites)} 处 `[@key]` 引用语法，但稿件未声明 `bibliography:`（{shown}）；"
-                    f"不处理会把这几个字符原样印进 docx。本技能只支持由 .bib 生成文献列表："
+                    f"不处理会把这几个字符原样印进 docx。本工具只支持由 .bib 生成文献列表："
                     f"在 YAML 里加 `bibliography: refs.bib`（配合 `csl:` 选样式），"
                     f"若只是想展示语法字面量，用反引号包起来"
                 )
@@ -438,7 +438,7 @@ def validate_manuscript(
     for line_no, snippet in latex_tag_issues(md_text):
         report.valid = False
         report.errors.append(
-            f"行 {line_no} [公式编号]: 发现 `\\tag{{}}`，这不是本技能的编号写法，整条公式会退化成字面文本（{snippet}）；"
+            f"行 {line_no} [公式编号]: 发现 `\\tag{{}}`，这不是本工具的编号写法，整条公式会退化成字面文本（{snippet}）；"
             f"删掉 `\\tag{{X}}`，改写成 `$$…$$ {{#eq-标签}}`，编号由 crossref 生成"
         )
 
@@ -457,12 +457,12 @@ def validate_manuscript(
             report.valid = False
             report.errors.append(f"行 {line_no} [结构样式缺失]: {why}")
 
-    # 14b. `:::` 不是本技能的写法
+    # 14b. `:::` 不是本工具的写法
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         if re.match(r"^\s*:::", line):
             report.valid = False
             report.errors.append(
-                f"行 {line_no} [段落样式]: `:::` 不是本技能的写法。"
+                f"行 {line_no} [段落样式]: `:::` 不是本工具的写法。"
                 f"需要段落样式就写成一行 `%% 样式名 内容`；文献列表由引擎放在文末，不需要定位标记。"
             )
 

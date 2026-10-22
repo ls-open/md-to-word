@@ -42,6 +42,8 @@ md-to-word 稿件.md -o 输出.docx                      # 内置中文预设 zh
 md-to-word 稿件.md --preset en-nature -o out.docx    # 英文期刊预设
 md-to-word 稿件.md -r 格式要求.txt -o out.docx        # 显式指定要求文件
 md-to-word --contract                               # 契约速查 + 本手册路径 + 预设路径
+md-to-word --contract --lang en                     # 同上，英文版（样式名用英文正典名）
+md-to-word 稿件.md -o 输出.docx --verbose            # 逐样式明细，排查「格式没生效」
 ```
 
 **格式要求三选一**：`-r` 显式指定；稿件同目录有唯一 `.txt` 时自动接管（会在输出里报出接管了哪一份）；

@@ -19,10 +19,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "现代学术 Markdown 到期刊/学位规范 Word (.docx) 编译引擎",
         "Compile Markdown into publication-ready Word (.docx)",
     ),
-    "cli.exit_codes": (
-        "退出码: 0=成功 / 1=稿件或门禁问题 / 3=docx 已生成但 PDF 未渲染",
-        "Exit codes: 0=ok / 1=manuscript or gate failure / 3=docx written, PDF skipped",
+    "cli.epilog": (
+        "退出码: 0=成功 / 1=稿件或门禁问题 / 3=docx 已生成但 PDF 未渲染\n"
+        "没有文档、不知从哪下手？先跑 `md-to-word --contract`（加 --lang en 得英文版）。",
+        "Exit codes: 0=ok / 1=manuscript or gate failure / 3=docx written, PDF skipped\n"
+        "No docs at hand? Run `md-to-word --contract` first.",
     ),
+    "cli.help": ("显示本帮助后退出", "show this help message and exit"),
+    "cli.version": ("显示版本号后退出", "show program's version number and exit"),
     "cli.input": ("输入的 Markdown 稿件 (.md)", "Input Markdown manuscript (.md)"),
     "cli.output": ("输出的 Word 文档路径 (.docx)", "Output .docx path"),
     "cli.requirements": (
@@ -34,8 +38,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Built-in preset: zh-academic (Chinese thesis) or en-nature (international journal)",
     ),
     "cli.template": (
-        "可选：指定现成 Word 样式模板 (.docx)",
-        "Optional: an existing .docx to take styles from",
+        "可选：指定现成 Word 样式模板 (.docx)，仅支持单节模板",
+        "Optional: an existing .docx to take styles from (single section only)",
     ),
     "cli.lang": ("消息语言：auto=按稿件语种 / zh / en", "Message language: auto / zh / en"),
     "cli.no_check": ("跳过导前语法与排版契约预检（不推荐）", "Skip the pre-flight check (not recommended)"),
@@ -43,7 +47,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against requirements"),
     "cli.pdf": ("导出后再渲染一份 PDF 供核对（macOS + 本机 Word）", "Also render a PDF for review (macOS + local Word)"),
     "cli.input_required": ("缺少稿件路径：md-to-word 稿件.md", "Missing manuscript path: md-to-word paper.md"),
-    "cli.contract": ("打印稿件契约速查后退出（不导出）", "Print the manuscript contract cheatsheet and exit"),
+    "cli.verbose": (
+        "输出逐样式明细（排查格式没生效时用）",
+        "Log every style as it is applied (for diagnosing formats that did not take effect)",
+    ),
+    "cli.contract": (
+        "打印稿件契约速查、手册与预设的路径后退出（--lang en 得英文版）",
+        "Print the manuscript contract, manual and preset paths, then exit (--lang en for English)",
+    ),
     # ── 流水线：路径与配置 ──────────────────────────────────────────
     "pipeline.input_missing": ("输入稿件不存在: {path}", "Input manuscript not found: {path}"),
     "pipeline.requirements_missing": ("指定的格式要求文件不存在: {path}", "Requirements file not found: {path}"),
@@ -90,14 +101,20 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
     "pipeline.pdf_skipped": ("docx 已正常生成；PDF 渲染未执行或未完成。", "docx written; the PDF step was skipped or did not finish."),
     "pipeline.reminder": (
-        "导出完成。请在 Word 中打开该文档并核对以下各项：表格的行高与列宽由内容自适应；"
-        "公式、三线表、图片与题注的位置；页眉与页脚。以上各项均需在 Word 中目视确认。",
-        "Export complete. Open the document in Word and verify the following: table row heights "
-        "and column widths adapt to content; the placement of equations, three-line tables, "
-        "figures and captions; and the headers and footers. Each of these can be confirmed "
-        "visually only.",
+        "导出完成。版面仍需在 Word 里目视核对：\n"
+        "  · 表格的行高与列宽按内容自适应\n"
+        "  · 公式、三线表、图片与题注的落版\n"
+        "  · 页眉与页脚",
+        "Export complete. The layout still needs a look in Word:\n"
+        "  · table row heights and column widths adapt to content\n"
+        "  · where equations, three-line tables, figures and captions land\n"
+        "  · headers and footers",
     ),
     # ── 模板生成 ────────────────────────────────────────────────────
+    "template.built": (
+        "✓ 样式模板已生成：{count} 个样式",
+        "Style template built: {count} styles",
+    ),
     "template.styles_only": (
         "该模板只提供样式（styles.xml）。导出命令：md-to-word 稿件.md -o 输出.docx",
         "This template carries styles only (styles.xml). Export with: md-to-word paper.md -o out.docx",

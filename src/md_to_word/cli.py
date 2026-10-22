@@ -32,28 +32,65 @@ def _message_lang(argv: list[str]) -> str:
     return resolve_lang(text, override) if text else (override if override in SUPPORTED else "zh")
 
 
-def contract_cheatsheet() -> str:
+def _style_names(ascii_only: bool) -> list[str]:
+    """每个样式取第一个名字，按词表声明顺序。
+
+    排序会排成「一级、三级、二级」，读的人以为词表就这么乱。`ascii_only` 取英文
+    正典名（`Body Text`），否则取中文名（`正文`）。
+    """
+    from md_to_word.spec.constants import STYLE_MAP
+
+    seen: set[str] = set()
+    names: list[str] = []
+    for name, target in STYLE_MAP.items():
+        if name.isascii() != ascii_only or target in seen:
+            continue
+        seen.add(target)
+        names.append(name)
+    return names
+
+
+def contract_cheatsheet(lang: str = "zh") -> str:
     """稿件契约速查 + 手册与预设的真实路径。
 
     给「只装了包、手上没有任何文档」的调用方一个自足入口：一份够用的速查，加上
     去哪儿读全部内容、去哪儿拿一份现成的要求文件。路径从安装位置现算，不写死。
     """
     from md_to_word.config import resolve_preset_path
-    from md_to_word.spec.constants import STYLE_MAP
 
-    # 按词表声明顺序、每个样式只取第一个中文名：排序后的结果会变成「一级、三级、二级」，
-    # 读的人以为词表就这么乱。
-    seen: set[str] = set()
-    zh_names: list[str] = []
-    for cn, target in STYLE_MAP.items():
-        if cn.isascii() or target in seen:
-            continue
-        seen.add(target)
-        zh_names.append(cn)
     manual = Path(__file__).resolve().parent / "resources" / "manual.md"
     presets = "\n".join(
         f"  {name:<12} {resolve_preset_path(name)}" for name in ("zh-academic", "en-nature")
     )
+    if lang == "en":
+        return f"""A manuscript = plain Markdown + three conventions
+===============================================
+
+1. Headings: # / ## / ###, consecutive levels, never skipped.
+2. One line is one paragraph. To style a paragraph, start the line with
+   `%% Style Name content` (no closing fence):
+       %% Abstract Title Abstract
+       %% Abstract This paper proposes ...
+       %% Table Caption **Table 1** Comparison of methods
+       %% Image Caption Figure 1 System overview
+3. A numbered equation is `$$formula$$ {{#eq-label}}`, referred to as `@eq-label`.
+   Citations are `[@key]`, with `bibliography: refs.bib` and `csl: apa.csl` in the YAML.
+
+Block markers (one per line, blank lines around): `{{{{< pagebreak >}}}}`, `{{{{< toc 2 >}}}}`,
+`{{{{< section 页码=小写罗马 起始=1 >}}}}`.
+
+Style names (a wrong name stops the export with a line number):
+{', '.join(_style_names(ascii_only=True))}
+
+Format requirements: without -r the built-in preset is used (zh-academic for Chinese,
+--preset en-nature for English journals). One style per line, for example
+`Body Text: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 0pt indent 0`.
+Start from a preset: copy the file below next to the manuscript and change only the lines you need.
+
+Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits): {manual}
+Built-in presets:
+{presets}
+"""
     return f"""稿件 = 普通 Markdown + 三条约定
 ================================
 
@@ -69,7 +106,7 @@ def contract_cheatsheet() -> str:
 块级标记（独占一行，前后留空行）：`{{{{< pagebreak >}}}}`、`{{{{< toc 2 >}}}}`、
 `{{{{< section 页码=小写罗马 起始=1 >}}}}`。
 
-样式名（写错会带行号报错）：{'、'.join(zh_names)}
+样式名（写错会带行号报错）：{'、'.join(_style_names(ascii_only=False))}
 
 格式要求：不传 -r 时用内置预设（中文 zh-academic、英文 --preset en-nature），
 每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
@@ -85,8 +122,12 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="md-to-word",
         description=t("cli.description", lang),
-        epilog=t("cli.exit_codes", lang),
+        epilog=t("cli.epilog", lang),
+        # 反参自己带换行：让 argparse 原样输出，别把两行压成一行
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        add_help=False,
     )
+    parser.add_argument("-h", "--help", action="help", help=t("cli.help", lang))
     parser.add_argument("input", nargs="?", help=t("cli.input", lang))
     parser.add_argument("-o", "--output", help=t("cli.output", lang))
     parser.add_argument("-r", "--requirements", help=t("cli.requirements", lang))
@@ -97,20 +138,26 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("--no-postflight", action="store_true", help=t("cli.no_postflight", lang))
     parser.add_argument("--no-audit", action="store_true", help=t("cli.no_audit", lang))
     parser.add_argument("--pdf", action="store_true", help=t("cli.pdf", lang))
+    parser.add_argument("-v", "--verbose", action="store_true", help=t("cli.verbose", lang))
     parser.add_argument("--contract", action="store_true", help=t("cli.contract", lang))
-    parser.add_argument("--version", action="version", version=f"md-to-word {__version__}")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"md-to-word {__version__}",
+        help=t("cli.version", lang),
+    )
     return parser
 
 
 def main(args: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if args is None else args)
-    configure_logging()
     lang = _message_lang(argv)
     parser = build_parser(lang)
     parsed = parser.parse_args(argv)
+    configure_logging("DEBUG" if parsed.verbose else "INFO", force=True)
 
     if parsed.contract:
-        print(contract_cheatsheet())
+        print(contract_cheatsheet(lang))
         return 0
     if not parsed.input:
         parser.error(t("cli.input_required", lang))

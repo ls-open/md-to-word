@@ -76,4 +76,4 @@ def test_reminder_is_localized_end_to_end(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.errors
     assert result.lang == "en"
-    assert any("Open the document in Word" in m for m in result.messages), result.messages
+    assert any("still needs a look in Word" in m for m in result.messages), result.messages

@@ -5,7 +5,7 @@
     python3 scripts/read_reference_docx.py 参考.docx [-o 草稿.txt]
 
 目标方给的参考文件（学校模板 / 期刊样例 / 客户旧文档）里的格式，靠人肉目测抄写既慢又漏。
-本脚本把**能确定的**读出来写成本技能的写法，把**确定不了的**单独列在末尾注释块里（不猜值
+本脚本把**能确定的**读出来写成本工具的写法，把**确定不了的**单独列在末尾注释块里（不猜值
 填空）。读完请人工过一遍那份"需确认"清单。
 
 口径（这三条是实测踩出来的，别用 python-docx 的现成 API 代替）：
@@ -32,7 +32,7 @@ W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
 TWIPS_PER_CM = 566.93
 
-# 页码格式词表：OOXML 值 → 本技能写法（与 generate_template.PAGE_NUMBER_FMT 反向对应）
+# 页码格式词表：OOXML 值 → 本工具写法（与 generate_template.PAGE_NUMBER_FMT 反向对应）
 PGNUM_FMT = {'decimal': '阿拉伯', 'upperRoman': '罗马', 'lowerRoman': '小写罗马',
              'lowerLetter': '字母', 'upperLetter': '大写字母'}
 ALIGN = {'both': '两端对齐', 'justify': '两端对齐', 'center': '居中',
@@ -183,7 +183,7 @@ def _content_width_twips(ref: Ref):
 
 
 def clauses_for(ref: Ref, sid: str) -> tuple:
-    """把一份参考样式的生效属性翻译成本技能的子句串。→ (子句列表, 该样式的疑问)"""
+    """把一份参考样式的生效属性翻译成本工具的子句串。→ (子句列表, 该样式的疑问)"""
     chain = ref.chain(sid)
     out, doubt = [], []
 
@@ -216,7 +216,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         if got:
             out.append(got)
         else:
-            doubt.append(f'对齐方式「{jc.get(q("val"))}」本技能不支持（如分散对齐），'
+            doubt.append(f'对齐方式「{jc.get(q("val"))}」本工具不支持（如分散对齐），'
                          f'已按左对齐处理')
     else:
         out.append('左对齐')
@@ -260,7 +260,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
     hang_chars, hang_tw = ind_int('hangingChars'), ind_int('hanging')
     if hang_chars or hang_tw:
         if hang_chars:
-            doubt.append('悬挂缩进原文件用「字符」为单位，本技能只支持英寸，已换算')
+            doubt.append('悬挂缩进原文件用「字符」为单位，本工具只支持英寸，已换算')
             out.append(f'悬挂缩进{hang_chars / 100:g}字符')
         else:
             out.append(f'悬挂缩进{hang_tw / 1440:g}英寸')
@@ -277,7 +277,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
     if left_chars and left_chars != hang_chars:
         out.append(f'左缩进{left_chars / 100:g}字符')
     elif left_tw and left_tw != hang_tw:
-        doubt.append('左缩进原文件用绝对值（磅）而非「字符」，本技能只支持字符，已按字号折算')
+        doubt.append('左缩进原文件用绝对值（磅）而非「字符」，本工具只支持字符，已按字号折算')
         base = int(sz.get(q('val'))) / 2 if sz is not None else 12
         out.append(f'左缩进{round(left_tw / 20 / base, 1):g}字符')
 
@@ -292,15 +292,15 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         if kind is None:
             doubt.append(f'下边框样式「{bottom.get(q("val"))}」不认识，已按单线处理')
             kind = '单线'
-        # 参考文件显式写了「无下边框」→ 折算成「无边框」。两者在本技能里产物一致
+        # 参考文件显式写了「无下边框」→ 折算成「无边框」。两者在本工具里产物一致
         # （都清掉整段 pBdr），只保留一种写法。
         out.append('无边框' if kind == '无' else f'下边框{kind}')
         if kind != '无' and bottom.get(q('sz')):
             out.append(f'边框粗{int(bottom.get(q("sz"))) / 8:g}磅')
 
-    # 制表位：本技能只能声明**一种**（`点线制表位`，右对齐 + 点线、落在版心右边界，
+    # 制表位：本工具只能声明**一种**（`点线制表位`，右对齐 + 点线、落在版心右边界，
     # 目录条目靠它顶页码）。参考文件里别的制表位表达不了——**要说出来**，不能静默丢：
-    # 用户拿学校模板来读，草稿少一条却毫无提示，正是这个技能一直在防的那种失败。
+    # 用户拿学校模板来读，草稿少一条却毫无提示，正是这套实现一直在防的那种失败。
     tabs = ref.eff(chain, 'pPr/tabs')
     tab_list = tabs.findall(q('tab')) if tabs is not None else []
     if tab_list:
@@ -316,7 +316,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
                               f"{int(t.get(q('pos')) or 0) / TWIPS_PER_CM:.2f}cm"
                               f"{'点线' if t.get(q('leader')) == 'dot' else ''}"
                               for t in tab_list)
-            doubt.append(f'用了 {len(tab_list)} 个制表位（{where}）——本技能的 `点线制表位` 只能'
+            doubt.append(f'用了 {len(tab_list)} 个制表位（{where}）——本工具的 `点线制表位` 只能'
                          f'表达「右对齐 + 点线 + 落在版心右边界」那一种，其余的草稿里没法表达，'
                          f'需要在 Word 里手工设（任意制表位见 manual.md §6）')
 
@@ -434,7 +434,7 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
         paper = PAPER.get(cm)
         out.append(f'纸张：{paper}' if paper else f'# 纸张：{cm[0]}×{cm[1]}cm（不是 A4/Letter）')
         if not paper:
-            doubt.append(f'纸张尺寸 {cm[0]}×{cm[1]}cm 不在本技能的 A4/Letter 之内')
+            doubt.append(f'纸张尺寸 {cm[0]}×{cm[1]}cm 不在本工具的 A4/Letter 之内')
     mar = sect.find(q('pgMar'))
     if mar is not None:
         def cm_of(name):
@@ -446,7 +446,7 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
             v = cm_of(name)
             if v:
                 out.append(f'{label}：{v:g}cm')
-        # 装订线（pgMar/@w:gutter）。本技能自己的产物里不会有它——写入时是**折进左边距**
+        # 装订线（pgMar/@w:gutter）。本工具自己的产物里不会有它——写入时是**折进左边距**
         # 写的（理由见 design.md §1.5），故这里读的只可能是别人模板里的。
         gut = cm_of('gutter')
         if gut:
@@ -458,8 +458,8 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
         if fmt:
             out.append(f'页码：{fmt}' + (f' 起始{start}' if start else ''))
         else:
-            doubt.append(f'页码格式「{pn.get(q("fmt"))}」不在本技能词表里')
-    # 文档网格：`linePitch` 是「每行多少 twips」，本技能的写法是「每页 N 行」，
+            doubt.append(f'页码格式「{pn.get(q("fmt"))}」不在本工具词表里')
+    # 文档网格：`linePitch` 是「每行多少 twips」，本工具的写法是「每页 N 行」，
     # 中间隔着行距倍数那一步补偿——用写入侧同一个函数反推（doc_grid_lines_from_pitch）。
     grid = sect.find(q('docGrid'))
     if grid is not None and grid.get(q('linePitch')):
@@ -555,7 +555,7 @@ def main(argv=None):
     leftover = sorted(k for k in ref.by_id
                       if k in used and k not in word_to_cn and not k.startswith('_'))
     if leftover:
-        ref.notes.append('参考文件里这些样式没映射到本技能词汇（要不要用请自行判断）：'
+        ref.notes.append('参考文件里这些样式没映射到本工具词汇（要不要用请自行判断）：'
                          + '、'.join(sorted(leftover)))
 
     if ref.notes:

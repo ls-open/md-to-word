@@ -87,7 +87,7 @@ def style_line_issues(text: str) -> list[tuple[int, str]]:
             issues.append(
                 (
                     i,
-                    f"「{name}」的下一行紧接正文，疑似软换行；本技能的段落样式以这一行为界，"
+                    f"「{name}」的下一行紧接正文，疑似软换行；本工具的段落样式以这一行为界，"
                     f"续行不会被并进来。请把整段合并到这一行",
                 )
             )

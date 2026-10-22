@@ -123,7 +123,8 @@ was skipped (non-macOS).
 
 `md-to-word --contract` prints the manuscript contract (three conventions plus the style-name list)
 and the real paths of the bundled manual and presets — the starting point when you have the package
-and no documentation at all.
+and no documentation at all (`--lang en` for English). When the output looks wrong, add `--verbose`
+to log every style as it is applied.
 
 
 **Python**:

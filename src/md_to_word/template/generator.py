@@ -261,7 +261,7 @@ def doc_grid_pitch(spec, margins) -> int:
 
 def doc_grid_lines_from_pitch(pitch: int, line_multiple: float, page_size, margins) -> int:
     """`w:docGrid/@linePitch` → 声明的「每页 N 行」。是 `doc_grid_pitch` 的逆，
-    读参考 .docx 时用（把别人模板里的网格反推成本技能的写法）。"""
+    读参考 .docx 时用（把别人模板里的网格反推成本工具的写法）。"""
     return max(1, int(round(_body_height_twips(page_size, margins) / pitch / line_multiple)))
 
 # python-docx 枚举 → OOXML 值（由上面那张中文表派生）
@@ -585,7 +585,7 @@ def modify_style(doc, style_name, props, default_latin=None):
             style.base_style = normal_style
         except KeyError:
             pass
-        logger.info(f' ✓ {style_name}: 已创建新样式（basedOn Normal）')
+        logger.debug(f' ✓ {style_name}: 已创建新样式（basedOn Normal）')
 
     _ensure_builtin_toc_style(style, style_name)
 
@@ -597,7 +597,7 @@ def modify_style(doc, style_name, props, default_latin=None):
     ppr = ensure_ordered_child(style.element, 'pPr', _STYLE_ORDER)
 
     if props.get('no_border') and ppr.find(W('pBdr')) is not None:
-        logger.info(f' ✓ {style_name}: 已去除段落边框')
+        logger.debug(f' ✓ {style_name}: 已去除段落边框')
 
     write_run_props(rpr, props, cjk=cjk, latin=latin)
     write_para_props(ppr, props)
@@ -614,7 +614,7 @@ def modify_style(doc, style_name, props, default_latin=None):
                     write_run_props(link_rpr, props, cjk=cjk, latin=latin)
                     break
 
-    logger.info(f' ✓ {style_name}: 已应用修改')
+    logger.debug(f' ✓ {style_name}: 已应用修改')
     return True
 
 
@@ -652,7 +652,7 @@ def get_default_template():
         raise TemplateError(
             f'未找到基础模板 {local_base}；请运行 scripts/create_pure_modern_base.py 重新生成。'
         )
-    logger.info(f"使用内置纯净现代 Word 365 基底模板: {local_base}")
+    logger.debug(f"使用内置纯净现代 Word 365 基底模板: {local_base}")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
     shutil.copyfile(str(local_base), tmp.name)
     tmp.close()
@@ -920,18 +920,18 @@ def _check_required_fields(spec) -> bool:
     has_errors = bool(missing_required or missing_styles or missing_rows)
 
     if missing_styles:
-        logger.info('\n⚠️ 必填样式缺失（将沿用 Word 默认值，可能不符合期刊要求）:')
+        logger.warning('⚠️ 必填样式缺失（将沿用 Word 默认值，可能不符合期刊要求）:')
         for style_name, alias in missing_styles:
             logger.info(f' - {alias}（{style_name}）')
         logger.info(' 建议在 requirements.txt 中补充这些样式的定义')
 
     if missing_rows:
-        logger.info('\n⚠️ 必填行缺失（不写就会套用默认样式）:')
+        logger.warning('⚠️ 必填行缺失（不写就会套用默认样式）:')
         for name, example in missing_rows:
             logger.info(f' - {name}: 应写「{example}」')
 
     if missing_required:
-        logger.info('\n⚠️ 必填字段缺失（缺失会沿用 Word 默认值，可能导致格式不合规）:')
+        logger.warning('⚠️ 必填字段缺失（缺失会沿用 Word 默认值，可能导致格式不合规）:')
         for alias, field in missing_required:
             hint = FIELD_FIX_HINT.get(field, field)
             logger.info(f' - {alias}: 缺少{FIELD_CN.get(field, field)}')
@@ -941,7 +941,7 @@ def _check_required_fields(spec) -> bool:
         logger.error('\n❌ 必填项或必填字段缺失，终止生成。')
         logger.error(' 请按上方提示补齐缺失项（不需要间距或缩进时，也须显式填 0，如「段前0磅」「首行缩进0字符」）。')
     else:
-        logger.info('✅ 必填字段校验通过')
+        logger.debug('必填字段校验通过')
 
     return has_errors
 
@@ -1064,14 +1064,14 @@ def apply_page_decorations(doc, spec):
         for which, label in (('even', '偶数页'), ('first', '首页')):
             if (uses_even if which == 'even' else uses_first) and (kind, which) not in spec.decor:
                 spec.decor[(kind, which)] = base
-                logger.info(f' ✓ {label}{cn}: 未单独指定，已沿用默认{cn}内容')
+                logger.debug(f' ✓ {label}{cn}: 未单独指定，已沿用默认{cn}内容')
 
     if uses_even:
         doc.settings.odd_and_even_pages_header_footer = True
-        logger.info(' ✓ 页眉页脚: 已开启奇偶页不同')
+        logger.debug(' ✓ 页眉页脚: 已开启奇偶页不同')
     if uses_first:
         section.different_first_page_header_footer = True
-        logger.info(' ✓ 页眉页脚: 已开启首页不同')
+        logger.debug(' ✓ 页眉页脚: 已开启首页不同')
 
     which_prefix = {'default': '', 'even': 'even_page_', 'first': 'first_page_'}
     kind_name = {'header': ('header', 'Header', '页眉'), 'footer': ('footer', 'Footer', '页脚')}
@@ -1079,16 +1079,16 @@ def apply_page_decorations(doc, spec):
         attr, style_name, cn = kind_name[kind]
         write_decor_container(getattr(section, which_prefix[which] + attr), parts, style_name)
         label = {'default': '', 'even': '偶数页', 'first': '首页'}[which]
-        logger.info(f' ✓ {label}{cn}: 已设置内容与域')
+        logger.debug(f' ✓ {label}{cn}: 已设置内容与域')
 
     for nm in collect_styleref_names(spec):
         if ensure_style_alias(doc, nm, nm):
-            logger.info(f' ✓ 页眉/页脚域: 已把「{nm}」注册为样式别名（STYLEREF 才能解析）')
+            logger.debug(f' ✓ 页眉/页脚域: 已把「{nm}」注册为样式别名（STYLEREF 才能解析）')
             continue
         # STYLEREF 只认 **Word 样式名**（Heading 1 这种），中文写法（一级标题）不是样式名，
         # 写进去 Word 会在页眉显示「错误!未找到引用源」。这里是导出最后一道能拦的地方。
         cn = STYLE_MAP.get(nm)
-        hint = (f'\n  「{nm}」是本技能的中文写法，对应 Word 样式名「{cn}」——'
+        hint = (f'\n  「{nm}」是本工具的中文写法，对应 Word 样式名「{cn}」——'
                 f'域里要写后者：{{样式标题:{cn}}}') if cn else ''
         raise TemplateError(
             f'页眉/页脚域 {{样式标题:{nm}}} 指向的样式在模板里不存在。'
@@ -1114,7 +1114,7 @@ def apply_page_decorations(doc, spec):
             pg.set(W('start'), str(start))
         else:
             pg.attrib.pop(W('start'), None)
-        logger.info(f' ✓ 页码: 格式={fmt}' + (f' 起始={start}' if start is not None else ''))
+        logger.debug(f' ✓ 页码: 格式={fmt}' + (f' 起始={start}' if start is not None else ''))
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1259,7 +1259,7 @@ def apply_table_format(doc, spec, default_latin=None):
     try:
         style_el = doc.styles['Table'].element
     except KeyError:
-        logger.info(' ⚠ 表格样式"Table"不存在（跳过表格边框和对齐设置）')
+        logger.warning('表格样式 "Table" 不存在（跳过表格边框和对齐设置）')
         return
 
     tbl_pr = ensure_ordered_child(style_el, 'tblPr', _STYLE_ORDER)
@@ -1270,14 +1270,14 @@ def apply_table_format(doc, spec, default_latin=None):
         tbl_pr.remove(old_jc)
     jc_el = ensure_ordered_child(tbl_pr, 'jc', _TBLPR_ORDER)
     jc_el.set(W('val'), table_align)
-    logger.info(f' ✓ Table: 表格对齐={table_align}（通过 Table 样式 jc 控制）')
+    logger.debug(f' ✓ Table: 表格对齐={table_align}（通过 Table 样式 jc 控制）')
 
     if table_style != 'none':
         declared = table.get('widths', {})
         widths = dict(TABLE_DEFAULT_WIDTHS.get(table_style, {}))
         widths.update(declared)                    # requirements 显式声明的线宽覆盖默认
         style_names = {'three-line': '三线表', 'grid': '全网格线', 'top-bottom': '顶底线'}
-        logger.info(f' ✓ Table: 已应用{style_names.get(table_style, table_style)}边框'
+        logger.debug(f' ✓ Table: 已应用{style_names.get(table_style, table_style)}边框'
               + (f'（线宽 {widths} 磅）' if declared else ''))
         _write_borders(tbl_pr, table_border_widths(table_style, declared))
 
@@ -1298,7 +1298,7 @@ def apply_table_format(doc, spec, default_latin=None):
         if props.get('repeat_header'):
             tr_pr = ensure_ordered_child(tsp, 'trPr', _TBLSTYLEPR_ORDER)
             ensure_ordered_child(tr_pr, 'tblHeader', _TRPR_ORDER)
-        logger.info(' ✓ Table: 已设置表头行格式'
+        logger.debug(' ✓ Table: 已设置表头行格式'
               + ('（含跨页重复标题行）' if props.get('repeat_header') else ''))
 
     # 单元格内边距：要求文件写「单元格内边距Ncm」才生效，不写用 0。四种表格样式都适用。
@@ -1312,13 +1312,13 @@ def apply_table_format(doc, spec, default_latin=None):
         el.set(W('w'), str(twips))
         el.set(W('type'), 'dxa')
     if 'cell_margin_cm' in table:
-        logger.info(f' ✓ Table: 单元格内边距={table["cell_margin_cm"]}cm')
+        logger.debug(f' ✓ Table: 单元格内边距={table["cell_margin_cm"]}cm')
 
     if table.get('valign'):
         tsp = _get_tbl_style_pr(style_el, 'wholeTable')
         tc_pr = ensure_ordered_child(tsp, 'tcPr', _TBLSTYLEPR_ORDER)
         ensure_ordered_child(tc_pr, 'vAlign', _TCPR_ORDER).set(W('val'), table['valign'])
-        logger.info(f' ✓ Table: 单元格垂直对齐={table["valign"]}')
+        logger.debug(f' ✓ Table: 单元格垂直对齐={table["valign"]}')
 
 
 def _props_from_req(req, page_size, margins):
@@ -1364,7 +1364,7 @@ _ALIGN_CN = {val: cn for cn, val in ALIGN_VAL.items()}
 def _footnote_default_line(spec) -> str:
     """没写「脚注：」时的默认样式行：字体与对齐跟着正文走，字号按 SIZE_MAP 降一档。
 
-    降一档的依据是本技能自己的排版原则（注释比正文小 1.5~2 磅）：小四正文 → 五号脚注。
+    降一档的依据是本工具自己的排版原则（注释比正文小 1.5~2 磅）：小四正文 → 五号脚注。
     行距单倍、段前后 0、首行缩进 0——脚注是几行的注释，跟正文同为两端对齐时再带
     2 字符首行缩进会顶成锯齿。
     """
@@ -1390,7 +1390,7 @@ def apply_footnote_format(doc, spec, page_size, margins, default_latin=None):
         req = parse_style_props(_FOOTNOTE_STYLE, _footnote_default_line(spec))
         modify_style(doc, _FOOTNOTE_STYLE,
                      _props_from_req(req, page_size, margins), default_latin=default_latin)
-        logger.info(f' ✓ {_FOOTNOTE_STYLE}: 要求文件未写「脚注」，已按正文推定默认')
+        logger.debug(f' ✓ {_FOOTNOTE_STYLE}: 要求文件未写「脚注」，已按正文推定默认')
 
     try:
         ref = doc.styles[_FOOTNOTE_REF_STYLE]
@@ -1398,15 +1398,13 @@ def apply_footnote_format(doc, spec, page_size, margins, default_latin=None):
         ref = doc.styles.add_style(_FOOTNOTE_REF_STYLE, WD_STYLE_TYPE.CHARACTER)
     va = ensure_ordered_child(ensure_rpr(ref.element), 'vertAlign', _RPR_ORDER)
     va.set(W('val'), 'superscript')
-    logger.info(f' ✓ {_FOOTNOTE_REF_STYLE}: 已设为上标')
+    logger.debug(f' ✓ {_FOOTNOTE_REF_STYLE}: 已设为上标')
 
 
 def generate_template(requirements_text, output_path, margins=None, lang="zh"):
     """主流程：生成模板"""
     output_path = str(output_path)
-    logger.info('─' * 50)
-    logger.info('生成学术 Word 模板')
-    logger.info('─' * 50)
+    logger.debug('生成学术 Word 模板')
 
     spec = parse_requirements(requirements_text)
     page_size = spec.page_size
@@ -1422,28 +1420,28 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
     if not margins:
         margins = {'top': 2.54, 'bottom': 2.54, 'left': 2.54, 'right': 2.54}
 
-    logger.info(f'\n解析到 {len(reqs)} 个样式定义:')
+    logger.debug(f'解析到 {len(reqs)} 个样式定义:')
     for r in reqs:
         desc = f'{r["style_name"]}'
         if 'font_name' in r:
             desc += f' {", ".join(r["font_name"])}'
         if 'font_size' in r:
             desc += f' {r["font_size"].pt}pt'
-        logger.info(f' - {desc}')
+        logger.debug(f' - {desc}')
     if default_latin:
-        logger.info(f' 全局西文字体: {default_latin}')
+        logger.debug(f' 全局西文字体: {default_latin}')
 
     if _check_required_fields(spec):
         raise TemplateError('必填样式或必填字段缺失，详见上方逐条提示。')
 
-    logger.info('\n加载纯净现代 Word 365 底模...')
+    logger.debug('加载纯净现代 Word 365 底模...')
     tmp_path = get_default_template()
     doc = Document(tmp_path)
     cleanup_temp(tmp_path)
 
     if spec.proofing_lang:
         apply_proofing_language(doc, spec.proofing_lang)
-        logger.info(f' ✓ 校对语言: {spec.proofing_lang}')
+        logger.debug(f' ✓ 校对语言: {spec.proofing_lang}')
 
     for req in reqs:
         style_name = req.get('style_name')
@@ -1465,7 +1463,7 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
             color_el = rpr.find(W('color'))
             if color_el is not None:
                 clear_color_theme_attrs(color_el)
-        logger.info(' ✓ Hyperlink: 已设为黑色（取消下划线）')
+        logger.debug(' ✓ Hyperlink: 已设为黑色（取消下划线）')
     except KeyError:
         pass
 
@@ -1474,7 +1472,7 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
     try:
         caption_style = doc.styles['Caption']
         caption_style.font.italic = False
-        logger.info(' ✓ Caption: 已清除斜体（影响 Image Caption / Table Caption）')
+        logger.debug(' ✓ Caption: 已清除斜体（影响 Image Caption / Table Caption）')
     except KeyError:
         pass
 
@@ -1492,7 +1490,7 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
                     ppr.remove(el)
                     removed.append(tag)
             if removed:
-                logger.info(f' ✓ Abstract: 已清除 {" / ".join(removed)}（结构化摘要分段不再触发首页分页）')
+                logger.debug(f' ✓ Abstract: 已清除 {" / ".join(removed)}（结构化摘要分段不再触发首页分页）')
     except KeyError:
         pass
 
@@ -1519,9 +1517,9 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
                     color_el.set(W('val'), '000000')
                     had_color = True
                 if had_font and is_char_style:
-                    logger.info(f' ✓ {style_id}: 已清除主题字体')
+                    logger.debug(f' ✓ {style_id}: 已清除主题字体')
                 if had_color and is_char_style:
-                    logger.info(f' ✓ {style_id}: 已清除主题色')
+                    logger.debug(f' ✓ {style_id}: 已清除主题色')
 
     from docx.shared import Cm
     w_cm, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
@@ -1565,19 +1563,19 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
             left_note = f'（{margins["left"]}+装订线{spec.gutter_cm}）'
         if spec.doc_grid_lines:
             extra += f'，文档网格 每页 {spec.doc_grid_lines} 行'
-        logger.info(f' ✓ 页面: {page_size} ({w_cm}×{h_cm}cm)，边距 上{margins["top"]}cm 下{margins["bottom"]}cm 左{eff_left}cm{left_note} 右{margins["right"]}cm，内容宽 {content_w}cm{decor_cm}{extra}')
+        logger.debug(f' ✓ 页面: {page_size} ({w_cm}×{h_cm}cm)，边距 上{margins["top"]}cm 下{margins["bottom"]}cm 左{eff_left}cm{left_note} 右{margins["right"]}cm，内容宽 {content_w}cm{decor_cm}{extra}')
 
     try:
         doc.styles['Block Text']
     except KeyError:
         doc.styles.add_style('Block Text', WD_STYLE_TYPE.PARAGRAPH)
-        logger.info(' ✓ Block Text: 已创建')
+        logger.debug(' ✓ Block Text: 已创建')
 
     try:
         code_style = doc.styles['Source Code']
     except KeyError:
         code_style = doc.styles.add_style('Source Code', WD_STYLE_TYPE.PARAGRAPH)
-        logger.info(' ✓ Source Code: 已创建')
+        logger.debug(' ✓ Source Code: 已创建')
     # 代码块一律左对齐：它继承正文的「两端对齐」，长行会被拉伸到版心右边界——
     # 代码的换行位置本身就是作者写的，再拉伸只会让人以为是排版错了。
     code_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -1610,8 +1608,7 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
         # 宁可当场失败，也不要交出一个看着正常的坏模板。
         raise RuntimeError(f'模板已写出，但「styles.xml 主题属性清理」失败，产物不合格：{e}') from e
 
-    logger.info(f'✅ 模板已生成: {output_path} (现代 Word 365 引擎，compatMode=15)')
-    logger.info(t("template.styles_only", lang))
+    get_logger().info(t("template.built", lang, count=len(reqs)))
 
 
 def main():
@@ -1655,6 +1652,7 @@ def main():
     except TemplateError as exc:
         logger.error(f'错误: {exc}')
         sys.exit(1)
+    logger.info(t("template.styles_only", "zh"))
 
 
 if __name__ == '__main__':
