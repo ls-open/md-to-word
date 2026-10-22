@@ -456,9 +456,9 @@ docx 打开、更新目录域之后，条目变成 Word 默认的样子（不加
 
 | | 本仓库（pip 路线） | 技能仓库（自包含路线） |
 |:--|:--|:--|
-| 拿到什么 | `pip install md-to-word` | 整个目录，含 `src/`、`scripts/`、`presets/`、`resources/` |
+| 拿到什么 | `pip install md-to-word-docx` | 整个目录，含 `src/`、`scripts/`、`presets/`、`resources/` |
 | 文档 | `README` + 包内 `manual.md` | 自己的 `SKILL.md` 与 `references/` |
-| 更新 | `pip install -U md-to-word` | 重装技能目录 |
+| 更新 | `pip install -U md-to-word-docx` | 重装技能目录 |
 | 面向 | 会用命令行的人与 Agent | 不想装任何东西的人 |
 
 **代码不分叉，文档分叉**。技能仓库整棵 vendor 本仓库的源码（发版时拷一次），自己不维护第二份

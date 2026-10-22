@@ -85,7 +85,7 @@ runs without installing anything.
 
 | Entry | For | Install | Use |
 |:--|:--|:--|:--|
-| **Command line** | local exports, CI | `pip install md-to-word` | `md-to-word paper.md -o paper.docx` |
+| **Command line** | local exports, CI | `pip install md-to-word-docx` | `md-to-word paper.md -o paper.docx` |
 | **Python library** | scripts, custom pipelines | same | `from md_to_word import export` |
 | **AI skill** | handing the job to an agent, without installing anything | use the self-contained skill directory (source + `SKILL.md` + `references/`); this repository publishes the engine | "Export this manuscript as Word, following my school's format." |
 
@@ -97,7 +97,7 @@ pip install "git+https://github.com/ls-open/md-to-word@main"
 pip install -r requirements.txt    # or install dependencies inside a source checkout
 ```
 
-Updates: `pip install -U md-to-word` (use `pipx install` / `pipx upgrade` to keep it out of the
+Updates: `pip install -U md-to-word-docx` (use `pipx install` / `pipx upgrade` to keep it out of the
 system environment). **Code and manual upgrade together**: the full vocabulary, contract and gate
 reference live in `manual.md` inside the package, at the same version as the code.
 

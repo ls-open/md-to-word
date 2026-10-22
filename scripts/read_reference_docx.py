@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """read_reference_docx.py — 入口：从参考 .docx 反推格式要求草稿
 
-实现只有一份，在包里（`pipx install md-to-word`）。本文件只把命令行参数转过去；
+实现只有一份，在包里（`pipx install md-to-word-docx`）。本文件只把命令行参数转过去；
 从源码检出运行时，若有 `src/` 就用仓库里那份，否则用已安装的包。
 """
 import sys

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # export.sh — 仓库里的转发壳：找到已安装的 md-to-word，把参数原样交给它。
 #
-# 本仓库走 pip 分发：实现是包，升级是 `pip install -U md-to-word`，本文件只做转发。
+# 本仓库走 pip 分发：实现是包，升级是 `pip install -U md-to-word-docx`，本文件只做转发。
 # 已安装的实现优先——这正是分发形态下的正常路径；仓库自带的 `src/` 只在开发检出、
 # 且没有装过包时兜底。
 #
@@ -37,10 +37,10 @@ fi
 cat >&2 <<'EOF'
 未找到 md-to-word。这个技能只是入口，实现要单独安装：
 
-  pip install md-to-word                      # 已发布到 PyPI 后
+  pip install md-to-word-docx                      # 已发布到 PyPI 后
   pip install "git+https://github.com/ls-open/md-to-word@main"   # 在此之前
 
-更新：pip install -U md-to-word（不想装进当前环境就用 pipx install / pipx upgrade）
+更新：pip install -U md-to-word-docx（不想装进当前环境就用 pipx install / pipx upgrade）
 如果你是从源码检出的仓库里直接运行，先在仓库根目录执行 pip install -r requirements.txt。
 EOF
 exit 1

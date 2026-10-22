@@ -3,7 +3,7 @@ requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "md-to-word"
+name = "md-to-word-docx"
 dynamic = ["version"]
 description = "Deterministic academic Markdown to journal-compliant Word (.docx) compiler with dual presets and quality gates."
 readme = "README.md"

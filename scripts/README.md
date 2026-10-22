@@ -1,6 +1,6 @@
 # scripts/ —— 开发与验收工具
 
-这些脚本**不进包**：用户拿到的是 `pip install md-to-word` 之后的 `md-to-word` 命令。脚本只是把包内
+这些脚本**不进包**：用户拿到的是 `pip install md-to-word-docx` 之后的 `md-to-word` 命令。脚本只是把包内
 已有的能力转成命令行，供仓库内调试与验收使用。各自实现都在 `src/md_to_word/`，这里只做参数转发。
 详细用法看各脚本的 `--help`。
 

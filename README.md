@@ -80,14 +80,15 @@ vendor 这份源码，因此不装包也能跑。
 
 | 用法 | 适合 | 安装 | 使用 |
 |:--|:--|:--|:--|
-| **命令行** | 本地导出、CI | `pip install md-to-word` | `md-to-word 稿件.md -o 输出.docx` |
+| **命令行** | 本地导出、CI | `pip install md-to-word-docx` | `md-to-word 稿件.md -o 输出.docx` |
 | **Python 库** | 写脚本、接自有流程 | 同上 | `from md_to_word import export` |
 | **AI 技能** | 让 Agent 代办、且不想装任何东西 | 用自包含的技能目录（整棵源码 + `SKILL.md` + `references/`），本仓库只发布引擎 | 「按学校的格式要求把这份稿子导出成 Word」 |
 
-**PyPI**：`pip install md-to-word`。在源码检出里跑则是 `pip install -r requirements.txt`
-之后用 `python -m md_to_word`。
+**PyPI**：`pip install md-to-word-docx`（PyPI 上 `md-to-word` 已被近似项目占用，包名多一个后缀；
+装完的命令仍然是 `md-to-word`）。在源码检出里跑则是 `pip install -r requirements.txt` 之后用
+`python -m md_to_word`。
 
-更新：`pip install -U md-to-word`（隔离环境用 `pipx install` / `pipx upgrade`，避免装进系统环境）。
+更新：`pip install -U md-to-word-docx`（隔离环境用 `pipx install` / `pipx upgrade`，避免装进系统环境）。
 **实现与手册一起升级**：完整词表、契约与门禁说明都在包内 `manual.md`，与代码同一个版本，
 不存在"代码是新的、说明是旧的"。
 
