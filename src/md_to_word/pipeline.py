@@ -242,6 +242,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 base_dir=in_p.parent,
                 equation_number_format=spec.equation_number_format if spec else "",
                 equation_number_placement=spec.equation_number if spec else "right",
+                no_row_split=bool(spec and spec.table.get("no_row_split")),
             )
         except UnsupportedFeature as exc:
             res.returncode = 1

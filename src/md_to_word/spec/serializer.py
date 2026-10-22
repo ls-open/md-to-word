@@ -113,6 +113,8 @@ def _table_line(table: dict) -> str:
     for side, width in (table.get("widths") or {}).items():
         if side in _BORDER_SIDE:
             parts.append(f"{_BORDER_SIDE[side]}{float(width):g}磅")
+    if table.get("no_row_split"):
+        parts.append("行不跨页")
     if table.get("valign"):
         parts.append(_TABLE_VALIGN.get(table["valign"], "单元格垂直居中"))
     return "表格：" + " ".join(parts)

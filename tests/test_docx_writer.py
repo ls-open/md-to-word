@@ -385,3 +385,15 @@ def test_bibliography_is_inserted_at_the_references_title(template: Path, tmp_pa
     appendix_at = xml.find("附录 A 补充")
     assert bib_at != -1 and appendix_at != -1
     assert bib_at < appendix_at, "文献条目要在附录之前"
+
+
+def test_table_rows_split_unless_declared(template: Path, tmp_path: Path) -> None:
+    """行拆不拆是排版判断：默认交给 Word（允许跨页断行），写了「行不跨页」才钉住。"""
+    model = read_markdown("| 甲 | 乙 |\n|:--|--:|\n| 1 | 2 |\n")
+    plain = write_docx(model, template, tmp_path / "plain.docx")
+    pinned = write_docx(model, template, tmp_path / "pinned.docx", no_row_split=True)
+
+    plain_xml = zipfile.ZipFile(plain).read("word/document.xml").decode("utf-8")
+    pinned_xml = zipfile.ZipFile(pinned).read("word/document.xml").decode("utf-8")
+    assert "cantSplit" not in plain_xml
+    assert pinned_xml.count("cantSplit") == 2, "表头行与数据行都要钉住"

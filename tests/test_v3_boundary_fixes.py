@@ -65,6 +65,14 @@ def test_table_with_escaped_pipe_and_code_pipe(tmp_path: Path) -> None:
     table = doc_docx.tables[0]
     assert len(table.rows) == 3
     assert len(table.columns) == 2
+    # 转义要真的被还原成竖线，而不是把反斜杠印出来
+    assert table.cell(1, 0).text == "cat a | grep b"
+    assert table.cell(2, 0).text == "选项 | 参数"
+
+    # 反斜杠写在行内代码里也一样：表格层的转义在代码段里同样生效（GFM 的规矩）
+    code_escaped = read_markdown("| 命令 | 说明 |\n| :--- | :--- |\n| `a \\| b` | 代码里的竖线 |\n")
+    out2 = write_docx(code_escaped, TPL_BASE, tmp_path / "table_pipe2.docx")
+    assert open_docx(out2).tables[0].cell(1, 0).text == "a | b"
 
 
 def test_mathml_accents_and_limits_supported() -> None:

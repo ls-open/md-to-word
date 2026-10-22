@@ -236,6 +236,13 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
         ),
     ),
     (
+        # 行不跨页：Word 的「允许跨页断行」取消勾选。默认不设——一行拆不拆是排版判断，
+        # 表里有长段落时钉住反而会把整行推到下一页、留下大片空白，所以交给作者声明。
+        _T,
+        re.compile(r"行不跨页|no-row-split", re.I),
+        lambda p, m, d: _set_once(p, "no_row_split", True, "行不断页", d),
+    ),
+    (
         _T,
         re.compile(r"(?:单元格垂直(?P<k>居中|顶端|底端)|valign-(?P<ek>center|top|bottom))", re.I),
         lambda p, m, d: _set_once(

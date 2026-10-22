@@ -124,6 +124,7 @@ class _Writer:
         base_dir=None,
         equation_number_placement="right",
         equation_number_format="",
+        no_row_split: bool = False,
     ) -> None:
         self.model = document
         self.docx = docx
@@ -136,6 +137,7 @@ class _Writer:
         self._eq_numbers: dict[str, tuple[int, int]] = {}  # 标签 → (章号, 序号)
         self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
         self._bibliography_written = False  # 文献表只在「参考文献标题」后写一次
+        self.no_row_split = no_row_split  # 表格行是否禁止跨页断开（要求文件写「行不跨页」）
         chinese = looks_chinese(self._prose_text())
         self._crossref_prefixes = {
             **default_crossref_prefixes(chinese),
@@ -347,12 +349,12 @@ class _Writer:
     def _paragraph(self, block: Paragraph) -> None:
         """未指定样式的正文，按契约分流：紧跟标题的第一段用 First Paragraph，其余 Body Text。"""
         if block.style:
-            style = self._style_name(block.style) or (
-                "Heading 1" if block.style == "References Title" else "Normal"
-            )
+            style = block.style
         else:
             style = "First Paragraph" if self._after_heading else "Body Text"
         self._after_heading = False
+        # 样式在模板里不存在时退回 Normal：预检本该拦住，走到这里说明门禁被关掉了，
+        # 此时宁可降级排版，也不要 KeyError 中断整份稿件的导出。
         paragraph = self.docx.add_paragraph(style=self._style_name(style) or "Normal")
         self._last_paragraph = paragraph
         self.inlines(paragraph, block.inlines)
@@ -496,10 +498,11 @@ class _Writer:
                 if block.alignments and c < len(block.alignments):
                     paragraph.alignment = _ALIGN.get(block.alignments[c], WD_ALIGN_PARAGRAPH.LEFT)
                 self.inlines(paragraph, cell_inlines)
-        for row in table.rows:
-            trPr = row._tr.get_or_add_trPr()
-            if trPr.find(qn("w:cantSplit")) is None:
-                trPr.append(trPr.makeelement(qn("w:cantSplit"), {}))
+        if self.no_row_split:
+            for row in table.rows:
+                trPr = row._tr.get_or_add_trPr()
+                if trPr.find(qn("w:cantSplit")) is None:
+                    trPr.append(trPr.makeelement(qn("w:cantSplit"), {}))
         if block.header:
             self._mark_header_row(table)
         if block.widths:
@@ -854,6 +857,7 @@ def write_docx(
     base_dir: Path | str | None = None,
     equation_number_placement: str = "right",
     equation_number_format: str = "",
+    no_row_split: bool = False,
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
 
@@ -872,6 +876,7 @@ def write_docx(
         base_dir=base_dir,
         equation_number_placement=equation_number_placement,
         equation_number_format=equation_number_format,
+        no_row_split=no_row_split,
     ).write()
     out = Path(output)
     docx.save(str(out))

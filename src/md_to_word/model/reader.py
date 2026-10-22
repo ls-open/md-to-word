@@ -248,7 +248,9 @@ def split_table_cells(body: str) -> list[str]:
     while i < n:
         ch = body[i]
         if ch == "\\" and i + 1 < n and body[i + 1] == "|":
-            current.append(r"\|")
+            # 行内代码里的 `\|` 直接落成 `|`：代码段不参与转义，留着反斜杠会印出来。
+            # Markdown 表格里「竖线要转义」是表格层的规矩，代码段里也不例外。
+            current.append("|" if in_code else r"\|")
             i += 2
             continue
         elif ch == "`":
