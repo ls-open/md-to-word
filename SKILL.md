@@ -12,9 +12,11 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 > **核心设计哲学**：内容与排版解耦（Markdown 为源，格式全交给本技能编译，于是文档能进 Git 做行级 diff）；AI 全流程代办（用户提需求，Agent 包办格式提取、稿件改造、样式装配与质量闭环）。
 >
 > **统一入口**：`bash <本技能目录>/scripts/export.sh <稿件.md> [-r <格式要求.txt> | --preset zh-academic|en-nature] [-o <输出.docx>]`（若稿件同目录有唯一的 `.txt`，`-r` 可省略；两者都没有时默认用内置预设 `presets/zh-academic.txt`，模板每次导出实时生成）
-> **核心引擎**：Quarto 现代渲染 + 纯净 Word 365 底模 (`resources/pure_modern_base.docx`) + 公式居中与编号靠右对齐引擎 + 自动质量门禁（导前预检 / 导后防丢数 / XML 样式对账）
+> **核心引擎**：自研写出器（模型 → OOXML）+ 纯净 Word 365 底模 (`resources/pure_modern_base.docx`) + 公式居中与编号靠右对齐引擎 + 自动质量门禁（导前预检 / 导后防丢数 / XML 样式对账）
 >
-> **首次使用前**：`pip install -r requirements.txt`，并确认本机有 Quarto ≥ 1.4（`brew install quarto`）。版本策略：低于 1.4 直接报错（用到的 crossref 行为那时还不存在），高于 1.10 只提示「未在本仓验证」不阻断；补丁号不参与判定。缺依赖时导出会以环境问题的退出码 `2` 停下，与稿件问题（`1`）区分。
+> **首次使用前**：`pip install -r requirements.txt` 即可。**默认走自研写出器，不需要安装 Quarto**，也不需要任何外部二进制。
+>
+> 备选通道 `--writer pandoc` 才需要 Quarto ≥ 1.4：低于 1.4 直接报错，高于 1.10 只提示「未在本仓验证」不阻断，补丁号不参与判定；缺依赖时以退出码 `2` 停下，与稿件问题（`1`）区分。
 
 **技能目录结构与文档路由**：
 
@@ -189,7 +191,7 @@ bash <本技能目录>/scripts/export.sh 稿件_export.md -o 输出.docx
 
 命令返回 `0`（`✅ Word 文档导出成功`）即已通过全部闸门，`.docx` 可直接交付。
 
-**写出后端（v3 实验特性）**：加 `--writer native` 走自研写出器，**不需要安装 Quarto**。已支持标题、正文、列表（真实编号）、表格（三线表 + 表头重复）、图片、脚注、目录域、分节页码、公式（OMML）、交叉引用与**文献引用**（CSL，用 citeproc-py 而非 Pandoc）。默认仍是 `pandoc`。
+**写出后端**：默认 `native`（自研写出器，不需要 Quarto），覆盖标题、正文、列表（真实编号）、表格（三线表 + 表头重复）、图片、脚注、目录域、分节页码、公式（OMML）、交叉引用与文献引用（CSL，citeproc-py）。`--writer pandoc` 是备选通道（Quarto/Pandoc），两者在三个内置样例上的样式序列与正文文本一致（`tests/test_backend_parity.py` 守着）。
 
 ### 2. 视觉抽查（macOS + Word 曾启动过才可用，按需开启）
 

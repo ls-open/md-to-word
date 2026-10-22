@@ -82,7 +82,13 @@ def test_missing_renderer_reports_environment_error(tmp_path: Path, monkeypatch)
     monkeypatch.setattr("md_to_word.pipeline.QuartoRenderer.render", _boom)
 
     result = run_export_pipeline(
-        ExportOptions(input_path=manuscript, preset="zh-academic", postflight=False, audit=False)
+        ExportOptions(
+            input_path=manuscript,
+            preset="zh-academic",
+            postflight=False,
+            audit=False,
+            writer="pandoc",  # 自研后端不需要渲染引擎，这条用例专测 Pandoc 通道
+        )
     )
     assert result.returncode == 2
     assert result.errors, "环境问题必须给出可读原因"

@@ -40,6 +40,9 @@ _ALIGN = {
 }
 
 
+_W_FMT = {"bold": "b", "italic": "i", "strike": "strike", "underline": "u"}
+
+
 def _ends_with_cjk(text: str) -> bool:
     stripped = text.rstrip()
     return bool(stripped) and "\u4e00" <= stripped[-1] <= "\u9fff"
@@ -134,20 +137,21 @@ class _Writer:
         entries = self.citations.bibliography_entries()
         if not entries:
             return
-        for key, text in entries:
+        for key, segments in entries:
             paragraph = self.docx.add_paragraph(style="Bibliography")
-            self._bookmark(paragraph, f"_Ref_{key}", text)
+            self._bookmark(paragraph, f"_Ref_{key}", segments)
 
     _bookmark_seq = 100
 
-    def _bookmark(self, paragraph, name: str, text: str) -> None:
-        """在文献条目开头放书签，正文引用才能跳过来。"""
+    def _bookmark(self, paragraph, name: str, segments) -> None:
+        """在文献条目开头放书签，正文引用才能跳过来。条目里的斜体由 CSL 决定，要保留。"""
         type(self)._bookmark_seq += 1
         bid = type(self)._bookmark_seq
         paragraph._p.append(
             parse_xml(f'<w:bookmarkStart {nsdecls("w")} w:id="{bid}" w:name="{name}"/>')
         )
-        paragraph.add_run(text)
+        for text, fmt in segments:
+            paragraph._p.append(self._run_element(paragraph._p, text, fmt))
         paragraph._p.append(parse_xml(f'<w:bookmarkEnd {nsdecls("w")} w:id="{bid}"/>'))
 
     def _collect_equation_numbers(self) -> None:
@@ -497,28 +501,48 @@ class _Writer:
                     "稿件声明了 citation，但未提供文献库或 CSL 样式；请检查 YAML 的 bibliography/csl"
                 )
             keys = [(item.key, item.locator) for item in node.items]
-            rendered = self.citations.cite(keys, narrative=node.narrative)
+            segments = self.citations.cite(keys, narrative=node.narrative)
             # 中文行文里「基石 [1]」应为「基石[1]」；西文保留空格
             if not node.narrative and paragraph.runs:
                 last = paragraph.runs[-1]
                 if last.text.endswith(" ") and _ends_with_cjk(last.text):
                     last.text = last.text.rstrip() or " "
-            self._linked_run(paragraph, rendered, f"_Ref_{keys[0][0]}")
+            self._linked_run(paragraph, segments, f"_Ref_{keys[0][0]}")
         elif isinstance(node, FootnoteRef):
             self._footnote_reference(paragraph, node.label)
         else:
             paragraph.add_run(getattr(node, "value", str(node)))
 
-    def _linked_run(self, paragraph, text: str, anchor: str) -> None:
-        """引文跳到文末对应条目（Word 内链，不是外链）。"""
+    def _linked_run(self, paragraph, segments, anchor: str) -> None:
+        """引文跳到文末对应条目（Word 内链）。片段里的格式（Nature 的上标编号）要保留。"""
         element = parse_xml(f'<w:hyperlink {nsdecls("w")} w:anchor="{anchor}"/>')
-        run = element.makeelement(qn("w:r"), {})
+        for text, fmt in segments:
+            element.append(self._run_element(element, text, fmt))
+        paragraph._p.append(element)
+
+    @staticmethod
+    def _run_element(parent, text: str, fmt: dict):
+        """在给定父元素下造一个带格式的 run；hyperlink / 普通段落共用。"""
+        run = parent.makeelement(qn("w:r"), {})
+        if fmt:
+            rpr = run.makeelement(qn("w:rPr"), {})
+            for name, tag in (("bold", "b"), ("italic", "i"), ("strike", "strike")):
+                if fmt.get(name):
+                    rpr.append(run.makeelement(qn(f"w:{tag}"), {}))
+            if fmt.get("superscript"):
+                el = run.makeelement(qn("w:vertAlign"), {})
+                el.set(qn("w:val"), "superscript")
+                rpr.append(el)
+            if fmt.get("subscript"):
+                el = run.makeelement(qn("w:vertAlign"), {})
+                el.set(qn("w:val"), "subscript")
+                rpr.append(el)
+            run.append(rpr)
         t = run.makeelement(qn("w:t"), {})
         t.text = text
         t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
         run.append(t)
-        element.append(run)
-        paragraph._p.append(element)
+        return run
 
     def _hyperlink(self, paragraph, node: Link) -> None:
         """超链接是关系（r:id）+ `w:hyperlink`，不是普通 run。"""
@@ -529,14 +553,15 @@ class _Writer:
             f'<w:hyperlink {_nsdecls("w", "r")} r:id="{r_id}"/>'
         )
         style = self._style_name("Hyperlink")
-        for child in node.children:
-            text = getattr(child, "value", None)
-            if text is None:
-                raise UnsupportedFeature("超链接里目前只支持纯文本")
+        for text, fmt in self._flatten_text(node.children):
             run = element.makeelement(qn("w:r"), {})
+            rpr = run.makeelement(qn("w:rPr"), {})
             if style:
-                rpr = run.makeelement(qn("w:rPr"), {})
                 rpr.append(run.makeelement(qn("w:rStyle"), {qn("w:val"): style.replace(" ", "")}))
+            for name in ("bold", "italic", "strike", "underline"):
+                if fmt.get(name):
+                    rpr.append(run.makeelement(qn(f"w:{_W_FMT[name]}"), {}))
+            if len(rpr):
                 run.append(rpr)
             t = run.makeelement(qn("w:t"), {})
             t.text = text
@@ -545,23 +570,55 @@ class _Writer:
             element.append(run)
         paragraph._p.append(element)
 
-    def _styled(self, paragraph, children, **fmt) -> None:
-        run = paragraph.add_run()
-        run.text = ""
-        for key, value in fmt.items():
-            setattr(run.font, key, value)
-        self._nested(run, children)
+    def _flatten_text(self, nodes, fmt=None):
+        """把带格式的行内树摊平成 (文本, 格式) 序列，供超链接这类要自己造 run 的地方用。"""
+        fmt = dict(fmt or {})
+        for node in nodes:
+            if isinstance(node, Code):
+                yield node.value, fmt
+            elif type(node) in self._FORMAT_ATTR:
+                yield from self._flatten_text(node.children, {**fmt, self._FORMAT_ATTR[type(node)]: True})
+            else:
+                text = getattr(node, "value", None)
+                if text is None:
+                    raise UnsupportedFeature(f"超链接里放不下 {type(node).__name__}")
+                yield text, fmt
 
-    def _nested(self, run, children) -> None:
-        """在已带格式的 run 里追加纯文本子节点；嵌套格式在 v3.0 先不支持。"""
+    _FORMAT_ATTR = {
+        Strong: "bold",
+        Emphasis: "italic",
+        Strikethrough: "strike",
+        Underline: "underline",
+        Superscript: "superscript",
+        Subscript: "subscript",
+    }
+
+    def _styled(self, paragraph, children, **fmt) -> None:
+        """把一层格式作用到子节点上；子节点还是容器就递归合并——`***粗斜体***` 要能落成
+        一个既粗又斜的 run，而不是报错。"""
         for child in children:
             if isinstance(child, Code):
-                run.add_text(child.value)
+                run = paragraph.add_run(child.value)
+                if self._verbatim_style:
+                    run.style = self._verbatim_style
+                self._apply_font(run, fmt)
+            elif type(child) in self._FORMAT_ATTR:
+                self._styled(paragraph, child.children, **{**fmt, self._FORMAT_ATTR[type(child)]: True})
+            elif isinstance(child, Math):
+                paragraph._p.append(self._omath(latex_to_omml(child.latex)))
+            elif hasattr(child, "children"):
+                raise UnsupportedFeature(f"「{type(child).__name__}」还不能写在行内格式里")
             else:
                 text = getattr(child, "value", None)
                 if text is None:
-                    raise UnsupportedFeature("嵌套的行内格式（如加粗里套斜体）尚未实现")
-                run.add_text(text)
+                    raise UnsupportedFeature(f"未支持的行内节点：{type(child).__name__}")
+                run = paragraph.add_run(text)
+                self._apply_font(run, fmt)
+
+    @staticmethod
+    def _apply_font(run, fmt: dict) -> None:
+        for key, value in fmt.items():
+            setattr(run.font, key, value)
 
 
 def write_docx(model: Document, template: Path | str, output: Path | str, citations=None) -> Path:

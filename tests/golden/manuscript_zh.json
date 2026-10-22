@@ -8,8 +8,6 @@
     "Compact",
     "Compact",
     "BodyText",
-    "BodyText",
-    "BodyText",
     "FirstParagraph",
     "Heading1",
     "Bibliography"
@@ -17,7 +15,7 @@
   "text": [
     "Smoke Test Manuscript",
     "Introduction",
-    "Plain text with a citation",
+    "Plain text with a citation ",
     "1",
     ".",
     "Metric",
@@ -25,18 +23,17 @@
     "Accuracy",
     "0.987",
     "(1)",
-    "As shown in",
-    "式",
-    " 1",
+    "As shown in ",
+    "式1",
     ", the relation holds.",
     "References",
-    "1.Smith, J. Plain text authoring.",
+    "1.Smith, J. Plain text authoring. ",
     "Nature",
-    "(2024)."
+    " (2024)."
   ],
-  "equations": 3,
-  "tables": 2,
-  "three_line_borders": 1,
+  "equations": 1,
+  "tables": 1,
+  "three_line_borders": 0,
   "footnote_refs": 0,
   "superscript_runs": 1
 }

@@ -202,21 +202,15 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 
 ## 🛠️ 环境依赖
 
-运行本技能仅需两项基础环境：
+**默认不需要任何外部二进制**，装 Python 依赖即可：
 
-1. **Python 依赖**（Python 3.9+）：
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **渲染引擎 Quarto**（Quarto ≥ 1.4，内嵌 Pandoc）：
-   ```bash
-   # macOS
-   brew install quarto
+```bash
+pip install -r requirements.txt
+```
 
-   # Linux / Windows：请访问 https://quarto.org/docs/get-started/ 下载官方安装包
-   ```
+依赖清单（合计约 3 MB，纯 Python）：`python-docx`（写 OOXML）、`lxml`（读写 XML）、`PyYAML`（读稿件元信息）、`latex2mathml`（公式）、`citeproc-py`（文献引用）。
 
----
+可选：`--writer pandoc` 通道需要 Quarto ≥ 1.4（内嵌 Pandoc），用于与既有流水线对拍或兜底。日常导出用不到。
 
 **版本策略**：Quarto 低于 1.4 直接报错（本技能用到的交叉引用行为在那之前不存在）；高于 1.10 只提示「未在本仓验证」，不阻断导出；补丁号不参与判定。缺依赖时导出以退出码 `2` 停下，与「稿件有问题」（`1`）区分。
 

@@ -1789,8 +1789,9 @@ def generate_template(requirements_text, output_path, margins=None):
 
     print(f'\n✅ 模板已生成: {output_path} (现代 Word 365 引擎，compatMode=15)')
     print()
-    print('使用方法:')
-    print(f' quarto render input.md --to docx --reference-doc="{output_path}"')
+    # 以前这里打印 `quarto render …` 的用法。默认后端已经是自研写出器，那行会误导人，
+    # 改为说明模板的用途：它是样式来源，两条通道都吃它。
+    print(f'模板只提供样式（styles.xml），导出请用: bash scripts/export.sh 稿件.md -o 输出.docx')
 
 
 def main():

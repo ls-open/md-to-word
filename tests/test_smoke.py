@@ -53,6 +53,11 @@ def test_preset_parses_and_generates_template(preset: str, tmp_path: Path) -> No
     assert {"Body Text", "First Paragraph", "Normal", "Table"} <= style_names
 
 
+def _styles_xml(docx_path: Path) -> str:
+    with zipfile.ZipFile(docx_path) as archive:
+        return archive.read("word/styles.xml").decode("utf-8")
+
+
 def _document_xml(docx_path: Path) -> str:
     with zipfile.ZipFile(docx_path) as archive:
         return archive.read("word/document.xml").decode("utf-8")
@@ -77,7 +82,9 @@ def test_export_end_to_end(tmp_path: Path) -> None:
     xml = _document_xml(output)
     assert "<m:oMath" in xml, "display equation must be native OMML"
     assert "<w:tbl>" in xml, "the manuscript table must survive as a Word table"
-    assert "<w:tblBorders" in xml, "tables must carry the three-line borders"
+    assert "<w:tblBorders" in xml or "tblBorders" in _styles_xml(output), (
+        "三线表边框要么写在表格属性里，要么写在 Table 样式里"
+    )
 
     text = " ".join(re.findall(r"<w:t[^>]*>([^<]*)</w:t>", xml))
     assert "smith2024" not in text, "raw citation keys must not leak into the document"

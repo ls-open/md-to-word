@@ -53,9 +53,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--writer",
-        choices=["pandoc", "native"],
-        default="pandoc",
-        help="写出后端：pandoc=成熟通道（默认）；native=自研写出器（公式/表格/脚注/目录均已支持，文献引用仍走 pandoc）",
+        choices=["native", "pandoc"],
+        default="native",
+        help="写出后端：native=自研写出器（默认，不需要 Quarto）；pandoc=Quarto/Pandoc 通道（备选）",
     )
     parser.add_argument(
         "--eq-number-style",

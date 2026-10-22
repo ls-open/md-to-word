@@ -46,7 +46,7 @@ class ExportOptions:
     audit: bool = True
     make_pdf: bool = False
     eq_number_style: str = "asis"  # asis | cjk
-    writer: str = "pandoc"  # pandoc（默认，成熟通道）| native（自研写出器）
+    writer: str = "native"  # native（默认，自研写出器）| pandoc（Quarto 通道，备选）
 
 
 @dataclass

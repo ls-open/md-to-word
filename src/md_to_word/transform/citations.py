@@ -37,8 +37,10 @@ class CitationEngine:
             style = CitationStylesStyle(str(csl_path), validate=False)
         except Exception as exc:  # 样式文件本身有问题
             raise CitationError(f"CSL 样式无法解析：{csl_path}（{exc}）") from exc
+        # html 而不是 plain：CSL 里的斜体、上标（Nature 的引文编号就是上标）只有带标记
+        # 才能还原。返回给我们自己解析，最终落成带格式的 run。
         self._bibliography = CitationStylesBibliography(
-            style, CiteProcJSON(self.entries), formatter.plain
+            style, CiteProcJSON(self.entries), formatter.html
         )
         self._known = {entry["id"] for entry in self.entries}
         self._rendered: dict[tuple, str] = {}
@@ -49,8 +51,11 @@ class CitationEngine:
     def has(self, key: str) -> bool:
         return key in self._known
 
-    def cite(self, keys: Sequence[tuple[str, str]], narrative: bool = False) -> str:
-        """`keys` 是 (key, locator) 序列；同一组只注册一次，避免重复计入编号。"""
+    def cite(self, keys: Sequence[tuple[str, str]], narrative: bool = False) -> list[tuple[str, dict]]:
+        """`keys` 是 (key, locator) 序列；同一组只注册一次，避免重复计入编号。
+
+        返回 (文本, 格式) 片段序列——上标/斜体这类格式由 CSL 决定，不能丢成纯文本。
+        """
         pairs = tuple(keys)
         cache_key = (pairs, narrative)
         if cache_key in self._rendered:
@@ -65,19 +70,16 @@ class CitationEngine:
         items = [CitationItem(key) for key, _locator in pairs]
         citation = Citation(items)
         self._bibliography.register(citation)
-        text = str(self._bibliography.cite(citation, lambda item: item))
+        html = str(self._bibliography.cite(citation, lambda item: item))
         if narrative:
-            text = _as_narrative(text)
-        self._rendered[cache_key] = text
-        return text
+            html = _as_narrative(html)
+        segments = html_to_segments(html)
+        self._rendered[cache_key] = segments
+        return segments
 
-    def bibliography_entries(self) -> list[tuple[str, str]]:
-        """(key, 渲染文本) 列表，顺序与 bibliography() 一致——写出器要用 key 建书签。"""
-        texts = self.bibliography()
-        keys = self._ordered_keys()
-        if len(keys) != len(texts):
-            return [(f"item{i}", text) for i, text in enumerate(texts)]
-        return list(zip(keys, texts))
+    def bibliography_entries(self):
+        """(key, 片段序列)——写出器要用 key 建书签、用片段还原斜体。"""
+        return self.bibliography_segments()
 
     def _ordered_keys(self) -> list[str]:
         keys = list(self._order)
@@ -85,8 +87,16 @@ class CitationEngine:
             keys.sort(key=lambda k: _sort_key(self._by_key.get(k, {})))
         return keys
 
+    def bibliography_segments(self) -> list[tuple[str, list[tuple[str, dict]]]]:
+        """(key, 片段序列)——写出器要用 key 建书签、用片段还原斜体。"""
+        texts = self.bibliography()
+        keys = self._ordered_keys()
+        if len(keys) != len(texts):
+            return [(f"item{i}", html_to_segments(t)) for i, t in enumerate(texts)]
+        return list(zip(keys, [html_to_segments(t) for t in texts]))
+
     def bibliography(self) -> list[str]:
-        """文末文献列表。
+        """文末文献列表（仍是 html 标记串；要片段用 bibliography_segments）。
 
         顺序分两种：CSL 在 `<bibliography>` 里声明了 `<sort>` 的（作者-年份制）按作者与年份
         排；没声明的（数字顺序制，如 GB/T 7714、Nature）按首次引用顺序。
@@ -101,6 +111,40 @@ class CitationEngine:
         pairs = list(zip(self._order, rendered))
         pairs.sort(key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
         return [text for _key, text in pairs]
+
+
+_TAG_RE = re.compile(r"</?(?P<tag>i|b|sup|sub|sc|span)[^>]*>")
+_TAG_FMT = {"i": "italic", "b": "bold", "sup": "superscript", "sub": "subscript"}
+
+
+def html_to_segments(html: str) -> list[tuple[str, dict]]:
+    """citeproc 的 html 输出 → (文本, 格式) 片段。只认 i/b/sup/sub，其余标签当分隔符丢掉。"""
+    from html import unescape
+
+    segments: list[tuple[str, dict]] = []
+    stack: list[str] = []
+    pos = 0
+    for match in _TAG_RE.finditer(html or ""):
+        if match.start() > pos:
+            text = unescape(html[pos : match.start()])
+            fmt = {_TAG_FMT[t]: True for t in stack if t in _TAG_FMT}
+            if text:
+                segments.append((text, fmt))
+        tag = match.group("tag")
+        if match.group(0).startswith("</"):
+            if tag in stack:
+                stack.reverse()
+                stack.remove(tag)
+                stack.reverse()
+        else:
+            stack.append(tag)
+        pos = match.end()
+    if pos < len(html or ""):
+        text = unescape(html[pos:])
+        fmt = {_TAG_FMT[t]: True for t in stack if t in _TAG_FMT}
+        if text:
+            segments.append((text, fmt))
+    return segments or [(unescape(html or ""), {})]
 
 
 def _declares_sort(csl_path: str) -> bool:
