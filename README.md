@@ -3,10 +3,10 @@
 [![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
 [![Ecosystem: Academic Research Skills](https://img.shields.io/badge/Ecosystem-Academic%20Research%20Skills%20(51k+%E2%98%85)-0969da?logo=github&logoColor=white)](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects)
 [![Release](https://img.shields.io/github/v/release/ls-open/md-to-word)](https://github.com/ls-open/md-to-word/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-brightgreen.svg)](https://www.python.org/)
 
-[English](README_EN.md) | 简体中文
+[English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | 简体中文
 
 把 Markdown 编译成符合规范的 Word（`.docx`）：**学位论文、期刊论文、技术报告与公文**。
 排版规则写成一份可进 Git 的 `requirements.txt`，导出是确定性的——同一份稿子任何时候重跑，
@@ -19,7 +19,7 @@
 
 ## 30 秒示例
 
-**你写的**（[`demo/00_quickstart/hello.md`](demo/00_quickstart/hello.md)，节选）：
+**你写的**（[`demo/00_quickstart/hello.md`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.md)，节选）：
 
 ```markdown
 ---
@@ -45,7 +45,7 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 | 学位论文样例 | 8 页 | 0.43 s | 目录、分节页码、双线章名页眉、跨页表头 |
 ```
 
-**你声明的**（[`demo/00_quickstart/requirements.txt`](demo/00_quickstart/requirements.txt)，节选）：
+**你声明的**（[`demo/00_quickstart/requirements.txt`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/requirements.txt)，节选）：
 
 ```text
 纸张：A4
@@ -67,7 +67,7 @@ md-to-word hello.md -r requirements.txt -o hello.docx
 
 **你得到的**（约 0.2 秒，1 页）：
 
-[![最小样例的输出](demo/00_quickstart/page-1.png)](demo/00_quickstart/hello.docx)
+[![最小样例的输出](https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png)](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx)
 
 中文首行缩进两个字符、西文 Times New Roman、三线表带表题表注——没有一步是在 Word 里点的。
 
@@ -84,12 +84,8 @@ vendor 这份源码，因此不装包也能跑。
 | **Python 库** | 写脚本、接自有流程 | 同上 | `from md_to_word import export` |
 | **AI 技能** | 让 Agent 代办、且不想装任何东西 | 用自包含的技能目录（整棵源码 + `SKILL.md` + `references/`），本仓库只发布引擎 | 「按学校的格式要求把这份稿子导出成 Word」 |
 
-**PyPI 状态**：尚未发布。发布前用源码或 Git 安装，发布后第一条命令即是上表的写法：
-
-```bash
-pip install "git+https://github.com/ls-open/md-to-word@main"
-pip install -r requirements.txt    # 或在源码检出里装依赖
-```
+**PyPI**：`pip install md-to-word`。在源码检出里跑则是 `pip install -r requirements.txt`
+之后用 `python -m md_to_word`。
 
 更新：`pip install -U md-to-word`（隔离环境用 `pipx install` / `pipx upgrade`，避免装进系统环境）。
 **实现与手册一起升级**：完整词表、契约与门禁说明都在包内 `manual.md`，与代码同一个版本，
@@ -160,8 +156,8 @@ print(result.output_docx)    # result.messages 是进度与提醒
 | 带编号公式里求和/积分的上下限上下排 | Word 只有显示式才把上下限排到符号上下，带编号公式是行内公式；内容与符号正确，排法不同 |
 | 行内文字颜色 | 颜色是样式属性，按样式行声明（`颜色#1F4E79`），不支持行内 `{color=…}` |
 
-完整词表与逐条原理见包内 [`manual.md`](src/md_to_word/resources/manual.md)（随 wheel 发布）；
-实现取舍见 [`references/design.md`](references/design.md)。
+完整词表与逐条原理见包内 [`manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md)（随 wheel 发布）；
+实现取舍见 [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md)。
 
 ---
 
@@ -183,11 +179,11 @@ md-to-word-template 学校模板.docx -o 论文_requirements.txt
 
 | 路径 | 读它做什么 |
 |:--|:--|
-| [`src/md_to_word/resources/manual.md`](src/md_to_word/resources/manual.md) | **使用手册**：稿件契约、`requirements.txt` 完整词表、代办流程、门禁、能力边界、CSL 清单。随包发布 |
-| [`README.md`](README.md) / [`README_EN.md`](README_EN.md) | 是什么、怎么装、怎么跑 |
-| [`references/design.md`](references/design.md) | 设计原理与故障排查（导出结果不符合预期时先看它 §2） |
-| [`demo/`](demo/) | 四份样例：最小样例、中文学位论文、技术白皮书、英文期刊投稿 |
-| `scripts/` | 开发与验收工具（见 [`scripts/README.md`](scripts/README.md)） |
+| [`src/md_to_word/resources/manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) | **使用手册**：稿件契约、`requirements.txt` 完整词表、代办流程、门禁、能力边界、CSL 清单。随包发布 |
+| [`README.md`](https://github.com/ls-open/md-to-word/blob/main/README.md) / [`README_EN.md`](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | 是什么、怎么装、怎么跑 |
+| [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md) | 设计原理与故障排查（导出结果不符合预期时先看它 §2） |
+| [`demo/`](https://github.com/ls-open/md-to-word/blob/main/demo/) | 四份样例：最小样例、中文学位论文、技术白皮书、英文期刊投稿 |
+| `scripts/` | 开发与验收工具（见 [`scripts/README.md`](https://github.com/ls-open/md-to-word/blob/main/scripts/README.md)） |
 | `src/md_to_word/` | 实现本体：模型 → OOXML 写出器、样式生成、校验、对账 |
 | `resources/` | Word 365 底模与 29 份规范化 CSL 样式；`manual.md` 也在这里 |
 | `presets/` | 内置格式预设：`zh-academic.txt`（默认）、`en-nature.txt` |
@@ -208,6 +204,6 @@ LaTeX 解析（`latex2mathml`）与 CSL 引文渲染（`citeproc-py`）。判据
 
 ## 许可
 
-代码为 [MIT](LICENSE)。`resources/csl/` 下的引文样式来自
+代码为 [MIT](https://github.com/ls-open/md-to-word/blob/main/LICENSE)。`resources/csl/` 下的引文样式来自
 [citation-style-language/styles](https://github.com/citation-style-language/styles)，按 CC BY-SA 3.0 使用；
 `resources/pure_modern_base.docx` 由本项目生成，随 MIT 发布。

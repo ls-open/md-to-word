@@ -3,10 +3,10 @@
 [![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
 [![Ecosystem: Academic Research Skills](https://img.shields.io/badge/Ecosystem-Academic%20Research%20Skills%20(51k+%E2%98%85)-0969da?logo=github&logoColor=white)](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects)
 [![Release](https://img.shields.io/github/v/release/ls-open/md-to-word)](https://github.com/ls-open/md-to-word/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-brightgreen.svg)](https://www.python.org/)
 
-English | [简体中文](README.md)
+English | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md)
 
 Compiles Markdown into compliant Word (`.docx`) files: **theses, journal manuscripts, technical
 reports and official documents**. Layout lives in a `requirements.txt` that goes into Git together
@@ -22,7 +22,7 @@ stops the run with a line number.
 
 ## 30-second example
 
-**You write** ([`demo/00_quickstart/hello.md`](demo/00_quickstart/hello.md), excerpt):
+**You write** ([`demo/00_quickstart/hello.md`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.md), excerpt):
 
 ```markdown
 ---
@@ -48,7 +48,7 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 | 学位论文样例 | 8 页 | 0.43 s | 目录、分节页码、双线章名页眉、跨页表头 |
 ```
 
-**You declare** ([`demo/00_quickstart/requirements.txt`](demo/00_quickstart/requirements.txt), excerpt):
+**You declare** ([`demo/00_quickstart/requirements.txt`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/requirements.txt), excerpt):
 
 ```text
 纸张：A4
@@ -70,7 +70,7 @@ md-to-word hello.md -r requirements.txt -o hello.docx
 
 **You get** (about 0.2 s, one page):
 
-[![Output of the minimal demo](demo/00_quickstart/page-1.png)](demo/00_quickstart/hello.docx)
+[![Output of the minimal demo](https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png)](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx)
 
 Two-character first-line indent, Times New Roman for Latin text, a three-line table with caption
 and note — nothing was clicked in Word.
@@ -169,8 +169,8 @@ gates.
 | Limits above/below Σ and ∫ in numbered equations | Word only stacks limits in display maths, and numbered equations are inline; symbols and content are correct, placement differs |
 | Inline text colour | Colour is a style property (`颜色#1F4E79` on a style line); inline `{color=…}` is not supported |
 
-The full vocabulary and rationale live in [`manual.md`](src/md_to_word/resources/manual.md) inside
-the package (Chinese); design decisions are in [`references/design.md`](references/design.md).
+The full vocabulary and rationale live in [`manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) inside
+the package (Chinese); design decisions are in [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md).
 
 ---
 
@@ -195,10 +195,10 @@ to-confirm item** — it does not pretend to have read it.
 
 | Path | What it is for |
 |:--|:--|
-| [`src/md_to_word/resources/manual.md`](src/md_to_word/resources/manual.md) | **The manual**: manuscript contract, full `requirements.txt` vocabulary, agent workflow, gates, limits, CSL inventory. Ships inside the package |
-| [`references/design.md`](references/design.md) | Design rationale and troubleshooting (start at its §2 when output looks wrong) |
-| [`demo/`](demo/) | Four samples: minimal, Chinese thesis, technical whitepaper, English journal submission |
-| `scripts/` | Development and acceptance tools (see [`scripts/README.md`](scripts/README.md)) |
+| [`src/md_to_word/resources/manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) | **The manual**: manuscript contract, full `requirements.txt` vocabulary, agent workflow, gates, limits, CSL inventory. Ships inside the package |
+| [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md) | Design rationale and troubleshooting (start at its §2 when output looks wrong) |
+| [`demo/`](https://github.com/ls-open/md-to-word/blob/main/demo/) | Four samples: minimal, Chinese thesis, technical whitepaper, English journal submission |
+| `scripts/` | Development and acceptance tools (see [`scripts/README.md`](https://github.com/ls-open/md-to-word/blob/main/scripts/README.md)) |
 | `src/md_to_word/` | The implementation: model → OOXML writer, style generation, validation, reconciliation |
 | `resources/` | Word 365 base template, 29 normalised CSL styles, and `manual.md` |
 | `presets/` | Built-in presets: `zh-academic.txt` (default), `en-nature.txt` |
@@ -221,7 +221,7 @@ The rule: **borrow what is standardised, build what is not**.
 
 ## License
 
-Code is [MIT](LICENSE). Citation styles under `resources/csl/` come from
+Code is [MIT](https://github.com/ls-open/md-to-word/blob/main/LICENSE). Citation styles under `resources/csl/` come from
 [citation-style-language/styles](https://github.com/citation-style-language/styles) and are used
 under CC BY-SA 3.0. `resources/pure_modern_base.docx` is generated by this project and released
 under MIT.
