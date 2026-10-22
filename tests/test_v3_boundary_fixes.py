@@ -95,6 +95,31 @@ def test_mathml_accents_and_limits_supported() -> None:
     assert len(nary_nodes) >= 1
 
 
+def test_mover_distinguishes_accent_from_overset() -> None:
+    """重音与「上面压一个表达式」是两件事，判据是上面的节点类型，不是文字长度。
+
+    `\\overset{def}{=}` 的上面是一个 mrow（text 为空），按长度判会被当重音符，
+    把 `=` 排成 `≙`；`\\overset{*}{x}` 只写一个字符，同样不是重音。
+    """
+    from lxml import etree
+
+    ns = {"m": "http://schemas.openxmlformats.org/officeDocument/2006/math"}
+
+    def kinds(latex: str) -> list[str]:
+        nodes = latex_to_omml(latex)
+        return [etree.QName(n).localname for n in nodes]
+
+    assert "acc" in kinds(r"\hat{x}")
+    assert "acc" in kinds(r"\bar{x}")
+    assert "limUpp" in kinds(r"\overset{def}{=}")
+    assert "limUpp" in kinds(r"\overset{*}{x}")
+    assert "limLow" in kinds(r"\underset{i=1}{\max}")
+
+    over = [n for n in latex_to_omml(r"\overset{def}{=}") if etree.QName(n).localname == "limUpp"][0]
+    text = "".join(over.itertext())
+    assert "def" in text and "=" in text
+
+
 def test_bibliography_heading_placement_before_appendix(tmp_path: Path) -> None:
     """P1 修复回归：`# 参考文献` 下的文献列表必须排在 `# 附录` 之前。"""
     bib_text = """

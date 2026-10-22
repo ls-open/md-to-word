@@ -225,11 +225,17 @@ class _Converter:
             "\u007e": "\u0303",
             "―": "\u0304",
             "\u2015": "\u0304",
+            "\u203e": "\u0305",
+            "‾": "\u0305",
         }
-        if element.get("accent") == "true" or over_text in acc_map or len(over_text) <= 1:
+        # 判据是「上面是一个单独的符号」，不是「上面的文字很短」：`\overset{def}{=}` 的
+        # 上面是一个 mrow（text 为空），按长度判会被当成重音符，把 `=` 变成 `≙`。
+        mark = acc_map.get(over_text)
+        is_single_symbol = len(over) == 0 and len(over_text) == 1
+        if mark or (element.get("accent") == "true" and is_single_symbol):
             acc = _el("acc")
             pr = etree.SubElement(acc, _m("accPr"))
-            val = acc_map.get(over_text, over_text or "\u0302")
+            val = mark or over_text
             etree.SubElement(pr, _m("chr")).set(_m("val"), val)
             e = etree.SubElement(acc, _m("e"))
             for child in self.convert(base):
