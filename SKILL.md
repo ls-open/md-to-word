@@ -142,3 +142,19 @@ language. Add `--verbose` when a format does not seem to take effect.
   macOS and is skipped elsewhere.
 
 Full statements: manual §6 (limits) and §8 (symptom → fix). Design rationale: `references/design.md`.
+
+## 8. Related skills
+
+This skill compiles the manuscript; these cover the steps around it. Hand off rather than
+re-implement:
+
+| Skill | What it covers |
+|---|---|
+| `nature-writing` | Drafting the manuscript and its section-level argument (input to this one) |
+| `nature-polishing` | Language polishing and academic phrasing (input to this one) |
+| `nature-citation` | Searching for and exporting BibTeX / RIS entries for the `.bib` this skill consumes |
+| `nature-ref-verifier` | Cross-checking reference metadata before submission |
+| `nature-paper2ppt` | Turning the same manuscript into a presentation deck |
+
+Upstream engine, the general-purpose pip package, and the changelog:
+[md-to-word](https://github.com/ls-open/md-to-word).
