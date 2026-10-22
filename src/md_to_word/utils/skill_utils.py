@@ -408,15 +408,23 @@ def undefined_crossref_issues(text: str, line_offset: int = 0) -> list[tuple[int
 
 
 def citations_without_bibliography(text: str, line_offset: int = 0) -> list[int]:
-    """正文里出现引文语法的行号，保序去重。
+    """正文里出现**文献引用**语法的行号，保序去重。
 
     实测：YAML 没有 `bibliography:` 时 pandoc **完全不处理引文**——`[@somekey2020]`
     不是渲染成 `(somekey2020?)` 那种占位符，而是**这七个字符原样印进 docx 正文**，
     且 citeproc 一声不吭、导出照样报成功。所以这属于「能确定」的一类。
+
+    **交叉引用不算文献引用**：`@eq-model1`（或引用稿子里定义过的 `{#标签}`）由 Quarto
+    的 crossref 解析，没有 `bibliography:` 也照常渲染。把它算进来，会让「有公式编号、
+    没有参考文献」的常规报告被误拦——实测该场景 `--no-check` 强导后产物里是「式1」，
+    没有任何残留。交叉引用自身的失效由 `undefined_crossref_issues` 负责。
     """
+    labels = defined_labels(text)
     seen: set = set()
     out: list[int] = []
-    for line_no, _ in cited_keys(text, line_offset):
+    for line_no, key in cited_keys(text, line_offset):
+        if key in labels or _CROSSREF_PREFIX_RE.match(key):
+            continue
         if line_no not in seen:
             seen.add(line_no)
             out.append(line_no)

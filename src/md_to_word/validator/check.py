@@ -16,6 +16,7 @@ import yaml
 from md_to_word.config import get_csl_dir
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_requirements
+from md_to_word.template.generator import PAGE_SIZES_CM, missing_styles_for_body
 
 # 复用 utils 中的基础文本解析工具
 from md_to_word.utils.skill_utils import (
@@ -213,6 +214,97 @@ def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
     return issues
 
 
+def latex_tag_issues(md_text: str) -> list[tuple[int, str]]:
+    """`\\tag{}` 不是 Pandoc 语法，整条公式会退化成字面文本。
+
+    公式编号只有 `{#eq-xxx}` 一种写法；写错就拦下，不做自动转换。
+    """
+    issues: list[tuple[int, str]] = []
+    for i, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
+        if re.search(r"\\tag\s*\{", line):
+            issues.append((i, line.strip()[:80]))
+    return issues
+
+
+def content_width_cm(spec: TemplateSpec) -> Optional[float]:
+    """版心宽度（cm）= 纸张宽 − 左页边距 − 右页边距 − 装订线。取不到页边距时返回 None。"""
+    if not spec.margins:
+        return None
+    width = PAGE_SIZES_CM.get(spec.page_size, PAGE_SIZES_CM["a4"])[0]
+    return width - spec.margins["left"] - spec.margins["right"] - (spec.gutter_cm or 0)
+
+
+def required_style_issues(md_text: str, spec: TemplateSpec, fm_data) -> list[tuple[int, str]]:
+    """稿件用到了结构、要求文件却没声明对应样式 → 导出会静默回退默认样式。
+
+    这是本技能最要紧的一道门禁：产物外观正常，但格式根本没映射上。
+    """
+    declared = {s.get("style_name") for s in spec.styles}
+    if spec.table:
+        declared.add("__ROW_table__")
+    if spec.table_header:
+        declared.add("__ROW_table_header__")
+
+    _, body = split_frontmatter(md_text)
+    start_line = md_text.count("\n") - body.count("\n") + 1
+    issues: list[tuple[int, str]] = []
+    reported: set[str] = set()
+    for line_no, feat, cn, en in missing_styles_for_body(
+        mask_code_fences(body), declared, start_line=start_line
+    ):
+        reported.add(en)
+        label = f"「{cn}：…」配置行" if en.startswith("__ROW_") else f"「{cn}」（{en}）定义"
+        issues.append((line_no, f"用到了 {feat}，要求文件缺少 {label}，将静默回退默认样式"))
+
+    if isinstance(fm_data, dict):
+        for key, cn, en, feat in (
+            ("bibliography", "参考文献", "Bibliography", "YAML bibliography 文献库"),
+            ("abstract", "摘要", "Abstract", "YAML abstract 摘要"),
+        ):
+            if fm_data.get(key) and en not in declared and en not in reported:
+                reported.add(en)
+                issues.append((1, f"{feat}，要求文件缺少「{cn}」（{en}）定义，将静默回退默认样式"))
+    return issues
+
+
+def template_style_issues(
+    styles_used: dict[str, list[int]], template_path: Path | str
+) -> tuple[list[str], list[str]]:
+    """`custom-style="X"` 用到的样式是否真的存在于模板 → (errors, warnings)。
+
+    模板里没有该样式时 Quarto **静默建一个空壳样式**，格式不生效。
+    """
+    template = Path(template_path)
+    if not template.is_file():
+        return [f"模板不存在: {template}"], []
+    try:
+        with zipfile.ZipFile(template) as archive:
+            root = etree.fromstring(archive.read("word/styles.xml"))
+    except (KeyError, zipfile.BadZipFile, etree.XMLSyntaxError) as exc:
+        return [f"模板存在但读不出样式表（{exc}）: {template}"], []
+
+    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    names: set[str] = set()
+    ids: set[str] = set()
+    for style in root.findall(f"{ns}style"):
+        style_id = style.get(f"{ns}styleId")
+        if style_id:
+            ids.add(style_id)
+        name = style.find(f"{ns}name")
+        if name is not None and name.get(f"{ns}val"):
+            names.add(name.get(f"{ns}val"))
+
+    errors: list[str] = []
+    for style_name, lines in sorted(styles_used.items()):
+        if style_name in names or style_name in ids:
+            continue
+        errors.append(
+            f"行 {lines[0]} custom-style「{style_name}」在模板中不存在，"
+            f"Quarto 会静默建空壳样式，格式不生效；请在模板中创建该样式或核对拼写"
+        )
+    return errors, []
+
+
 def validate_manuscript(
     md_path: Path | str,
     *,
@@ -238,6 +330,20 @@ def validate_manuscript(
         return report
 
     csl_dir = csl_dir or get_csl_dir()
+
+    # 0. 格式要求（有要求文件才谈得上「稿件结构是否有对应样式」）
+    if spec is None and spec_path is not None:
+        req_file = Path(spec_path)
+        if not req_file.is_file():
+            report.valid = False
+            report.errors.append(f"格式要求文件不存在: {req_file}")
+            return report
+        try:
+            spec = parse_requirements(req_file.read_text(encoding="utf-8"))
+        except Exception as e:
+            report.valid = False
+            report.errors.append(f"格式要求文件解析失败（{req_file}）: {e}")
+            return report
 
     # 1. Frontmatter 检查
     fm_raw, body_text = split_frontmatter(md_text)
@@ -299,7 +405,11 @@ def validate_manuscript(
                 report.valid = False
                 shown = "、".join(f"行 {n}" for n in bare_cites[:5])
                 report.errors.append(
-                    f"正文有 {len(bare_cites)} 处 `[@key]` 引用语法，但稿件未声明 `bibliography:`（{shown}）。"
+                    f"正文有 {len(bare_cites)} 处 `[@key]` 引用语法，但稿件未声明 `bibliography:`（{shown}）；"
+                    f"不处理会把这几个字符原样印进 docx。三种处理方式（按现有习惯选其一）："
+                    f"① 在 YAML 加 `bibliography: refs.bib`；"
+                    f"② 改为手写编号（如 `[1]`），文末按手写文献排版；"
+                    f"③ 仅需展示语法字面量时用反引号包成行内代码"
                 )
 
     # 2. 图片路径空格与存在性
@@ -377,5 +487,38 @@ def validate_manuscript(
     for line_no, why in caption_adjacency_issues(md_text):
         report.valid = False
         report.errors.append(f"行 {line_no} [图表题注邻近性]: {why}")
+
+    # 13. `\tag{}` 公式编号（Pandoc 不认，整条公式退化成字面文本）
+    for line_no, snippet in latex_tag_issues(md_text):
+        report.valid = False
+        report.errors.append(
+            f"行 {line_no} [公式编号]: 发现 `\\tag{{}}`，Pandoc 不认这个语法，整条公式会退化成字面文本（{snippet}）；"
+            f"删掉 `\\tag{{X}}`，改写成 `$$…$$ {{#eq-标签}}`，编号由 crossref 生成"
+        )
+
+    # 14/15. 依赖格式要求文件的两道门禁
+    if spec is not None:
+        # 14. 图片声明宽度超过版心（导出时被静默钳到版心宽，不报错）
+        width_cm = content_width_cm(spec)
+        if width_cm:
+            for line_no, why in image_width_issues(md_text, width_cm):
+                report.valid = False
+                report.errors.append(f"行 {line_no} [图片宽度超过版心]: {why}")
+        elif has_declared_image_width(md_text):
+            report.warnings.append("要求文件没写页边距，算不出版心，图片宽度未校验")
+
+        # 15. 稿件结构 vs 要求文件声明的样式（缺一条就静默回退默认样式）
+        for line_no, why in required_style_issues(md_text, spec, fm_data):
+            report.valid = False
+            report.errors.append(f"行 {line_no} [结构样式缺失]: {why}")
+
+    # 16. custom-style 是否真的存在于模板（没给模板就跳过，由对账阶段兜底）
+    styles_used = extract_custom_styles(md_text)
+    if styles_used and template_docx is not None:
+        errors, warnings = template_style_issues(styles_used, template_docx)
+        if errors:
+            report.valid = False
+            report.errors.extend(f"[custom-style] {e}" for e in errors)
+        report.warnings.extend(warnings)
 
     return report
