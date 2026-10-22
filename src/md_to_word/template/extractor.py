@@ -59,9 +59,18 @@ class Ref:
         # 消息语言：草稿正文始终是本工具的中文词表写法（那是 requirements.txt 的合法
         # 语法），变的只是「需人工确认」清单与命令行提示。
         self.lang = lang
-        with zipfile.ZipFile(path) as z:
-            self.parts = {n: z.read(n) for n in z.namelist()}
-        self.styles = etree.fromstring(self.parts['word/styles.xml'])
+        # 不是 .docx（多半是把 .md 或别的文件丢进来了）时要说清楚：直接抛 BadZipFile
+        # 的 traceback，用户只会看见 "File is not a zip file"。
+        try:
+            with zipfile.ZipFile(path) as z:
+                self.parts = {n: z.read(n) for n in z.namelist()}
+            self.styles = etree.fromstring(self.parts['word/styles.xml'])
+        except (zipfile.BadZipFile, KeyError) as exc:
+            raise ValueError(
+                t("extractor.not_docx", lang, path=path.name)
+                if exc.__class__ is zipfile.BadZipFile
+                else t("extractor.no_styles", lang, path=path.name)
+            ) from exc
         self.doc_defaults = self.styles.find(q('docDefaults'))
         self.by_id = {}
         for st in self.styles.findall(q('style')):
@@ -530,7 +539,7 @@ def _auto_lang(docx: Path) -> str:
     """
     try:
         probe = Ref(docx)
-    except (OSError, KeyError, zipfile.BadZipFile):
+    except (OSError, KeyError, ValueError, zipfile.BadZipFile):
         return 'zh'
     lang_el = probe.eff([probe.doc_defaults] if probe.doc_defaults is not None else [],
                         'rPrDefault/rPr/lang')
@@ -552,7 +561,11 @@ def main(argv=None):
     from md_to_word.template.generator import REQUIRED_STYLES
 
     lang = args.lang if args.lang in ('zh', 'en') else _auto_lang(Path(args.docx))
-    ref = Ref(Path(args.docx), lang)
+    try:
+        ref = Ref(Path(args.docx), lang)
+    except ValueError as exc:      # 不是 .docx / 没有样式表：一句话说清楚，别甩 traceback
+        print(f'❌ {exc}', file=sys.stderr)
+        return 1
     word_to_cn = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
 
     lines = ['# 由 md-to-word-template 从参考文件读出的草稿，**请核对**',

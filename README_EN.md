@@ -204,7 +204,7 @@ to-confirm item** — it does not pretend to have read it.
 | `presets/` | Built-in presets: `zh-academic.txt`, `en-nature.txt` |
 
 What ships to a user's machine: `src/` (with both manuals), `presets/`, `resources/` and package
-metadata (wheel ≈ 300 KB). `tests/`, `demo/`, `scripts/`, `references/` and `SKILL.md` are the
+metadata (wheel ≈ 320 KB). `tests/`, `demo/`, `scripts/`, `references/` and `SKILL.md` are the
 repository's acceptance surface and skill entry, not runtime dependencies.
 
 **Exit codes**: `0` done; `1` manuscript, gate or dependency problem; `3` `.docx` written but `--pdf`

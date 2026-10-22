@@ -189,7 +189,7 @@ md-to-word-template 学校模板.docx -o 论文_requirements.txt
 | `resources/` | Word 365 底模与 29 份规范化 CSL 样式 |
 | `presets/` | 内置预设：`zh-academic.txt`、`en-nature.txt` |
 
-发到用户机器上的只有 `src/`（含两份手册）、`presets/`、`resources/` 与包元数据（wheel 约 300 KB）；
+发到用户机器上的只有 `src/`（含两份手册）、`presets/`、`resources/` 与包元数据（wheel 约 320 KB）；
 `tests/`、`demo/`、`scripts/`、`references/`、`SKILL.md` 是仓库的验收面与技能入口，不进包。
 
 **退出码**：`0` 完成；`1` 稿件、门禁或依赖问题；`3` `.docx` 已写出但 `--pdf` 未渲染。

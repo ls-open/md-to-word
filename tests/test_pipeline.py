@@ -262,6 +262,16 @@ def test_missing_output_directory_is_reported_not_raised(tmp_path: Path) -> None
 
     assert result.returncode == 1
     assert any("输出目录不存在" in e for e in result.errors), result.errors
+def test_template_reader_rejects_non_docx(tmp_path: Path) -> None:
+    """把 .md 当成模板传进去时给一句话，而不是 BadZipFile 的 traceback。"""
+    from md_to_word.template.extractor import main as extract_main
+
+    not_docx = tmp_path / "notes.md"
+    not_docx.write_text("# 引言\n", encoding="utf-8")
+
+    assert extract_main([str(not_docx)]) == 1
+
+
 def test_auto_picked_requirements_are_announced(tmp_path: Path) -> None:
     """没传 -r 时，同目录唯一的 .txt 会被当成格式要求——必须说出用了哪一份。
 
