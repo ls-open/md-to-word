@@ -45,7 +45,13 @@ def _clean(value: str) -> str:
     if value[:1] in "{(\"" and value[-1:] in "})\"":
         value = value[1:-1]
     value = value.replace("{", "").replace("}", "")
-    return re.sub(r"\s+", " ", value).strip()
+    value = re.sub(r"\s+", " ", value).strip()
+    # LaTeX 连字：bib 里 `--` 是短破折号、`---` 是长破折号、`~` 是不换行空格
+    return (
+        value.replace("---", "\u2014")
+        .replace("--", "\u2013")
+        .replace("~", "\u00a0")
+    )
 
 
 def _parse_names(raw: str) -> list[dict]:

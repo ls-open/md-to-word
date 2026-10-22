@@ -18,7 +18,7 @@ from md_to_word.audit.inspector import audit_docx_against_spec
 from md_to_word.audit.postflight import verify_numeric_integrity
 from md_to_word.config import resolve_preset_path
 from md_to_word.postprocessor.equations import postprocess_docx
-from md_to_word.preprocessor.blocks import expand_style_lines
+from md_to_word.preprocessor.blocks import expand_style_lines, wrap_figure_blocks
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.preprocessor.markers import expand_markers
 from md_to_word.renderer.quarto import QuartoRenderer, check_quarto_environment
@@ -273,8 +273,10 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 return res
             res.messages.append("写出后端: 自研（native）")
         else:
+            # 图片行补回「图片段落」样式：题注搬出 alt 之后 Pandoc 不再把它当 figure
+            pandoc_text = wrap_figure_blocks(raw_text)
             # 标记展开副本必须落在原稿同目录，以保持图片与文献的相对路径生效
-            expanded_text, marker_counts = expand_markers(raw_text, template_path=tpl_for_render)
+            expanded_text, marker_counts = expand_markers(pandoc_text, template_path=tpl_for_render)
             expanded_md_file = in_p.parent / f"._{in_p.stem}_expanded_{os.getpid()}.md"
             expanded_md_file.write_text(expanded_text, encoding="utf-8")
 

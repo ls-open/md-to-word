@@ -40,6 +40,11 @@ _ALIGN = {
 }
 
 
+def _ends_with_cjk(text: str) -> bool:
+    stripped = text.rstrip()
+    return bool(stripped) and "\u4e00" <= stripped[-1] <= "\u9fff"
+
+
 def _escape(text: str) -> str:
     return (
         text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -89,6 +94,9 @@ class _Writer:
 
     # ── 块 ───────────────────────────────────────────────────────────
     def block(self, block: Block) -> None:
+        """任何非段落块之后，下一段正文都算「首段」——这是 Word 里 First Paragraph 的用法，
+        也是 Pandoc 的行为：公式、图、表、列表之后的那一段，与标题之后一样要换样式。"""
+        prev = self._after_heading
         if isinstance(block, Heading):
             self._heading(block)
         elif isinstance(block, Paragraph):
@@ -114,15 +122,33 @@ class _Writer:
         else:
             raise UnsupportedFeature(f"未支持的块类型：{type(block).__name__}")
 
+        if not isinstance(block, Paragraph):
+            self._after_heading = True
+        elif prev:
+            self._after_heading = False
+
     def _write_bibliography(self) -> None:
         """文献列表由引擎生成，放在文末；样式由要求文件的「参考文献」行控制。"""
         if self.citations is None:
             return
-        entries = self.citations.bibliography()
+        entries = self.citations.bibliography_entries()
         if not entries:
             return
-        for entry in entries:
-            self.docx.add_paragraph(entry, style="Bibliography")
+        for key, text in entries:
+            paragraph = self.docx.add_paragraph(style="Bibliography")
+            self._bookmark(paragraph, f"_Ref_{key}", text)
+
+    _bookmark_seq = 100
+
+    def _bookmark(self, paragraph, name: str, text: str) -> None:
+        """在文献条目开头放书签，正文引用才能跳过来。"""
+        type(self)._bookmark_seq += 1
+        bid = type(self)._bookmark_seq
+        paragraph._p.append(
+            parse_xml(f'<w:bookmarkStart {nsdecls("w")} w:id="{bid}" w:name="{name}"/>')
+        )
+        paragraph.add_run(text)
+        paragraph._p.append(parse_xml(f'<w:bookmarkEnd {nsdecls("w")} w:id="{bid}"/>'))
 
     def _collect_equation_numbers(self) -> None:
         """先扫一遍给带标签的公式编号：写正文时要用它解析 `@eq-x`。
@@ -186,7 +212,7 @@ class _Writer:
         except UnsupportedMath as exc:
             raise UnsupportedFeature(f"公式里有尚未支持的结构：{exc}") from exc
 
-        paragraph = self.docx.add_paragraph()
+        paragraph = self.docx.add_paragraph(style="Body Text")
         width = self._content_width_twips()
         pPr = paragraph._p.get_or_add_pPr()
         pPr.append(
@@ -471,11 +497,28 @@ class _Writer:
                     "稿件声明了 citation，但未提供文献库或 CSL 样式；请检查 YAML 的 bibliography/csl"
                 )
             keys = [(item.key, item.locator) for item in node.items]
-            paragraph.add_run(self.citations.cite(keys, narrative=node.narrative))
+            rendered = self.citations.cite(keys, narrative=node.narrative)
+            # 中文行文里「基石 [1]」应为「基石[1]」；西文保留空格
+            if not node.narrative and paragraph.runs:
+                last = paragraph.runs[-1]
+                if last.text.endswith(" ") and _ends_with_cjk(last.text):
+                    last.text = last.text.rstrip() or " "
+            self._linked_run(paragraph, rendered, f"_Ref_{keys[0][0]}")
         elif isinstance(node, FootnoteRef):
             self._footnote_reference(paragraph, node.label)
         else:
             paragraph.add_run(getattr(node, "value", str(node)))
+
+    def _linked_run(self, paragraph, text: str, anchor: str) -> None:
+        """引文跳到文末对应条目（Word 内链，不是外链）。"""
+        element = parse_xml(f'<w:hyperlink {nsdecls("w")} w:anchor="{anchor}"/>')
+        run = element.makeelement(qn("w:r"), {})
+        t = run.makeelement(qn("w:t"), {})
+        t.text = text
+        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+        run.append(t)
+        element.append(run)
+        paragraph._p.append(element)
 
     def _hyperlink(self, paragraph, node: Link) -> None:
         """超链接是关系（r:id）+ `w:hyperlink`，不是普通 run。"""

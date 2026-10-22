@@ -42,6 +42,9 @@ class CitationEngine:
         )
         self._known = {entry["id"] for entry in self.entries}
         self._rendered: dict[tuple, str] = {}
+        self._order: list[str] = []          # 首次引用顺序（数字制就用它）
+        self._by_key = {entry["id"]: entry for entry in self.entries}
+        self._sorted = _declares_sort(str(csl_path))
 
     def has(self, key: str) -> bool:
         return key in self._known
@@ -56,6 +59,9 @@ class CitationEngine:
         for key, _locator in pairs:
             if key not in self._known:
                 raise CitationError(f"文献库里没有条目：{key}")
+        for key, _locator in pairs:
+            if key not in self._order:
+                self._order.append(key)
         items = [CitationItem(key) for key, _locator in pairs]
         citation = Citation(items)
         self._bibliography.register(citation)
@@ -65,9 +71,56 @@ class CitationEngine:
         self._rendered[cache_key] = text
         return text
 
+    def bibliography_entries(self) -> list[tuple[str, str]]:
+        """(key, 渲染文本) 列表，顺序与 bibliography() 一致——写出器要用 key 建书签。"""
+        texts = self.bibliography()
+        keys = self._ordered_keys()
+        if len(keys) != len(texts):
+            return [(f"item{i}", text) for i, text in enumerate(texts)]
+        return list(zip(keys, texts))
+
+    def _ordered_keys(self) -> list[str]:
+        keys = list(self._order)
+        if self._sorted:
+            keys.sort(key=lambda k: _sort_key(self._by_key.get(k, {})))
+        return keys
+
     def bibliography(self) -> list[str]:
-        """文末文献列表（按引用顺序）。"""
-        return [str(entry) for entry in self._bibliography.bibliography()]
+        """文末文献列表。
+
+        顺序分两种：CSL 在 `<bibliography>` 里声明了 `<sort>` 的（作者-年份制）按作者与年份
+        排；没声明的（数字顺序制，如 GB/T 7714、Nature）按首次引用顺序。
+
+        `citeproc-py` 有 `style.sort_bibliography()`，但实测不生效（ape.csl 依旧按注册顺序
+        返回），所以这里自己做。排序键用条目字段近似 CSL 的宏排序——够覆盖作者-年份制。
+        """
+        rendered = [str(entry) for entry in self._bibliography.bibliography()]
+        if not self._sorted or len(rendered) != len(self._order):
+            return rendered
+
+        pairs = list(zip(self._order, rendered))
+        pairs.sort(key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
+        return [text for _key, text in pairs]
+
+
+def _declares_sort(csl_path: str) -> bool:
+    try:
+        import re as _re
+
+        content = Path(csl_path).read_text(encoding="utf-8")
+    except OSError:
+        return False
+    block = _re.search(r"<bibliography.*?</bibliography>", content, _re.S)
+    return bool(block and "<sort>" in block.group(0))
+
+
+def _sort_key(entry: dict) -> tuple:
+    """作者（姓）→ 年份 → 题名。够近似 CSL 里 author/date/title 那几条 key。"""
+    people = entry.get("author") or entry.get("editor") or []
+    names = tuple(p.get("family") or p.get("literal", "") for p in people)
+    issued = (entry.get("issued") or {}).get("date-parts", [[9999]])
+    year = issued[0][0] if issued and issued[0] else 9999
+    return (names, year, entry.get("title", ""))
 
 
 def _as_narrative(text: str) -> str:

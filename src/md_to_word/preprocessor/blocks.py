@@ -182,3 +182,30 @@ def style_line_names(text: str) -> list[tuple[int, str]]:
         if resolved and resolved not in _HEADING_STYLES:
             found.append((i, resolved))
     return found
+
+
+_IMAGE_ONLY_RE = re.compile(r"^\s*!\[[^\]]*\]\([^)\s]+\)(\{[^}]*\})?\s*$")
+
+
+def wrap_figure_blocks(text: str) -> str:
+    """给独立图片行套上 `custom-style="Captioned Figure"` 围栏（Pandoc 通道专用）。
+
+    题注从 `![…]` 里搬出去之后，Pandoc 不再把图片当作 figure，会落到 Body Text——
+    图片会继承正文的首行缩进与左对齐。这里把它重新包回图片样式。
+    自研通道不需要这一步：写出器直接给图片段落挂 Captioned Figure。
+    """
+    lines = (text or "").split("\n")
+    out: list[str] = []
+    in_fence = False
+    for line in lines:
+        if line.strip().startswith("```") or line.strip().startswith("~~~"):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+        if in_fence or not _IMAGE_ONLY_RE.match(line):
+            out.append(line)
+            continue
+        if out and out[-1].strip():
+            out.append("")
+        out.extend(['::: {custom-style="Captioned Figure"}', line.strip(), ":::", ""])
+    return "\n".join(out)
