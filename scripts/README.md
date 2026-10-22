@@ -7,6 +7,7 @@
 | 脚本 | 做什么 | 等价的包内命令 |
 |:--|:--|:--|
 | `export.sh` | 导出。先用仓库里的 `src/`，没有源码时退回已安装的 `md-to-word` | `md-to-word` / `python3 -m md_to_word` |
+| `acceptance.sh` | **发版前的安装验收**：建 wheel → 干净 venv 安装 → 跑 --version/--contract/--guide/init/导出/--json/--pdf/反推 | —（这一步只有安装后才成立） |
 | `read_reference_docx.py` | 从参考 `.docx` 反推 `format.txt` 草稿 | `md-to-word-template` |
 | `generate_template.py` | 只按要求文件生成样式模板，用来看产物长什么样 | —（导出时会临时生成） |
 | `check_md.py` | 单独跑导前预检 | —（每次导出都会跑） |
