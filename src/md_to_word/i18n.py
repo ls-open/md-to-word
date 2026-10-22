@@ -65,6 +65,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Several .txt files in {dir}; cannot tell which one is the requirements.\n"
         "  Pass -r to select one, or use --preset zh-academic/en-nature.",
     ),
+    "pipeline.preset_auto": (
+        "未指定格式要求，按稿件语种使用内置预设 {name}（要换就用 -r 或 --preset）。",
+        "No requirements given; using the {name} preset for this manuscript's language (pass -r or --preset to override).",
+    ),
     "pipeline.txt_auto": (
         "未指定格式要求，自动使用同目录唯一的 {path}（要换一份就加 -r）。",
         "No requirements given; using the only .txt beside the manuscript: {path} (pass -r to choose another).",

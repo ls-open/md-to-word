@@ -112,7 +112,7 @@ packages. **Export needs no external binary**: no Pandoc, no Quarto, no Word. On
 **Command line**:
 
 ```bash
-md-to-word paper.md -o paper.docx                    # default Chinese preset (zh-academic)
+md-to-word paper.md -o paper.docx                    # default preset follows the manuscript language
 md-to-word paper.md --preset en-nature -o out.docx   # English journal preset
 md-to-word paper.md -r format.txt -o out.docx        # explicit requirements file
 md-to-word --help                                    # all options; help follows manuscript language

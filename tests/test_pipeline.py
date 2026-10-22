@@ -210,6 +210,39 @@ def test_user_csl_direct_formatting_is_stripped(tmp_path: Path) -> None:
     assert any("hanging-indent" in m for m in result.messages), result.messages
 
 
+def test_default_preset_follows_the_manuscript_language(tmp_path: Path) -> None:
+    """不给 -r 也不给 --preset 时，中文稿走 zh-academic、英文稿走 en-nature。
+
+    英文稿套上中文学位论文的格式（首行缩进两字符 + 宋体 fallback）是错的，而这个错
+    看不出来：文档能打开、样式都在，只是每段都被顶了两个字符。
+    """
+    import re
+    import zipfile
+
+    def body_text_style(docx: Path) -> str:
+        with zipfile.ZipFile(docx) as archive:
+            styles = archive.read("word/styles.xml").decode("utf-8")
+        match = re.search(r'<w:style [^>]*w:styleId="BodyText".*?</w:style>', styles, re.S)
+        assert match, "模板里没有 Body Text 样式"
+        return match.group(0)
+
+    (tmp_path / "en.md").write_text("# 1 Introduction\n\nEnglish body.\n", encoding="utf-8")
+    en = run_export_pipeline(
+        ExportOptions(input_path=tmp_path / "en.md", output_path=tmp_path / "en.docx")
+    )
+    assert en.returncode == 0, en.errors
+    assert any("en-nature" in m for m in en.messages), en.messages
+    assert 'w:firstLineChars="0"' in body_text_style(tmp_path / "en.docx")
+
+    (tmp_path / "zh.md").write_text("# 一 引言\n\n中文正文。\n", encoding="utf-8")
+    zh = run_export_pipeline(
+        ExportOptions(input_path=tmp_path / "zh.md", output_path=tmp_path / "zh.docx")
+    )
+    assert zh.returncode == 0, zh.errors
+    assert any("zh-academic" in m for m in zh.messages), zh.messages
+    assert 'w:firstLineChars="200"' in body_text_style(tmp_path / "zh.docx")
+
+
 def test_auto_picked_requirements_are_announced(tmp_path: Path) -> None:
     """没传 -r 时，同目录唯一的 .txt 会被当成格式要求——必须说出用了哪一份。
 

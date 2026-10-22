@@ -166,11 +166,14 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             res.errors.append(t("pipeline.many_txt", res.lang, dir=in_p.parent))
             return res
         elif not options.template_path:
-            # 默认兜底走中文学术预设
-            p_default = resolve_preset_path("zh-academic")
+            # 默认预设跟着稿件语种走：英文稿拿中文学位论文的格式（首行缩进两字符、
+            # 宋体 fallback）是错的。判据与默认 CSL 用的是同一个 `looks_chinese`。
+            preset_name = "zh-academic" if res.lang == "zh" else "en-nature"
+            p_default = resolve_preset_path(preset_name)
             if p_default and p_default.is_file():
                 req_file = p_default
                 req_content = p_default.read_text(encoding="utf-8")
+                res.messages.append(t("pipeline.preset_auto", res.lang, name=preset_name))
 
     # 3. 模板解析
     custom_template: Optional[Path] = None

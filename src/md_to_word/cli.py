@@ -82,8 +82,8 @@ Block markers (one per line, blank lines around): `{{{{< pagebreak >}}}}`, `{{{{
 Style names (a wrong name stops the export with a line number):
 {', '.join(_style_names(ascii_only=True))}
 
-Format requirements: without -r the built-in preset is used (zh-academic for Chinese,
---preset en-nature for English journals). One style per line, for example
+Format requirements: without -r the built-in preset is used, chosen by the manuscript's
+language (zh-academic for Chinese, en-nature otherwise). One style per line, for example
 `Body Text: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 0pt indent 0`.
 Start from a preset: copy the file below next to the manuscript and change only the lines you need.
 
@@ -108,7 +108,7 @@ Built-in presets:
 
 样式名（写错会带行号报错）：{'、'.join(_style_names(ascii_only=False))}
 
-格式要求：不传 -r 时用内置预设（中文 zh-academic、英文 --preset en-nature），
+格式要求：不传 -r 时用内置预设（按稿件语种：中文 zh-academic、其他 en-nature），
 每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
 从预设起步最省事：把下面那份拷到稿件旁，只改需要的行。
 

@@ -103,7 +103,7 @@ Word（仅 macOS；不可用时自动跳过，不影响 `.docx`）。
 **命令行**：
 
 ```bash
-md-to-word 稿件.md -o 输出.docx                     # 默认中文预设（zh-academic）
+md-to-word 稿件.md -o 输出.docx                     # 默认预设按稿件语种选（中文 zh-academic、英文 en-nature）
 md-to-word 稿件.md --preset en-nature -o out.docx   # 英文期刊预设
 md-to-word 稿件.md -r 格式要求.txt -o out.docx       # 指定格式要求文件
 md-to-word --help                                   # 全部选项；帮助语言跟随稿件语种
