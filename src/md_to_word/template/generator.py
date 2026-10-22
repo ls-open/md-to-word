@@ -533,6 +533,14 @@ class MinLineSpacing:
         return f'MinLineSpacing({self.pt}磅)'
 
 
+class TemplateError(ValueError):
+    """格式要求或模板无法生成。
+
+    作为库调用时（`run_export_pipeline`、`build_template`）必须抛这个异常，不能
+    `sys.exit`：调用方的进程不该被一份写错的 requirements 直接终结。
+    """
+
+
 # ── 样式操作函数 ──
 
 # Word 内置的目录条目样式：styleId = TOC1/TOC2/TOC3，名字是小写的 "toc 1/2/3"，
@@ -838,9 +846,9 @@ def get_default_template():
     """取纯净现代 Word 365 基底模板（resources/pure_modern_base.docx）。"""
     local_base = get_base_template_path()
     if not local_base.exists():
-        logger.error(f'错误: 未找到基础模板 {local_base}。'
-                     f'请运行 scripts/create_pure_modern_base.py 重新生成。')
-        sys.exit(1)
+        raise TemplateError(
+            f'未找到基础模板 {local_base}；请运行 scripts/create_pure_modern_base.py 重新生成。'
+        )
     logger.info(f"使用内置纯净现代 Word 365 基底模板: {local_base}")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
     shutil.copyfile(str(local_base), tmp.name)
@@ -1221,9 +1229,9 @@ def apply_page_decorations(doc, spec):
         return
 
     if len(doc.sections) != 1:
-        logger.error(f'错误: 模板必须是单节（当前 {len(doc.sections)} 节）——'
-                     f'pandoc 只取参考文档的第一个 sectPr，多节模板的页眉页脚会错位')
-        sys.exit(1)
+        raise TemplateError(
+            f'模板必须是单节（当前 {len(doc.sections)} 节），多节模板的页眉页脚会错位。'
+        )
 
     section = doc.sections[0]
 
@@ -1266,24 +1274,21 @@ def apply_page_decorations(doc, spec):
         cn = STYLE_MAP.get(nm)
         hint = (f'\n  「{nm}」是本技能的中文写法，对应 Word 样式名「{cn}」——'
                 f'域里要写后者：{{样式标题:{cn}}}') if cn else ''
-        logger.error(
-            f'错误: 页眉/页脚域 {{样式标题:{nm}}} 指向的样式在模板里不存在。\n'
-            f'  STYLEREF 只认 Word 样式名（如 Heading 1），写错时 Word 会显示'
-            f'「错误!未找到引用源」。{hint}\n'
-            f'  样式名速查见 SKILL.md §2.1。')
-        sys.exit(1)
+        raise TemplateError(
+            f'页眉/页脚域 {{样式标题:{nm}}} 指向的样式在模板里不存在。'
+            f'STYLEREF 只认 Word 样式名（如 Heading 1）。{hint}'
+        )
 
     # 「页码：」只往 sectPr 写编号格式与起始值；页码要真的印在纸上，得有一行页眉/页脚
     # 内容带 {页码} 域。写了「页码：」却没有 {页码} 域 = 写了等于没写，且三道闸门全绿。
     if spec.page_number and not any(
             kind == 'field' and val.split()[0] == 'PAGE'
             for parts in spec.decor.values() for kind, val in parts):
-        logger.error(
-            '错误: 写了「页码：」，但没有任何页眉/页脚内容带 {页码} 域。\n'
-            '  「页码：」只定编号的格式与起始值，真正把页码画到纸上的是 {页码} 域。\n'
-            '  补一行「页脚内容：{页码}」（要放页眉就写「页眉内容：{页码}」）；'
-            '不想要页码就删掉「页码：」那一行。')
-        sys.exit(1)
+        raise TemplateError(
+            '写了「页码：」，但没有任何页眉/页脚内容带 {页码} 域。'
+            '「页码：」只定格式与起始值，把页码画到纸上的是 {页码} 域；'
+            '补一行「页脚内容：{页码}」，或删掉「页码：」这一行。'
+        )
 
     if spec.page_number:
         fmt, start = spec.page_number
@@ -1418,22 +1423,22 @@ def apply_table_format(doc, spec, default_latin=None):
     table_align = table.get('align', 'center')
     table_style = table.get('style') or 'three-line'
     if table_style not in ('three-line', 'grid', 'top-bottom', 'none'):
-        logger.error(f'错误: 不支持的表格样式 "{table_style}"')
-        logger.error('支持的样式: three-line (三线表), grid (全网格线), top-bottom (顶底线), none (无边框)')
-        sys.exit(1)
+        raise TemplateError(
+            f'不支持的表格样式 "{table_style}"；可用：三线表 / 全网格线 / 顶底线 / 无边框。'
+        )
     # 线宽旋钮只在**画得出来**的地方有意义：声明了却不生效比报错难查得多。
     declared_widths = table.get('widths') or {}
     if declared_widths and table_style == 'none':
-        logger.error(
-            f'错误: 表格样式为「无边框」，不画任何线，不能写线宽（收到 {declared_widths}）。\n'
-            f'  要保留某条线请改用「三线表」或「顶底线」。')
-        sys.exit(1)
+        raise TemplateError(
+            f'表格样式为「无边框」，不画任何线，不能写线宽（收到 {declared_widths}）；'
+            f'要保留某条线请改用「三线表」或「顶底线」。'
+        )
     # 「线宽内」只对全网格线有意义：三线表/顶底线按定义没有内部横线，写了也不会生效。
     if 'inside' in declared_widths and table_style in ('three-line', 'top-bottom'):
-        logger.error(
-            f'错误: 表格样式为「{table_style}」，没有内部横线，不能写「线宽内」。\n'
-            f'  三线表的表头下线请用「线宽表头下」（格式要求里的"其余横线"就是它）。')
-        sys.exit(1)
+        raise TemplateError(
+            f'表格样式为「{table_style}」，没有内部横线，不能写「线宽内」；'
+            f'三线表的表头下线请用「线宽表头下」。'
+        )
 
     try:
         style_el = doc.styles['Table'].element
@@ -1591,9 +1596,10 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
     page_size = spec.page_size
     reqs, default_latin = spec.styles, spec.default_latin
     if not reqs:
-        logger.error('错误: 未解析到任何样式要求')
-        logger.error('请确保格式为 "样式名：属性" 格式，如 "一级标题：黑体 三号 加粗 不倾斜 左对齐 行距1.5倍 段前12磅 段后6磅 首行缩进0字符"')
-        sys.exit(1)
+        raise TemplateError(
+            '未解析到任何样式要求；格式应为「样式名：属性」，'
+            '如「一级标题：黑体 三号 加粗 不倾斜 左对齐 行距1.5倍 段前12磅 段后6磅 首行缩进0字符」。'
+        )
 
     if spec.margins:
         margins = spec.margins
@@ -1612,7 +1618,7 @@ def generate_template(requirements_text, output_path, margins=None, lang="zh"):
         print(f' 全局西文字体: {default_latin}')
 
     if _check_required_fields(spec):
-        sys.exit(1)
+        raise TemplateError('必填样式或必填字段缺失，详见上方逐条提示。')
 
     logger.info('\n加载纯净现代 Word 365 底模...')
     tmp_path = get_default_template()
@@ -1826,7 +1832,11 @@ def main():
     with open(requirements_file, 'r', encoding='utf-8') as f:
         requirements_text = f.read()
 
-    generate_template(requirements_text, output_path)
+    try:
+        generate_template(requirements_text, output_path)
+    except TemplateError as exc:
+        logger.error(f'错误: {exc}')
+        sys.exit(1)
 
 
 if __name__ == '__main__':

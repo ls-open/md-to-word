@@ -1,6 +1,7 @@
-"""md_to_word.pipeline — 现代学术 Word 导出总编排流水线（纯 Python 跨平台实现）。
+"""md_to_word.pipeline — 导出总编排。
 
-串联 8 大解耦领域模块，接管原 bash 脚本编排逻辑，支持在 Windows、macOS 与 Linux 原生运行。
+顺序固定：读稿 → 预检 → 生成样式模板 → 读成文档模型 → 写出 OOXML → 防丢数 → 对账 → 可选 PDF。
+每一步失败都有明确的退出码与可读原因；跨平台，不依赖任何外部二进制。
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from md_to_word.i18n import resolve_lang, t
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.spec.parser import parse_requirements
 from md_to_word.template.builder import build_template
+from md_to_word.template.generator import TemplateError
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
 from md_to_word.utils.skill_utils import split_frontmatter, resolve_manuscript_path
@@ -125,7 +127,11 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             return res
         custom_template = p_tpl
 
-    spec = parse_requirements(req_content) if req_content else None
+    # 要求文件写错时预检会给出带行号的原因；这里只取公式编号这一项，读不出就用默认
+    try:
+        spec = parse_requirements(req_content) if req_content else None
+    except ValueError:
+        spec = None
 
     # 按章编号 + 编号外观仍是默认 → 多半是漏带了 --eq-number-style cjk。
     # **这一项没有任何闸门能发现**：漏了就是静默产出 (5.1)（点号、半角括号），
@@ -187,7 +193,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 res.errors.append(t("pipeline.no_spec", res.lang))
                 return res
             temp_tpl_path = Path(temp_dir) / "template.docx"
-            build_template(req_content, temp_tpl_path, lang=res.lang)
+            try:
+                build_template(req_content, temp_tpl_path, lang=res.lang)
+            except TemplateError as exc:
+                res.returncode = 1
+                res.errors.append(f"格式要求无法生成样式模板：{exc}")
+                return res
             tpl_for_render = temp_tpl_path
 
         # 6. 契约文本 → 文档模型 → OOXML

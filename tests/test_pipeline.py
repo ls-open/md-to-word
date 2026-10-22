@@ -140,3 +140,20 @@ def test_image_paths_are_relative_to_the_manuscript(tmp_path: Path, monkeypatch)
     )
     assert result.returncode == 0, result.errors
     assert "drawing" in __import__("zipfile").ZipFile(work / "o.docx").read("word/document.xml").decode()
+
+
+def test_bad_requirements_return_error_instead_of_exiting(tmp_path: Path) -> None:
+    """作为库调用时，写错的格式要求必须返回错误码，不能 sys.exit 掉调用方的进程。"""
+    (tmp_path / "m.md").write_text('---\ntitle: "t"\n---\n\n# 一\n\n正文。\n', encoding="utf-8")
+    (tmp_path / "req.txt").write_text("正文：宋体 小四\n", encoding="utf-8")
+
+    try:
+        result = run_export_pipeline(
+            ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx",
+                          requirements_path=tmp_path / "req.txt")
+        )
+    except SystemExit:  # pragma: no cover - 旧实现会走到这里
+        pytest.fail("写错的 requirements 不应终止进程，应返回 returncode=1")
+
+    assert result.returncode == 1
+    assert any("格式要求" in e for e in result.errors), result.errors
