@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import re
 import shutil
-import subprocess
 import zipfile
 from pathlib import Path
 
@@ -85,29 +84,6 @@ def test_unsupported_features_fail_loudly(source: str, fragment: str, template: 
         write_docx(model, template, tmp_path / "x.docx")
 
 
-@pytest.mark.skipif(shutil.which("quarto") is None, reason="Quarto is not installed")
-def test_matches_pandoc_output_on_quickstart(template: Path, tmp_path: Path) -> None:
-    """双后端对拍：样式序列与全文文本必须一致。"""
-    for name in ("hello.md", "requirements.txt"):
-        shutil.copy(DEMO / name, tmp_path / name)
-
-    ours = write_docx(
-        read_markdown((DEMO / "hello.md").read_text(encoding="utf-8")),
-        template,
-        tmp_path / "ours.docx",
-    )
-
-    subprocess.run(
-        ["bash", str(REPO_ROOT / "scripts" / "export.sh"), "hello.md", "-o", "theirs.docx"],
-        cwd=tmp_path, capture_output=True, text=True, check=True,
-    )
-
-    our_styles, our_text = _facts(ours)
-    their_styles, their_text = _facts(tmp_path / "theirs.docx")
-    assert our_styles == their_styles
-    assert our_text == their_text
-
-
 def test_lists_use_real_numbering(template: Path, tmp_path: Path) -> None:
     """编号必须是域而不是字面量，否则 Word 里按退格改不了级别、增删条目不会重编号。"""
     model = read_markdown("- 甲\n- 乙\n\n1. 一\n2. 二\n")
@@ -127,23 +103,6 @@ def test_ordered_list_start_override(template: Path, tmp_path: Path) -> None:
     out = write_docx(model, template, tmp_path / "start.docx")
     numbering = zipfile.ZipFile(out).read("word/numbering.xml").decode("utf-8")
     assert 'w:startOverride w:val="3"' in numbering
-
-
-@pytest.mark.skipif(shutil.which("quarto") is None, reason="Quarto is not installed")
-def test_matches_pandoc_output_on_lists(template: Path, tmp_path: Path) -> None:
-    source = '---\ntitle: "列表测试"\n---\n\n# 一 章节\n\n正文。\n\n- 甲\n- 乙\n\n1. 一\n2. 二\n'
-    (tmp_path / "m.md").write_text(source, encoding="utf-8")
-    (tmp_path / "requirements.txt").write_text(PRESET.read_text(encoding="utf-8"), encoding="utf-8")
-
-    ours = write_docx(read_markdown(source), template, tmp_path / "ours.docx")
-    subprocess.run(
-        ["bash", str(REPO_ROOT / "scripts" / "export.sh"), "m.md", "-o", "theirs.docx"],
-        cwd=tmp_path, capture_output=True, text=True, check=True,
-    )
-    our_styles, our_text = _facts(ours)
-    their_styles, their_text = _facts(tmp_path / "theirs.docx")
-    assert our_styles == their_styles
-    assert our_text == their_text, "列表的文本与编号级联应与 Pandoc 一致"
 
 
 def test_footnotes_are_written_as_a_real_part(template: Path, tmp_path: Path) -> None:
@@ -177,26 +136,6 @@ def test_toc_field_and_section_break(template: Path, tmp_path: Path) -> None:
     assert "instrText" in xml and "TOC" in xml, "目录必须是域，否则页码不会更新"
     assert xml.count("<w:sectPr") == 2, "分节段落一个 + 文末一个"
     assert '<w:pgNumType w:fmt="lowerRoman" w:start="1"/>' in xml
-
-
-@pytest.mark.skipif(shutil.which("quarto") is None, reason="Quarto is not installed")
-def test_matches_pandoc_output_on_toc_and_section(template: Path, tmp_path: Path) -> None:
-    source = (
-        '---\ntitle: "结构测试"\n---\n\n%% 目录标题 目录\n\n{{< toc 2 >}}\n\n'
-        "{{< section 页码=小写罗马 起始=1 >}}\n\n# 一 引言\n\n正文。\n"
-    )
-    (tmp_path / "m.md").write_text(source, encoding="utf-8")
-    (tmp_path / "requirements.txt").write_text(PRESET.read_text(encoding="utf-8"), encoding="utf-8")
-
-    ours = write_docx(read_markdown(source), template, tmp_path / "ours.docx")
-    subprocess.run(
-        ["bash", str(REPO_ROOT / "scripts" / "export.sh"), "m.md", "-o", "theirs.docx"],
-        cwd=tmp_path, capture_output=True, text=True, check=True,
-    )
-    our_styles, our_text = _facts(ours)
-    their_styles, their_text = _facts(tmp_path / "theirs.docx")
-    assert our_styles == their_styles
-    assert our_text.replace("（打开文档后目录会自动生成）", "") == their_text.replace("（打开文档后目录会自动生成）", "")
 
 
 def test_equations_become_omml_with_numbers(template: Path, tmp_path: Path) -> None:
@@ -240,13 +179,11 @@ def test_unsupported_mathml_fails_loudly() -> None:
         mathml_to_omml(unsupported)
 
 
-def test_native_pipeline_needs_no_quarto(tmp_path: Path, monkeypatch) -> None:
-    """自研后端不碰 Quarto：把 quarto 从 PATH 上抹掉，导出照样成功。
+def test_pipeline_needs_no_external_binary(tmp_path: Path) -> None:
+    """内化的判据不是"我们也能渲染"，而是"没有任何外部二进制也能渲染"。
 
-    这是「内化」的判据——不是"我们也能渲染"，而是"没有那个外部二进制也能渲染"。
+    依赖清单里只有纯 Python 包；这条用例跑通，就说明导出链路没偷偷调 pandoc/quarto。
     """
-    from unittest.mock import patch
-
     from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
     for name in ("hello.md", "requirements.txt"):
@@ -254,14 +191,9 @@ def test_native_pipeline_needs_no_quarto(tmp_path: Path, monkeypatch) -> None:
     if (DEMO / "figures").is_dir():
         shutil.copytree(DEMO / "figures", tmp_path / "figures")
 
-    with patch("md_to_word.renderer.quarto.shutil.which", return_value=None):
-        result = run_export_pipeline(
-            ExportOptions(
-                input_path=tmp_path / "hello.md",
-                output_path=tmp_path / "out.docx",
-                writer="native",
-            )
-        )
+    result = run_export_pipeline(
+        ExportOptions(input_path=tmp_path / "hello.md", output_path=tmp_path / "out.docx")
+    )
 
     assert result.returncode == 0, result.errors
     assert (tmp_path / "out.docx").exists()

@@ -291,7 +291,7 @@ def malformed_table_issues(text: str) -> list[tuple[int, str]]:
             issues.append((
                 first_bad,
                 f"表格第 1 行有 {expect} 列，第 {first_bad} 行是 {n} 列——"
-                f"列数对不上时 pandoc 会静默丢掉多出来的单元格（连字一起丢）",
+                f"列数对不上时多出来的单元格会被静默丢掉（连字一起丢）",
             ))
     return issues
 

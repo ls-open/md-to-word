@@ -12,7 +12,7 @@ license = { text = "MIT" }
 authors = [
     { name = "Liu Song" }
 ]
-keywords = ["markdown", "word", "docx", "quarto", "pandoc", "academic", "nature", "typography"]
+keywords = ["markdown", "word", "docx", "academic", "typography", "ooxml", "csl"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
@@ -32,7 +32,7 @@ dependencies = [
     # LaTeX → MathML：MathML 是 W3C 标准，解析器借成熟的；MathML → OMML 没有标准，
     # 那一段在我们自己的 transform/mathml2omml.py 里
     "latex2mathml>=3.0",
-    # CSL 引文渲染：2 MB，只依赖 lxml。不为了引文去装近 1 GB 的 Quarto
+    # CSL 引文渲染：2 MB，只依赖 lxml
     "citeproc-py>=0.6",
 ]
 

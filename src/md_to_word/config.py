@@ -62,9 +62,8 @@ def resolve_preset_path(preset_name: str) -> Optional[Path]:
     return None
 
 
-# 稿件没写 `csl:` 时的兜底引文样式。**两条写出通道必须用同一份**：Pandoc 未收到 csl
-# 时会用自己内置的芝加哥作者-年份制，自研写出器若另选一套，同一份稿子换个后端就换出
-# 两种文献表——这是对拍里最不该出现的差异。
+# 稿件没写 `csl:` 时的兜底引文样式。默认值必须**可预期**：同一份稿子今天与明天导出，
+# 文献表要一样长、一样排。
 DEFAULT_CSL_ZH = "chinese-gb7714-2015-numeric.csl"
 DEFAULT_CSL_EN = "apa.csl"
 

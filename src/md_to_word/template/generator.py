@@ -3,7 +3,7 @@
 生成学术 Word 模板 (docx)
 
 从纯净现代 Word 365 基础母版出发，根据 requirements.txt 格式要求修改样式，
-输出可作为 Quarto / Pandoc --reference-doc 的 template.docx。
+输出是只含样式与页面设置的 template.docx，写出器直接用它。
 
 用法:
     python3 generate_template.py requirements.txt -o template.docx
@@ -24,6 +24,7 @@ from docx.shared import Pt, RGBColor
 from lxml import etree
 
 from md_to_word.config import get_base_template_path
+from md_to_word.i18n import t
 from md_to_word.utils.skill_utils import (
     TOC_MARKER_RE,
     clear_color_theme_attrs,
@@ -1070,7 +1071,7 @@ def _check_required_fields(spec) -> bool:
     has_errors = bool(missing_required or missing_styles or missing_rows)
 
     if missing_styles:
-        print('\n⚠️ 必填样式缺失（将沿用 Pandoc 默认值，可能不符合期刊要求）:')
+        print('\n⚠️ 必填样式缺失（将沿用 Word 默认值，可能不符合期刊要求）:')
         for style_name, alias in missing_styles:
             print(f' - {alias}（{style_name}）')
         print(' 建议在 requirements.txt 中补充这些样式的定义')
@@ -1081,7 +1082,7 @@ def _check_required_fields(spec) -> bool:
             print(f' - {name}: 应写「{example}」')
 
     if missing_required:
-        print('\n⚠️ 必填字段缺失（缺失会沿用 Pandoc 默认值，可能导致格式不合规）:')
+        print('\n⚠️ 必填字段缺失（缺失会沿用 Word 默认值，可能导致格式不合规）:')
         for alias, field in missing_required:
             hint = FIELD_FIX_HINT.get(field, field)
             print(f' - {alias}: 缺少{FIELD_CN.get(field, field)}')
@@ -1425,7 +1426,7 @@ def apply_table_format(doc, spec, default_latin=None):
         tbl_pr.remove(old_jc)
     jc_el = ensure_ordered_child(tbl_pr, 'jc', _TBLPR_ORDER)
     jc_el.set(W('val'), table_align)
-    print(f' ✓ Table: 表格对齐={table_align}（通过 Table 样式 jc 控制，Pandoc 表格自动继承）')
+    print(f' ✓ Table: 表格对齐={table_align}（通过 Table 样式 jc 控制）')
 
     if table_style != 'none':
         declared = table.get('widths', {})
@@ -1556,7 +1557,7 @@ def apply_footnote_format(doc, spec, page_size, margins, default_latin=None):
     print(f' ✓ {_FOOTNOTE_REF_STYLE}: 已设为上标')
 
 
-def generate_template(requirements_text, output_path, margins=None):
+def generate_template(requirements_text, output_path, margins=None, lang="zh"):
     """主流程：生成模板"""
     output_path = str(output_path)
     logger.info('─' * 50)
@@ -1763,9 +1764,7 @@ def generate_template(requirements_text, output_path, margins=None):
 
     print(f'\n✅ 模板已生成: {output_path} (现代 Word 365 引擎，compatMode=15)')
     print()
-    # 以前这里打印 `quarto render …` 的用法。默认后端已经是自研写出器，那行会误导人，
-    # 改为说明模板的用途：它是样式来源，两条通道都吃它。
-    print('模板只提供样式（styles.xml）。导出：md-to-word 稿件.md -o 输出.docx')
+    print(t("template.styles_only", lang))
 
 
 def main():

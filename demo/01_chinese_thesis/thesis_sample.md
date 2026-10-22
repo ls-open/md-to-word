@@ -108,5 +108,3 @@ $$J^*(\boldsymbol{w}) = \arg\min_{\boldsymbol{w}} \left\| w_{\text{left}} - w_{\
 
 %% 参考文献标题 参考文献
 
-::: {#refs}
-:::

@@ -56,214 +56,72 @@ class ValidationReport:
     warnings: list[str] = field(default_factory=list)
 
 
-def extract_custom_styles(md_text: str) -> dict[str, list[int]]:
-    """提取 MD 里所有 custom-style="X" 的样式名（去重，保留出现行号）。"""
-    found: dict[str, list[int]] = {}
-    in_code_block = False
-    for i, line in enumerate(md_text.split("\n"), 1):
-        stripped = line.strip()
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            in_code_block = not in_code_block
-        if in_code_block:
-            continue
-        for match in re.finditer(r'custom-style=["\']([^"\']+)["\']', line):
-            style = match.group(1)
-            found.setdefault(style, []).append(i)
-    return found
-
-
 def caption_adjacency_issues(md_text: str) -> list[tuple[int, str]]:
-    """检查表格题注与图片题注是否紧邻其实体（表格/图片），防止孤立题注。"""
+    """题注是否紧邻其实体（表格/图片）——孤立题注在成稿里很明显，提醒即可。
+
+    题注是独立段落（`%% 表题 …` / `%% 图片题注 …`），所以"紧邻"要跨过空行与表注：
+    中间只要夹了一句正文，就认为断开。
+    """
     masked = mask_code_fences(md_text)
-
-    # 屏蔽多行 HTML 注释（用等量换行符保持行号对齐）
-    def _repl_comment(m: re.Match) -> str:
-        return "\n" * m.group(0).count("\n")
-
-    cleaned = re.sub(r"<!--.*?-->", _repl_comment, masked, flags=re.DOTALL)
+    cleaned = re.sub(r"<!--.*?-->", lambda m: "\n" * m.group(0).count("\n"), masked, flags=re.DOTALL)
     lines = cleaned.split("\n")
-    n = len(lines)
-    issues: list[tuple[int, str]] = []
 
     def is_table_row(line: str) -> bool:
         s = line.strip()
-        return (s.startswith("|") and s.endswith("|")) or s.startswith("|---") or bool(re.match(r"^\+[-=+]+\+$", s))
+        return (s.startswith("|") and s.endswith("|")) or s.startswith("|---")
 
     def is_image_entity(line: str) -> bool:
-        s = line.strip()
-        return bool(re.search(r"!\[.*?\]\(.*?\)", s) or re.search(r"<img\s+[^>]*src=", s, re.I))
+        return bool(re.search(r"!\[[^\]]*\]\([^)]*\)", line))
 
-    def style_caption_kind(line: str) -> str | None:
-        """`%% 表题 …` / `%% 图片题注 …` / `%% 表注 …` → table / image / note。"""
+    def kind_of(line: str) -> str | None:
         split = split_style_line(line)
         if split is None:
             return None
         resolved = resolve_style_name(split[0])
-        if resolved == "Table Caption":
-            return "table"
-        if resolved == "Image Caption":
-            return "image"
-        if resolved == "Table Note":
-            return "note"
-        return None
+        return {
+            "Table Caption": "table",
+            "Image Caption": "image",
+            "Table Note": "note",
+        }.get(resolved)
 
-    def is_structural_wrapper(line: str) -> bool:
-        s = line.strip()
-        if not s or s == ":::":
-            return True
-        if re.match(r"^:::\s*\{.*\}$", s):
-            return True
-        if re.match(r"^\{#tbl-[^}]+\}$", s) or re.match(r"^\{#fig-[^}]+\}$", s):
-            return True
-        return style_caption_kind(line) is not None
-
-    def skip_table_note_backward(curr_idx: int) -> int:
-        idx = curr_idx
-        if style_caption_kind(lines[idx]) == "note":
-            return idx - 1
-        if lines[idx].strip() == ":::":
-            k = idx - 1
-            while k >= 0:
-                l_str = lines[k].strip()
-                if "Table Note" in l_str or "表注" in l_str or "表格附注" in l_str:
-                    return k - 1
-                if l_str.startswith("#") or is_table_row(l_str):
-                    break
-                k -= 1
-        return curr_idx
-
-    def skip_table_note_forward(curr_idx: int) -> int:
-        l_str = lines[curr_idx].strip()
-        if style_caption_kind(lines[curr_idx]) == "note":
-            return curr_idx + 1
-        if "Table Note" in l_str or "表注" in l_str or "表格附注" in l_str:
-            k = curr_idx + 1
-            while k < n:
-                if lines[k].strip() == ":::":
-                    return k + 1
-                k += 1
-        return curr_idx
-
-    def look_back(start_idx: int) -> tuple[bool, bool]:
-        found_table = False
-        found_image = False
-        i = start_idx - 1
-        while i >= 0:
+    def scan(start: int, step: int) -> tuple[bool, bool]:
+        """从 start 出发单向扫描，遇到正文就停；返回 (见到表格, 见到图片)。"""
+        table = image = False
+        i = start
+        while 0 <= i < len(lines):
             line = lines[i].strip()
             if not line:
-                i -= 1
+                i += step
                 continue
-            new_i = skip_table_note_backward(i)
-            if new_i != i:
-                i = new_i
-                continue
-            if is_table_row(line):
-                found_table = True
-                break
-            if is_image_entity(line):
-                found_image = True
-                break
-            if is_structural_wrapper(line):
-                i -= 1
-                continue
-            # 普通正文/标题等非容器结构，立即停止，严禁穿透正文
-            break
-        return found_table, found_image
-
-    def look_forward(end_idx: int) -> tuple[bool, bool]:
-        found_table = False
-        found_image = False
-        i = end_idx + 1
-        while i < n:
-            line = lines[i].strip()
-            if not line:
-                i += 1
-                continue
-            new_i = skip_table_note_forward(i)
-            if new_i != i:
-                i = new_i
+            if kind_of(line) == "note":  # 表注夹在题注与表格之间是正常排版
+                i += step
                 continue
             if is_table_row(line):
-                found_table = True
-                break
+                return True, image
             if is_image_entity(line):
-                found_image = True
-                break
-            if is_structural_wrapper(line):
-                i += 1
+                return table, True
+            if kind_of(line) is not None:  # 另一条题注：继续，不算断开
+                i += step
                 continue
-            # 普通正文/标题等非容器结构，立即停止
             break
-        return found_table, found_image
+        return table, image
 
-    i = 0
-    while i < n:
-        line = lines[i].strip()
-        m_tbl = re.search(r'custom-style=["\'](Table Caption|表格题注|表名|表题)["\']', line, re.I)
-        m_img = re.search(r'custom-style=["\'](Image Caption|图片题注|图名|图题)["\']', line, re.I)
-        m_pandoc_tbl = re.search(r"^:\s+.*\{#tbl-", line)
-
-        kind = style_caption_kind(line)
-        if kind in ("table", "image"):
-            tbl_before, img_before = look_back(i)
-            tbl_after, img_after = look_forward(i)
-            if kind == "table" and not (tbl_before or tbl_after):
-                issues.append(
-                    (
-                        i + 1,
-                        "表格题注未紧邻表格（上下均未检测到表格实体）。表格题注必须置于对应表格紧邻的上方或下方。",
-                    )
-                )
-            if kind == "image" and not (img_before or img_after):
-                issues.append(
-                    (
-                        i + 1,
-                        "图片题注未紧邻图片（上下均未检测到图片实体）。图片题注必须置于对应图片紧邻的下方或上方。",
-                    )
-                )
-            i += 1
+    issues: list[tuple[int, str]] = []
+    for i, line in enumerate(lines):
+        kind = kind_of(line)
+        if kind not in ("table", "image"):
             continue
-
-        if m_tbl or m_img or m_pandoc_tbl:
-            start_i = i
-            end_i = i
-            if m_tbl or m_img:
-                j = i + 1
-                while j < n:
-                    if lines[j].strip() == ":::":
-                        end_i = j
-                        break
-                    j += 1
-
-            if m_tbl or m_pandoc_tbl:
-                tbl_before, _ = look_back(start_i)
-                tbl_after, _ = look_forward(end_i)
-                if not (tbl_before or tbl_after):
-                    issues.append(
-                        (
-                            start_i + 1,
-                            "表格题注未紧邻表格（上下均未检测到表格实体）。表格题注必须置于对应表格紧邻的上方或下方。",
-                        )
-                    )
-            elif m_img:
-                _, img_before = look_back(start_i)
-                _, img_after = look_forward(end_i)
-                if not (img_before or img_after):
-                    issues.append(
-                        (
-                            start_i + 1,
-                            "图片题注未紧邻图片（上下均未检测到图片实体）。图片题注必须置于对应图片紧邻的下方或上方。",
-                        )
-                    )
-            i = end_i + 1
-            continue
-        i += 1
-
+        table_near = scan(i - 1, -1)[0] or scan(i + 1, 1)[0]
+        image_near = scan(i - 1, -1)[1] or scan(i + 1, 1)[1]
+        if kind == "table" and not table_near:
+            issues.append((i + 1, "表格题注未紧邻表格（上下均未检测到表格实体），会被排成孤立题注。"))
+        elif kind == "image" and not image_near:
+            issues.append((i + 1, "图片题注未紧邻图片（上下均未检测到图片实体），会被排成孤立题注。"))
     return issues
 
 
 def latex_tag_issues(md_text: str) -> list[tuple[int, str]]:
-    """`\\tag{}` 不是 Pandoc 语法，整条公式会退化成字面文本。
+    """`\\tag{}` 不是本技能支持的编号写法，整条公式会退化成字面文本。
 
     公式编号只有 `{#eq-xxx}` 一种写法；写错就拦下，不做自动转换。
     """
@@ -317,9 +175,9 @@ def required_style_issues(md_text: str, spec: TemplateSpec, fm_data) -> list[tup
 def template_style_issues(
     styles_used: dict[str, list[int]], template_path: Path | str
 ) -> tuple[list[str], list[str]]:
-    """`custom-style="X"` 用到的样式是否真的存在于模板 → (errors, warnings)。
+    """稿件用到的段落样式是否真的存在于模板 → (errors, warnings)。
 
-    模板里没有该样式时 Quarto **静默建一个空壳样式**，格式不生效。
+    模板里没有该样式时，写出器只能退成普通段落，格式**静默不生效**。
     """
     template = Path(template_path)
     if not template.is_file():
@@ -346,8 +204,8 @@ def template_style_issues(
         if style_name in names or style_name in ids:
             continue
         errors.append(
-            f"行 {lines[0]} custom-style「{style_name}」在模板中不存在，"
-            f"Quarto 会静默建空壳样式，格式不生效；请在模板中创建该样式或核对拼写"
+            f"行 {lines[0]} 样式「{style_name}」在模板中不存在，格式不会生效；"
+            f"请在格式要求文件里补上这一条，或核对写法"
         )
     return errors, []
 
@@ -566,11 +424,11 @@ def validate_manuscript(
             f"本引擎按「一行一段」读取，会拆成两段。若本意是同一段，请合并到一行"
         )
 
-    # 13. `\tag{}` 公式编号（Pandoc 不认，整条公式退化成字面文本）
+    # 13. `\tag{}` 公式编号（不认这个写法，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):
         report.valid = False
         report.errors.append(
-            f"行 {line_no} [公式编号]: 发现 `\\tag{{}}`，Pandoc 不认这个语法，整条公式会退化成字面文本（{snippet}）；"
+            f"行 {line_no} [公式编号]: 发现 `\\tag{{}}`，这不是本技能的编号写法，整条公式会退化成字面文本（{snippet}）；"
             f"删掉 `\\tag{{X}}`，改写成 `$$…$$ {{#eq-标签}}`，编号由 crossref 生成"
         )
 
@@ -589,13 +447,13 @@ def validate_manuscript(
             report.valid = False
             report.errors.append(f"行 {line_no} [结构样式缺失]: {why}")
 
-    # 15b. `:::` 不是本技能的段落写法
+    # 15b. `:::` 不是本技能的写法
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
-        if re.match(r"^\s*:::.*custom-style", line) or re.match(r"^\s*:::\s+[^\s{#.]", line):
+        if re.match(r"^\s*:::", line):
             report.valid = False
             report.errors.append(
-                f"行 {line_no} [段落样式]: `:::` 包裹不是本技能的写法。段落样式写成一行："
-                f"`%% 样式名 内容`（如 `%% 摘要 本文…`）"
+                f"行 {line_no} [段落样式]: `:::` 不是本技能的写法。"
+                f"需要段落样式就写成一行 `%% 样式名 内容`；文献列表由引擎放在文末，不需要定位标记。"
             )
 
     # 15c. 题注写进图片的方括号里：方括号只放无障碍替代文字
@@ -627,7 +485,7 @@ def validate_manuscript(
         report.errors.append(f"行 {line_no} [段落样式]: {why}")
 
     # 17. custom-style 是否真的存在于模板（没给模板就跳过，由对账阶段兜底）
-    styles_used = extract_custom_styles(md_text)
+    styles_used: dict[str, list[int]] = {}
     for line_no, resolved in style_line_names(md_text):
         if resolved:
             styles_used.setdefault(resolved, []).append(line_no)

@@ -57,5 +57,3 @@ $$\Phi(\lambda) = \sum_{k=1}^K \frac{\lambda_k \cdot \mu_k}{\alpha \cdot \log(1 
 
 %% 参考文献标题 参考文献
 
-::: {#refs}
-:::

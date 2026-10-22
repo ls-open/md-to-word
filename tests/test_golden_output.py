@@ -24,13 +24,6 @@ from md_to_word.pipeline import ExportOptions, run_export_pipeline
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 GOLDEN = Path(__file__).resolve().parent / "golden" / "manuscript_zh.json"
 
-REQUIRED = [
-    pytest.mark.skipif(
-        shutil.which("quarto") is None, reason="Quarto is not installed"
-    )
-]
-
-
 def _document_xml(docx_path: Path) -> str:
     with zipfile.ZipFile(docx_path) as archive:
         return archive.read("word/document.xml").decode("utf-8")
@@ -49,7 +42,6 @@ def _facts(xml: str) -> dict:
     }
 
 
-@REQUIRED[0]
 def test_manuscript_structure_matches_golden(tmp_path: Path) -> None:
     for name in ("manuscript.md", "refs.bib"):
         shutil.copy(FIXTURES / name, tmp_path / name)

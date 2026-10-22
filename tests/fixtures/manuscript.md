@@ -18,5 +18,3 @@ As shown in @eq-demo, the relation holds.
 
 # References
 
-::: {#refs}
-:::

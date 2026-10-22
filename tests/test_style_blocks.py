@@ -9,7 +9,6 @@ from __future__ import annotations
 import pytest
 
 from md_to_word.preprocessor.blocks import (
-    expand_style_lines,
     split_style_line,
     style_line_issues,
     style_line_names,
@@ -33,21 +32,7 @@ def test_non_style_lines_are_ignored() -> None:
     assert split_style_line("%%摘要 缺空格") is None
 
 
-def test_expands_to_pandoc_div() -> None:
-    expanded = expand_style_lines("%% 摘要 本文提出一种方法\n")
-    assert expanded == '::: {custom-style="Abstract"}\n本文提出一种方法\n:::\n'
 
-
-def test_table_row_after_caption_is_untouched() -> None:
-    text = "%% 表题 表 1 实验数据\n| 甲 | 乙 |\n"
-    expanded = expand_style_lines(text)
-    assert "| 甲 | 乙 |" in expanded
-    assert expanded.count(":::") == 2
-
-
-def test_code_fence_is_not_rewritten() -> None:
-    text = "```\n%% 摘要 示例\n```\n"
-    assert expand_style_lines(text) == text
 
 
 @pytest.mark.parametrize(

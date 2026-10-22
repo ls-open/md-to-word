@@ -63,7 +63,6 @@ def _document_xml(docx_path: Path) -> str:
         return archive.read("word/document.xml").decode("utf-8")
 
 
-@pytest.mark.skipif(shutil.which("quarto") is None, reason="Quarto is not installed")
 def test_export_end_to_end(tmp_path: Path) -> None:
     """The full pipeline must produce equations, a three-line table, and a citation."""
     for name in ("manuscript.md", "refs.bib"):

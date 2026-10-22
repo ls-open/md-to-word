@@ -11,8 +11,7 @@ from pathlib import Path
 import pytest
 
 from md_to_word.model.document import (
-    Citation, CodeBlock, CrossRef, Equation, Figure, FootnoteRef, Heading, ListBlock, Math,
-    PageBreak, Paragraph, Quote, SectionBreak, Table, Text, Toc,
+    Citation, CodeBlock, CrossRef, Equation, Figure, PageBreak, Paragraph, SectionBreak, Text, Toc,
 )
 from md_to_word.model.reader import parse_inlines, read_markdown
 

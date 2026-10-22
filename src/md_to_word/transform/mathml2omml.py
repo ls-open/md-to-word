@@ -66,7 +66,7 @@ class _Converter:
         return self._children(element)
 
     def _children(self, element) -> list:
-        """逐个子元素转换；大型运算符要**吃掉后面一个元素当被运算体**。
+        r"""逐个子元素转换；大型运算符要**吃掉后面一个元素当被运算体**。
 
         OMML 的 `m:nary` 自带 `m:e`（被运算体），而 MathML 里 `\sum_{k} a_k` 是并列的
         兄弟节点——`msub(∑,k)` 后面跟 `a_k`。不把 `a_k` 放进 `m:e`，Word 会先画一个空的

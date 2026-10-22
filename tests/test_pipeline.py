@@ -5,7 +5,6 @@ from __future__ import annotations
 import shutil
 import sys
 from pathlib import Path
-import pytest
 
 SRC_DIR = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_DIR) not in sys.path:
@@ -14,7 +13,6 @@ if str(SRC_DIR) not in sys.path:
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
 
-@pytest.mark.skipif(shutil.which("quarto") is None, reason="Quarto is not installed")
 def test_pipeline_export_zh_academic(tmp_path: Path):
     fixture_dir = Path(__file__).resolve().parent / "fixtures"
     for name in ("manuscript.md", "refs.bib"):
@@ -32,7 +30,6 @@ def test_pipeline_export_zh_academic(tmp_path: Path):
     assert output.stat().st_size > 5000
 
 
-@pytest.mark.skipif(shutil.which("quarto") is None, reason="Quarto is not installed")
 def test_pipeline_export_en_nature(tmp_path: Path):
     fixture_dir = Path(__file__).resolve().parent / "fixtures"
     for name in ("manuscript.md", "refs.bib"):
@@ -69,41 +66,6 @@ title: Broken
     result = run_export_pipeline(options)
     assert result.returncode == 1
     assert any("图片文件不存在" in e for e in result.errors)
-
-
-def test_missing_renderer_reports_environment_error(tmp_path: Path, monkeypatch):
-    """渲染引擎不可用是环境问题（退出码 2），不能和「稿件有问题」（1）混在一起。"""
-    manuscript = tmp_path / "manuscript.md"
-    manuscript.write_text('---\ntitle: "环境测试"\n---\n\n# 一 引言\n\n正文。\n', encoding="utf-8")
-
-    def _boom(*_args, **_kwargs):
-        raise RuntimeError("未在系统 PATH 中找到 quarto 可执行程序")
-
-    monkeypatch.setattr("md_to_word.pipeline.QuartoRenderer.render", _boom)
-
-    result = run_export_pipeline(
-        ExportOptions(
-            input_path=manuscript,
-            preset="zh-academic",
-            postflight=False,
-            audit=False,
-            writer="pandoc",  # 自研后端不需要渲染引擎，这条用例专测 Pandoc 通道
-        )
-    )
-    assert result.returncode == 2
-    assert result.errors, "环境问题必须给出可读原因"
-    assert any("渲染引擎" in error or "quarto" in error.lower() for error in result.errors)
-
-
-def test_build_template_accepts_spec_object(tmp_path: Path):
-    """TemplateSpec 能直接拿去生成模板：解析与生成这两个 API 必须能组合。"""
-    from md_to_word.spec.parser import parse_requirements
-    from md_to_word.template.builder import build_template
-
-    preset = Path(__file__).resolve().parents[1] / "presets" / "zh-academic.txt"
-    spec = parse_requirements(preset.read_text(encoding="utf-8"))
-    out = build_template(spec, tmp_path / "t.docx")
-    assert out.exists() and out.stat().st_size > 0
 
 
 def _write_bib(directory: Path) -> None:

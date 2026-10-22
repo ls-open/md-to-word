@@ -23,7 +23,8 @@ from docx.oxml.ns import nsdecls, qn
 from docx.shared import Cm, Emu
 
 from md_to_word.config import default_crossref_prefixes, looks_chinese
-from md_to_word.preprocessor.markers import PAGE_NUMBER_FMT, section_paragraph_xml, toc_xml
+from md_to_word.preprocessor.markers import section_paragraph_xml, toc_xml
+from md_to_word.spec.constants import PAGE_NUMBER_FMT
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
@@ -93,10 +94,13 @@ class UnsupportedFeature(NotImplementedError):
 
 
 class _Writer:
-    def __init__(self, document: Document, docx, citations=None, base_dir=None) -> None:
+    def __init__(
+        self, document: Document, docx, citations=None, base_dir=None, eq_number_style="asis"
+    ) -> None:
         self.model = document
         self.docx = docx
         self.citations = citations
+        self.eq_number_style = eq_number_style
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         self._after_heading = False  # 下一段正文若是「标题后的第一段」，落 First Paragraph
         self._compact_style = self._style_name("Compact")
@@ -278,7 +282,7 @@ class _Writer:
         number = self._eq_numbers.get(block.label or "")
         if number:
             paragraph.add_run().add_tab()
-            paragraph.add_run(f"({number})")
+            paragraph.add_run(self._display_eq_number(number))
 
     @staticmethod
     def _omath(nodes):
@@ -555,6 +559,12 @@ class _Writer:
             props = "<w:i/>"
         return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
 
+    def _display_eq_number(self, number: str) -> str:
+        """公式右侧的编号外观：`asis` 出 `(5.1)`，`cjk` 出 `（5-1）`。"""
+        if self.eq_number_style == "cjk":
+            return f"（{number.replace('.', '-')}）"
+        return f"({number})"
+
     def _resolve_crossref(self, target: str) -> str:
         """`@eq-a` → 「式2.1」/「Equation 2.1」：前缀先看 YAML 的 crossref，没有按语种给默认。"""
         if target.startswith("eq-"):
@@ -568,7 +578,11 @@ class _Writer:
         number = self._eq_numbers.get(target)
         if number is None:
             raise UnsupportedFeature(f"交叉引用 {target} 指向的标签不存在")
-        return f"{prefix}{number}" if prefix else number
+        if not prefix:
+            return number
+        if self.eq_number_style == "cjk" and number:
+            return f"{prefix}（{number.replace('.', '-')}）"
+        return f"{prefix}{number}"
 
     def _style_name(self, name: str) -> str | None:
         """按名称取样式名（没有就返回 None，不静默套用别的样式）。"""
@@ -743,6 +757,7 @@ def write_docx(
     output: Path | str,
     citations=None,
     base_dir: Path | str | None = None,
+    eq_number_style: str = "asis",
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
 
@@ -750,9 +765,12 @@ def write_docx(
     文末列表都由它渲染；不传时遇到 citation 会明确失败。
     `base_dir` 是稿件所在目录：稿里的图片路径都是相对它的，不能按进程 cwd 解析——
     否则从别的目录调用时图全找不到（预览与流水线走的是同一个入口）。
+    `eq_number_style`：`asis` 出 (5.1)，`cjk` 出 （5-1）——中文学位论文多用前者以外的写法。
     """
     docx = open_docx(str(template))
-    _Writer(model, docx, citations=citations, base_dir=base_dir).write()
+    _Writer(
+        model, docx, citations=citations, base_dir=base_dir, eq_number_style=eq_number_style
+    ).write()
     out = Path(output)
     docx.save(str(out))
     return out

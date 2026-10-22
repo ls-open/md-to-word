@@ -6,9 +6,7 @@
 编码（`#`/`##`…），段落样式有二十多种编码不了，所以名字写在符号后面。
 
 单位是**段落**，不是区域：一行即一段，空行结束。没有闭合符号，也就没有"忘记闭合"。
-
-本模块只负责把这一行翻译成 Pandoc 认的 fenced div，段落包裹仍由 Pandoc 完成——
-自己发 OOXML 要先把段落解析出来再套 `w:pStyle`，那是把编译器的活重做一遍。
+读取器按这一行直接造段落节点，套对应样式；这里只做**认名字**与**挑毛病**两件事。
 """
 
 from __future__ import annotations
@@ -47,61 +45,6 @@ def split_style_line(line: str) -> tuple[str, str] | None:
 
 def resolve_style_name(name: str) -> str | None:
     return STYLE_MAP.get(name.strip())
-
-
-def is_heading_style(name: str) -> bool:
-    resolved = resolve_style_name(name)
-    return resolved in _HEADING_STYLES
-
-
-def expand_style_lines(text: str) -> str:
-    """把样式行翻译成 `::: {custom-style="…"}` 围栏，交给 Pandoc 套段落样式。
-
-    围栏前后必须各有一个空行：Pandoc 只在空行之后认 fenced div，紧贴上一行时会把它当成
-    正文的一部分，`:::` 会**原样印进 docx**。作者写 `%% 图片题注` 时通常紧贴图片行，
-    所以这里替他把空行补齐，而不是要求他记住这条。
-    """
-    lines = (text or "").split("\n")
-    out: list[str] = []
-    in_fence = False
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        stripped = line.strip()
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            in_fence = not in_fence
-            out.append(line)
-            i += 1
-            continue
-        if in_fence:
-            out.append(line)
-            i += 1
-            continue
-
-        split = split_style_line(line)
-        if split is None:
-            out.append(line)
-            i += 1
-            continue
-
-        name, content = split
-        resolved = resolve_style_name(name)
-        if resolved is None or resolved in _HEADING_STYLES or not content:
-            out.append(line)  # 认不出/标题类/没内容：原样留给预检报错，不在这里猜
-            i += 1
-            continue
-
-        if out and out[-1].strip():
-            out.append("")
-        indent = _STYLE_LINE_RE.match(line).group("indent")
-        out.append(f'{indent}::: {{custom-style="{resolved}"}}')
-        out.append(content)
-        out.append(f"{indent}:::")
-        nxt = lines[i + 1] if i + 1 < len(lines) else ""
-        if nxt.strip():
-            out.append("")
-        i += 1
-    return "\n".join(out)
 
 
 def style_line_issues(text: str) -> list[tuple[int, str]]:
@@ -182,30 +125,3 @@ def style_line_names(text: str) -> list[tuple[int, str]]:
         if resolved and resolved not in _HEADING_STYLES:
             found.append((i, resolved))
     return found
-
-
-_IMAGE_ONLY_RE = re.compile(r"^\s*!\[[^\]]*\]\([^)\s]+\)(\{[^}]*\})?\s*$")
-
-
-def wrap_figure_blocks(text: str) -> str:
-    """给独立图片行套上 `custom-style="Captioned Figure"` 围栏（Pandoc 通道专用）。
-
-    题注从 `![…]` 里搬出去之后，Pandoc 不再把图片当作 figure，会落到 Body Text——
-    图片会继承正文的首行缩进与左对齐。这里把它重新包回图片样式。
-    自研通道不需要这一步：写出器直接给图片段落挂 Captioned Figure。
-    """
-    lines = (text or "").split("\n")
-    out: list[str] = []
-    in_fence = False
-    for line in lines:
-        if line.strip().startswith("```") or line.strip().startswith("~~~"):
-            in_fence = not in_fence
-            out.append(line)
-            continue
-        if in_fence or not _IMAGE_ONLY_RE.match(line):
-            out.append(line)
-            continue
-        if out and out[-1].strip():
-            out.append("")
-        out.extend(['::: {custom-style="Captioned Figure"}', line.strip(), ":::", ""])
-    return "\n".join(out)

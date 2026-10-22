@@ -4,71 +4,65 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
+from md_to_word.i18n import SUPPORTED, resolve_lang, t
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
+from md_to_word.utils.skill_utils import configure_logging
 
 
-def build_parser() -> argparse.ArgumentParser:
+def _message_lang(argv: list[str]) -> str:
+    """先粗读一遍参数，按稿件语种决定帮助文本用哪国话。
+
+    只为把 `--help` 说清楚：完整解析还是交给 `build_parser`。读不到稿件时按项目
+    主语言中文处理。
+    """
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("input", nargs="?")
+    pre.add_argument("--lang", default="auto")
+    known, _ = pre.parse_known_args(argv)
+    text = ""
+    if known.input and Path(known.input).is_file():
+        try:
+            text = Path(known.input).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+    override = None if known.lang == "auto" else known.lang
+    return resolve_lang(text, override) if text else (override if override in SUPPORTED else "zh")
+
+
+def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="md-to-word",
-        description="现代学术 Markdown 到期刊/学位规范 Word (.docx) 编译引擎",
-        epilog="退出码: 0=成功 / 1=稿件或门禁问题 / 2=环境问题（缺 Quarto 或依赖）/ 3=docx 已生成但 PDF 未渲染",
+        description=t("cli.description", lang),
+        epilog=t("cli.exit_codes", lang),
     )
-    parser.add_argument("input", help="输入的 Markdown 论文或报告稿件 (.md)")
-    parser.add_argument("-o", "--output", help="输出的 Word 文档路径 (.docx)")
-    parser.add_argument(
-        "-r",
-        "--requirements",
-        help="格式要求文件 (.txt)；未传时优先按同目录唯一 .txt 或内置预设",
-    )
-    parser.add_argument(
-        "--preset",
-        help="内置格式预设：zh-academic（中文学术默认）或 en-nature（英文国际期刊）",
-    )
-    parser.add_argument("-t", "--template", help="可选：指定现成 Word 样式模板 (.docx)")
-    parser.add_argument(
-        "--strip-comments",
-        action="store_true",
-        help="导出前剔除 Markdown 中的 HTML 注释",
-    )
-    parser.add_argument(
-        "--no-check",
-        action="store_true",
-        help="跳过导前语法与排版契约预检（不推荐）",
-    )
-    parser.add_argument(
-        "--no-postflight",
-        action="store_true",
-        help="跳过产物数值防丢检查（不推荐）",
-    )
-    parser.add_argument(
-        "--no-audit",
-        action="store_true",
-        help="跳过产物与格式要求逐条对账抽查",
-    )
-    parser.add_argument(
-        "--pdf",
-        action="store_true",
-        help="导出后再渲染一份 PDF 供核对（macOS + 本机 Word 专享）",
-    )
-    parser.add_argument(
-        "--writer",
-        choices=["native", "pandoc"],
-        default="native",
-        help="写出后端：native=自研写出器（默认，不需要 Quarto）；pandoc=Quarto/Pandoc 通道（备选）",
-    )
+    parser.add_argument("input", help=t("cli.input", lang))
+    parser.add_argument("-o", "--output", help=t("cli.output", lang))
+    parser.add_argument("-r", "--requirements", help=t("cli.requirements", lang))
+    parser.add_argument("--preset", help=t("cli.preset", lang))
+    parser.add_argument("-t", "--template", help=t("cli.template", lang))
+    parser.add_argument("--lang", choices=["auto", *SUPPORTED], default="auto", help=t("cli.lang", lang))
+    parser.add_argument("--strip-comments", action="store_true", help=t("cli.strip_comments", lang))
+    parser.add_argument("--no-check", action="store_true", help=t("cli.no_check", lang))
+    parser.add_argument("--no-postflight", action="store_true", help=t("cli.no_postflight", lang))
+    parser.add_argument("--no-audit", action="store_true", help=t("cli.no_audit", lang))
+    parser.add_argument("--pdf", action="store_true", help=t("cli.pdf", lang))
     parser.add_argument(
         "--eq-number-style",
         choices=["asis", "cjk"],
         default="asis",
-        help="公式编号外观：asis=原生 (1)/(1.1)；cjk=中文学位论文 （5-1）",
+        help=t("cli.eq_number_style", lang),
     )
     return parser
 
 
 def main(args: list[str] | None = None) -> int:
-    parser = build_parser()
-    parsed = parser.parse_args(args)
+    argv = list(sys.argv[1:] if args is None else args)
+    configure_logging()
+    lang = _message_lang(argv)
+    parser = build_parser(lang)
+    parsed = parser.parse_args(argv)
 
     options = ExportOptions(
         input_path=parsed.input,
@@ -82,7 +76,7 @@ def main(args: list[str] | None = None) -> int:
         audit=not parsed.no_audit,
         make_pdf=parsed.pdf,
         eq_number_style=parsed.eq_number_style,
-        writer=parsed.writer,
+        lang=None if parsed.lang == "auto" else parsed.lang,
     )
 
     result = run_export_pipeline(options)
@@ -90,19 +84,13 @@ def main(args: list[str] | None = None) -> int:
     for msg in result.messages:
         print(msg)
 
-    if result.returncode == 2:
-        for err in result.errors:
-            print(f"❌ {err}", file=sys.stderr)
-        print("   这是环境问题（缺渲染引擎或依赖），不是稿件问题；装好后再跑一次即可。", file=sys.stderr)
-        return 2
-
     if result.returncode != 0 and result.returncode != 3:
         for err in result.errors:
             print(f"❌ {err}", file=sys.stderr)
         return result.returncode
 
     if result.returncode == 3:
-        print("⚠️ docx 已正常生成，但 PDF 渲染被跳过或未完成。", file=sys.stderr)
+        print(f"⚠️ {t('pipeline.pdf_skipped', result.lang)}", file=sys.stderr)
         return 3
 
     return 0

@@ -1,6 +1,7 @@
 """md_to_word.template.builder — Word 样式模板生成器。
 
-基于 pure_modern_base.docx 底模，将规范文本编译生成 Quarto / Pandoc 可用的 reference-doc。
+基于 pure_modern_base.docx 底模，把格式要求文本编译成只有 styles.xml（及页眉页脚、
+页面设置）的模板；写出器拿它当作样式的唯一来源。
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ def build_template(
     output_path: Path | str,
     *,
     margins: Optional[dict[str, float]] = None,
+    lang: str = "zh",
 ) -> Path:
     """根据格式要求文本（或 TemplateSpec）生成 template.docx。
 
@@ -30,5 +32,5 @@ def build_template(
     else:
         text = str(spec_or_text)
 
-    generate_template(text, str(out), margins=margins)
+    generate_template(text, str(out), margins=margins, lang=lang)
     return out
