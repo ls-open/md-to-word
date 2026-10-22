@@ -10,7 +10,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TMP="$(mktemp -d)"
+# 建在 /tmp 下：Word for Mac 是沙箱应用，读不到系统临时目录（/var/folders/…），
+# 那样 --pdf 会一直按"跳过"返回 3，验收就白测了。
+TMP="$(mktemp -d /tmp/md-to-word-accept.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
 step() { printf '\n== %s\n' "$1"; }

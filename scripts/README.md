@@ -12,7 +12,7 @@
 | `generate_template.py` | 只按要求文件生成样式模板，用来看产物长什么样 | —（导出时会临时生成） |
 | `check_md.py` | 单独跑导前预检 | —（每次导出都会跑） |
 | `normalize_csl.py` | 规范化 CSL（剥掉 `<bibliography>` 上的直接格式属性） | —（用户自带 CSL 时自动执行） |
-| `render_via_word.sh` | 用本机 Word 把 docx 渲染成 PDF（macOS） | `md-to-word … --pdf` |
+| `render_via_word.sh` | 转发到包内的同脚本（渲染要随 wheel 发布，pip 装的人也得能 `--pdf`） | `md-to-word … --pdf` |
 | `create_pure_modern_base.py` | 重新生成 `resources/pure_modern_base.docx` | —（底模已随包发布） |
 
 ## 视觉核验的轻重

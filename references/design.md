@@ -444,7 +444,7 @@ docx 打开、更新目录域之后，条目变成 Word 默认的样子（不加
 更新域会沿用这份定义。
 
 **验证**：`tests/test_template_toc.py` 断言模板里的三条样式是内置形态；端到端核对用
-`scripts/render_via_word.sh 稿件.docx out.pdf 更新后.docx` 留下 Word 更新过的副本，比对
+`md_to_word/resources/render_via_word.sh 稿件.docx out.pdf 更新后.docx` 留下 Word 更新过的副本，比对
 `styles.xml` 里 `TOC1` 是否仍带 `rFonts`/`b`。
 
 > `目录标题`（`TOC Heading`）本来就是内置样式，不受影响。目录条目上的点线与页码由 Word
