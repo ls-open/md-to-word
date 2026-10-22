@@ -58,7 +58,10 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     """
     from md_to_word.config import resolve_preset_path
 
-    manual = Path(__file__).resolve().parent / "resources" / "manual.md"
+    # 手册按语言各一份：中文版 manual.md，英文版 manual_en.md。两份都随包发布。
+    manual = Path(__file__).resolve().parent / "resources" / (
+        "manual_en.md" if lang == "en" else "manual.md"
+    )
     presets = "\n".join(
         f"  {name:<12} {resolve_preset_path(name)}" for name in ("zh-academic", "en-nature")
     )
@@ -77,7 +80,7 @@ def contract_cheatsheet(lang: str = "zh") -> str:
    Citations are `[@key]`, with `bibliography: refs.bib` and `csl: apa.csl` in the YAML.
 
 Block markers (one per line, blank lines around): `{{{{< pagebreak >}}}}`, `{{{{< toc 2 >}}}}`,
-`{{{{< section 页码=小写罗马 起始=1 >}}}}`.
+`{{{{< section page_number=lowerRoman start=1 >}}}}`.
 
 Style names (a wrong name stops the export with a line number):
 {', '.join(_style_names(ascii_only=True))}
@@ -85,7 +88,7 @@ Style names (a wrong name stops the export with a line number):
 Format requirements: without -r the built-in preset is used, chosen by the manuscript's
 language (zh-academic for Chinese, en-nature otherwise). One style per line, for example
 `Body Text: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 0pt indent 0`.
-Start from a preset: copy the file below next to the manuscript and change only the lines you need.
+Starting from a preset is recommended: copy the file below next to the manuscript and change only the lines you need.
 
 Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits): {manual}
 Built-in presets:
@@ -110,7 +113,7 @@ Built-in presets:
 
 格式要求：不传 -r 时用内置预设（按稿件语种：中文 zh-academic、其他 en-nature），
 每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
-从预设起步最省事：把下面那份拷到稿件旁，只改需要的行。
+推荐从预设起步：将下面那份复制到稿件旁，仅修改需要的行。
 
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界）：{manual}
 内置预设：

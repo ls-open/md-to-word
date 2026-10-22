@@ -8,15 +8,66 @@
 
 English | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md)
 
-Compiles Markdown into compliant Word (`.docx`) files: **theses, journal manuscripts, technical
-reports and official documents**. Layout lives in a `requirements.txt` that goes into Git together
-with the manuscript. Export is deterministic — the same sources produce the same output on every
-run. A pre-flight check runs before export and a reconciliation pass after it; anything off-contract
-stops the run with a line number.
+Compile Markdown into compliant Word (`.docx`): theses, journal manuscripts, technical reports and
+official documents.
 
-> Two premises: **content and layout are separate** (Markdown is the source, layout is declared);
-> **an AI agent can do the whole job** (the user states the requirement, the agent extracts formats,
-> normalises the manuscript and closes the quality loop).
+Three rules: **content and layout are separate** — the format lives in a `requirements.txt` that goes
+into Git; **export is deterministic** — the same sources produce a byte-identical file on every run;
+**the gates do not ship silent errors** — a pre-flight check runs before export and a reconciliation
+pass after it, and anything off-contract stops the run with a line number.
+
+---
+
+## Two ways to use it
+
+There is one engine (`src/md_to_word/`); both paths are entries into it.
+
+### 1. As a command
+
+For terminal exports, CI, or your own scripts.
+
+```bash
+pip install md-to-word-docx
+md-to-word manuscript.md -o manuscript.docx
+```
+
+```python
+from md_to_word import export
+
+result = export("manuscript.md", "manuscript.docx")   # preset follows the manuscript language
+if not result.ok:
+    raise SystemExit("\n".join(result.errors))
+```
+
+- Update with `pip install -U md-to-word-docx` (use `pipx install` / `pipx upgrade` to stay out of the
+  system environment)
+- The distribution carries a `-docx` suffix because plain `md-to-word` is too close to existing PyPI
+  projects; the command is still `md-to-word`
+- No documentation at hand? `md-to-word --contract` prints the manuscript contract and the absolute
+  paths of the full manual and the built-in presets
+
+### 2. As a skill
+
+For handing the job to an agent: state the format requirement, let the agent do the rest.
+
+1. Clone this repository (or drop the directory into your skills directory)
+2. Point the agent at `SKILL.md` in the repository root
+3. The agent normalizes the manuscript → writes `requirements.txt` → exports → reads the gates and
+   fixes the reported lines
+
+**Nothing needs installing**: `scripts/export.sh` runs the source tree directly, and `SKILL.md` holds
+only the order of work — every spelling is looked up in the manual shipped inside the package. Only
+the dependencies are needed: `pip install -r requirements.txt`. Updates come with `git pull`.
+
+A **self-contained skill edition** (same source plus its own skill documentation, no clone required)
+also exists in another skills repository, for users who never touch pip.
+
+| | As a command | As a skill |
+|:--|:--|:--|
+| Who works | you, from a terminal | an agent |
+| What to install | `pip install md-to-word-docx` | dependencies only, not the package |
+| Updates | `pip install -U md-to-word-docx` | `git pull` |
+| What to read | this file and `--contract` | `SKILL.md`, details in the manual |
 
 ---
 
@@ -72,76 +123,8 @@ md-to-word hello.md -r requirements.txt -o hello.docx
 
 [![Output of the minimal demo](https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png)](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx)
 
-Two-character first-line indent, Times New Roman for Latin text, a three-line table with caption
-and note — nothing was clicked in Word.
-
----
-
-## Install
-
-There is one implementation: the Python package `md-to-word`. The command line, the library API and
-the skill entry are all entries into it — `SKILL.md` points at the manual shipped in the package and
-`scripts/export.sh` uses the source tree in this repository, so neither needs installing the package.
-
-| Entry | For | Install | Use |
-|:--|:--|:--|:--|
-| **Command line** | local exports, CI | `pip install md-to-word-docx` | `md-to-word paper.md -o paper.docx` |
-| **Python library** | scripts, custom pipelines | same | `from md_to_word import export` |
-| **AI skill** | handing the job to an agent | clone this repository — `SKILL.md` is the skill entry and the source is right there, so nothing needs installing | "Export this manuscript as Word, following my school's format." |
-
-**PyPI status**: not published yet. Until then install from source or Git; after the release the
-first command above is the one to use.
-
-```bash
-pip install "git+https://github.com/ls-open/md-to-word@main"
-pip install -r requirements.txt    # or install dependencies inside a source checkout
-```
-
-Updates: `pip install -U md-to-word-docx` (use `pipx install` / `pipx upgrade` to keep it out of the
-system environment). **Code and manual upgrade together**: the full vocabulary, contract and gate
-reference live in `manual.md` inside the package, at the same version as the code.
-
-**Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py` — five pure-Python
-packages. **Export needs no external binary**: no Pandoc, no Quarto, no Word. Only the optional
-`--pdf` proof uses the local Word installation (macOS only; skipped elsewhere, `.docx` unaffected).
-
----
-
-## Usage
-
-**Command line**:
-
-```bash
-md-to-word paper.md -o paper.docx                    # default preset follows the manuscript language
-md-to-word paper.md --preset en-nature -o out.docx   # English journal preset
-md-to-word paper.md -r format.txt -o out.docx        # explicit requirements file
-md-to-word --help                                    # all options; help follows manuscript language
-```
-
-Exit codes: `0` done; `1` manuscript, gate or dependency problem; `3` `.docx` written but `--pdf`
-was skipped (non-macOS).
-
-`md-to-word --contract` prints the manuscript contract (three conventions plus the style-name list)
-and the real paths of the bundled manual and presets — the starting point when you have the package
-and no documentation at all (`--lang en` for English). When the output looks wrong, add `--verbose`
-to log every style as it is applied.
-
-
-**Python**:
-
-```python
-from md_to_word import export
-
-result = export("paper.md", "paper.docx", preset="zh-academic")
-if not result.ok:            # ok = the .docx was written (a skipped --pdf is not a failure)
-    raise SystemExit("\n".join(result.errors))
-print(result.output_docx)    # result.messages holds progress notes and reminders
-```
-
-**AI skill**: hand the Markdown to an agent together with the format requirement. The agent reads
-`SKILL.md` in this repository (a few dozen lines of workflow only) and looks up the spelling in the
-manual inside the package; nothing needs installing, because `scripts/export.sh` runs the source
-tree directly.
+Two-character first-line indent, Times New Roman for Latin text, a three-line table with caption and
+note — nothing was clicked in Word.
 
 ---
 
@@ -169,15 +152,30 @@ tree directly.
 | Limits above/below Σ and ∫ in numbered equations | Word only stacks limits in display maths, and numbered equations are inline; symbols and content are correct, placement differs |
 | Inline text colour | Colour is a style property (`颜色#1F4E79` on a style line); inline `{color=…}` is not supported |
 
-The full vocabulary and rationale live in [`manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) inside
-the package (Chinese); design decisions are in [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md).
+The full vocabulary lives in the package manual
+([`manual_en.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md),
+shipped in both languages); design decisions are in
+[`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md).
+
+---
+
+## Environment
+
+- **Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py` — five pure-Python
+  packages
+- **Export needs no external binary**: no Pandoc, no Quarto, no Word
+- **Only the optional `--pdf` proof** uses the local Word installation (macOS; skipped elsewhere,
+  `.docx` unaffected)
+- **Chinese and English**: runtime messages, gate diagnostics and the manual each exist in both
+  languages, chosen by the **manuscript's language** — an English manuscript gets English errors with
+  English style-name examples, while a Chinese one is unchanged
 
 ---
 
 ## Already have a template?
 
-You do not have to transcribe a school or journal `.docx` by hand. Run the bundled reader against it
-to get a draft requirements file:
+A school or journal `.docx` does not have to be transcribed by hand. Run the bundled reader against
+it to get a draft requirements file:
 
 ```bash
 md-to-word-template school_template.docx -o paper_requirements.txt
@@ -191,24 +189,26 @@ to-confirm item** — it does not pretend to have read it.
 
 ---
 
-## Repository layout
+## Documentation and repository layout
 
 | Path | What it is for |
 |:--|:--|
-| [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) | Skill entry: agent workflow, how to read the gates, what cannot be expressed. Facts live in the manual |
-| [`src/md_to_word/resources/manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) | **The manual**: manuscript contract, full `requirements.txt` vocabulary, agent workflow, gates, limits, CSL inventory. Ships inside the package |
+| [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) | Skill entry: agent workflow, how to read the gates, boundaries. Facts live in the manual |
+| [`src/md_to_word/resources/manual_en.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md) | **The manual**: contract, full vocabulary, workflow, gates, limits, CSL inventory (also in Chinese) |
 | [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md) | Design rationale and troubleshooting (start at its §2 when output looks wrong) |
 | [`demo/`](https://github.com/ls-open/md-to-word/blob/main/demo/) | Four samples: minimal, Chinese thesis, technical whitepaper, English journal submission |
 | `scripts/` | Development and acceptance tools (see [`scripts/README.md`](https://github.com/ls-open/md-to-word/blob/main/scripts/README.md)) |
 | `src/md_to_word/` | The implementation: model → OOXML writer, style generation, validation, reconciliation |
-| `resources/` | Word 365 base template, 29 normalised CSL styles, and `manual.md` |
-| `presets/` | Built-in presets: `zh-academic.txt` (default), `en-nature.txt` |
+| `resources/` | Word 365 base template and 29 normalised CSL styles |
+| `presets/` | Built-in presets: `zh-academic.txt`, `en-nature.txt` |
 
-What ships to a user's machine: `src/` (with `manual.md`), `presets/`, `resources/` and package
+What ships to a user's machine: `src/` (with both manuals), `presets/`, `resources/` and package
 metadata (wheel ≈ 300 KB). `tests/`, `demo/`, `scripts/`, `references/` and `SKILL.md` are the
-repository's acceptance surface and skill entry, not runtime dependencies. A self-contained skill
-edition (same source, its own skill docs) also lives in the `nature-skills` repository, for users who
-install nothing at all.
+repository's acceptance surface and skill entry, not runtime dependencies.
+
+**Exit codes**: `0` done; `1` manuscript, gate or dependency problem; `3` `.docx` written but `--pdf`
+skipped. `md-to-word --help` lists every option, in the manuscript's language; `--verbose` logs each
+style as it is applied.
 
 ---
 
@@ -222,7 +222,8 @@ The rule: **borrow what is standardised, build what is not**.
 
 ## License
 
-Code is [MIT](https://github.com/ls-open/md-to-word/blob/main/LICENSE). Citation styles under `resources/csl/` come from
+Code is [MIT](https://github.com/ls-open/md-to-word/blob/main/LICENSE). Citation styles under
+`resources/csl/` come from
 [citation-style-language/styles](https://github.com/citation-style-language/styles) and are used
 under CC BY-SA 3.0. `resources/pure_modern_base.docx` is generated by this project and released
 under MIT.

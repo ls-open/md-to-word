@@ -7,8 +7,8 @@
 为什么不用软链接合并：本技能要在 Windows 上跑，而 Windows 的 git checkout 默认
 不落软链接。既然只能存两份，就让测试盯着它们不许分叉。
 
-`resources/manual.md` 是唯一例外：使用手册只随包发布，仓库根不放副本——它必须与代码
-同一个版本，而仓库根那份既没人读，也没人负责同步。
+`resources/manual.md` / `resources/manual_en.md` 是唯一例外：使用手册只随包发布，仓库根
+不放副本——它必须与代码同一个版本，而仓库根那份既没人读，也没人负责同步。
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ PKG_RESOURCES = REPO_ROOT / "src" / "md_to_word" / "resources"
 
 
 # 只随包发布、仓库根不放副本的文件
-PACKAGE_ONLY = {"manual.md"}
+PACKAGE_ONLY = {"manual.md", "manual_en.md"}
 
 
 def _relative_files(root: Path) -> set[str]:
