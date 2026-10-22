@@ -179,6 +179,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "mathml.mtable_child": ("mtable 里出现了 {name}", "unexpected {name} inside mtable"),
     "mathml.latex_failed": ("LaTeX 语法解析失败（{err}）", "LaTeX could not be parsed ({err})"),
+    "mathml.structure_invalid": (
+        "公式结构不完整（{name}）：{err}",
+        "the equation structure is incomplete ({name}): {err}",
+    ),
     "citations.empty_library": ("文献库里没有可用条目", "the bibliography has no usable entries"),
     "citations.style_unparsable": (
         "CSL 样式无法解析：{path}（{err}）",
@@ -386,6 +390,109 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "template.table_style_missing": (
         '表格样式 "Table" 不存在（跳过表格边框和对齐设置）',
         'The "Table" style does not exist (skipping table borders and alignment)',
+    ),
+    # ── 反推参考 docx（template/extractor.py，控制台入口 md-to-word-template） ──
+    # 只翻**给人看的消息**与「需人工确认」清单；草稿正文仍用本工具的（中文）词表写法，
+    # 那是 requirements.txt 的合法语法，不随消息语言变。
+    "extractor.cli.description": (
+        "从参考 .docx 反推 requirements.txt 草稿（读不出的项单独列出，不猜值）",
+        "Draft a requirements.txt from a reference .docx (unreadable items are listed, never guessed)",
+    ),
+    "extractor.cli.docx": ("参考 .docx 路径", "path to the reference .docx"),
+    "extractor.cli.output": ("输出路径（默认打印到 stdout）", "output path (prints to stdout by default)"),
+    "extractor.cli.lang": (
+        "消息语言：auto=按参考文件语种 / zh / en",
+        "Message language: auto (follows the reference file) / zh / en",
+    ),
+    "extractor.draft_written": (
+        "已写出草稿: {path}（样式 {styled} 条，需确认 {notes} 项）",
+        "draft written: {path} ({styled} style(s), {notes} item(s) to confirm)",
+    ),
+    "extractor.notes_header": ("需人工确认", "needs a human check"),
+    "extractor.note.font_undefined": (
+        "字体未定义（参考文件里这条样式没有设字体，生效值取决于打开它的软件）",
+        "font undefined (this style sets none in the reference file; the effective font depends on "
+        "the app that opens it)",
+    ),
+    "extractor.note.size_undefined": (
+        "字号未定义（参考文件里这条样式没有设字号）",
+        "font size undefined (this style sets none in the reference file)",
+    ),
+    "extractor.note.alignment_unsupported": (
+        "对齐方式「{value}」本工具不支持（如分散对齐），已按左对齐处理",
+        'alignment "{value}" is not supported by this tool (distributed, for example); '
+        "left-aligned was assumed",
+    ),
+    "extractor.note.line_spacing_default": (
+        "行距未显式设置，按单倍（未写 spacing 时的默认，内容更高也不会被裁）",
+        "line spacing is not set explicitly, so single is assumed (the default when no spacing is "
+        "written; taller content will not be clipped)",
+    ),
+    "extractor.note.line_unit_converted": (
+        "{label}原文件用「行」为单位（{lines:g} 行），已折算为磅，请核对",
+        "{label} the reference uses lines ({lines:g}), which was converted to points — please check",
+    ),
+    "extractor.note.hanging_chars_converted": (
+        "悬挂缩进原文件用「字符」为单位，本工具只支持英寸，已换算",
+        "the reference gives the hanging indent in characters; this tool only supports inches, "
+        "so it was converted",
+    ),
+    "extractor.note.left_indent_converted": (
+        "左缩进原文件用绝对值（磅）而非「字符」，本工具只支持字符，已按字号折算",
+        "the reference gives the left indent as an absolute value (points) instead of characters; "
+        "this tool only supports characters, so it was derived from the font size",
+    ),
+    "extractor.note.border_kind_unknown": (
+        "下边框样式「{value}」不认识，已按单线处理",
+        'bottom border style "{value}" is not recognised; a single line was assumed',
+    ),
+    "extractor.note.tabs_limited": (
+        "用了 {count} 个制表位（{where}）——本工具的 `点线制表位` 只能表达"
+        "「右对齐 + 点线 + 落在版心右边界」那一种，其余的草稿里没法表达，"
+        "需要在 Word 里手工设（任意制表位见 manual.md §6）",
+        "{count} tab stop(s) found ({where}) — this tool's `dot-leader-tab` can only express "
+        "right-aligned + dot leader + at the right edge of the text block; the rest cannot be "
+        "expressed in the draft and must be set by hand in Word (see manual.md §6)",
+    ),
+    "extractor.note.table_border_default": (
+        "表格边框不是四种标准样式之一，已按三线表处理",
+        "the table borders are not one of the four standard styles; a three-line table was assumed",
+    ),
+    "extractor.note.table_border_undefined": (
+        "参考文件的 Table 样式没有边框定义（表格样式可能靠直接格式做的）",
+        "the Table style in the reference file defines no borders (the table may be styled with "
+        "direct formatting)",
+    ),
+    "extractor.note.multi_section": (
+        "参考文件是 {count} 节的，页面设置只读了**正文节**那一份"
+        "（与导出侧同一口径）；前置节（目录/摘要）的页码、页边距没读，需要的话自己补",
+        "the reference file has {count} sections; page setup was read from the body section only "
+        "(same convention as the export side). Page numbers and margins of the front sections "
+        "(TOC/abstract) were not read — add them yourself if needed",
+    ),
+    "extractor.note.paper_unsupported": (
+        "纸张尺寸 {width}×{height}cm 不在本工具的 A4/Letter 之内",
+        "paper size {width}×{height}cm is not one of this tool's A4/Letter sizes",
+    ),
+    "extractor.note.page_number_format_unknown": (
+        "页码格式「{value}」不在本工具词表里",
+        'page number format "{value}" is not in this tool\'s vocabulary',
+    ),
+    "extractor.note.doc_grid_skipped": (
+        "读到了文档网格（linePitch），但纸张不是 A4/Letter 或缺页边距，"
+        "算不出「每页几行」，草稿已跳过这一行",
+        "a document grid (linePitch) was found, but the paper is not A4/Letter or margins are "
+        "missing, so lines-per-page cannot be computed; the draft skipped this row",
+    ),
+    "extractor.note.styles_skipped": (
+        "参考文件里这些样式**没有定义属性**（字体/字号都没有），草稿已跳过：{names}",
+        "these styles define no properties (no font, no size) in the reference file and were "
+        "skipped in the draft: {names}",
+    ),
+    "extractor.note.styles_unmapped": (
+        "参考文件里这些样式没映射到本工具词汇（要不要用请自行判断）：{names}",
+        "these styles do not map to this tool's vocabulary (decide yourself whether you need "
+        "them): {names}",
     ),
     # ── 导出后对账（audit/inspector.py） ───────────────────────────
     # 类别标签与逐条明细分成两类：pipeline 把明细拼成 `  [类别] 说明`，
@@ -609,6 +716,28 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "要求了偶数页页眉/页脚，但产物没开「奇偶页不同」",
         "even-page headers/footers are required, but the output does not enable "
         "different odd and even pages",
+    ),
+    # 对账脚本自己的命令行（`python -m md_to_word.audit.inspector`）
+    "audit.cli.description": (
+        "导出后抽查：产物 docx ↔ 格式要求文件",
+        "Post-export audit: the output .docx vs. the requirements file",
+    ),
+    "audit.cli.docx": ("导出的产物 .docx", "the exported .docx"),
+    "audit.cli.requirements": ("生成模板用的格式要求文件", "requirements file the template came from"),
+    "audit.cli.quiet": ("只报结论，不逐条列", "report the verdict only, without the item list"),
+    "audit.cli.lang": ("消息语言：auto=按要求文件语种 / zh / en", "Message language: auto / zh / en"),
+    "audit.cli.file_missing": ("错误: 文件不存在 {path}", "error: file not found: {path}"),
+    "audit.cli.not_a_docx": (
+        "错误: 产物不是可解析的 docx（{err}）",
+        "error: the output is not a readable .docx ({err})",
+    ),
+    "audit.cli.pass": (
+        "✓ 导出后抽查通过：{docx} 与 {req} 逐条对上",
+        "✓ Post-export audit passed: {docx} matches {req} item by item",
+    ),
+    "audit.cli.fail": (
+        "⚠ 导出后抽查发现 {count} 处不符（{docx} ↔ {req}）：",
+        "⚠ Post-export audit found {count} mismatch(es) ({docx} ↔ {req}):",
     ),
     "audit.msg.even_reference_missing": (
         "产物开了「奇偶页不同」但没有任何 even 页眉/页脚引用",

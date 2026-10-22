@@ -59,8 +59,9 @@ For handing the job to an agent: state the format requirement, let the agent do 
 only the order of work — every spelling is looked up in the manual shipped inside the package. Only
 the dependencies are needed: `pip install -r requirements.txt`. Updates come with `git pull`.
 
-A **self-contained skill edition** (same source plus its own skill documentation, no clone required)
-also exists in another skills repository, for users who never touch pip.
+A **self-contained skill edition** — [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
+in the `nature-skills` repository — carries the same source plus its own skill documentation, so
+nothing has to be cloned either. It is there for users who never touch pip.
 
 | | As a command | As a skill |
 |:--|:--|:--|
@@ -209,6 +210,24 @@ repository's acceptance surface and skill entry, not runtime dependencies.
 **Exit codes**: `0` done; `1` manuscript, gate or dependency problem; `3` `.docx` written but `--pdf`
 skipped. `md-to-word --help` lists every option, in the manuscript's language; `--verbose` logs each
 style as it is applied.
+
+---
+
+## Related skills
+
+This project compiles the manuscript. The steps around it belong to partners in the same academic
+skills ecosystem; hand off rather than re-implement:
+
+| Skill | What it covers |
+|:--|:--|
+| [`nature-writing`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-writing) | Drafting the manuscript and its section-level argument (input to this one) |
+| [`nature-polishing`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-polishing) | Language polishing and academic phrasing (input to this one) |
+| [`nature-citation`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-citation) | Searching for and exporting the `.bib` entries this skill consumes |
+| [`nature-ref-verifier`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-ref-verifier) | Cross-checking reference metadata before submission |
+| [`nature-paper2ppt`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2ppt) | Turning the same manuscript into a presentation deck |
+
+The whole set is indexed at [`nature-skills`](https://github.com/Yuan1z0825/nature-skills), which
+lists this project among its third-party entries.
 
 ---
 

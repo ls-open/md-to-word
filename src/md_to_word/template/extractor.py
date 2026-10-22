@@ -2,7 +2,8 @@
 """read_reference_docx.py — 从一份「参考 .docx」反推 requirements.txt 草稿。
 
 用法:
-    python3 scripts/read_reference_docx.py 参考.docx [-o 草稿.txt]
+    md-to-word-template 参考.docx [-o 草稿.txt]        # 装包后
+    python3 scripts/read_reference_docx.py 参考.docx      # 源码检出
 
 目标方给的参考文件（学校模板 / 期刊样例 / 客户旧文档）里的格式，靠人肉目测抄写既慢又漏。
 本脚本把**能确定的**读出来写成本工具的写法，把**确定不了的**单独列在末尾注释块里（不猜值
@@ -28,6 +29,10 @@ from typing import Optional
 
 from lxml import etree
 
+from md_to_word.i18n import t
+
+from md_to_word.template.generator import CJK_FONTS
+
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
 TWIPS_PER_CM = 566.93
@@ -49,8 +54,11 @@ def q(tag: str) -> str:
 class Ref:
     """一份参考 docx 的读取器：先解包，再沿样式继承链取**生效值**。"""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, lang: str = "zh"):
         self.notes: list[str] = []
+        # 消息语言：草稿正文始终是本工具的中文词表写法（那是 requirements.txt 的合法
+        # 语法），变的只是「需人工确认」清单与命令行提示。
+        self.lang = lang
         with zipfile.ZipFile(path) as z:
             self.parts = {n: z.read(n) for n in z.namelist()}
         self.styles = etree.fromstring(self.parts['word/styles.xml'])
@@ -193,13 +201,13 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
     elif cjk or latin:
         out.append(cjk or latin)
     else:
-        doubt.append('字体未定义（参考文件里这条样式没有设字体，生效值取决于打开它的软件）')
+        doubt.append(t('extractor.note.font_undefined', ref.lang))
 
     sz = ref.eff(chain, 'rPr/sz')
     if sz is not None and sz.get(q('val')):
         out.append(f'{int(sz.get(q("val"))) / 2:g}pt')
     else:
-        doubt.append('字号未定义（参考文件里这条样式没有设字号）')
+        doubt.append(t('extractor.note.size_undefined', ref.lang))
     defined = bool(cjk or latin) and sz is not None and bool(sz.get(q('val')))
 
     for tag, on, off in (('b', '加粗', '不加粗'), ('i', '倾斜', '不倾斜')):
@@ -216,8 +224,8 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         if got:
             out.append(got)
         else:
-            doubt.append(f'对齐方式「{jc.get(q("val"))}」本工具不支持（如分散对齐），'
-                         f'已按左对齐处理')
+            doubt.append(t('extractor.note.alignment_unsupported', ref.lang,
+                           value=jc.get(q('val'))))
     else:
         out.append('左对齐')
 
@@ -233,7 +241,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
             out.append(f'行距最小值{line / 20:g}磅')
     else:
         out.append('行距1.0倍')
-        doubt.append('行距未显式设置，按单倍（未写 spacing 时的默认，内容更高也不会被裁）')
+        doubt.append(t('extractor.note.line_spacing_default', ref.lang))
 
     def twips_to_pt(name, lines_name, label):
         if sp is None:
@@ -242,7 +250,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
             out.append(f'{label}{int(sp.get(q(name))) / 20:g}磅')
         elif sp.get(q(lines_name)) is not None:
             n = int(sp.get(q(lines_name))) / 100
-            doubt.append(f'{label}原文件用「行」为单位（{n:g} 行），已折算为磅，请核对')
+            doubt.append(t('extractor.note.line_unit_converted', ref.lang, label=label, lines=n))
             out.append(f'{label}{n * (int(sz.get(q("val"))) / 2 if sz is not None else 12):g}磅')
         else:
             out.append(f'{label}0磅')
@@ -260,7 +268,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
     hang_chars, hang_tw = ind_int('hangingChars'), ind_int('hanging')
     if hang_chars or hang_tw:
         if hang_chars:
-            doubt.append('悬挂缩进原文件用「字符」为单位，本工具只支持英寸，已换算')
+            doubt.append(t('extractor.note.hanging_chars_converted', ref.lang))
             out.append(f'悬挂缩进{hang_chars / 100:g}字符')
         else:
             out.append(f'悬挂缩进{hang_tw / 1440:g}英寸')
@@ -277,7 +285,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
     if left_chars and left_chars != hang_chars:
         out.append(f'左缩进{left_chars / 100:g}字符')
     elif left_tw and left_tw != hang_tw:
-        doubt.append('左缩进原文件用绝对值（磅）而非「字符」，本工具只支持字符，已按字号折算')
+        doubt.append(t('extractor.note.left_indent_converted', ref.lang))
         base = int(sz.get(q('val'))) / 2 if sz is not None else 12
         out.append(f'左缩进{round(left_tw / 20 / base, 1):g}字符')
 
@@ -290,7 +298,8 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
     else:
         kind = BORDER_STYLE.get(bottom.get(q('val')))
         if kind is None:
-            doubt.append(f'下边框样式「{bottom.get(q("val"))}」不认识，已按单线处理')
+            doubt.append(t('extractor.note.border_kind_unknown', ref.lang,
+                           value=bottom.get(q('val'))))
             kind = '单线'
         # 参考文件显式写了「无下边框」→ 折算成「无边框」。两者在本工具里产物一致
         # （都清掉整段 pBdr），只保留一种写法。
@@ -316,9 +325,8 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
                               f"{int(t.get(q('pos')) or 0) / TWIPS_PER_CM:.2f}cm"
                               f"{'点线' if t.get(q('leader')) == 'dot' else ''}"
                               for t in tab_list)
-            doubt.append(f'用了 {len(tab_list)} 个制表位（{where}）——本工具的 `点线制表位` 只能'
-                         f'表达「右对齐 + 点线 + 落在版心右边界」那一种，其余的草稿里没法表达，'
-                         f'需要在 Word 里手工设（任意制表位见 manual.md §6）')
+            doubt.append(t('extractor.note.tabs_limited', ref.lang,
+                           count=len(tab_list), where=where))
 
     # 字符间距（Word「字体 → 高级 → 字符间距」）：rPr/spacing 的 val 是二十分之一磅。
     # 注意别拿成 pPr/spacing——那是行距，同名不同容器（`.//` 会先撞上 pPr 那个）。
@@ -355,7 +363,8 @@ def read_table(ref: Ref) -> tuple:
         elif not any((top, bottom, left, right, ih, iv)):
             style = '无边框'
         else:
-            style, _ = '三线表', doubt.append('表格边框不是四种标准样式之一，已按三线表处理')
+            style = '三线表'
+            doubt.append(t('extractor.note.table_border_default', ref.lang))
         jc = tbl.find(f'{q("tblPr")}/{q("jc")}')
         align = ALIGN.get(jc.get(q('val')) if jc is not None else 'center', '居中')
         line = [f'表格：{align} {style}']
@@ -378,7 +387,7 @@ def read_table(ref: Ref) -> tuple:
                              'bottom': '单元格垂直底端'}[va.get(q('val'))])
         out.append(' '.join(line))
     else:
-        doubt.append('参考文件的 Table 样式没有边框定义（表格样式可能靠直接格式做的）')
+        doubt.append(t('extractor.note.table_border_undefined', ref.lang))
 
     # 表头行样式（firstRow 条件格式）
     fr = [e for e in tbl.findall(q('tblStylePr')) if e.get(q('type')) == 'firstRow']
@@ -403,7 +412,7 @@ def body_line_multiple(ref: Ref) -> float:
     复用样式读取那一套（不另写一遍 XML 解析），优先级与写入侧
     `generate_template.body_line_spacing_multiple` 一致：先「正文」，退回「普通」。
     """
-    from generate_template import STYLE_MAP
+    from md_to_word.template.generator import STYLE_MAP
     sid_of = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
     for cn in ('正文', '普通'):
         sid = next((s for s, c in sid_of.items() if c == cn), None)
@@ -423,8 +432,7 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
     if sect is None:
         return out, ['找不到 sectPr，页面设置读不出来']
     if len(ref.all_sects) > 1:
-        doubt.append(f'参考文件是 {len(ref.all_sects)} 节的，页面设置只读了**正文节**那一份'
-                     f'（与导出侧同一口径）；前置节（目录/摘要）的页码、页边距没读，需要的话自己补')
+        doubt.append(t('extractor.note.multi_section', ref.lang, count=len(ref.all_sects)))
     paper = None
     top = bottom = left = right = None          # 文档网格要拿它们算版心高，先占位
     sz = sect.find(q('pgSz'))
@@ -434,7 +442,8 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
         paper = PAPER.get(cm)
         out.append(f'纸张：{paper}' if paper else f'# 纸张：{cm[0]}×{cm[1]}cm（不是 A4/Letter）')
         if not paper:
-            doubt.append(f'纸张尺寸 {cm[0]}×{cm[1]}cm 不在本工具的 A4/Letter 之内')
+            doubt.append(t('extractor.note.paper_unsupported', ref.lang,
+                           width=cm[0], height=cm[1]))
     mar = sect.find(q('pgMar'))
     if mar is not None:
         def cm_of(name):
@@ -458,16 +467,16 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
         if fmt:
             out.append(f'页码：{fmt}' + (f' 起始{start}' if start else ''))
         else:
-            doubt.append(f'页码格式「{pn.get(q("fmt"))}」不在本工具词表里')
+            doubt.append(t('extractor.note.page_number_format_unknown', ref.lang,
+                           value=pn.get(q('fmt'))))
     # 文档网格：`linePitch` 是「每行多少 twips」，本工具的写法是「每页 N 行」，
     # 中间隔着行距倍数那一步补偿——用写入侧同一个函数反推（doc_grid_lines_from_pitch）。
     grid = sect.find(q('docGrid'))
     if grid is not None and grid.get(q('linePitch')):
-        from generate_template import PAGE_SIZE_MAP, doc_grid_lines_from_pitch
+        from md_to_word.template.generator import PAGE_SIZE_MAP, doc_grid_lines_from_pitch
         page_size = PAGE_SIZE_MAP.get(paper) if paper else None
         if None in (top, bottom, left, right) or page_size is None:
-            doubt.append('读到了文档网格（linePitch），但纸张不是 A4/Letter 或缺页边距，'
-                         '算不出「每页几行」，草稿已跳过这一行')
+            doubt.append(t('extractor.note.doc_grid_skipped', ref.lang))
         else:
             n = doc_grid_lines_from_pitch(int(grid.get(q('linePitch'))), line_multiple,
                                           page_size, dict(top=top, bottom=bottom,
@@ -514,20 +523,39 @@ def read_decor(ref: Ref) -> tuple:
     return out, doubt
 
 
+def _auto_lang(docx: Path) -> str:
+    """`--lang auto` 时按**参考文件**判语种：校对语言是 zh-* 或用的是中日韩字体就算中文。
+
+    这里没有稿件正文可数汉字，只能看参考 docx 自己留下的痕迹。
+    """
+    try:
+        probe = Ref(docx)
+    except (OSError, KeyError, zipfile.BadZipFile):
+        return 'zh'
+    lang_el = probe.eff([probe.doc_defaults] if probe.doc_defaults is not None else [],
+                        'rPrDefault/rPr/lang')
+    east = lang_el.get(q('eastAsia')) if lang_el is not None else None
+    if east:
+        return 'zh' if east.lower().startswith('zh') else 'en'
+    fonts = {f.get(q('eastAsia')) for f in probe.styles.iter(q('rFonts'))}
+    return 'zh' if any(f in CJK_FONTS for f in fonts if f) else 'en'
+
+
 def main(argv=None):
-    ap = argparse.ArgumentParser(
-        description='从参考 .docx 反推 requirements.txt 草稿（读不出的项单独列出，不猜值）')
-    ap.add_argument('docx', help='参考 .docx 路径')
-    ap.add_argument('-o', '--output', help='输出路径（默认打印到 stdout）')
+    ap = argparse.ArgumentParser(description=t('extractor.cli.description', 'zh'))
+    ap.add_argument('docx', help=t('extractor.cli.docx', 'zh'))
+    ap.add_argument('-o', '--output', help=t('extractor.cli.output', 'zh'))
+    ap.add_argument('--lang', default='auto', help=t('extractor.cli.lang', 'zh'))
     args = ap.parse_args(argv)
 
     from md_to_word.spec.constants import STYLE_MAP
     from md_to_word.template.generator import REQUIRED_STYLES
 
-    ref = Ref(Path(args.docx))
+    lang = args.lang if args.lang in ('zh', 'en') else _auto_lang(Path(args.docx))
+    ref = Ref(Path(args.docx), lang)
     word_to_cn = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
 
-    lines = ['# 由 read_reference_docx.py 从参考文件读出的草稿，**请核对**',
+    lines = ['# 由 md-to-word-template 从参考文件读出的草稿，**请核对**',
              f'# 来源: {Path(args.docx).name}']
     for part in (read_page(ref, body_line_multiple(ref)), read_table(ref), read_decor(ref)):
         lines += part[0]
@@ -548,34 +576,36 @@ def main(argv=None):
         styled.append(cn)
         ref.notes += [f'{cn}：{d}' for d in doubt]
     if skipped:
-        ref.notes.append('参考文件里这些样式**没有定义属性**（字体/字号都没有），草稿已跳过：'
-                         + '、'.join(skipped))
+        ref.notes.append(t('extractor.note.styles_skipped', ref.lang, names='、'.join(skipped)))
     used = {(st.get(q('val')) or '').replace(' ', '').lower()
             for st in etree.fromstring(ref.parts['word/document.xml']).iter(q('pStyle'))}
     leftover = sorted(k for k in ref.by_id
                       if k in used and k not in word_to_cn and not k.startswith('_'))
     if leftover:
-        ref.notes.append('参考文件里这些样式没映射到本工具词汇（要不要用请自行判断）：'
-                         + '、'.join(sorted(leftover)))
+        ref.notes.append(t('extractor.note.styles_unmapped', ref.lang,
+                           names='、'.join(sorted(leftover))))
 
     if ref.notes:
-        lines += ['', '# ── 需人工确认 ──'] + [f'# {n}' for n in ref.notes]
+        lines += ['', f'# ── {t("extractor.notes_header", lang)} ──'] + [f'# {n}' for n in ref.notes]
     text = '\n'.join(lines) + '\n'
     if args.output:
         Path(args.output).write_text(text, encoding='utf-8')
-        print(f'已写出草稿: {args.output}（样式 {len(styled)} 条，需确认 {len(ref.notes)} 项）')
+        print(t('extractor.draft_written', lang, path=args.output,
+                styled=len(styled), notes=len(ref.notes)))
     else:
         print(text, end='')
     return 0
 
 
-def extract_spec_from_docx(docx_path: Path | str, output_path: Optional[Path | str] = None) -> str:
-    """从给定的 docx 模板反推单行 requirements.txt 草稿。"""
-    ref = Ref(Path(docx_path))
+def extract_spec_from_docx(
+    docx_path: Path | str, output_path: Optional[Path | str] = None, lang: str = "zh"
+) -> str:
+    """从给定的 docx 模板反推单行 requirements.txt 草稿。``lang`` 只管消息，草稿正文用中文词表。"""
+    ref = Ref(Path(docx_path), lang)
     from md_to_word.spec.constants import STYLE_MAP
     from md_to_word.template.generator import REQUIRED_STYLES
     word_to_cn = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
-    lines = ['# 由 read_reference_docx.py 从参考文件读出的草稿，**请核对**',
+    lines = ['# 由 md-to-word-template 从参考文件读出的草稿，**请核对**',
              f'# 来源: {Path(docx_path).name}']
     for part in (read_page(ref, body_line_multiple(ref)), read_table(ref), read_decor(ref)):
         lines += part[0]
@@ -590,7 +620,7 @@ def extract_spec_from_docx(docx_path: Path | str, output_path: Optional[Path | s
         lines.append(f'{cn}：' + ' '.join(cs))
         ref.notes += [f'{cn}：{d}' for d in doubt]
     if ref.notes:
-        lines += ['', '# ── 需人工确认 ──'] + [f'# {n}' for n in ref.notes]
+        lines += ['', f'# ── {t("extractor.notes_header", lang)} ──'] + [f'# {n}' for n in ref.notes]
     text = '\n'.join(lines) + '\n'
     if output_path:
         Path(output_path).write_text(text, encoding='utf-8')

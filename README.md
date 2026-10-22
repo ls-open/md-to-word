@@ -53,8 +53,9 @@ if not result.ok:
 具体写法指向包内手册。只需装依赖：`pip install -r requirements.txt`。
 更新方式是 `git pull`。
 
-另有一个**自包含技能版**（同一份源码 + 它自己的技能文档，连仓库都不必克隆）在其他技能仓库里，
-供"完全不碰 pip"的用户使用。
+另有一个**自包含技能版**：`nature-skills` 仓库的
+[`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
+——同一份源码加上它自己的技能文档，连仓库都不必克隆，供"完全不碰 pip"的用户使用。
 
 | | 当成命令 | 当成技能 |
 |:--|:--|:--|
@@ -193,6 +194,22 @@ md-to-word-template 学校模板.docx -o 论文_requirements.txt
 
 **退出码**：`0` 完成；`1` 稿件、门禁或依赖问题；`3` `.docx` 已写出但 `--pdf` 未渲染。
 `md-to-word --help` 列出全部选项，帮助语言跟随稿件语种；`--verbose` 打印逐个样式套用的明细。
+
+---
+
+## 相关技能
+
+这一篇负责"编译成 Word"，上下游由同一套学术技能生态里的伙伴负责，按需转交，不必重造：
+
+| 技能 | 负责什么 |
+|:--|:--|
+| [`nature-writing`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-writing) | 起草论文与章节论证（本技能的输入） |
+| [`nature-polishing`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-polishing) | 英文润色与学术表达收束（本技能的输入） |
+| [`nature-citation`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-citation) | 检索并导出本技能消费的 `.bib` 条目 |
+| [`nature-ref-verifier`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-ref-verifier) | 投稿前交叉核验参考文献元数据 |
+| [`nature-paper2ppt`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2ppt) | 同一篇论文转成组会/答辩用的 PPTX |
+
+整组技能的入口见 [`nature-skills`](https://github.com/Yuan1z0825/nature-skills)（本技能被它列为第三方项目）。
 
 ---
 

@@ -434,3 +434,102 @@ def test_toc_depth_overflow_errors_instead_of_crashing(tmp_path: Path) -> None:
         assert result.returncode == 1, result.errors
         joined = "\n".join(result.errors)
         assert fragment in joined, joined
+
+
+def test_incomplete_mathml_degrades_to_unsupported_math() -> None:
+    """`\\frac{1}` 只有一个参数：`_on_mfrac` 会炸成 ValueError。
+
+    那是作者把公式写坏了，不是程序的 bug——必须收成 `UnsupportedMath`，走正常报错路径，
+    否则 traceback 会穿过 pipeline 的 `except`。
+    """
+    from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
+
+    for lang, fragment in (("en", "the equation structure is incomplete (mfrac)"),
+                           ("zh", "公式结构不完整（mfrac）")):
+        with pytest.raises(UnsupportedMath) as exc:
+            latex_to_omml(r"\frac{1}", lang)
+        assert fragment in str(exc.value), str(exc.value)
+        assert not (CJK_RE.search(str(exc.value)) if lang == "en" else ""), str(exc.value)
+
+
+def test_incomplete_equation_reports_instead_of_crashing(tmp_path: Path) -> None:
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    for lang, fragment in (("en", "the equation structure is incomplete"),
+                           ("zh", "公式结构不完整")):
+        body = "# 1 Introduction\n\n$$\\frac{1}$$\n" if lang == "en" else "# 一 引言\n\n$$\\frac{1}$$\n"
+        manuscript = tmp_path / f"eq_{lang}.md"
+        manuscript.write_text(f"---\n---\n\n{body}", encoding="utf-8")
+        result = run_export_pipeline(
+            ExportOptions(
+                input_path=manuscript, output_path=tmp_path / f"eq_{lang}.docx",
+                preset="en-nature" if lang == "en" else "zh-academic",
+            )
+        )
+        assert result.returncode == 1, result.errors
+        joined = "\n".join(result.errors)
+        assert fragment in joined, joined
+
+
+# ══════════════════════════════════════════════════════════════════════
+# 导出后对账的类别与明细也得跟语言走
+#
+# pipeline 把它们拼成 `  [类别] 说明` 塞进 errors：外壳双语了、明细还是中文，
+# 英文作者看到的仍是半截话。
+# ══════════════════════════════════════════════════════════════════════
+
+@pytest.fixture()
+def mismatched_audit_pair(tmp_path: Path):
+    """产物出自中文预设的模板，要求文件却用英文预设——真实的对账失败场景。"""
+    from md_to_word.audit.inspector import audit_docx_against_spec
+    from md_to_word.model.reader import read_markdown
+    from md_to_word.writer import write_docx
+
+    en_preset = (REPO_ROOT / "presets" / "en-nature.txt").read_text(encoding="utf-8")
+    template = tmp_path / "zh_tpl.docx"
+    build_template(PRESET.read_text(encoding="utf-8"), template)
+    docx = write_docx(read_markdown("# 1 Introduction\n\nBody.\n"), template, tmp_path / "o.docx")
+    req = tmp_path / "en-nature.txt"
+    req.write_text(en_preset, encoding="utf-8")
+    return audit_docx_against_spec, docx, req
+
+
+def test_audit_items_follow_the_language(mismatched_audit_pair) -> None:
+    audit_docx_against_spec, docx, req = mismatched_audit_pair
+
+    matched_en, problems_en = audit_docx_against_spec(docx, req, "en")
+    matched_zh, problems_zh = audit_docx_against_spec(docx, req, "zh")
+    assert not matched_en and not matched_zh, "这份「产物 vs 要求」本来就对不上"
+    assert problems_en and problems_zh
+    # 判据与语言无关：同一份对不上的东西，两种语言报出同样的条数
+    assert len(problems_en) == len(problems_zh)
+
+    english = "\n".join(f"[{cat}] {msg}" for cat, msg in problems_en)
+    chinese = "\n".join(f"[{cat}] {msg}" for cat, msg in problems_zh)
+    assert "expected" in english and "but the output" in english, english
+    assert "要求" in chinese and "产物" in chinese, chinese
+    # 英文那栏一个中文都不能有（字体名之类的数据除外——这份要求文件里全是西文）
+    assert not CJK_RE.search(english), [x for x in problems_en if CJK_RE.search(str(x))]
+
+
+def test_pipeline_prints_audit_items_in_the_manuscript_language(tmp_path: Path) -> None:
+    """端到端：英文稿 + 不匹配的模板，让对账红掉，明细也必须是英文。"""
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    template = tmp_path / "zh_tpl.docx"
+    build_template(PRESET.read_text(encoding="utf-8"), template)
+    manuscript = tmp_path / "paper.md"
+    manuscript.write_text("---\n---\n\n# 1 Introduction\n\nBody.\n", encoding="utf-8")
+
+    result = run_export_pipeline(
+        ExportOptions(
+            input_path=manuscript, output_path=tmp_path / "o.docx",
+            requirements_path=REPO_ROOT / "presets" / "en-nature.txt",
+            template_path=template,
+        )
+    )
+    assert result.returncode == 1, result.errors
+    joined = "\n".join(result.errors)
+    assert "Post-export audit failed" in joined, joined
+    assert "but the output" in joined, joined
+    assert not CJK_RE.search(joined), result.errors

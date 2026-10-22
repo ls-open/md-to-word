@@ -339,7 +339,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
         # 9. 格式要求逐条对账 (Audit: Inspector)
         if options.audit and req_file:
-            matched, problems = audit_docx_against_spec(out_p, req_file)
+            matched, problems = audit_docx_against_spec(out_p, req_file, res.lang)
             if not matched:
                 res.returncode = 1
                 res.errors.append(t("pipeline.audit_failed", res.lang, count=len(problems)))

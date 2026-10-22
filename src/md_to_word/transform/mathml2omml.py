@@ -61,7 +61,17 @@ class _Converter:
         handler = getattr(self, f"_on_{_local(element)}", None)
         if handler is None:
             raise UnsupportedMath(t("mathml.unknown_element", self.lang, name=_local(element)))
-        return handler(element)
+        try:
+            return handler(element)
+        except UnsupportedMath:
+            raise                      # 已经说清是哪个元素了，别再包一层
+        except (ValueError, IndexError, KeyError) as exc:
+            # 结构不完整（如 `\frac{1}` 只有一个参数）会在各 `_on_*` 里炸成 ValueError；
+            # 那是**公式写坏了**，不是本程序的 bug——统一包成 UnsupportedMath，走
+            # 「这个结构写不出来」的正常报错路径，而不是甩一个 traceback 给作者。
+            raise UnsupportedMath(
+                t("mathml.structure_invalid", self.lang, name=_local(element), err=exc)
+            ) from exc
 
     # ── 基础 ────────────────────────────────────────────────────────
     def _on_math(self, element) -> list:
