@@ -10,8 +10,9 @@
 模型的有意取舍：
 - 段落带的是 **Word 样式名**（`Abstract`），不是用户写的语义名（`摘要`）。语义名到样式名的
   映射属于格式契约层，在读取阶段就解掉，写入阶段不再做判断。
-- 表题、表注**挂在表格上**，不作为独立段落存在。它们是表格的组成部分，拆成三个平级段落，
-  写入时就必须再猜一次谁属于谁。
+- 表题、表注是**独立段落**，不挂在表格上。Word 里题注本来就是一个带样式的段落，
+  表格是另一个对象；合并会把作者写的两行捏成一行，还会让「表格清单」里那些不依附表格的
+  题注无法表达。位置由**顺序**决定，同页由**样式的分页控制**决定，都不需要模型来管。
 - 引文与交叉引用分成两种内联节点：`Citation` 走文献库，`CrossRef` 走稿内标签。二者在
   Pandoc 里共用 `@` 语法，但语义完全不同，模型里不合并。
 """
@@ -153,22 +154,23 @@ class ListBlock:
 
 @dataclass
 class Table:
-    """表格。表题与表注是表格的组成部分，不是平级段落。"""
+    """表格本体。表题/表注是它前后的独立段落（样式 Table Caption / Table Note）。"""
 
     header: list[list[Inline]] = field(default_factory=list)
     rows: list[list[list[Inline]]] = field(default_factory=list)
     alignments: list[str] = field(default_factory=list)  # left / center / right
     widths: Optional[list[float]] = None  # 由分隔行短横线长短推出的相对比例
-    caption: Optional[list[Inline]] = None
-    note: Optional[list[Inline]] = None
 
 
 @dataclass
 class Figure:
-    """图片及其题注（题注写作 Markdown 的图片 alt 文本）。"""
+    """图片本体。题注用 `%% 图片题注 …` 单独成段，写在图前或图后由作者决定。
+
+    `alt` 只承担无障碍替代文字，不再兼任题注——一个括号两种语义是上一版的毛病。
+    """
 
     path: str
-    caption: list[Inline] = field(default_factory=list)
+    alt: str = ""
     width_cm: Optional[float] = None
 
 

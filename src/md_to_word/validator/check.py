@@ -568,6 +568,16 @@ def validate_manuscript(
                 f"若只是给文献列表定位，用 `::: {{#refs}}`"
             )
 
+    # 15c. 旧写法：图题写在 `![…]` 里。不再自动当题注用，给一条迁移提示
+    for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
+        m = re.search(r"!\[([^\]]+)\]\(", line)
+        if m and re.match(r"^\s*(?:图|表|Figure|Table)\s*\d", m.group(1)):
+            report.warnings.append(
+                f"行 {line_no}: 图片题注写在了 `![…]` 里。现在题注用独立段落："
+                f"`%% 图片题注 {m.group(1).strip()}`（写在图片上方或下方由你决定），"
+                f"`[…]` 只留无障碍替代文字"
+            )
+
     # 16. 段落样式行 `%% 样式名 内容`
     for line_no, why in style_line_issues(md_text):
         report.valid = False

@@ -55,34 +55,52 @@ def is_heading_style(name: str) -> bool:
 
 
 def expand_style_lines(text: str) -> str:
-    """把样式行翻译成 `::: {custom-style="…"}` 围栏，交给 Pandoc 套段落样式。"""
+    """把样式行翻译成 `::: {custom-style="…"}` 围栏，交给 Pandoc 套段落样式。
+
+    围栏前后必须各有一个空行：Pandoc 只在空行之后认 fenced div，紧贴上一行时会把它当成
+    正文的一部分，`:::` 会**原样印进 docx**。作者写 `%% 图片题注` 时通常紧贴图片行，
+    所以这里替他把空行补齐，而不是要求他记住这条。
+    """
+    lines = (text or "").split("\n")
     out: list[str] = []
     in_fence = False
-    for line in (text or "").split("\n"):
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         stripped = line.strip()
         if stripped.startswith("```") or stripped.startswith("~~~"):
             in_fence = not in_fence
             out.append(line)
+            i += 1
             continue
         if in_fence:
             out.append(line)
+            i += 1
             continue
 
         split = split_style_line(line)
         if split is None:
             out.append(line)
+            i += 1
             continue
 
         name, content = split
         resolved = resolve_style_name(name)
         if resolved is None or resolved in _HEADING_STYLES or not content:
             out.append(line)  # 认不出/标题类/没内容：原样留给预检报错，不在这里猜
+            i += 1
             continue
 
+        if out and out[-1].strip():
+            out.append("")
         indent = _STYLE_LINE_RE.match(line).group("indent")
         out.append(f'{indent}::: {{custom-style="{resolved}"}}')
         out.append(content)
         out.append(f"{indent}:::")
+        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        if nxt.strip():
+            out.append("")
+        i += 1
     return "\n".join(out)
 
 

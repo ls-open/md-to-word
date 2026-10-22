@@ -43,16 +43,24 @@ def test_style_line_becomes_styled_paragraph() -> None:
     assert block.style == "Abstract"
 
 
-def test_table_caption_and_note_attach_to_table() -> None:
-    """表题/表注是表格的组成部分，不是平级段落——否则写出阶段还要再猜一次归属。"""
+def test_caption_is_a_sibling_paragraph_not_a_table_field() -> None:
+    """题注是独立段落：Word 里它就是一个带样式的段落，合并会把作者写的两行捏成一行。"""
     doc = read_markdown(
-        "%% 表题 表 1 数据\n\n| 甲 | 乙 |\n|:--|:--:|\n| 1 | 2 |\n\n%% 表注 注：示例\n"
+        "%% 表题 表 1 数据\n\n| 甲 | 乙 |\n|:--|:--|\n| 1 | 2 |\n\n%% 表注 注：示例\n"
     )
-    tables = [b for b in doc.blocks if isinstance(b, Table)]
-    assert len(tables) == 1
-    assert tables[0].caption is not None
-    assert tables[0].note is not None
-    assert not [b for b in doc.blocks if isinstance(b, Paragraph)]
+    kinds = [type(b).__name__ for b in doc.blocks]
+    assert kinds == ["Paragraph", "Table", "Paragraph"]
+    assert doc.blocks[0].style == "Table Caption"
+    assert doc.blocks[2].style == "Table Note"
+
+
+def test_figure_caption_is_a_sibling_paragraph() -> None:
+    """图片来源写法里只有路径、宽高与 alt；题注用 `%% 图片题注` 单独成段。"""
+    doc = read_markdown("![](a.png){width=12cm}\n%% 图片题注 图 1 架构\n")
+    assert [type(b).__name__ for b in doc.blocks] == ["Figure", "Paragraph"]
+    figure = doc.blocks[0]
+    assert figure.path == "a.png" and figure.width_cm == 12.0 and figure.alt == ""
+    assert doc.blocks[1].style == "Image Caption"
 
 
 def test_table_alignments_and_widths() -> None:
@@ -62,11 +70,11 @@ def test_table_alignments_and_widths() -> None:
     assert table.widths == [3.0, 4.0, 7.0]  # 分隔行短横线长短 → 相对列宽
 
 
-def test_figure_carries_caption_and_width() -> None:
-    doc = read_markdown("![图 1 架构](a.png){width=12cm}\n")
+def test_figure_keeps_alt_text_separate() -> None:
+    doc = read_markdown("![架构示意图](a.png){width=12cm}\n")
     fig = doc.blocks[0]
     assert isinstance(fig, Figure)
-    assert fig.path == "a.png"
+    assert fig.alt == "架构示意图"  # alt 只做无障碍替代文字，不再兼任题注
     assert fig.width_cm == 12.0
 
 

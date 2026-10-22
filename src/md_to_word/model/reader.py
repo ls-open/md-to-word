@@ -221,39 +221,21 @@ class _Reader:
 
     # -- 小工具 --------------------------------------------------------
     def _flush_pending(self) -> None:
-        """把待定的样式段落落盘。
-
-        表题例外：它要挂到**后面那张表**上，所以跨过空行继续待定，等表来了再落。
-        """
+        """把待定的样式段落落盘。"""
         if self.pending_style is None:
-            return
-        if self.pending_style[0] == "Table Caption":
             return
         style, content = self.pending_style
         self.pending_style = None
         self.doc.blocks.append(Paragraph(inlines=parse_inlines(content), style=style))
 
     def _append(self, block: Block) -> None:
-        """统一入口：入块之前先把待定段落处理掉；表题挂到表上。"""
-        if isinstance(block, Table) and self.pending_style and self.pending_style[0] == "Table Caption":
-            block.caption = parse_inlines(self.pending_style[1])
-            self.pending_style = None
-        else:
-            self._flush_pending()
-        self.doc.blocks.append(block)
-
-    def _attach_note(self, content: str) -> bool:
+        """统一入口：入块之前先把待定的样式段落落盘，顺序即位置。"""
         self._flush_pending()
-        if self.doc.blocks and isinstance(self.doc.blocks[-1], Table):
-            self.doc.blocks[-1].note = parse_inlines(content)
-            return True
-        return False
+        self.doc.blocks.append(block)
 
     def _make_style_paragraph(self, name: str, content: str) -> None:
         resolved = resolve_style_name(name)
         if resolved is None:
-            return
-        if resolved == "Table Note" and self._attach_note(content):
             return
         self._flush_pending()
         self.pending_style = (resolved, content)
@@ -401,15 +383,7 @@ class _Reader:
             rows.append([parse_inlines(c) for c in _table_cells(self.lines[i])])
             i += 1
 
-        caption = None
-        if self.pending_style and self.pending_style[0] == "Table Caption":
-            caption = parse_inlines(self.pending_style[1])
-            self.pending_style = None
-        else:
-            self._flush_pending()
-        self.doc.blocks.append(
-            Table(header=header, rows=rows, alignments=alignments, widths=widths, caption=caption)
-        )
+        self._append(Table(header=header, rows=rows, alignments=alignments, widths=widths))
         return i
 
     def _make_figure(self, match: re.Match) -> Figure:
@@ -419,7 +393,7 @@ class _Reader:
         if m:
             value, unit = float(m.group(1)), m.group(2) or "cm"
             width_cm = {"cm": value, "mm": value / 10, "in": value * 2.54, "pt": value * 2.54 / 72}.get(unit)
-        return Figure(path=match.group("path"), caption=parse_inlines(match.group("alt")), width_cm=width_cm)
+        return Figure(path=match.group("path"), alt=match.group("alt"), width_cm=width_cm)
 
     def _read_quote(self, start: int) -> int:
         body: list[str] = []
