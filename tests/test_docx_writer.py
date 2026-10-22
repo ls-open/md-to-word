@@ -224,7 +224,7 @@ def test_pipeline_needs_no_external_binary(tmp_path: Path) -> None:
     """
     from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
-    for name in ("hello.md", "requirements.txt"):
+    for name in ("hello.md", "format.txt"):
         shutil.copy(DEMO / name, tmp_path / name)
     if (DEMO / "figures").is_dir():
         shutil.copytree(DEMO / "figures", tmp_path / "figures")

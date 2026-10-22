@@ -11,7 +11,7 @@ English | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.
 Compile Markdown into compliant Word (`.docx`): theses, journal manuscripts, technical reports and
 official documents.
 
-Three rules: **content and layout are separate** — the format lives in a `requirements.txt` that goes
+Three rules: **content and layout are separate** — the format lives in a `format.txt` that goes
 into Git; **export is deterministic** — the same sources produce a byte-identical file on every run;
 **the gates do not ship silent errors** — a pre-flight check runs before export and a reconciliation
 pass after it, and anything off-contract stops the run with a line number.
@@ -52,16 +52,16 @@ For handing the job to an agent: state the format requirement, let the agent do 
 
 1. Clone this repository (or drop the directory into your skills directory)
 2. Point the agent at `SKILL.md` in the repository root
-3. The agent normalizes the manuscript → writes `requirements.txt` → exports → reads the gates and
+3. The agent normalizes the manuscript → writes `format.txt` → exports → reads the gates and
    fixes the reported lines
 
 **Nothing needs installing**: `scripts/export.sh` runs the source tree directly, and `SKILL.md` holds
 only the order of work — every spelling is looked up in the manual shipped inside the package. Only
 the dependencies are needed: `pip install -r requirements.txt`. Updates come with `git pull`.
 
-A **self-contained skill edition** — [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
-in the `nature-skills` repository — carries the same source plus its own skill documentation, so
-nothing has to be cloned either. It is there for users who never touch pip.
+The same entry also exists as [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
+in the `nature-skills` repository: documentation only, running on the same pip package — for people
+who want the skill directory inside an agent but would rather not clone the engine repository.
 
 | | As a command | As a skill |
 |:--|:--|:--|
@@ -100,7 +100,7 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 | 学位论文样例 | 8 页 | 0.43 s | 目录、分节页码、双线章名页眉、跨页表头 |
 ```
 
-**You declare** ([`demo/00_quickstart/requirements.txt`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/requirements.txt), excerpt):
+**You declare** ([`demo/00_quickstart/format.txt`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/requirements.txt), excerpt):
 
 ```text
 纸张：A4
@@ -117,7 +117,7 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 **You run**:
 
 ```bash
-md-to-word hello.md -r requirements.txt -o hello.docx
+md-to-word hello.md -r format.txt -o hello.docx
 ```
 
 **You get** (about 0.2 s, one page):
@@ -169,7 +169,7 @@ A school or journal `.docx` does not have to be transcribed by hand. Run the bun
 it to get a draft requirements file:
 
 ```bash
-md-to-word-template school_template.docx -o paper_requirements.txt
+md-to-word-template school_template.docx -o paper_format.txt
 ```
 
 It reads page size, margins, header/footer distances, page number format and start, per-style fonts
@@ -193,8 +193,8 @@ to-confirm item** — it does not pretend to have read it.
 | `resources/` | Word 365 base template and 29 normalised CSL styles |
 | `presets/` | Built-in presets: `zh-academic.txt`, `en-nature.txt` |
 
-What ships to a user's machine: `src/` (with both manuals), `presets/`, `resources/` and package
-metadata (wheel ≈ 320 KB). `tests/`, `demo/`, `scripts/`, `references/` and `SKILL.md` are the
+What ships to a user's machine: `src/` — which contains `md_to_word/presets/` and
+`md_to_word/resources/`, both manuals included — plus package metadata (wheel ≈ 320 KB). `tests/`, `demo/`, `scripts/`, `references/` and `SKILL.md` are the
 repository's acceptance surface and skill entry, not runtime dependencies.
 
 **Exit codes**: `0` done; `1` manuscript, gate or dependency problem; `3` `.docx` written but `--pdf`
@@ -214,7 +214,7 @@ reference work, two academic agent frameworks are worth pairing with it:
 - [Nature Skills](https://github.com/Yuan1z0825/nature-skills): an agent skill set for academic
   writing — literature review, experimental argument and draft generation.
 
-Both list this project among their third-party entries.
+(This project is currently listed among the third-party entries of Academic Research Skills.)
 
 ---
 
@@ -222,7 +222,7 @@ Both list this project among their third-party entries.
 
 | | Pandoc / Quarto | Typical Markdown→Word libraries | This one |
 |:--|:--|:--|:--|
-| Where the format lives | command-line flags + a Word template; details need XML | in code, or a few presets | one `requirements.txt`, versioned with the manuscript |
+| Where the format lives | command-line flags + a Word template; details need XML | in code, or a few presets | one `format.txt`, versioned with the manuscript |
 | Equation numbers set right | extra post-processing | usually not available | by default; per-chapter numbering is declared |
 | Section page numbers, chapter headers | edit the template and insert fields | not supported | one marker + one requirements line |
 | When something is wrong | mostly silently off | raise, or silently off | pre-flight with line numbers, audit after export |

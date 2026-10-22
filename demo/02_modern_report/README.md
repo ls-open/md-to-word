@@ -26,7 +26,7 @@
 ```text
 demo/02_modern_report/
 ├── report_sample.md       # 稿件
-├── requirements.txt       # 格式要求（字体、行距、单线页眉、全网格表）
+├── format.txt             # 格式要求（字体、行距、单线页眉、全网格表）
 ├── references.bib         # 参考文献数据
 ├── figures/               # 配图（端到端导出耗时实测）
 ├── report_sample.docx     # 产物
@@ -39,8 +39,8 @@ demo/02_modern_report/
 ## 三、 复现
 
 ```bash
-bash ../../scripts/export.sh report_sample.md -r requirements.txt -o report_sample.docx
-bash ../../scripts/export.sh report_sample.md -r requirements.txt -o report_sample.docx --pdf
+bash ../../scripts/export.sh report_sample.md -r format.txt -o report_sample.docx
+bash ../../scripts/export.sh report_sample.md -r format.txt -o report_sample.docx --pdf
 ```
 
 ---

@@ -1,6 +1,6 @@
 # 最小可跑样例：一页纸，30 秒看懂
 
-这是四份样例里最小的一个：**一份 22 行稿件（不含空行）+ 一份 14 行 `requirements.txt`（不含空行），导出 1 页**。
+这是四份样例里最小的一个：**一份 22 行稿件（不含空行）+ 一份 14 行 `format.txt`（不含空行），导出 1 页**。
 它的用途不是展示功能，而是让你（和你的 Agent）在 30 秒内看清**输入长什么样、输出长什么样**，顺便验证环境装好了没。
 
 ---
@@ -10,11 +10,11 @@
 | 文件 | 作用 |
 | :--- | :--- |
 | `hello.md` | **内容**——你写的东西（正文、标题、三线表） |
-| `requirements.txt` | **格式**——每行一条排版规则，导出时编译成 Word 样式 |
-| `hello.docx` / `hello.pdf` | 产物：`hello.md` 按 `requirements.txt` 排出来的结果 |
+| `format.txt` | **格式**——每行一条排版规则，导出时编译成 Word 样式 |
+| `hello.docx` / `hello.pdf` | 产物：`hello.md` 按 `format.txt` 排出来的结果 |
 | `page-1.png` | 上面那份 PDF 的第一页，方便直接看 |
 
-改动 `hello.md` 的内容不影响排版，改动 `requirements.txt` 的一行就能整篇换格式——这就是「内容与排版解耦」。
+改动 `hello.md` 的内容不影响排版，改动 `format.txt` 的一行就能整篇换格式——这就是「内容与排版解耦」。
 
 ## 二、 这一页演示了什么
 
@@ -32,10 +32,10 @@
 
 ```bash
 # 导出规范 Word 文档（.docx）
-bash ../../scripts/export.sh hello.md -r requirements.txt -o hello.docx
+bash ../../scripts/export.sh hello.md -r format.txt -o hello.docx
 
 # （可选，仅限 macOS 且装有 Word）顺带输出排版 PDF 对照样张
-bash ../../scripts/export.sh hello.md -r requirements.txt -o hello.docx --pdf
+bash ../../scripts/export.sh hello.md -r format.txt -o hello.docx --pdf
 ```
 
 预期：几秒内输出 `✅ Word 文档导出成功`，得到一份 1 页的 `.docx`。

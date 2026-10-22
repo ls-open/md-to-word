@@ -19,9 +19,9 @@ DEMO = REPO_ROOT / "demo"
 
 # (样例目录, 稿件, 要求文件；None 表示用内置预设)
 CASES = [
-    ("00_quickstart", "hello.md", "requirements.txt", None),
-    ("01_chinese_thesis", "thesis_sample.md", "requirements.txt", None),
-    ("02_modern_report", "report_sample.md", "requirements.txt", None),
+    ("00_quickstart", "hello.md", "format.txt", None),
+    ("01_chinese_thesis", "thesis_sample.md", "format.txt", None),
+    ("02_modern_report", "report_sample.md", "format.txt", None),
     ("03_english_paper", "paper.md", None, "en-nature"),
 ]
 

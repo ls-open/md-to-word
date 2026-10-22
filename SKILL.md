@@ -10,15 +10,9 @@ This file is the router. The engine is deterministic: the same manuscript and th
 requirements always produce a byte-identical `.docx`. Do not substitute a hand-written
 python-docx script; run the bundled pipeline.
 
-**The full vocabulary lives in the manual inside the package**, not here:
-
-```
-src/md_to_word/resources/manual.md      # Chinese
-src/md_to_word/resources/manual_en.md   # English
-```
-
-`md-to-word --contract` prints the path for the current language. Everything below is order of
-work; every spelling is looked up in the manual.
+**The full vocabulary lives in the manual inside the package**, not here. `md-to-word --contract`
+prints its absolute path (Chinese or English, following the manuscript). Everything below is order
+of work; every spelling is looked up in the manual.
 
 ## 1. Decide the scenario first
 
@@ -28,9 +22,10 @@ work; every spelling is looked up in the manual.
 | Existing requirements | "use our lab's spec file" | Pass it with `-r`. |
 | Baseline export (no explicit spec) | "turn this into a Word file" | Normalize the manuscript to the contract, then export with the built-in preset. The preset is a complete, valid format, not a provisional default. |
 
-State the chosen preset or requirements path in one line, then proceed. Without `-r` the preset
-follows the **manuscript's language**: `zh-academic` for Chinese, `en-nature` for everything else.
-The run reports which one it used.
+State the chosen preset or requirements path in one line, then proceed. Without `-r` the engine
+first takes over a **lone `.txt`** beside the manuscript (several of them → exit 1); otherwise the
+preset follows the **manuscript's language**: `zh-academic` for Chinese, `en-nature` for everything
+else. The run reports which one it used.
 
 No path accepts arbitrary Markdown and returns a finished document: a preset supplies formatting,
 not missing structure. When the manuscript violates the contract, pre-flight stops with a line
@@ -75,12 +70,15 @@ first; never edit the user's original file in place.
 2. **Copy and edit a preset** — change only the lines the user mentioned. Field order is fixed:
    font, size, bold, italic, alignment, line spacing, space before, space after, indent. Every style
    line must be complete; missing fields are errors.
-3. **Reverse-engineer a target `.docx`** — `python3 <skill-dir>/scripts/read_reference_docx.py
-   target.docx -o requirements.txt`, then review the "to confirm" list at the end of the draft.
+3. **Reverse-engineer a target `.docx`** — `md-to-word-template target.docx -o format.txt`, then
+   review the "to confirm" list at the end of the draft.
 
 Each property has exactly one accepted spelling (two in total: the canonical Chinese and English
 forms); anything else is a hard error with a line number. Full table: manual §3.1. Style names:
-§3.4. Presets are the reference examples, at `src/md_to_word/presets/`.
+§3.4. Presets are the reference examples — `md-to-word --contract` prints their paths.
+
+Throughout this file, `format.txt` means *the format requirements file* — any path works, `-r` takes
+it. `requirements.txt` never means that: it is the Python dependency list.
 
 Citation style comes from `csl:` with a bundled file name (manual §7) or a path to the user's own
 CSL. Without `csl:`, Chinese manuscripts get GB/T 7714 numeric, others APA 7th. A user-supplied CSL
@@ -88,12 +86,11 @@ is normalized on export so that one requirements file always produces one layout
 
 ## 4. Export
 
-Run from the manuscript's directory, pointing at the script in the skill directory (inside the
-repository that is simply `bash scripts/export.sh …`):
+Run from the manuscript's directory, pointing at the script in the skill directory:
 
 ```bash
 bash <skill-dir>/scripts/export.sh manuscript.md -o manuscript.docx
-bash <skill-dir>/scripts/export.sh manuscript.md -r requirements.txt -o manuscript.docx
+bash <skill-dir>/scripts/export.sh manuscript.md -r format.txt -o manuscript.docx
 bash <skill-dir>/scripts/export.sh --contract          # contract + paths to the manual and presets
 bash <skill-dir>/scripts/export.sh --version           # engine version
 ```
@@ -137,12 +134,13 @@ language. Add `--verbose` when a format does not seem to take effect.
 - Sum and integral limits stay on the right of the symbol in numbered equations (Word stacks limits
   only in display math). Content and symbols are correct; only the arrangement differs.
 - TOC page numbers and chapter headers are Word fields; Word asks once whether to update them.
-- Runtime: Python 3.9+, nothing else. The engine ships as the `md-to-word-docx` package
-  (`pip install -U md-to-word-docx` to install or upgrade); from a source checkout use
-  `pip install -r requirements.txt`. No Quarto, no Pandoc, no external binary; `--pdf` additionally
-  needs Word on macOS and is skipped elsewhere.
+- Runtime: Python 3.9+, nothing else. From a source checkout install the dependencies with
+  `pip install -r requirements.txt`; where only the documentation is present, install or upgrade the
+  engine itself with `pip install -U md-to-word-docx`. No Quarto, no Pandoc, no external binary;
+  `--pdf` additionally needs Word on macOS and is skipped elsewhere.
 
-Full statements: manual §6 (limits) and §8 (symptom → fix). Design rationale: `references/design.md`.
+Full statements: manual §6 (limits) and §8 (symptom → fix). Design rationale lives in the engine
+repository: <https://github.com/ls-open/md-to-word/blob/main/references/design.md>.
 
 ## 8. Related skills
 

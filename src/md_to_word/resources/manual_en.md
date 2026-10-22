@@ -6,9 +6,9 @@ Markdown → compliant Word (`.docx`). Content and layout are separate: Markdown
 every format decision is declared in the requirements file; export is deterministic — rerun the
 same source at any time and the output is byte-for-byte identical.
 
-This manual ships with the Python package (`src/md_to_word/resources/manual_en.md`) and is
-versioned with the implementation — `pip install -U` replaces an implementation and its
-documentation together. `md-to-word --contract` prints the contract cheatsheet, the path to this
+This manual ships with the Python package and is versioned with the implementation — `pip install -U`
+replaces an implementation and its documentation together. `md-to-word --contract` prints its
+absolute path. `md-to-word --contract` prints the contract cheatsheet, the path to this
 file and the built-in preset paths.
 
 One export needs two files:
@@ -39,13 +39,13 @@ One export needs two files:
 |:--|:--|
 | Command line | `md-to-word manuscript.md -o out.docx` |
 | Python | `from md_to_word import export` |
-| Reverse-engineer a requirements draft from a reference `.docx` | `md-to-word-template reference.docx -o requirements.txt` |
-| AI skill | Runs without installing the package: the self-contained skill directory carries the whole source tree, this manual included |
+| Reverse-engineer a requirements draft from a reference `.docx` | `md-to-word-template reference.docx -o format.txt` |
+| AI skill | The skill directory's `export.sh` calls an installed `md-to-word`; a source checkout runs `src/` directly |
 
 ```bash
 md-to-word manuscript.md -o out.docx                     # built-in zh-academic preset (Chinese)
 md-to-word manuscript.md --preset en-nature -o out.docx  # international journal preset
-md-to-word manuscript.md -r requirements.txt -o out.docx # explicit requirements file
+md-to-word manuscript.md -r format.txt -o out.docx # explicit requirements file
 md-to-word --contract                                    # contract cheatsheet + manual and preset paths
 md-to-word --contract --lang en                          # same, in English (canonical English style names)
 md-to-word manuscript.md -o out.docx --verbose           # per-style log, for "the format had no effect"
@@ -276,7 +276,7 @@ other than `width` on an image line (such as `{align=right}`).
 
 ## 3. The requirements file
 
-`requirements.txt` is a small language: one style per line, every property written on that line.
+The format requirements file (`format.txt` throughout this manual — the name is free) is a small language: one style per line, every property written on that line.
 Three rules:
 
 1. **Write every property on one line**: each style line must contain
@@ -388,7 +388,7 @@ updated when the document is opened or shown in print preview.
 
 | What you have | What to do |
 |:--|:--|
-| A reference `.docx` template | `md-to-word-template reference.docx -o requirements.txt` reverse-engineers a draft; **items it could not read are listed at the end of the draft** — check each one before using it |
+| A reference `.docx` template | `md-to-word-template reference.docx -o format.txt` reverse-engineers a draft; **items it could not read are listed at the end of the draft** — check each one before using it |
 | Format instructions in text or given verbally | fill in whatever the user stated explicitly; derive and fill the unmentioned required fields of the same set per §3.5 |
 | Nothing at all | use a built-in preset, export a standard `.docx` first, then adjust from feedback |
 
@@ -478,7 +478,7 @@ manuscript normalisation and configuration generation end to end.
    already has a `.md`, create a copy in the same directory and adapt that, leaving the original
    untouched.
 2. **Prepare the requirements file**: pick one of the three paths in §3.3.
-3. **Export**: `md-to-word manuscript.md -r requirements.txt -o out.docx`.
+3. **Export**: `md-to-word manuscript.md -r format.txt -o out.docx`.
 4. **Read the gate output**: on exit code `1`, fix the manuscript or add the missing style lines
    according to the reported line numbers; do not bypass it with `--no-check`.
 5. **When delivering, remind the user to open the file in Word and check the layout** (§5.3).

@@ -72,8 +72,8 @@ def test_equation_number_placement_round_trip() -> None:
 @pytest.mark.parametrize(
     "path",
     [
-        Path(__file__).resolve().parents[1] / "demo" / "01_chinese_thesis" / "requirements.txt",
-        Path(__file__).resolve().parents[1] / "demo" / "02_modern_report" / "requirements.txt",
+        Path(__file__).resolve().parents[1] / "demo" / "01_chinese_thesis" / "format.txt",
+        Path(__file__).resolve().parents[1] / "demo" / "02_modern_report" / "format.txt",
     ],
     ids=["thesis", "report"],
 )

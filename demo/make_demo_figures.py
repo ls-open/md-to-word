@@ -42,7 +42,7 @@ def measure_runs(demo_dir: Path, stem: str) -> list[float]:
         t0 = time.perf_counter()
         subprocess.run(
             ["bash", str(ROOT / "scripts" / "export.sh"),
-             f"{stem}.md", "-r", "requirements.txt", "-o", f"/tmp/_demo_fig_{stem}.docx"],
+             f"{stem}.md", "-r", "format.txt", "-o", f"/tmp/_demo_fig_{stem}.docx"],
             cwd=demo_dir, check=True, capture_output=True,
         )
         times.append(time.perf_counter() - t0)
@@ -68,7 +68,7 @@ _PIPELINE_LABELS = {
     },
     "en": {
         "row1": [
-            ("manuscript.md\n+ requirements.txt", "input"),
+            ("manuscript.md\n+ format.txt", "input"),
             ("Pre-flight check\ncontract and syntax", "gate 1"),
             ("Style template\nrequirements → styles.xml", "typeset"),
             ("Document model\nMarkdown → node tree", "parse"),
@@ -154,7 +154,7 @@ def fig_system_architecture(out: Path) -> None:
     columns = [
         ("1. 规范输入与声明", "#0b7dc0", [
             "纯文本 Markdown 稿件",
-            "requirements.txt 声明式规则",
+            "format.txt 声明式规则",
             "references.bib 学术文献库",
         ]),
         ("2. 导前预检与建模", "#1f8a70", [

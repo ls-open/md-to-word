@@ -26,7 +26,7 @@ The pipeline reads a fixed Markdown dialect, builds a document model, and writes
 |:--|:--|:--|
 | `paper.md` | content and structure | the author |
 | `refs.bib` | bibliography entries | reference manager |
-| `requirements.txt` | fonts, spacing, page setup | the institution |
+| `format.txt` | fonts, spacing, page setup | the institution |
 
 %% Table Note Note. Only the first row is written by hand; the bibliography is generated.
 

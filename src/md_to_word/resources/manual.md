@@ -5,8 +5,8 @@ English: `manual_en.md`
 Markdown → 规范 Word（`.docx`）。内容与排版分离：Markdown 是源，格式全部声明在要求文件里；
 导出是确定性的，同一份源任何时候重跑，产物逐字节一致。
 
-本手册随 Python 包发布（`src/md_to_word/resources/manual.md`），版本与实现同步——`pip install -U`
-换掉的是一整份一致的实现与说明。`md-to-word --contract` 打印契约速查、本文件路径与内置预设路径。
+本手册随 Python 包发布，版本与实现同步——`pip install -U` 换掉的是一整份一致的实现与说明；
+`md-to-word --contract` 打印它的绝对路径。`md-to-word --contract` 打印契约速查、本文件路径与内置预设路径。
 
 一次导出只需要两个文件：
 
@@ -36,13 +36,13 @@ Markdown → 规范 Word（`.docx`）。内容与排版分离：Markdown 是源�
 |:--|:--|
 | 命令行 | `md-to-word 稿件.md -o 输出.docx` |
 | Python | `from md_to_word import export` |
-| 从参考 `.docx` 反推要求草稿 | `md-to-word-template 参考.docx -o 要求.txt` |
-| AI 技能 | 不装包也能跑：自包含的技能目录里整棵带着源码，本手册也在其中 |
+| 从参考 `.docx` 反推要求草稿 | `md-to-word-template 参考.docx -o format.txt` |
+| AI 技能 | 技能目录的 `export.sh` 调用已安装的 `md-to-word`；克隆本仓库时直接用仓库里的 `src/` |
 
 ```bash
 md-to-word 稿件.md -o 输出.docx                      # 内置中文预设 zh-academic
 md-to-word 稿件.md --preset en-nature -o out.docx    # 英文期刊预设
-md-to-word 稿件.md -r 格式要求.txt -o out.docx        # 显式指定要求文件
+md-to-word 稿件.md -r format.txt -o out.docx        # 显式指定要求文件
 md-to-word --contract                               # 契约速查 + 本手册路径 + 预设路径
 md-to-word --contract --lang en                     # 同上，英文版（样式名用英文正典名）
 md-to-word 稿件.md -o 输出.docx --verbose            # 逐样式明细，排查「格式没生效」
@@ -226,7 +226,7 @@ HTML 标签与 `<https://…>` 自动链接、横向分隔线 `---`、`====` 下
 
 ## 3. 格式要求文件
 
-`requirements.txt` 是一门小语言：一行一种样式，行内属性写全。规矩三条：
+格式要求文件（下文示例统一叫 `format.txt`，文件名随意）是一门小语言：一行一种样式，行内属性写全。规矩三条：
 
 1. **单行属性写全**：每条样式行必须写齐 `字体 字号 [加粗/不加粗 倾斜/不倾斜] 对齐 行距 段前N磅
    段后N磅 首行缩进N字符`。没有段间距或缩进时，**也要显式写** `段前0磅 段后0磅 首行缩进0字符`。
@@ -306,7 +306,7 @@ HTML 标签与 `<https://…>` 自动链接、横向分隔线 `---`、`====` 下
 
 | 手上有什么 | 怎么做 |
 |:--|:--|
-| 参考 `.docx` 模板 | `md-to-word-template 参考.docx -o 要求.txt` 反推草稿，**读不出的项列在草稿末尾**，逐项核对后再用 |
+| 参考 `.docx` 模板 | `md-to-word-template 参考.docx -o format.txt` 反推草稿，**读不出的项列在草稿末尾**，逐项核对后再用 |
 | 文字或口头的格式说明 | 用户明文指定的部分照填，未提及的同套必填字段按 §3.5 推导补齐 |
 | 什么都没提 | 直接用内置预设，先导一版标准 `.docx` 交付，再按反馈微调 |
 
@@ -354,7 +354,7 @@ HTML 标签与 `<https://…>` 自动链接、横向分隔线 `---`、`====` 下
 1. **整理稿件**：源材料可能是刚生成的文本、`.txt`、普通 `.md`、旧 `.docx` 或 `.pdf`。
    整理成符合 §2 契约的 `.md`；用户原本就有 `.md` 时，在同目录创建副本改造，不破坏原稿。
 2. **准备要求文件**：按 §3.3 选一条路径。
-3. **导出**：`md-to-word 稿件.md -r 要求.txt -o 输出.docx`。
+3. **导出**：`md-to-word 稿件.md -r format.txt -o 输出.docx`。
 4. **读门禁输出**：退出码 `1` 时按报错行号改稿或补样式行，不要用 `--no-check` 绕过。
 5. **交付时提醒用户用 Word 打开核对版面**（§5.3）。
 

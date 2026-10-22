@@ -10,7 +10,7 @@
 
 把 Markdown 编译成符合规范的 Word（`.docx`）：学位论文、期刊论文、技术报告、公文。
 
-三条硬规矩：**排版与内容分离**——格式写成一份可进 Git 的 `requirements.txt`；
+三条硬规矩：**排版与内容分离**——格式写成一份可进 Git 的 `format.txt`；
 **导出确定性**——同一份源任何时候重跑，产物逐字节一致；**门禁不放行静默错误**——
 导出前预检、导出后对账，不合规就中止并把行号指出来。
 
@@ -47,15 +47,15 @@ if not result.ok:
 
 1. 克隆本仓库（或把整个目录放进技能目录）
 2. 让 Agent 读仓库根目录的 `SKILL.md`
-3. Agent 依次完成：整理稿件 → 写 `requirements.txt` → 导出 → 读门禁、按行号改稿
+3. Agent 依次完成：整理稿件 → 写格式要求文件（`format.txt`）→ 导出 → 读门禁、按行号改稿
 
 **不需要安装这个包**：`scripts/export.sh` 直接用仓库里的源码，`SKILL.md` 只写流程、
 具体写法指向包内手册。只需装依赖：`pip install -r requirements.txt`。
 更新方式是 `git pull`。
 
-另有一个**自包含技能版**：`nature-skills` 仓库的
-[`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
-——同一份源码加上它自己的技能文档，连仓库都不必克隆，供"完全不碰 pip"的用户使用。
+同样的入口也存在于 `nature-skills` 仓库的
+[`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)，
+那边只有技能文档，引擎走同一个 pip 包——适合把技能目录放进 Agent、但不克隆引擎仓库的人。
 
 | | 当成命令 | 当成技能 |
 |:--|:--|:--|
@@ -94,7 +94,7 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 | 学位论文样例 | 8 页 | 0.43 s | 目录、分节页码、双线章名页眉、跨页表头 |
 ```
 
-**你声明的**（[`demo/00_quickstart/requirements.txt`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/requirements.txt)，节选）：
+**你声明的**（[`demo/00_quickstart/format.txt`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/requirements.txt)，节选）：
 
 ```text
 纸张：A4
@@ -111,7 +111,7 @@ Times New Roman、行距 1.5 倍、各级标题黑体——这些都不用你在
 **你跑的**：
 
 ```bash
-md-to-word hello.md -r requirements.txt -o hello.docx
+md-to-word hello.md -r format.txt -o hello.docx
 ```
 
 **你得到的**（约 0.2 秒，1 页）：
@@ -157,7 +157,7 @@ md-to-word hello.md -r requirements.txt -o hello.docx
 学校、期刊或单位下发的 `.docx` 不必逐条抄成要求文件。用包内的读取器反推一份草稿：
 
 ```bash
-md-to-word-template 学校模板.docx -o 论文_requirements.txt
+md-to-word-template 学校模板.docx -o 论文_format.txt
 ```
 
 读出页面尺寸、页边距、页眉页脚距边界、页码格式与起始、各样式的中西文字体与字号、加粗倾斜、
@@ -179,7 +179,7 @@ md-to-word-template 学校模板.docx -o 论文_requirements.txt
 | `resources/` | Word 365 底模与 29 份规范化 CSL 样式 |
 | `presets/` | 内置预设：`zh-academic.txt`、`en-nature.txt` |
 
-发到用户机器上的只有 `src/`（含两份手册）、`presets/`、`resources/` 与包元数据（wheel 约 320 KB）；
+发到用户机器上的只有 `src/`（内含 `md_to_word/presets/` 与 `md_to_word/resources/`，含两份手册）与包元数据（wheel 约 320 KB）；
 `tests/`、`demo/`、`scripts/`、`references/`、`SKILL.md` 是仓库的验收面与技能入口，不进包。
 
 **退出码**：`0` 完成；`1` 稿件、门禁或依赖问题；`3` `.docx` 已写出但 `--pdf` 未渲染。
@@ -196,7 +196,7 @@ md-to-word-template 学校模板.docx -o 论文_requirements.txt
 - [Nature Skills](https://github.com/Yuan1z0825/nature-skills)：学术论文写作的 Agent 技能集，覆盖文献综述、
   实验论证与草稿生成。
 
-两者都把本项目列在各自的第三方项目清单里。
+（本项目目前被 Academic Research Skills 列在第三方项目清单中。）
 
 ---
 
@@ -204,7 +204,7 @@ md-to-word-template 学校模板.docx -o 论文_requirements.txt
 
 | | Pandoc / Quarto | 常见的 Markdown→Word 库 | 这里 |
 |:--|:--|:--|:--|
-| 排版规则写在哪 | 命令行参数 + Word 底模，改细节要动 XML | 代码里，或只有几档预设 | 一份 `requirements.txt`，随稿件进 Git |
+| 排版规则写在哪 | 命令行参数 + Word 底模，改细节要动 XML | 代码里，或只有几档预设 | 一份 `format.txt`，随稿件进 Git |
 | 公式编号靠右 | 需额外后处理 | 一般不做 | 默认；按章编号可声明 |
 | 分节页码、章名页眉 | 要手工改底模并插域 | 不支持 | 一行标记 + 一行要求 |
 | 出错时 | 多为静默走样 | 抛异常或静默 | 导前预检带行号，导后逐条对账 |
