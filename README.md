@@ -159,7 +159,7 @@ md-to-word 稿件.md -o 稿件.docx --json
 
 ## 环境
 
-- **依赖**：`python-docx`、`lxml`、`PyYAML`、`latex2mathml`、`citeproc-py`，5 个纯 Python 包
+- **依赖**：`python-docx`、`lxml`、`PyYAML`、`latex2mathml`、`citeproc-py` 五个包；除 `lxml`（C 扩展，各平台都有现成轮子）外都是纯 Python
 - **导出不需要任何外部二进制**：没有 Pandoc，没有 Quarto，不调用 Word
 - **`--pdf` 核对版**才用到本机 Word（仅 macOS；不可用时自动跳过，不影响 `.docx`）
 - **中英双语**：运行时消息、门禁报错、使用手册各有两份，语言跟着**稿件语种**走——

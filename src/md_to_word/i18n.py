@@ -94,6 +94,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "  {directory}/hello.md (exports as-is)\n\nNext: {command}\n"
         "Workflow and full vocabulary: md-to-word --guide",
     ),
+    "init.preset_missing": (
+        "未找到预设: {name}\n  内置预设是 zh-academic 与 en-nature；也可以直接给一份 --preset 之外的要求文件。",
+        "Preset not found: {name}\n  The built-in presets are zh-academic and en-nature.",
+    ),
     "init.exists": (
         "未覆盖已存在的文件：{paths}（要覆盖加 --force）",
         "Not overwriting existing files: {paths} (add --force to replace them)",

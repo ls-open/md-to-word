@@ -179,7 +179,7 @@ wording.
 
 ## Environment
 
-- **Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py` — five pure-Python packages
+- **Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py` — five packages, all pure Python except `lxml` (a C extension, wheels available for every platform)
 - **Export needs no external binary**: no Pandoc, no Quarto, no Word
 - **Only the optional `--pdf` proof** uses the local Word installation (macOS; skipped elsewhere, `.docx` unaffected)
 - **Chinese and English**: runtime messages, gate diagnostics and the manual each exist in both

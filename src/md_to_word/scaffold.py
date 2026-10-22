@@ -18,8 +18,7 @@ SAMPLE_ZH = """%% 文档标题 我的第一份规范 Word 文档
 
 # 引言
 
-把这一段换成你自己的内容。排版由同目录的 `format.txt` 决定：改那里的某一行，
-这段文字的字体、行距、缩进就跟着变，正文一个字都不用动。
+把这一段换成你自己的内容。排版由同目录的 `format.txt` 决定：改那里的某一行，这段文字的字体、行距、缩进就跟着变，正文一个字都不用动。
 
 # 一个三线表
 
@@ -37,9 +36,7 @@ SAMPLE_EN = """%% Title My first compliant Word document
 
 # Introduction
 
-Replace this paragraph with your own. The layout comes from `format.txt` beside it:
-change one line there and the font, spacing or indent of this paragraph changes —
-the text itself is untouched.
+Replace this paragraph with your own. The layout comes from `format.txt` beside it: change one line there and the font, spacing or indent of this paragraph changes — the text itself is untouched.
 
 # A three-line table
 
@@ -88,13 +85,15 @@ def run_init(
         return 1
 
     shutil.copyfile(preset_path, targets["format"])
-    targets["manuscript"].write_text(_sample(lang), encoding="utf-8")
+    # 样例跟着**预设**的语种走，不跟消息语种：格式词表是英文的（Table Caption、Body Text），
+    # 样例里的样式行也得是英文，否则同一目录里两份文件的说法不一致。
+    targets["manuscript"].write_text(_sample("en" if name.startswith("en") else "zh"), encoding="utf-8")
 
     print(t(
         "init.done",
         lang,
         directory=directory,
         preset=name,
-        command=f"md-to-word hello.md -o hello.docx",
+        command="md-to-word hello.md -o hello.docx",
     ))
     return 0

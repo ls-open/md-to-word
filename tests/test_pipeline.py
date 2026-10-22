@@ -356,6 +356,8 @@ def test_init_writes_an_exportable_pair(tmp_path: Path, capsys) -> None:
     out = tmp_path / "hello.docx"
     assert main([str(tmp_path / "hello.md"), "-o", str(out)]) == 0
     assert out.exists()
+    # 第一次导出不该有任何告警：样例本身必须是范本，不能一上手就「折行段落」。
+    assert "⚠️" not in capsys.readouterr().err
 
 
 def test_init_does_not_overwrite_and_speaks_the_chosen_language(tmp_path: Path, capsys) -> None:
@@ -363,9 +365,25 @@ def test_init_does_not_overwrite_and_speaks_the_chosen_language(tmp_path: Path, 
 
     assert main(["init", str(tmp_path), "--lang", "en"]) == 0
     assert "Created:" in capsys.readouterr().out
-    assert "SimSun" in (tmp_path / "format.txt").read_text(encoding="utf-8") or True
+    assert (tmp_path / "hello.md").read_text(encoding="utf-8").startswith("%% Title")
 
     code = main(["init", str(tmp_path)])
     assert code == 1
     assert "未覆盖" in capsys.readouterr().out
     assert main(["init", str(tmp_path), "--force"]) == 0
+
+
+def test_init_sample_follows_the_preset_not_the_message_language(tmp_path: Path, capsys) -> None:
+    """格式词表是英文（Table Caption、Body Text），样例里也必须是英文样式名。"""
+    from md_to_word.cli import main
+
+    assert main(["init", str(tmp_path), "--preset", "en-nature"]) == 0
+    assert (tmp_path / "hello.md").read_text(encoding="utf-8").startswith("%% Title")
+    assert main([str(tmp_path / "hello.md"), "-o", str(tmp_path / "out.docx")]) == 0
+
+
+def test_init_unknown_preset_is_reported(tmp_path: Path, capsys) -> None:
+    from md_to_word.cli import main
+
+    assert main(["init", str(tmp_path), "--preset", "nope"]) == 1
+    assert "nope" in capsys.readouterr().out
