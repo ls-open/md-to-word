@@ -13,14 +13,15 @@ license: MIT
 > **统一入口**：`bash <本技能目录>/scripts/export.sh <稿件.md> [-r <格式要求.txt> | --preset zh-academic|en-nature] [-o <输出.docx>]`（若稿件同目录有唯一的 `.txt`，`-r` 可省略；两者都没有时默认用内置预设 `presets/zh-academic.txt`，模板每次导出实时生成）
 > **核心引擎**：自研写出器（模型 → OOXML）+ 纯净 Word 365 底模 (`resources/pure_modern_base.docx`) + 公式居中与编号靠右对齐引擎 + 自动质量门禁（导前预检 / 导后防丢数 / XML 样式对账）
 >
-> **首次使用前**：`pip install -r requirements.txt`。**导出不需要任何外部二进制**——没有 Pandoc、没有 Quarto、不调用 Word（只有 `--pdf` 核对才用到本机 Word）。
+> **首次使用前**：安装实现（技能本身不含实现）：`pipx install md-to-word`。更新用同一条：`pipx upgrade md-to-word`——**技能文件几乎不用动**，这是把实现放进包而不是放进技能的原因。`bash scripts/export.sh --version` 可确认引擎版本。
 >
-> **命令行与 Python 包是同一份代码**：`pip install .` 后可直接用 `md-to-word 稿件.md -o 输出.docx`；技能壳 `scripts/export.sh` 只是把它包了一层。
+> **导出不需要任何外部二进制**：没有 Pandoc、没有 Quarto、不调用 Word（只有 `--pdf` 核对才用到本机 Word）。
 
 ## Quick start (English)
 
 ```bash
-pip install -r requirements.txt            # or: pip install .
+pipx install md-to-word                    # the skill is a thin entry; install the engine
+pipx upgrade md-to-word                    # updates need nothing else — the skill files stay put
 md-to-word paper.md -o paper.docx          # default: Chinese thesis preset
 md-to-word paper.md --preset en-nature -o paper.docx
 md-to-word --help                          # all options; help follows the manuscript language
@@ -41,8 +42,8 @@ Exit codes: `0` ok, `1` manuscript/gate failure, `3` `.docx` written but the `--
 | `SKILL.md` | 技能主入口。理解 Agent 代办流程、模块化组装 `requirements.txt`、改造导出稿件并执行导出 |
 | `references/reference.md` | 查 `requirements.txt` 完整合法词表（§1.5）、排版推导默认值（§1.6）、内置 CSL 清单（§3）时查阅 |
 | `references/design.md` | **导出行为不符合预期**时（参见其 §2 故障排查定位原因）；或**需要修改 `scripts/` 下的脚本**时查阅 |
-| `scripts/` | 入口壳与开发工具：`export.sh`（导出入口）、`check_md.py`（预检命令）、`generate_template.py`、`read_reference_docx.py`、`normalize_csl.py`、`render_via_word.sh` |
-| `src/md_to_word/` | **全部实现**（流水线、文档模型、写出器、样式生成、校验、对账）。`bash scripts/export.sh` 等价于 `python -m md_to_word`，是同一份代码 |
+| `scripts/` | `export.sh` 是**浅入口**：找到已安装的 `md-to-word` 并转发参数，实现一行都不在这里。其余是开发工具（`check_md.py`、`generate_template.py`、`read_reference_docx.py`、`normalize_csl.py`、`render_via_word.sh`） |
+| `src/md_to_word/` | 实现本体（流水线、文档模型、写出器、样式生成、校验、对账）。技能分发时**不必带上它**——装了包就用包里的；只有开发检出、且没装过包时才由 `export.sh` 兜底使用 |
 | `resources/` | 纯净 Word 365 底模 `pure_modern_base.docx` 与内置规范化引用样式库 `resources/csl/*.csl` |
 | `presets/` | 开箱即用的格式预设：`zh-academic.txt`（中文学术/通用报告，默认）与 `en-nature.txt`（英文期刊投稿）。用户没给格式要求时直接用这两份 |
 

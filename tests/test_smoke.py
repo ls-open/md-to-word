@@ -25,7 +25,8 @@ import sys
 
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-from generate_template import generate_template, parse_requirements  # noqa: E402
+from md_to_word.spec.parser import parse_requirements  # noqa: E402
+from md_to_word.template.generator import generate_template  # noqa: E402
 
 
 @pytest.mark.parametrize("preset", ["zh-academic.txt", "en-nature.txt"])

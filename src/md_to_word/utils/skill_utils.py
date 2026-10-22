@@ -146,6 +146,8 @@ def _is_prose_line(line: str) -> bool:
     s = line.strip()
     if not s or s == "---" or _HEADING_RE.match(line):
         return False
+    if not s.strip("."):  # mask_code_fences 用「.」占位；占位行不是正文
+        return False
     if s[0] in "|>!" or s.startswith(":::") or s.startswith("%%"):
         return False
     return not (_MATH_ONLY_RE.match(line) or _MATH_INLINE_RE.match(line)

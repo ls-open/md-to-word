@@ -213,21 +213,33 @@ For users unfamiliar with academic bibliography workflows:
 
 ## 🛠️ Environment Prerequisites
 
-**No external binary is required for the default writer.** Python dependencies only (≈3 MB, pure Python):
+**No external binary is required.** Python dependencies only:
 
 ```bash
-pip install -r requirements.txt
+pipx install md-to-word          # from the package (recommended)
+pip install -r requirements.txt  # or install deps for a source checkout
 ```
+
+Five pure-Python packages, ≈3 MB: `python-docx` (writes OOXML), `lxml` (XML), `PyYAML` (front matter), `latex2mathml` (equations), `citeproc-py` (citations). **Layout, numbering and the quality gates are this project's own code** — the borrowed parts are exactly the two that have public standards: LaTeX parsing and CSL rendering.
 
 ### Three ways to use it — one codebase
 
-`src/md_to_word/` is a pip-installable package; the skill is just a manual (`SKILL.md`) plus a thin entry shell (`scripts/export.sh`) over the same code. `presets/` and `resources/` (CSL styles, base template) ship with the package.
+The implementation exists once: the pip package in `src/md_to_word/`. The skill, the CLI and the Python call are all entries into it — **the skill ships no implementation**, only the manual (`SKILL.md`) and a thin shell that forwards arguments (`scripts/export.sh`).
+
+That split decides how updates work: ship a release and users run `pipx upgrade md-to-word`; the skill files only change when the docs do. Bundle the implementation into the skill and even a one-line fix forces everyone to reinstall it.
 
 | Way | For | Install | Use |
 |:--|:--|:--|:--|
-| **Skill** | authors who hand off to an AI agent | clone into your skills directory, then `pip install -r requirements.txt` | "Export this paper as Word per my school's rules" — the agent reads `SKILL.md` |
-| **CLI** | batch jobs, CI | `pipx install .` (isolated, recommended) or `pip install .` | `md-to-word paper.md -o paper.docx` |
-| **Python** | your own scripts and pipelines | `pip install .` | `from md_to_word import export` |
+| **Skill** | authors who hand off to an AI agent | put `SKILL.md` + `references/` in your skills directory, then `pipx install md-to-word` | "Export this paper as Word per my school's rules" — the agent reads `SKILL.md` |
+| **CLI** | batch jobs, CI | `pipx install md-to-word` (isolated) or `pip install` | `md-to-word paper.md -o paper.docx` |
+| **Python** | your own scripts and pipelines | `pip install md-to-word` | `from md_to_word import export` |
+
+**Updating**:
+
+```bash
+pipx upgrade md-to-word        # or: pip install --upgrade md-to-word
+md-to-word --version
+```
 
 ```bash
 md-to-word paper.md -o paper.docx                  # Chinese thesis preset by default

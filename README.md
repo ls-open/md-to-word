@@ -212,22 +212,34 @@ python3 scripts/read_reference_docx.py 学校模板.docx -o 论文_requirements.
 **默认不需要任何外部二进制**，装 Python 依赖即可：
 
 ```bash
-pip install -r requirements.txt
+pipx install md-to-word        # 从包安装（推荐）
+pip install -r requirements.txt # 或从源码检出安装依赖
 ```
 
-依赖清单（合计约 3 MB，纯 Python）：`python-docx`（写 OOXML）、`lxml`（读写 XML）、`PyYAML`（读稿件元信息）、`latex2mathml`（公式）、`citeproc-py`（文献引用）。
+依赖清单（合计约 3 MB、5 个纯 Python 包）：`python-docx`（写 OOXML）、`lxml`（读写 XML）、`PyYAML`（读稿件元信息）、`latex2mathml`（公式）、`citeproc-py`（文献引用）。**排版、编号、门禁这些是本项目自己的代码**——借的只有"LaTeX 解析"与"CSL 渲染"两段有公开标准的部分。
 
 **导出不需要任何外部二进制**：没有 Pandoc、没有 Quarto、不调用 Word。`--pdf` 核对版才会用到本机 Word（仅 macOS）。
 
 ### 三种用法，同一份代码
 
-`src/md_to_word/` 就是一个 pip 安装包；技能只是给它配了一份说明书（`SKILL.md`）和一个转发参数的入口壳（`scripts/export.sh`）。`presets/`（格式预设）与 `resources/`（CSL 样式、底模）随包安装，装完即用。
+实现只有一份：`src/md_to_word/` 这个 pip 包。技能、命令行、Python 调用都是它的入口——
+**技能不含实现**，只带说明书（`SKILL.md`）和一层转发参数的壳（`scripts/export.sh`）。
+
+这样安排的直接好处是**更新方式**：改代码发版，用户跑一条 `pipx upgrade md-to-word` 就到位；
+技能文件只在文档变化时才需要重新安装。把实现塞进技能里，一次小修也得让每个人重装技能。
 
 | 用法 | 适合谁 | 怎么装 | 怎么用 |
 |:--|:--|:--|:--|
-| **技能** | 让 AI 代办的作者 | 克隆到技能目录，再 `pip install -r requirements.txt` | 「帮我把这份稿子按学校要求导出成 Word」，由 Agent 读 `SKILL.md` 执行 |
-| **命令行** | 本地批量导出、CI | `pipx install .`（隔离，推荐）或 `pip install .` | `md-to-word 稿件.md -o 输出.docx` |
-| **Python 包** | 写脚本、接自己的流程 | `pip install .` | `from md_to_word import export` |
+| **技能** | 让 AI 代办的作者 | 技能目录放 `SKILL.md` + `references/`，再 `pipx install md-to-word` | 「帮我把这份稿子按学校要求导出成 Word」，由 Agent 读 `SKILL.md` 执行 |
+| **命令行** | 本地批量导出、CI | `pipx install md-to-word`（隔离，推荐）或 `pip install` | `md-to-word 稿件.md -o 输出.docx` |
+| **Python 包** | 写脚本、接自己的流程 | `pip install md-to-word` | `from md_to_word import export` |
+
+**更新**：
+
+```bash
+pipx upgrade md-to-word        # 或 pip install --upgrade md-to-word
+md-to-word --version           # 确认版本
+```
 
 **命令行**：
 
