@@ -72,7 +72,8 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 - **普通文档 / 报告（无参考文献）**：YAML 不写 `bibliography:` 与 `csl:`，正文不出现 `[@key]`。
 - **有参考文献**：YAML 写 `bibliography: refs.bib` 与 `csl: <样式>.csl`，文献列表由引擎生成，用户**不写**列表、不写「参考文献」样式行。
   - **手写文献列表不受支持**：`%% 参考文献 …` 会被预检拒绝。若用户手上只有手写条目，由 Agent 据此生成 `references.bib` 后再引用；仅需要展示语法字面量时，用反引号包成行内代码。
-  - `csl:` 直接写本技能 `resources/csl/` 下的内置文件名（如 `apa.csl`、`chinese-gb7714-2015-numeric.csl`），脚本自动寻路挂载；不写 `csl:` 则走作者-年份制。
+  - `csl:` 直接写本技能 `resources/csl/` 下的内置文件名（如 `apa.csl`、`chinese-gb7714-2015-numeric.csl`），脚本自动寻路挂载。
+  - **不写 `csl:` 时的默认样式**：中文稿按 GB/T 7714-2015 数字制、其他按 APA 7th（作者-年份制）。两条写出通道共用这一个默认，不会因为换后端换出两种文献表。
   - **正文引用写法**（citeproc 实测支持；建议只用前两种，其余给既成稿件兜底）：
     - **括号引用 `[@key]`**：多篇分号隔开 `[@zhang2024; @smith2023]`；带页码 `[@zhang2024, p. 33]`；带前缀 `[see @zhang2024]`；只出年份 `[-@zhang2024]`；
     - **叙述引用 `@key`**：`正如 @zhang2024 所指出`；带页码写 `@zhang2024 [p. 33]`；

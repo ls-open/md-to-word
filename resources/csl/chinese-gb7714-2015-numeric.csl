@@ -99,10 +99,7 @@
         </if>
       </choose>
     </group>
-    <group delimiter="/" prefix="[" suffix="]">
-      <text macro="type-id"/>
-      <text macro="medium-id"/>
-    </group>
+    <text macro="type-medium"/>
   </macro>
   <!-- 书籍的卷号（“第 x 卷”或“第 x 册”） -->
   <macro name="volume">
@@ -172,15 +169,28 @@
       </else>
     </choose>
   </macro>
-  <!-- 文献载体标识 -->
-  <macro name="medium-id">
+  <!-- 文献类型标识 + 载体标识，合成一个宏。
+       不合成一个的话，"[M/OL]" 那个 group 里调用的变量（medium / URL / DOI）在印刷版
+       专著上全为空，按 CSL 规范整组会被抑制——[M] 就丢了。Pandoc 的处理器不严格按这条
+       规范走，所以同一份样式在 Pandoc 里正常、在 citeproc-py 里丢标识。这里把常量标识
+       与可变载体拆到不同分支，任何一支都不会同时踩到"变量全空"。 -->
+  <macro name="type-medium">
     <choose>
       <if variable="medium">
-        <text variable="medium"/>
+        <group delimiter="/" prefix="[" suffix="]">
+          <text macro="type-id"/>
+          <text variable="medium"/>
+        </group>
       </if>
       <else-if variable="URL DOI" match="any">
-        <text value="OL"/>
+        <group delimiter="/" prefix="[" suffix="]">
+          <text macro="type-id"/>
+          <text value="OL"/>
+        </group>
       </else-if>
+      <else>
+        <text macro="type-id" prefix="[" suffix="]"/>
+      </else>
     </choose>
   </macro>
   <!-- 其他责任者 -->

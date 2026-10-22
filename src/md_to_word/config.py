@@ -60,3 +60,18 @@ def resolve_preset_path(preset_name: str) -> Optional[Path]:
     if target.is_file():
         return target
     return None
+
+
+# 稿件没写 `csl:` 时的兜底引文样式。**两条写出通道必须用同一份**：Pandoc 未收到 csl
+# 时会用自己内置的芝加哥作者-年份制，自研写出器若另选一套，同一份稿子换个后端就换出
+# 两种文献表——这是对拍里最不该出现的差异。
+DEFAULT_CSL_ZH = "chinese-gb7714-2015-numeric.csl"
+DEFAULT_CSL_EN = "apa.csl"
+
+
+def default_csl_path(text: str) -> Path:
+    """按稿件的字种挑默认 CSL：中文稿走 GB/T 7714 数字制，其余走 APA。"""
+    dark = sum(1 for ch in text if "一" <= ch <= "鿿")
+    dense = sum(1 for ch in text if not ch.isspace())
+    name = DEFAULT_CSL_ZH if dense and dark / dense > 0.05 else DEFAULT_CSL_EN
+    return get_csl_dir() / name

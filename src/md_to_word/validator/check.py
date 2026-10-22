@@ -29,6 +29,7 @@ from md_to_word.template.generator import PAGE_SIZES_CM, missing_styles_for_body
 # 复用 utils 中的基础文本解析工具
 from md_to_word.utils.skill_utils import (
     block_marker_issues,
+    soft_wrap_issues,
     citation_key_issues,
     citations_without_bibliography,
     crossref_prefix_issues,
@@ -418,11 +419,13 @@ def validate_manuscript(
                 report.valid = False
                 report.errors.append(f"CSL 样式文件不存在: {fm_data['csl']}")
 
-        # 1c. 未写 csl 的提示
+        # 1c. 未写 csl 的提示（默认样式由 config.default_csl_path 定，两条通道共用）
         if fm_data.get("bibliography") and not fm_data.get("csl"):
+            from md_to_word.config import default_csl_path
+
             report.warnings.append(
-                "未写 csl:，参考文献将走 Pandoc 默认的作者-年份制（如 (Smith, 2024)）；"
-                "中文稿如需 [1] 编号，请写 csl: chinese-gb7714-2015-numeric.csl。"
+                f"未写 csl:，将按默认样式排版：{default_csl_path(md_text).name}"
+                "（中文稿 GB/T 7714 数字制，英文稿 APA）；如需其他样式请写 csl:。"
             )
 
         # 1d. 正文引用的 key 是否在 .bib 里
@@ -539,6 +542,13 @@ def validate_manuscript(
     # 12. 图表题注邻近性：题注离表格/图片远了，样式仍会生效，只是位置不对，提醒即可
     for line_no, why in caption_adjacency_issues(md_text):
         report.warnings.append(f"行 {line_no} [图表题注邻近性]: {why}")
+
+    # 12b. 折行段落：按「一行一段」读取会拆成几段，每段都吃一次首行缩进，看得见但内容没丢
+    for line_no, snippet in soft_wrap_issues(md_text):
+        report.warnings.append(
+            f"行 {line_no} [折行段落]: 上一行没有句末标点而本行紧随其后（「{snippet}」）；"
+            f"本引擎按「一行一段」读取，会拆成两段。若本意是同一段，请合并到一行"
+        )
 
     # 13. `\tag{}` 公式编号（Pandoc 不认，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):

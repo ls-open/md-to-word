@@ -73,6 +73,7 @@ class CitationEngine:
         html = str(self._bibliography.cite(citation, lambda item: item))
         if narrative:
             html = _as_narrative(html)
+        html = _collapse_numeric_runs(html)
         segments = html_to_segments(html)
         self._rendered[cache_key] = segments
         return segments
@@ -111,6 +112,36 @@ class CitationEngine:
         pairs = list(zip(self._order, rendered))
         pairs.sort(key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
         return [text for _key, text in pairs]
+
+
+_NUMERIC_CITE_RE = re.compile(r"\[(\d+(?:\s*[,\-–]\s*\d+)+)\]")
+
+
+def _collapse_numeric_runs(html: str) -> str:
+    """数字制的连续编号合并成区间：`[4,5,6]` → `[4–6]`。
+
+    这是 GB/T 7714 与 IEEE 这类数字制的硬要求（Pandoc 的 citeproc 也会合并），
+    citeproc-py 只管把编号一个个列出来。三条以上的连续号才合并——`[4,5]` 保持原样，
+    与 Pandoc 一致。
+    """
+
+    def repl(match: re.Match) -> str:
+        numbers = [int(n) for n in re.findall(r"\d+", match.group(1))]
+        if numbers != sorted(numbers) or len(set(numbers)) != len(numbers):
+            return match.group(0)
+        parts: list[str] = []
+        start = prev = numbers[0]
+        for n in numbers[1:] + [None]:
+            if n is not None and n == prev + 1:
+                prev = n
+                continue
+            parts.append(f"{start}–{prev}" if prev - start >= 2 else
+                         ",".join(str(x) for x in range(start, prev + 1)))
+            if n is not None:
+                start = prev = n
+        return "[" + ",".join(parts) + "]"
+
+    return _NUMERIC_CITE_RE.sub(repl, html)
 
 
 _TAG_RE = re.compile(r"</?(?P<tag>i|b|sup|sub|sc|span)[^>]*>")

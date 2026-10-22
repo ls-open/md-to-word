@@ -576,3 +576,31 @@ def resolve_manuscript_path(
         if builtin_cand.exists():
             return (builtin_cand.resolve(), "skill-builtin")
     return (cand, "")
+
+
+# 句末标点算「这段写完了」；`；`/`：` 后面显然还有话，不算。
+_TERMINAL_PUNCT = "。！？…!?）)」』”'"
+
+
+def soft_wrap_issues(text: str) -> list:
+    """相邻两行都是正文、且上一行没有句末标点 → [(行号, 上一行片段)]。
+
+    本引擎按「一行一段」读取（Markdown 里一段本来就能写成一行，不需要延续规则）。
+    但为 Pandoc 写的稿子常把一段折成多行，Pandoc 会把它们并成一段，我们则拆成几段——
+    每段都吃一次首行缩进，版面上是看得出来的错，所以提醒一句，不阻断。
+    """
+    if not text:
+        return []
+    _, body = split_frontmatter(text)
+    offset = text.count("\n") - body.count("\n")  # 前置区也占行号，报错要对得上原稿
+    lines = mask_code_fences(body).split("\n")
+    issues: list[tuple[int, str]] = []
+    for i in range(len(lines) - 1):
+        here, nxt = lines[i], lines[i + 1]
+        if not (_is_prose_line(here) and _is_prose_line(nxt)):
+            continue
+        if here.rstrip().endswith(tuple(_TERMINAL_PUNCT)):
+            continue
+        snippet = here.strip()
+        issues.append((i + 2 + offset, snippet[:24] + ("…" if len(snippet) > 24 else "")))
+    return issues

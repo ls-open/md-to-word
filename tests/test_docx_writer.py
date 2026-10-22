@@ -362,3 +362,39 @@ def test_bibliography_gets_title(template: Path, tmp_path: Path) -> None:
     styles, text = _facts(out)
     assert "ReferencesTitle" in styles or "References Title" in styles
     assert "参考文献" in text
+
+
+def test_nary_keeps_operand_inside(template: Path, tmp_path: Path) -> None:
+    """`\\sum_{k} \\beta_k` 的求和号必须把被运算体吃进 `m:e`。
+
+    否则 Word 先画一个空的求和号（带占位框），下限被挤到下一行，整条公式散架。
+    """
+    model = read_markdown(r"$$Y = \sum_{k} \beta_k X_k$$" + "\n")
+    out = write_docx(model, template, tmp_path / "a.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    nary = xml[xml.index("<m:nary>") : xml.index("</m:nary>")]
+    assert "<m:sub>" in nary and "k" in nary.split("<m:sub>")[1].split("</m:sub>")[0]
+    assert "<m:e>" in nary and "<m:sSub>" in nary, "被运算体应落在 m:e 里"
+
+
+def test_ascii_quotes_become_typographic(template: Path, tmp_path: Path) -> None:
+    """中文稿里的 `"…"` 直引号印出来很显眼；Pandoc 默认也会转。"""
+    model = read_markdown('---\ntitle: "t"\n---\n\n本文不作"无遗漏变量偏误"的断言。\n')
+    out = write_docx(model, template, tmp_path / "a.docx")
+    _, text = _facts(out)
+    assert "“无遗漏变量偏误”" in text
+
+
+def test_cjk_citation_gap_is_trimmed(template: Path, tmp_path: Path) -> None:
+    """`认知负荷 @key` 里的空格是 Markdown 语法要求，不该印进 Word。"""
+    from md_to_word.config import get_csl_dir
+    from md_to_word.transform.citations import CitationEngine
+
+    engine = CitationEngine(
+        "@article{smith2024,\n  author={Smith, J.},\n  title={T},\n  year={2024},\n  journal={J}\n}\n",
+        get_csl_dir() / "chinese-gb7714-2015-numeric.csl",
+    )
+    model = read_markdown('---\ntitle: "题"\n---\n\n认知负荷 @smith2024 增加。\n', citation_keys={"smith2024"})
+    out = write_docx(model, template, tmp_path / "a.docx", citations=engine)
+    _, text = _facts(out)
+    assert "认知负荷" in text and "认知负荷 " not in text

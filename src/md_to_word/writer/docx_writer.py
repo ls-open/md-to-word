@@ -27,7 +27,7 @@ from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
     Inline, Link, ListBlock, Math, PageBreak, Paragraph, Quote, SectionBreak, Strikethrough,
-    Strong, Subscript, Superscript, Table, Toc, Underline, Citation, CrossRef,
+    Strong, Subscript, Superscript, Table, Text, Toc, Underline, Citation, CrossRef,
 )
 
 SUPPORTED_BLOCKS = (Heading, Paragraph, ListBlock, Table, Figure, CodeBlock, PageBreak, Quote)
@@ -44,14 +44,34 @@ _W_FMT = {"bold": "b", "italic": "i", "strike": "strike", "underline": "u"}
 
 
 def _ends_with_cjk(text: str) -> bool:
+    """行尾是中文——汉字、或中文句末引号/括号都算（`满意” [13]` 里那个空格同样是语法）。"""
     stripped = text.rstrip()
-    return bool(stripped) and "\u4e00" <= stripped[-1] <= "\u9fff"
+    if not stripped:
+        return False
+    last = stripped[-1]
+    return "\u4e00" <= last <= "\u9fff" or last in "”’」』）】》"
 
 
 def _escape(text: str) -> str:
     return (
         text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     )
+
+
+def _trim_citation_gap(nodes: Iterable[Inline]) -> list:
+    """中文正文与数字制引文之间的那个空格不该印出来：`认知负荷 [9]` → `认知负荷[9]`。
+
+    稿子里的空格是 Markdown 语法要求（`@key` 前必须断开），不是作者想印的。Pandoc 同样
+    不印。西文行文（`as shown in [9]`）照留——那里空格是本意。
+    """
+    out: list = []
+    for node in nodes:
+        if isinstance(node, Citation) and out and isinstance(out[-1], Text):
+            prev = out[-1]
+            if prev.value.endswith((" ", "\u00a0")) and _ends_with_cjk(prev.value):
+                out[-1] = Text(prev.value.rstrip(" \u00a0"))
+        out.append(node)
+    return out
 
 
 class UnsupportedFeature(NotImplementedError):
@@ -433,7 +453,7 @@ class _Writer:
     # ── 内联 ─────────────────────────────────────────────────────────
     def inlines(self, paragraph, nodes: Iterable[Inline]) -> None:
         self._verbatim_style = self._style_name("Verbatim Char")
-        for node in nodes:
+        for node in _trim_citation_gap(nodes):
             self.inline(paragraph, node)
 
     def _footnote_reference(self, paragraph, label: str) -> None:

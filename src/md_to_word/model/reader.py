@@ -22,6 +22,7 @@ from md_to_word.model.document import (
     Superscript, Table, Text, Toc, Underline,
 )
 from md_to_word.preprocessor.blocks import resolve_style_name, split_style_line
+from md_to_word.utils.typography import smart_quotes
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 _FENCE_RE = re.compile(r"^(```|~~~)(.*)$")
@@ -161,7 +162,7 @@ def parse_inlines(
     pos = 0
     for m in _INLINE_RE.finditer(guarded):
         if m.start() > pos:
-            nodes.append(Text(_restore(guarded[pos : m.start()], hold)))
+            nodes.append(Text(smart_quotes(_restore(guarded[pos : m.start()], hold))))
         kind = m.lastgroup
         raw = m.group(0)
         if kind == "code":
@@ -197,7 +198,7 @@ def parse_inlines(
             nodes.append(Subscript(children=sub(raw[1:-1])))
         pos = m.end()
     if pos < len(guarded):
-        nodes.append(Text(_restore(guarded[pos:], hold)))
+        nodes.append(Text(smart_quotes(_restore(guarded[pos:], hold))))
     return nodes
 
 

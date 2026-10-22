@@ -197,6 +197,17 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             except Exception:
                 pass
 
+        # 未声明 csl: 时给一个确定的默认，两条通道共用：同一份稿件换后端不该换来两套
+        # 引文样式。Pandoc 收不到 csl 会用它内置的芝加哥作者-年份制，自研默认 GB/T 数字制。
+        if (
+            isinstance(fm_data, dict)
+            and fm_data.get("bibliography")
+            and not fm_data.get("csl")  # 作者声明的 csl 优先，哪怕它不是内置样式
+        ):
+            from md_to_word.config import default_csl_path
+
+            builtin_csl = default_csl_path(contract_text)
+
         # 中文稿的交叉引用前缀：要求文件声明了中文校对语言时，替用户补上默认值。
         # 用 --metadata-file 而不是改稿：Pandoc 里稿件 YAML 优先级更高，用户写了就以用户的为准。
         meta_file: Optional[Path] = None
