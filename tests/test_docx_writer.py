@@ -339,3 +339,36 @@ def test_cjk_citation_gap_is_trimmed(template: Path, tmp_path: Path) -> None:
     out = write_docx(model, template, tmp_path / "a.docx", citations=engine)
     _, text = _facts(out)
     assert "认知负荷" in text and "认知负荷 " not in text
+
+
+def _grid_widths(path: Path) -> list[list[int]]:
+    from docx import Document
+    from docx.oxml.ns import qn
+
+    doc = Document(path)
+    return [
+        [int(g.get(qn("w:w"))) for g in t._tbl.tblGrid.findall(qn("w:gridCol"))]
+        for t in doc.tables
+    ]
+
+
+def test_separator_dash_lengths_set_column_widths(template: Path, tmp_path: Path) -> None:
+    """短横线长短写下的是列宽比例；`:---` 与 `:---:` 只差对齐，不是比例。"""
+    model = read_markdown(
+        "| 甲 | 乙 | 丙 |\n|:--|:--:|:------|\n| 1 | 2 | 3 |\n"
+    )
+    out = write_docx(model, template, tmp_path / "a.docx")
+    [widths] = _grid_widths(out)
+    assert widths[0] == widths[1] < widths[2]
+    assert sum(widths) > 0
+
+
+def test_equal_dashes_leave_the_table_to_the_word_engine(template: Path, tmp_path: Path) -> None:
+    """全等 = 没指定，一列都不动，由内容自己决定（与 Pandoc 通道一致）。"""
+    from docx import Document
+
+    model = read_markdown("| 甲 | 乙 |\n|:---|:---:|\n| 1 | 2 |\n")
+    out = write_docx(model, template, tmp_path / "a.docx")
+    [widths] = _grid_widths(out)
+    assert len(set(widths)) == 1
+    assert Document(out).tables[0].autofit is True

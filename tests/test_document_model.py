@@ -67,7 +67,7 @@ def test_table_alignments_and_widths() -> None:
     doc = read_markdown("| 甲 | 乙 | 丙 |\n|:--|:--:|------:|\n| 1 | 2 | 3 |\n")
     table = doc.blocks[0]
     assert table.alignments == ["left", "center", "right"]
-    assert table.widths == [3.0, 4.0, 7.0]  # 分隔行短横线长短 → 相对列宽
+    assert table.widths == [2.0, 2.0, 6.0]  # 只数短横线：对齐用的冒号不算进比例
 
 
 def test_figure_keeps_alt_text_separate() -> None:

@@ -20,7 +20,7 @@ from docx.opc.part import Part
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls, qn
-from docx.shared import Cm
+from docx.shared import Cm, Emu
 
 from md_to_word.preprocessor.markers import PAGE_NUMBER_FMT, section_paragraph_xml, toc_xml
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
@@ -87,6 +87,7 @@ class _Writer:
         self._compact_style = self._style_name("Compact")
         self._footnote_ids: dict[str, int] = {}
         self._eq_numbers: dict[str, str] = {}
+        self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
 
     # ── 入口 ─────────────────────────────────────────────────────────
     def write(self) -> None:
@@ -97,8 +98,10 @@ class _Writer:
 
         self._collect_equation_numbers()
         self._title_block()
-        for block in self.model.blocks:
+        blocks = self.model.blocks
+        for index, block in enumerate(blocks):
             self.block(block)
+            self._keep_caption_with_figure(blocks, index)
         self._write_bibliography()
         if self._footnote_ids:
             self._write_footnotes()
@@ -280,6 +283,7 @@ class _Writer:
             style = "First Paragraph" if self._after_heading else "Body Text"
         self._after_heading = False
         paragraph = self.docx.add_paragraph(style=style)
+        self._last_paragraph = paragraph
         self.inlines(paragraph, block.inlines)
 
     def _code(self, block: CodeBlock) -> None:
@@ -383,6 +387,37 @@ class _Writer:
                 self.inlines(paragraph, cell_inlines)
         if block.header:
             self._mark_header_row(table)
+        if block.widths:
+            self._apply_column_widths(table, block.widths)
+
+    def _apply_column_widths(self, table, widths: list[float]) -> None:
+        """分隔行短横线长短 → 列宽比例，按版心铺开。
+
+        `gridCol`、`tblW`、每格的 `tcW` 三处都要写：Word 以 `tcW` 为准、`gridCol` 决定
+        网格，`tblLayout=fixed` 不钉住的话存盘时会被重算——少写一处，列宽等于没设。
+        作者没写长短差异时走 `autofit=True`，一列都不动，由内容自己决定。
+        """
+        share = [max(float(w), 1.0) for w in widths]
+        total_share = sum(share)
+        total = self._content_width_twips()
+        twips = [int(round(total * x / total_share)) for x in share]
+
+        grid = table._tbl.tblGrid
+        for col, width in zip(grid.findall(qn("w:gridCol")), twips):
+            col.set(qn("w:w"), str(width))
+
+        table.autofit = False  # → w:tblLayout type=fixed
+        tbl_pr = table._tbl.tblPr
+        tbl_w = tbl_pr.find(qn("w:tblW"))
+        if tbl_w is None:
+            tbl_w = parse_xml(f'<w:tblW {nsdecls("w")}/>')
+            tbl_pr.append(tbl_w)
+        tbl_w.set(qn("w:type"), "dxa")
+        tbl_w.set(qn("w:w"), str(total))
+
+        for row in table.rows:
+            for cell, width in zip(row.cells, twips):
+                cell.width = Emu(width * 635)  # 1 twip = 635 EMU
 
     def _mark_header_row(self, table) -> None:
         """表头行跨页重复：`w:tblHeader`。python-docx 没有这项 API，直接写 XML。"""
@@ -394,8 +429,33 @@ class _Writer:
             el = trPr.makeelement(qn("w:tblHeader"), {})
             trPr.append(el)
 
+    def _keep_caption_with_figure(self, blocks: list[Block], index: int) -> None:
+        """题注与图必须同页，不管题注写在上方还是下方。
+
+        Word 只有「与下段同页」（keepNext）一个方向：题注在上，靠样式里的这一条就够
+        （要求文件的「表格题注」就是这么写的）；题注在下，得给**图片段**加 keepNext。
+        两条都补齐，作者按中文惯例把题注写在图下也不会被分页拆开。
+        """
+        block, here = blocks[index], self._last_paragraph
+        if here is None:
+            return
+        pair = None
+        if isinstance(block, Figure) and index + 1 < len(blocks):
+            nxt = blocks[index + 1]
+            if isinstance(nxt, Paragraph) and nxt.style == "Image Caption":
+                pair = here  # 图在上，给定这段
+        elif isinstance(block, Paragraph) and block.style == "Image Caption":
+            prev = blocks[index - 1] if index else None
+            if isinstance(prev, Figure):
+                pair = here  # 图在下，给定题注这段
+        if pair is not None:
+            ppr = pair._p.get_or_add_pPr()
+            if ppr.find(qn("w:keepNext")) is None:
+                ppr.append(parse_xml(f'<w:keepNext {nsdecls("w")}/>'))
+
     def _figure(self, block: Figure) -> None:
         paragraph = self.docx.add_paragraph(style="Captioned Figure")
+        self._last_paragraph = paragraph
         run = paragraph.add_run()
         if block.width_cm:
             run.add_picture(block.path, width=Cm(block.width_cm))

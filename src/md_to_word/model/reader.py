@@ -244,8 +244,12 @@ def _table_cells(line: str) -> list[str]:
 
 
 def _column_widths(separator: str) -> Optional[list[float]]:
-    """分隔行短横线长短 → 相对列宽。全等或缺失时返回 None（表示「按内容排」）。"""
-    dashes = [len(c) for c in _table_cells(separator)]
+    """分隔行短横线长短 → 相对列宽。全等或缺失时返回 None（表示「按内容排」）。
+
+    只数短横线，不数对齐用的冒号：`:---` 与 `:---:` 都是三根短横线，作者只是要居中，
+    不该被读成 3:4 的列宽比例。
+    """
+    dashes = [cell.count("-") for cell in _table_cells(separator)]
     if not dashes or len(set(dashes)) == 1:
         return None
     return [float(d) for d in dashes]
