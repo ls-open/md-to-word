@@ -146,6 +146,15 @@ compatibility: "Quarto >= 1.4；Python 3 需安装 python-docx、lxml、pyyaml�
 
 **页眉页脚可用的域**（封闭集合）：`{页码}`、`{总页数}`、`{样式标题:Heading 1}`。
 
+**英文稿用英文语法**：每个属性与样式名都有英文正典写法，可与中文混写，示例见 `presets/en-nature.txt`：
+
+```text
+Title: Times New Roman 14pt bold not-italic left line-spacing 1.5 space-before 18pt space-after 6pt indent 0
+Body Text: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 6pt indent 0
+```
+
+报错文案跟随输入语言（英文行回英文提示、样式名回英文名）。否定式必须带连字符：`not-bold`、`not-italic`；不要写 `not bold`。
+
 ### 2.2 从预设起步，只改用户提到的那几行
 
 不要从空白写：复制 `presets/zh-academic.txt`（或 `en-nature.txt`）到稿件旁，只改用户明确提到的行，其余保留。字段顺序固定 `字体 字号 加粗 倾斜 对齐 行距 段前 段后 缩进`；每个样式行必须写齐，缺字段会报错。

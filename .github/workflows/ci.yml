@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: tests / ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.9"
+          - os: ubuntu-latest
+            python: "3.12"
+          - os: macos-latest
+            python: "3.12"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[test]"
+      # 需要 Quarto 的用例在缺少 quarto 时自动 skip（见各用例的 skipif）
+      - run: pytest -q
+
+  end-to-end:
+    name: end-to-end / Quarto
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: quarto-dev/quarto-actions/setup@v2
+      - run: pip install -e ".[test]"
+      - name: 全套测试（Quarto 在位，端到端用例不再 skip）
+        run: pytest -q -rs
+      - name: 技能入口导出内置示例
+        run: bash scripts/export.sh demo/01_chinese_thesis/thesis_sample.md -o "$RUNNER_TEMP/thesis.docx"
+      - name: 产物存在且非空
+        run: test -s "$RUNNER_TEMP/thesis.docx"
+
+  package:
+    name: wheel 内的预设与资源
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build
+      - run: python -m build
+      - name: 预设与底模必须打进 wheel
+        run: |
+          python - <<'EOF'
+          import glob
+          import zipfile
+
+          wheel = glob.glob("dist/*.whl")[0]
+          names = zipfile.ZipFile(wheel).namelist()
+          for needed in (
+              "md_to_word/presets/zh-academic.txt",
+              "md_to_word/presets/en-nature.txt",
+              "md_to_word/resources/pure_modern_base.docx",
+              "md_to_word/resources/csl/nature.csl",
+          ):
+              assert any(n.endswith(needed) for n in names), f"wheel 内缺少 {needed}"
+          print(f"包内资源齐全（{len(names)} 个文件）")
+          EOF
