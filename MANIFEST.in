@@ -1,0 +1,11 @@
+# 发布物裁剪：源码包只带「装这个包需要的东西」。
+# tests / demo / scripts / references 留在仓库里——它们是回归网、展示与开发工具，
+# 不进用户机器。包内数据（presets、resources）由 pyproject 的 package-data 负责。
+include README.md README_EN.md LICENSE pyproject.toml
+prune tests
+prune demo
+prune scripts
+prune references
+prune resources
+prune presets
+global-exclude __pycache__ *.py[cod] .DS_Store
