@@ -162,6 +162,11 @@ WRONG_KEY_HINTS: dict[str, str] = {
     "全局西文字体": "西文字体（或 Font）",
 }
 
+# ── 格式要求文件的语法版本 ──
+# 词表是封闭的：改一个词就是破坏性变更。文件头写 `# schema: N` 声明它按哪一版写的，
+# 高于本版本时明确拒绝（而不是让用户对着「不认识属性词」猜半天）。
+CURRENT_SCHEMA = 1
+
 # ── 纸张尺寸（单位 cm）──
 PAGE_SIZES_CM: dict[str, tuple[float, float]] = {
     "a4": (21.0, 29.7),

@@ -1,0 +1,42 @@
+{
+  "paragraph_styles": [
+    "Title",
+    "Heading1",
+    "FirstParagraph",
+    "Compact",
+    "Compact",
+    "Compact",
+    "Compact",
+    "BodyText",
+    "BodyText",
+    "BodyText",
+    "FirstParagraph",
+    "Heading1",
+    "Bibliography"
+  ],
+  "text": [
+    "Smoke Test Manuscript",
+    "Introduction",
+    "Plain text with a citation",
+    "1",
+    ".",
+    "Metric",
+    "Value",
+    "Accuracy",
+    "0.987",
+    "(1)",
+    "As shown in",
+    "式",
+    " 1",
+    ", the relation holds.",
+    "References",
+    "1.Smith, J. Plain text authoring.",
+    "Nature",
+    "(2024)."
+  ],
+  "equations": 3,
+  "tables": 2,
+  "three_line_borders": 1,
+  "footnote_refs": 0,
+  "superscript_runs": 1
+}

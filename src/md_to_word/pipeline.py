@@ -18,9 +18,11 @@ from md_to_word.audit.inspector import audit_docx_against_spec
 from md_to_word.audit.postflight import verify_numeric_integrity
 from md_to_word.config import resolve_preset_path
 from md_to_word.postprocessor.equations import postprocess_docx
+from md_to_word.preprocessor.blocks import expand_style_blocks
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.preprocessor.markers import expand_markers
-from md_to_word.renderer.quarto import QuartoRenderer
+from md_to_word.renderer.quarto import QuartoRenderer, check_quarto_environment
+from md_to_word.spec.parser import parse_requirements
 from md_to_word.template.builder import build_template
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
@@ -123,7 +125,23 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             return res
         custom_template = p_tpl
 
-    # 4. 导前预检门禁 (Validator)
+    spec = None
+    if req_content:
+        try:
+            spec = parse_requirements(req_content)
+        except ValueError:
+            spec = None  # 要求文件写法有问题时，预检会给出带行号的原因
+
+    # 3.5 渲染引擎体检：版本不对就别等到渲染完才失败（省掉一次几十秒的等待）
+    quarto_version, env_errors, env_warnings = check_quarto_environment()
+    if env_errors:
+        res.returncode = 2
+        res.errors.extend(env_errors)
+        return res
+    res.messages.extend(env_warnings)
+    if quarto_version:
+        res.messages.append(f"渲染引擎: Quarto {'.'.join(map(str, quarto_version))}")
+
     # 按章编号 + 编号外观仍是默认 → 多半是漏带了 --eq-number-style cjk。
     # **这一项没有任何闸门能发现**：漏了就是静默产出 (5.1)（点号、半角括号），
     # 三道闸门全部照绿。只提醒、不阻断：英文稿开了 chapters 而用 (5.1) 是合法的。
@@ -135,6 +153,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 "中文学位论文通常写作 （5-1）——需要的话加 --eq-number-style cjk。"
             )
 
+    # 4. 导前预检门禁 (Validator)
     if options.check_md:
         logger.info("🔍 执行导出前语法与排版契约预检...")
         v_report = validate_manuscript(in_p, template_docx=custom_template, spec_path=req_file)
@@ -152,9 +171,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         raw_text = in_p.read_text(encoding="utf-8")
         if options.strip_comments:
             raw_text = strip_html_comments(raw_text)
+        # `::: 摘要` 这类短写法先还原成 Pandoc 的 fenced div，再交给标记展开
+        raw_text = expand_style_blocks(raw_text)
 
         # 解析 CSL 路径（若是内置 CSL 自动转为绝对路径）
         builtin_csl: Optional[Path] = None
+        fm_data: dict = {}
         fm_raw, _ = split_frontmatter(raw_text)
         if fm_raw:
             import yaml
@@ -169,6 +191,20 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                         builtin_csl = p
             except Exception:
                 pass
+
+        # 中文稿的交叉引用前缀：要求文件声明了中文校对语言时，替用户补上默认值。
+        # 用 --metadata-file 而不是改稿：Pandoc 里稿件 YAML 优先级更高，用户写了就以用户的为准。
+        meta_file: Optional[Path] = None
+        if spec is not None and (spec.proofing_lang or "").lower().startswith("zh"):
+            declared = isinstance(fm_data, dict) and isinstance(fm_data.get("crossref"), dict)
+            has_labels = bool(re.search(r"\{#(?:eq|fig|tbl)-", raw_text))
+            if has_labels and not declared:
+                meta_file = Path(temp_dir) / "defaults.yml"
+                meta_file.write_text(
+                    'crossref:\n  eq-prefix: "式"\n  fig-prefix: "图"\n  tbl-prefix: "表"\n',
+                    encoding="utf-8",
+                )
+                res.messages.append("中文稿未写 crossref 前缀，已按「式/图/表」补默认值（稿件里写了则以稿件为准）。")
 
         # 临时模板生成
         tpl_for_render = custom_template
@@ -196,6 +232,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 out_p,
                 csl_path=builtin_csl,
                 link_citations=True,
+                metadata_file=meta_file,
             )
         except Exception as exc:  # 渲染器缺失/调用失败属于环境问题，不是稿件问题
             res.returncode = 2

@@ -16,6 +16,7 @@ import yaml
 from md_to_word.config import get_csl_dir
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_requirements
+from md_to_word.preprocessor.blocks import style_block_names
 from md_to_word.template.generator import PAGE_SIZES_CM, missing_styles_for_body
 
 # 复用 utils 中的基础文本解析工具
@@ -468,10 +469,17 @@ def validate_manuscript(
         report.valid = False
         report.errors.append(f"行 {line_no} [标题/分级]: {why}")
 
-    # 9. 交叉引用前缀
+    # 9. 交叉引用前缀：要求文件声明了中文校对语言时，导出阶段会补默认前缀，
+    #    这里只提示、不阻断（否则「自动补」永远走不到渲染那一步）
+    auto_prefix = spec is not None and (spec.proofing_lang or "").lower().startswith("zh")
     for line_no, why in crossref_prefix_issues(md_text, fm_data):
-        report.valid = False
-        report.errors.append(f"行 {line_no} [交叉引用前缀]: {why}")
+        if auto_prefix:
+            report.warnings.append(
+                f"行 {line_no} [交叉引用前缀]: {why}；导出时会按「式/图/表」自动补上"
+            )
+        else:
+            report.valid = False
+            report.errors.append(f"行 {line_no} [交叉引用前缀]: {why}")
 
     # 10. 未定义交叉引用标签
     for line_no, why in undefined_crossref_issues(md_text):
@@ -512,8 +520,21 @@ def validate_manuscript(
             report.valid = False
             report.errors.append(f"行 {line_no} [结构样式缺失]: {why}")
 
-    # 16. custom-style 是否真的存在于模板（没给模板就跳过，由对账阶段兜底）
+    # 16. 结构块短写法 `::: 摘要`：名字必须来自词表
+    for line_no, written, resolved in style_block_names(md_text):
+        if resolved is None:
+            report.valid = False
+            report.errors.append(
+                f"行 {line_no} [结构名]: 不认识的结构名「{written}」；"
+                f"请改用词表里的写法（如 摘要 / 关键词 / 表格题注 / 图片题注 / 参考文献标题），"
+                f"或写成 ::: {{custom-style=\"Word 样式名\"}}"
+            )
+
+    # 17. custom-style 是否真的存在于模板（没给模板就跳过，由对账阶段兜底）
     styles_used = extract_custom_styles(md_text)
+    for line_no, _written, resolved in style_block_names(md_text):
+        if resolved:
+            styles_used.setdefault(resolved, []).append(line_no)
     if styles_used and template_docx is not None:
         errors, warnings = template_style_issues(styles_used, template_docx)
         if errors:

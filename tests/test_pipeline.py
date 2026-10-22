@@ -85,7 +85,8 @@ def test_missing_renderer_reports_environment_error(tmp_path: Path, monkeypatch)
         ExportOptions(input_path=manuscript, preset="zh-academic", postflight=False, audit=False)
     )
     assert result.returncode == 2
-    assert any("渲染引擎" in error for error in result.errors)
+    assert result.errors, "环境问题必须给出可读原因"
+    assert any("渲染引擎" in error or "quarto" in error.lower() for error in result.errors)
 
 
 def test_build_template_rejects_spec_object(tmp_path: Path):

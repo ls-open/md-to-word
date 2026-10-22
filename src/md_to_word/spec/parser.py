@@ -18,6 +18,7 @@ from md_to_word.spec.constants import (
     STYLE_CN,
     STYLE_EN,
     ROW_NAME_EN,
+    CURRENT_SCHEMA,
     STYLE_MAP,
     TABLE_ALIGN_MAP,
     TABLE_STYLE_MAP,
@@ -707,9 +708,33 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
 }
 
 
+_SCHEMA_RE = re.compile(r"^#\s*schema\s*:\s*(\d+)\s*$", re.I)
+
+
+def _read_schema_version(text: str) -> int:
+    """文件头的 `# schema: N`；没写就是 1（既有文件都没写）。"""
+    for line in (text or "").split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if not stripped.startswith("#"):
+            break
+        m = _SCHEMA_RE.match(stripped)
+        if m:
+            return int(m.group(1))
+    return CURRENT_SCHEMA
+
+
 def parse_requirements(text: str) -> TemplateSpec:
     """解析格式要求文本（中英双语） → TemplateSpec。"""
-    spec = TemplateSpec()
+    schema = _read_schema_version(text)
+    if schema > CURRENT_SCHEMA:
+        raise ValueError(
+            f"这份格式要求文件声明了 `# schema: {schema}`，本版本只支持到 {CURRENT_SCHEMA}。\n"
+            f"  请升级 md-to-word（或删掉该声明，按 schema {CURRENT_SCHEMA} 的写法核对一遍）。"
+        )
+
+    spec = TemplateSpec(schema_version=schema)
     seen_keys: dict[str, int] = {}
 
     for lineno, raw in enumerate(text.split("\n"), 1):

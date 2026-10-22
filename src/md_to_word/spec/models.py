@@ -26,6 +26,7 @@ class MinLineSpacing:
 class TemplateSpec:
     """requirements.txt 的完整强类型数据模型。"""
 
+    schema_version: int = 1
     styles: list[dict[str, Any]] = field(default_factory=list)
     default_latin: Optional[str] = None
     margins: Optional[dict[str, float]] = None
