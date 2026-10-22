@@ -69,3 +69,20 @@ title: Broken
     result = run_export_pipeline(options)
     assert result.returncode == 1
     assert any("图片文件不存在" in e for e in result.errors)
+
+
+def test_missing_renderer_reports_environment_error(tmp_path: Path, monkeypatch):
+    """渲染引擎不可用是环境问题（退出码 2），不能和「稿件有问题」（1）混在一起。"""
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text('---\ntitle: "环境测试"\n---\n\n# 一 引言\n\n正文。\n', encoding="utf-8")
+
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("未在系统 PATH 中找到 quarto 可执行程序")
+
+    monkeypatch.setattr("md_to_word.pipeline.QuartoRenderer.render", _boom)
+
+    result = run_export_pipeline(
+        ExportOptions(input_path=manuscript, preset="zh-academic", postflight=False, audit=False)
+    )
+    assert result.returncode == 2
+    assert any("渲染引擎" in error for error in result.errors)

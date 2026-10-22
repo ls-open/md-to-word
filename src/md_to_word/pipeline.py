@@ -189,13 +189,18 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         # 6. 编译渲染 (Renderer)
         logger.info("⚙️ 调用渲染引擎编译 Markdown 到 Word DOCX...")
         renderer = QuartoRenderer()
-        renderer.render(
-            expanded_md_file,
-            tpl_for_render,
-            out_p,
-            csl_path=builtin_csl,
-            link_citations=True,
-        )
+        try:
+            renderer.render(
+                expanded_md_file,
+                tpl_for_render,
+                out_p,
+                csl_path=builtin_csl,
+                link_citations=True,
+            )
+        except Exception as exc:  # 渲染器缺失/调用失败属于环境问题，不是稿件问题
+            res.returncode = 2
+            res.errors.append(f"渲染引擎不可用：{exc}")
+            return res
 
         # 7. XML 深度后处理 (Postprocessor: 公式居中靠右编号 + 三线表)
         logger.info("📐 执行公式排版优化与主题深度清理...")

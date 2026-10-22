@@ -13,7 +13,7 @@
 #   bash export.sh 稿件.md --preset en-nature -o 输出.docx
 #   bash export.sh --help            # 全部选项
 #
-# 退出码: 0=全部完成 / 1=闸门未通过或安装不完整 / 3=docx 已生成但 --pdf 未渲染
+# 退出码: 0=全部完成 / 1=稿件或门禁问题 / 2=环境问题（缺 Quarto 或依赖）/ 3=docx 已生成但 --pdf 未渲染
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

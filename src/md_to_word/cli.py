@@ -12,6 +12,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="md-to-word",
         description="现代学术 Markdown 到期刊/学位规范 Word (.docx) 编译引擎",
+        epilog="退出码: 0=成功 / 1=稿件或门禁问题 / 2=环境问题（缺 Quarto 或依赖）/ 3=docx 已生成但 PDF 未渲染",
     )
     parser.add_argument("input", help="输入的 Markdown 论文或报告稿件 (.md)")
     parser.add_argument("-o", "--output", help="输出的 Word 文档路径 (.docx)")
@@ -81,6 +82,12 @@ def main(args: list[str] | None = None) -> int:
 
     for msg in result.messages:
         print(msg)
+
+    if result.returncode == 2:
+        for err in result.errors:
+            print(f"❌ {err}", file=sys.stderr)
+        print("   这是环境问题（缺渲染引擎或依赖），不是稿件问题；装好后再跑一次即可。", file=sys.stderr)
+        return 2
 
     if result.returncode != 0 and result.returncode != 3:
         for err in result.errors:
