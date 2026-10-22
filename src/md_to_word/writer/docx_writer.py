@@ -23,6 +23,7 @@ from docx.oxml.ns import nsdecls, qn
 from docx.shared import Cm
 
 from md_to_word.preprocessor.markers import PAGE_NUMBER_FMT, section_paragraph_xml, toc_xml
+from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
     Inline, Link, ListBlock, Math, PageBreak, Paragraph, Quote, SectionBreak, Strikethrough,
@@ -56,6 +57,7 @@ class _Writer:
         self._after_heading = False  # 下一段正文若是「标题后的第一段」，落 First Paragraph
         self._compact_style = self._style_name("Compact")
         self._footnote_ids: dict[str, int] = {}
+        self._eq_numbers: dict[str, str] = {}
 
     # ── 入口 ─────────────────────────────────────────────────────────
     def write(self) -> None:
@@ -64,6 +66,7 @@ class _Writer:
             if not paragraph.text.strip():
                 body.remove(paragraph._element)
 
+        self._collect_equation_numbers()
         self._title_block()
         for block in self.model.blocks:
             self.block(block)
@@ -101,13 +104,43 @@ class _Writer:
         elif isinstance(block, PageBreak):
             self.docx.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
         elif isinstance(block, Equation):
-            raise UnsupportedFeature("公式写出（LaTeX → OMML）尚未实现；v3.1 补")
+            self._equation(block)
         elif isinstance(block, Toc):
             self._insert_before_sectpr(parse_xml(toc_xml(block.depth)))
         elif isinstance(block, SectionBreak):
             self._section(block)
         else:
             raise UnsupportedFeature(f"未支持的块类型：{type(block).__name__}")
+
+    def _collect_equation_numbers(self) -> None:
+        """先扫一遍给带标签的公式编号：写正文时要用它解析 `@eq-x`。
+
+        编号规则与 Quarto 的 crossref 对齐：默认按出现顺序 (1)(2)…；开了 `chapters: true`
+        就按「章号.序号」，章号取自一级标题的序号。
+        """
+        chapter = 0
+        index = 0
+        for block in self.model.blocks:
+            if isinstance(block, Heading) and block.level == 1:
+                chapter += 1
+                index = 0
+            elif isinstance(block, Equation) and block.label:
+                index += 1
+                self._eq_numbers[block.label] = (
+                    f"{chapter}.{index}" if self.model.meta.chapters else str(index)
+                )
+
+    def _content_width_twips(self) -> int:
+        sect = self._body_sectpr()
+        if sect is None:
+            return 8306
+        size = sect.find(qn("w:pgSz"))
+        margins = sect.find(qn("w:pgMar"))
+        try:
+            width = int(size.get(qn("w:w")))
+            return width - int(margins.get(qn("w:left"))) - int(margins.get(qn("w:right")))
+        except (AttributeError, TypeError, ValueError):
+            return 8306
 
     def _body_sectpr(self):
         return self.docx.element.body.find(qn("w:sectPr"))
@@ -133,6 +166,40 @@ class _Writer:
         template_sect = self._body_sectpr()
         xml = section_paragraph_xml(params, copy.deepcopy(template_sect) if template_sect is not None else None)
         self._insert_before_sectpr(parse_xml(xml))
+
+    def _equation(self, block: Equation) -> None:
+        """独立公式：居中，编号靠右。编号用中心制表位 + 右制表位实现，是 Word 里的常规写法。"""
+        try:
+            maths = latex_to_omml(block.latex)
+        except UnsupportedMath as exc:
+            raise UnsupportedFeature(f"公式里有尚未支持的结构：{exc}") from exc
+
+        paragraph = self.docx.add_paragraph()
+        width = self._content_width_twips()
+        pPr = paragraph._p.get_or_add_pPr()
+        pPr.append(
+            parse_xml(
+                f'<w:tabs {nsdecls("w")}><w:tab w:val="center" w:pos="{width // 2}"/>'
+                f'<w:tab w:val="right" w:pos="{width}"/></w:tabs>'
+            )
+        )
+        paragraph.add_run().add_tab()
+        math_el = self._omath(maths)
+        paragraph._p.append(math_el)
+
+        number = self._eq_numbers.get(block.label or "")
+        if number:
+            paragraph.add_run().add_tab()
+            paragraph.add_run(f"({number})")
+
+    @staticmethod
+    def _omath(nodes):
+        math_el = parse_xml(
+            f'<m:oMath {nsdecls("m")} xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>'
+        )
+        for node in nodes:
+            math_el.append(node)
+        return math_el
 
     def _heading(self, block: Heading) -> None:
         paragraph = self.docx.add_paragraph(style=f"Heading {block.level}")
@@ -339,6 +406,22 @@ class _Writer:
             props = "<w:i/>"
         return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
 
+    def _resolve_crossref(self, target: str) -> str:
+        """`@eq-a` → 「式2.1」：前缀取自稿件 YAML 的 crossref，没有就用中文默认。"""
+        prefixes = self.model.meta.crossref or {}
+        if target.startswith("eq-"):
+            prefix = prefixes.get("eq-prefix", "式")
+        elif target.startswith("fig-"):
+            prefix = prefixes.get("fig-prefix", "图")
+        elif target.startswith("tbl-"):
+            prefix = prefixes.get("tbl-prefix", "表")
+        else:
+            raise UnsupportedFeature(f"交叉引用 {target} 的类型尚未支持")
+        number = self._eq_numbers.get(target)
+        if number is None:
+            raise UnsupportedFeature(f"交叉引用 {target} 指向的标签不存在")
+        return f"{prefix}{number}" if prefix else number
+
     def _style_name(self, name: str) -> str | None:
         """按名称取样式名（没有就返回 None，不静默套用别的样式）。"""
         return name if name in {s.name for s in self.docx.styles} else None
@@ -361,11 +444,17 @@ class _Writer:
         elif isinstance(node, Subscript):
             self._styled(paragraph, node.children, subscript=True)
         elif isinstance(node, Math):
-            raise UnsupportedFeature("行内公式写出（LaTeX → OMML）尚未实现；v3.1 补")
+            try:
+                nodes = latex_to_omml(node.latex)
+            except UnsupportedMath as exc:
+                raise UnsupportedFeature(f"行内公式里有尚未支持的结构：{exc}") from exc
+            paragraph._p.append(self._omath(nodes))
         elif isinstance(node, Link):
             raise UnsupportedFeature("超链接写出尚未实现")
-        elif isinstance(node, (Citation, CrossRef)):
-            raise UnsupportedFeature("引文与交叉引用的编译尚未实现；先走 Pandoc 通道")
+        elif isinstance(node, CrossRef):
+            paragraph.add_run(self._resolve_crossref(node.target))
+        elif isinstance(node, Citation):
+            raise UnsupportedFeature("文献引用需要 citeproc，尚未实现；先走 Pandoc 通道")
         elif isinstance(node, FootnoteRef):
             self._footnote_reference(paragraph, node.label)
         else:

@@ -76,8 +76,7 @@ def test_code_block_keeps_line_breaks(template: Path, tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("source", "fragment"),
     [
-        ("$$E = mc^2$$\n", "公式"),
-        ("见 [@smith2024]。\n", "引文"),
+        ("见 [@smith2024]。\n", "引用"),
     ],
 )
 def test_unsupported_features_fail_loudly(source: str, fragment: str, template: Path, tmp_path: Path) -> None:
@@ -198,3 +197,44 @@ def test_matches_pandoc_output_on_toc_and_section(template: Path, tmp_path: Path
     their_styles, their_text = _facts(tmp_path / "theirs.docx")
     assert our_styles == their_styles
     assert our_text.replace("（打开文档后目录会自动生成）", "") == their_text.replace("（打开文档后目录会自动生成）", "")
+
+
+def test_equations_become_omml_with_numbers(template: Path, tmp_path: Path) -> None:
+    """公式要写成原生 OMML（Word 里可编辑），编号按出现顺序，交叉引用解析成「式N」。"""
+    model = read_markdown(
+        '---\ntitle: "t"\ncrossref:\n  eq-prefix: "式"\n---\n\n# 一 引言\n\n'
+        "行内 $x+y$。\n\n$$E = mc^2$$ {#eq-a}\n\n由 @eq-a 可知。\n"
+    )
+    out = write_docx(model, template, tmp_path / "eq.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+
+    assert xml.count("<m:oMath") == 2, "行内一条 + 显示一条"
+    assert "(1)" in xml, "带标签的公式要编号"
+    assert "式1" in xml, "交叉引用要解析成前缀 + 编号"
+
+
+def test_equation_numbering_follows_chapters(template: Path, tmp_path: Path) -> None:
+    model = read_markdown(
+        '---\ntitle: "t"\ncrossref:\n  chapters: true\n---\n\n'
+        "# 第一章\n\n$$a$$ {#eq-a}\n\n# 第二章\n\n$$b$$ {#eq-b}\n"
+    )
+    model.meta.chapters = True
+    out = write_docx(model, template, tmp_path / "ch.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    assert "(1.1)" in xml and "(2.1)" in xml
+
+
+def test_unsupported_mathml_fails_loudly() -> None:
+    """转换器遇到没覆盖的 MathML 结构要当场报错，不能悄悄变成空白或纯文本。
+
+    注意：`latex2mathml` 本身对不认识的命令很宽容（原样转成文本），所以这条边界只能
+    在 MathML 这一层测——那也正是我们自己的代码所在的位置。
+    """
+    from md_to_word.transform.mathml2omml import UnsupportedMath, mathml_to_omml
+
+    unsupported = (
+        '<math xmlns="http://www.w3.org/1998/Math/MathML">'
+        "<menclose><mi>x</mi></menclose></math>"
+    )
+    with pytest.raises(UnsupportedMath, match="menclose"):
+        mathml_to_omml(unsupported)

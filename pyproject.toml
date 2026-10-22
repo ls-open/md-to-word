@@ -29,6 +29,9 @@ dependencies = [
     "python-docx>=1.1.0",
     "lxml>=4.9.0",
     "PyYAML>=6.0",
+    # LaTeX → MathML：MathML 是 W3C 标准，解析器借成熟的；MathML → OMML 没有标准，
+    # 那一段在我们自己的 transform/mathml2omml.py 里
+    "latex2mathml>=3.0",
 ]
 
 [project.optional-dependencies]
