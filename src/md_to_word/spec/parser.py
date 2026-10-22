@@ -12,7 +12,6 @@ from docx.shared import Pt
 
 from md_to_word.spec.constants import (
     ALIGN_MAP,
-    ALIGN_VAL,
     PAGE_NUMBER_FMT,
     PAGE_SIZE_MAP,
     SIZE_MAP,

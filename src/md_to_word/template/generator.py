@@ -16,7 +16,6 @@ import shutil
 import sys
 import tempfile
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Optional
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE

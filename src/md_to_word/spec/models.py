@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Optional
-from docx.shared import Pt
 
 
 class MinLineSpacing:

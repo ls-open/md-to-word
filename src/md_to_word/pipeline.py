@@ -21,8 +21,6 @@ from md_to_word.postprocessor.equations import postprocess_docx
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.preprocessor.markers import expand_markers
 from md_to_word.renderer.quarto import QuartoRenderer
-from md_to_word.spec.parser import parse_requirements
-from md_to_word.spec.presets import read_preset_content
 from md_to_word.template.builder import build_template
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word

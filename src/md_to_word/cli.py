@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
