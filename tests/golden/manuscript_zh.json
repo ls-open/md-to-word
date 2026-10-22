@@ -10,6 +10,7 @@
     "BodyText",
     "FirstParagraph",
     "Heading1",
+    "ReferencesTitle",
     "Bibliography"
   ],
   "text": [
@@ -26,6 +27,7 @@
     "As shown in ",
     "式1",
     ", the relation holds.",
+    "References",
     "References",
     "1.Smith, J. Plain text authoring. ",
     "Nature",

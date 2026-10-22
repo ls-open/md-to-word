@@ -84,7 +84,7 @@ class _Writer:
             self._write_footnotes()
 
     def _title_block(self) -> None:
-        """YAML 里的标题区：文档标题、副标题、作者、日期各占一段。"""
+        """YAML 里的标题区：文档标题、副标题、作者、日期各占一段，摘要与关键词跟在后面。"""
         meta = self.model.meta
         if meta.title:
             self.docx.add_paragraph(str(meta.title), style="Title")
@@ -94,6 +94,31 @@ class _Writer:
             self.docx.add_paragraph("，".join(meta.author), style="Author")
         if meta.date:
             self.docx.add_paragraph(str(meta.date), style="Date")
+        self._abstract_block()
+
+    def _abstract_block(self) -> None:
+        """YAML 的摘要与关键词。
+
+        正文里的 `%% 摘要` / `%% 关键词` 优先：作者用样式行写了，就完全按他的位置排，
+        YAML 这两项不再插入，免得同一段摘要出现两次。
+        """
+        meta = self.model.meta
+        styled = {b.style for b in self.model.blocks if isinstance(b, Paragraph)}
+        if "Abstract" in styled or "Keywords" in styled:
+            return
+        if not meta.abstract and not meta.keywords:
+            return
+        chinese = self._is_chinese()
+        if meta.abstract:
+            heading = "摘要" if chinese else "Abstract"
+            if self._style_name("Abstract Title"):
+                self.docx.add_paragraph(heading, style="Abstract Title")
+            for para in meta.abstract:
+                self.docx.add_paragraph(para, style="Abstract")
+        if meta.keywords:
+            sep = "；" if chinese else ", "
+            label = "关键词：" if chinese else "Keywords: "
+            self.docx.add_paragraph(label + sep.join(meta.keywords), style="Keywords")
 
     # ── 块 ───────────────────────────────────────────────────────────
     def block(self, block: Block) -> None:
@@ -137,9 +162,31 @@ class _Writer:
         entries = self.citations.bibliography_entries()
         if not entries:
             return
+        self._references_title()
         for key, segments in entries:
             paragraph = self.docx.add_paragraph(style="Bibliography")
             self._bookmark(paragraph, f"_Ref_{key}", segments)
+
+    def _references_title(self) -> None:
+        """文献区的标题段。
+
+        正文里已经写了 `%% 参考文献标题 …` 就不再补，否则会两条标题；没写时按 YAML 的
+        `reference-section-title` 生成，没声明就用中文「参考文献」——没有标题的文献区
+        在正式稿件里是不合格的，而这属于"读者一眼能看见"的问题，宁可补上。
+        """
+        if any(
+            isinstance(b, Paragraph) and b.style == "References Title" for b in self.model.blocks
+        ):
+            return
+        title = self.model.meta.reference_section_title
+        if not title:
+            title = "参考文献" if self._is_chinese() else "References"
+        self.docx.add_paragraph(str(title), style="References Title")
+
+    def _is_chinese(self) -> bool:
+        meta = self.model.meta
+        sample = "".join(str(x) for x in [meta.title or "", *meta.keywords, *meta.abstract])
+        return any("一" <= ch <= "鿿" for ch in sample)
 
     _bookmark_seq = 100
 
@@ -377,6 +424,11 @@ class _Writer:
             run.add_picture(block.path, width=Cm(block.width_cm))
         else:
             run.add_picture(block.path)
+        # Pandoc 时代题注写在 `![…]` 里；新写法是独立的 `%% 图片题注` 段。两种都认：
+        # 图没有题注在正式稿件里是可见缺陷，而 alt 里的文字是作者真写过的，丢掉就是丢内容。
+        if block.alt.strip():
+            caption = self.docx.add_paragraph(style="Image Caption")
+            caption.add_run(block.alt.strip())
 
     # ── 内联 ─────────────────────────────────────────────────────────
     def inlines(self, paragraph, nodes: Iterable[Inline]) -> None:

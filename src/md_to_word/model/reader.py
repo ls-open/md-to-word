@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import re
+import string
 from typing import Optional
 
 import yaml
@@ -44,20 +45,73 @@ _SECTION_ALIAS = {"页码": "page_format", "page_number": "page_format", "format
 
 # ── 内联 ────────────────────────────────────────────────────────────────
 
+# 强调符号的边界：开符后面不能是空白（`注：* P<0.05` 里的 `*` 是星号，不是斜体开头），
+# 闭符前面不能是空白。少了这两条，`注：* P<0.05，** P<0.01，*** P<0.001。` 会被配成
+# 一段强调，把显著性星号当格式标记吃掉——这是静默丢字，比报错难查得多。
 _INLINE_RE = re.compile(
     r"(?P<code>`[^`]+`)"
     r"|(?P<math>\$[^$\n]+\$)"
-    r"|(?P<strong>\*\*.+?\*\*)"
-    r"|(?P<del>~~.+?~~)"
+    r"|(?P<strongem>\*\*\*(?=[^\s*])(.+?)(?<=[^\s*])\*\*\*)"
+    r"|(?P<strong>\*\*(?=[^\s*])(.+?)(?<=[^\s*])\*\*)"
+    r"|(?P<del>~~(?=[^\s~])(.+?)(?<=[^\s~])~~)"
     r"|(?P<underline>\[[^\]]+\]\{\.underline\})"
     r"|(?P<link>\[[^\]]*\]\([^)\s]+\))"
     r"|(?P<footnote>\[\^[^\]]+\])"
     r"|(?P<citation>\[[^\]]*@[^\]]*\])"
     r"|(?P<crossref>(?<![\w@])@[\w:.\-]+)"
-    r"|(?P<sup>\^[^^\n]+\^)"
-    r"|(?P<sub>~[^~\n]+~)"
-    r"|(?P<em>\*[^*\n]+\*)"
+    r"|(?P<sup>\^[^^\s][^^\n]*\^)"
+    r"|(?P<sub>~[^~\s][^~\n]*~)"
+    r"|(?P<em>\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*)"
 )
+
+# 反斜杠转义：`\*` 要出字面星号而不是被当成强调符号。CommonMark 只对 ASCII 标点生效。
+_ESCAPABLE = set(string.punctuation)
+_ESCAPE_RE = re.compile(r"\\([%s])|\\text(asciitilde|less|greater|backslash)" % re.escape("".join(string.punctuation)))
+_TEXT_ESCAPES = {
+    "asciitilde": "~",
+    "less": "<",
+    "greater": ">",
+    "backslash": "\\",
+}
+_ESCAPE_HOLD = ""  # 转义字符的临时占位符，解析完再换回原字符
+
+
+def _protect_escapes(text: str, taken: int = 0) -> tuple[str, dict[str, str]]:
+    """把 `\\*` 这类转义换成占位符，避免它们参与强调符号配对。
+
+    返回 (替换后的文本, 占位符→原字符)。代码段里保持不变：代码是逐字内容，
+    反斜杠在那里没有转义含义。
+    """
+    if "\\" not in text:
+        return text, {}
+    hold: dict[str, str] = {}
+    out: list[str] = []
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "`":
+            end = text.find("`", i + 1)
+            end = len(text) if end == -1 else end + 1
+            out.append(text[i:end])
+            i = end
+            continue
+        m = _ESCAPE_RE.match(text, i)
+        if m:
+            literal = _TEXT_ESCAPES[m.group(2)] if m.group(2) else m.group(1)
+            placeholder = chr(ord(_ESCAPE_HOLD) + taken + len(hold))
+            hold[placeholder] = literal
+            out.append(placeholder)
+            i = m.end()
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out), hold
+
+
+def _restore(text: str, hold: dict[str, str]) -> str:
+    if not hold:
+        return text
+    return "".join(hold.get(ch, ch) for ch in text)
 
 _CITE_TOKEN_RE = re.compile(
     r"(?P<suppress>-)?@(?P<key>[\w:.\-]+)(?P<rest>(?:,\s*(?:p|pp)\.?\s*[^;,]+)?)"
@@ -87,35 +141,46 @@ def _parse_citation_body(body: str, narrative: bool) -> Citation:
     return Citation(items=tuple(items), narrative=narrative)
 
 
-def parse_inlines(text: str, citation_keys: Optional[set[str]] = None) -> list:
+def parse_inlines(
+    text: str, citation_keys: Optional[set[str]] = None, hold: Optional[dict[str, str]] = None
+) -> list:
     """把一行内联 Markdown 切成节点序列。
 
     `citation_keys` 是文献库里已知的 key 集合。`@key` 在 Pandoc 里既是叙述式文献引用、
     又是稿内交叉引用，语义靠 key 是否存在于 .bib 区分——不传这个集合时一律当交叉引用，
-    由调用方稍后归类。
+    由调用方稍后归类。密钥要**逐层下传**：`**[@a]**` 里那层同样要能认出引用。
     """
+    hold: dict[str, str] = dict(hold or {})
+    guarded, fresh = _protect_escapes(text or "", taken=len(hold))
+    hold.update(fresh)
+
+    def sub(inner: str) -> tuple:
+        return tuple(parse_inlines(inner, citation_keys, hold))
+
     nodes: list = []
     pos = 0
-    for m in _INLINE_RE.finditer(text or ""):
+    for m in _INLINE_RE.finditer(guarded):
         if m.start() > pos:
-            nodes.append(Text(text[pos : m.start()]))
+            nodes.append(Text(_restore(guarded[pos : m.start()], hold)))
         kind = m.lastgroup
         raw = m.group(0)
         if kind == "code":
-            nodes.append(Code(raw[1:-1]))
+            nodes.append(Code(_restore(raw[1:-1], hold)))
         elif kind == "math":
             nodes.append(Math(raw[1:-1]))
+        elif kind == "strongem":
+            nodes.append(Strong(children=(Emphasis(children=sub(raw[3:-3])),)))
         elif kind == "strong":
-            nodes.append(Strong(children=tuple(parse_inlines(raw[2:-2]))))
+            nodes.append(Strong(children=sub(raw[2:-2])))
         elif kind == "em":
-            nodes.append(Emphasis(children=tuple(parse_inlines(raw[1:-1]))))
+            nodes.append(Emphasis(children=sub(raw[1:-1])))
         elif kind == "del":
-            nodes.append(Strikethrough(children=tuple(parse_inlines(raw[2:-2]))))
+            nodes.append(Strikethrough(children=sub(raw[2:-2])))
         elif kind == "underline":
-            nodes.append(Underline(children=tuple(parse_inlines(raw[1 : raw.index("]")]))))
+            nodes.append(Underline(children=sub(raw[1 : raw.index("]")])))
         elif kind == "link":
             label, url = raw[1:-1].split("](", 1)
-            nodes.append(Link(children=tuple(parse_inlines(label)), url=url))
+            nodes.append(Link(children=sub(label), url=url))
         elif kind == "footnote":
             nodes.append(FootnoteRef(label=raw[2:-1]))
         elif kind == "citation":
@@ -127,12 +192,12 @@ def parse_inlines(text: str, citation_keys: Optional[set[str]] = None) -> list:
             else:
                 nodes.append(CrossRef(target=key))
         elif kind == "sup":
-            nodes.append(Superscript(children=tuple(parse_inlines(raw[1:-1]))))
+            nodes.append(Superscript(children=sub(raw[1:-1])))
         elif kind == "sub":
-            nodes.append(Subscript(children=tuple(parse_inlines(raw[1:-1]))))
+            nodes.append(Subscript(children=sub(raw[1:-1])))
         pos = m.end()
-    if pos < len(text or ""):
-        nodes.append(Text(text[pos:]))
+    if pos < len(guarded):
+        nodes.append(Text(_restore(guarded[pos:], hold)))
     return nodes
 
 
@@ -146,6 +211,27 @@ def _split_frontmatter(text: str) -> tuple[str, str]:
         return "", text
     after = text.find("\n", end + 4)
     return text[4:end], text[after + 1 :] if after != -1 else ""
+
+
+def _multiline(value) -> list[str]:
+    """YAML 的多段文字：可能是 `|` 块（一个字符串含空行分段），也可能是列表。"""
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [p.strip() for p in re.split(r"\n\s*\n", value.strip()) if p.strip()]
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    return [str(value)]
+
+
+def _keywords(value) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, str):
+        return [k.strip() for k in re.split(r"[；;，,]", value) if k.strip()]
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    return [str(value)]
 
 
 def _metadata(raw: str) -> Metadata:
@@ -169,6 +255,9 @@ def _metadata(raw: str) -> Metadata:
         crossref=crossref,
         chapters=bool(crossref.get("chapters")),
         link_citations=data.get("link-citations", True) is not False,
+        abstract=_multiline(data.get("abstract")),
+        keywords=_keywords(data.get("keywords")),
+        reference_section_title=data.get("reference-section-title"),
     )
 
 
@@ -216,19 +305,24 @@ def _parse_shortcode(name: str, rest: str) -> Optional[Block]:
 
 
 class _Reader:
-    def __init__(self, body: str) -> None:
+    def __init__(self, body: str, citation_keys: Optional[set[str]] = None) -> None:
         self.lines = body.split("\n")
+        self.citation_keys = citation_keys
         self.doc = Document()
         self.pending_style: Optional[tuple[str, str]] = None  # (样式名, 内容)
 
     # -- 小工具 --------------------------------------------------------
+    def _inl(self, text: str) -> list:
+        """块内统一的内联入口：任何块都必须带上文献库 key 集合。"""
+        return parse_inlines(text, self.citation_keys)
+
     def _flush_pending(self) -> None:
         """把待定的样式段落落盘。"""
         if self.pending_style is None:
             return
         style, content = self.pending_style
         self.pending_style = None
-        self.doc.blocks.append(Paragraph(inlines=parse_inlines(content), style=style))
+        self.doc.blocks.append(Paragraph(inlines=self._inl(content), style=style))
 
     def _append(self, block: Block) -> None:
         """统一入口：入块之前先把待定的样式段落落盘，顺序即位置。"""
@@ -278,7 +372,7 @@ class _Reader:
                 self._flush_pending()
                 self.doc.footnotes.append(
                     Footnote(label=fn.group("label"),
-                             blocks=[Paragraph(inlines=parse_inlines(fn.group("text")))])
+                             blocks=[Paragraph(inlines=self._inl(fn.group("text")))])
                 )
                 i += 1
                 continue
@@ -288,7 +382,7 @@ class _Reader:
             if heading:
                 self._flush_pending()
                 self._append(
-                    Heading(level=len(heading.group(1)), inlines=parse_inlines(heading.group(2)))
+                    Heading(level=len(heading.group(1)), inlines=self._inl(heading.group(2)))
                 )
                 i += 1
                 continue
@@ -334,7 +428,7 @@ class _Reader:
 
             # 普通段落
             self._flush_pending()
-            self._append(Paragraph(inlines=parse_inlines(stripped)))
+            self._append(Paragraph(inlines=self._inl(stripped)))
             i += 1
 
         self._flush_pending()
@@ -380,14 +474,14 @@ class _Reader:
         return i + 1
 
     def _read_table(self, start: int) -> int:
-        header = [parse_inlines(c) for c in _table_cells(self.lines[start])]
+        header = [self._inl(c) for c in _table_cells(self.lines[start])]
         separator = self.lines[start + 1]
         alignments = _alignments(separator)
         widths = _column_widths(separator)
         rows: list[list] = []
         i = start + 2
         while i < len(self.lines) and _TABLE_ROW_RE.match(self.lines[i].strip()):
-            rows.append([parse_inlines(c) for c in _table_cells(self.lines[i])])
+            rows.append([self._inl(c) for c in _table_cells(self.lines[i])])
             i += 1
 
         self._append(Table(header=header, rows=rows, alignments=alignments, widths=widths))
@@ -410,7 +504,7 @@ class _Reader:
             i += 1
         self._flush_pending()
         self._append(
-            Quote(blocks=[Paragraph(inlines=parse_inlines(line)) for line in body if line])
+            Quote(blocks=[Paragraph(inlines=self._inl(line)) for line in body if line])
         )
         return i
 
@@ -425,9 +519,9 @@ class _Reader:
             bullet = _BULLET_RE.match(line)
             number = _ORDERED_RE.match(line)
             if bullet and not ordered:
-                items.append(ListItem(blocks=[Paragraph(inlines=parse_inlines(bullet.group("text")))]))
+                items.append(ListItem(blocks=[Paragraph(inlines=self._inl(bullet.group("text")))]))
             elif number and ordered:
-                items.append(ListItem(blocks=[Paragraph(inlines=parse_inlines(number.group("text")))]))
+                items.append(ListItem(blocks=[Paragraph(inlines=self._inl(number.group("text")))]))
             else:
                 break
             i += 1
@@ -442,7 +536,7 @@ def read_markdown(text: str, citation_keys: Optional[set[str]] = None) -> Docume
     `citation_keys` 传入文献库 key 时，`@key` 能正确区分「叙述式文献引用」与「稿内交叉引用」。
     """
     front, body = _split_frontmatter(text)
-    reader = _Reader(body)
+    reader = _Reader(body, citation_keys)
     doc = reader.read()
     doc.meta = _metadata(front)
     return doc

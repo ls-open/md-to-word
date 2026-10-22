@@ -152,3 +152,71 @@ def test_demo_documents_are_fully_expressible(demo: str) -> None:
     assert doc.blocks, "样例外没有解析出任何块"
     assert doc.headings(), f"{path.name} 没有解析出标题"
     assert not [b for b in doc.blocks if isinstance(b, Paragraph) and not b.inlines and b.style is None]
+
+
+# ── 内联：星号与转义 ─────────────────────────────────────────────────────
+# 学位论文的表格注里到处是 `注：* P<0.05，** P<0.01，*** P<0.001。`，这些星号是**字面内容**。
+# 早期版本把它们当强调标记配对，导出的 Word 里星号整段消失——内容丢了，却没有任何报错。
+
+def _text_of(nodes) -> str:
+    def walk(node):
+        if isinstance(node, Text):
+            return node.value
+        children = getattr(node, "children", ())
+        return "".join(walk(c) for c in children)
+
+    return "".join(walk(n) for n in nodes)
+
+
+def test_significance_asterisks_stay_literal() -> None:
+    line = "注：* P<0.05，** P<0.01，*** P<0.001。"
+    nodes = parse_inlines(line)
+    assert _text_of(nodes) == line
+    assert all(isinstance(n, Text) for n in nodes), "星号不该被配对成强调"
+
+
+def test_asterisk_runs_after_number_stay_literal() -> None:
+    nodes = parse_inlines("（+0.054* 与 +0.079**；K=9）")
+    assert "+0.079**；" in _text_of(nodes)
+
+
+def test_backslash_escape_keeps_literal_asterisk() -> None:
+    nodes = parse_inlines(r"−0.171\*\*\*")
+    assert _text_of(nodes) == "−0.171***"
+    assert all(isinstance(n, Text) for n in nodes)
+
+
+def test_real_emphasis_still_works() -> None:
+    nodes = parse_inlines("**创新点一：** 说明")
+    assert type(nodes[0]).__name__ == "Strong"
+    assert _text_of([nodes[0]]) == "创新点一："
+
+
+def test_triple_asterisk_is_bold_italic() -> None:
+    node = parse_inlines("***粗斜体***")[0]
+    assert type(node).__name__ == "Strong"
+    assert type(node.children[0]).__name__ == "Emphasis"
+
+
+def test_code_span_keeps_backslashes() -> None:
+    node = parse_inlines(r"`a\*b`")[0]
+    assert node.value == r"a\*b"
+
+
+# ── 前置区里的摘要与关键词 ──────────────────────────────────────────────
+# 正规写法在正文（`%% 摘要`，位置可管），但存量 Pandoc 稿件都写在 YAML 里。
+# 读取器不接这两项，整段摘要会静默消失——这是最贵的一种丢失。
+
+def test_yaml_abstract_and_keywords() -> None:
+    doc = read_markdown(
+        '---\ntitle: "题目"\nabstract: |\n  第一段。\n\n  第二段。\n'
+        'keywords:\n  - 甲\n  - 乙\nreference-section-title: 参考文献\n---\n\n正文\n'
+    )
+    assert doc.meta.abstract == ["第一段。", "第二段。"]
+    assert doc.meta.keywords == ["甲", "乙"]
+    assert doc.meta.reference_section_title == "参考文献"
+
+
+def test_yaml_keywords_as_string_are_split() -> None:
+    doc = read_markdown('---\nkeywords: "甲；乙，丙"\n---\n\n正文\n')
+    assert doc.meta.keywords == ["甲", "乙", "丙"]

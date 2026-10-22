@@ -40,11 +40,29 @@ _MONTHS = {
 }
 
 
+# LaTeX 转义还原：`\&` 出 `&`。不做这层，文献里会原样印出 `McKinsey \& Company`。
+# 只收学术文献里真会出现的几个，认不出的原样保留——宁可多一个反斜杠，不可吞字。
+_LATEX_ESCAPES = {
+    "&": "&", "%": "%", "$": "$", "#": "#", "_": "_", "{": "{", "}": "}",
+    "textasciitilde": "~", "textless": "<", "textgreater": ">",
+    "textbackslash": "\\", "textendash": "\u2013", "textemdash": "\u2014",
+}
+_ESCAPE_SEQ_RE = re.compile(r"\\([&%$#_{}]|text[a-z]+)")
+
+
+def _unescape(value: str) -> str:
+    def repl(m: re.Match) -> str:
+        return _LATEX_ESCAPES.get(m.group(1), m.group(0))
+
+    return _ESCAPE_SEQ_RE.sub(repl, value)
+
+
 def _clean(value: str) -> str:
     value = value.strip()
     if value[:1] in "{(\"" and value[-1:] in "})\"":
         value = value[1:-1]
     value = value.replace("{", "").replace("}", "")
+    value = _unescape(value)
     value = re.sub(r"\s+", " ", value).strip()
     # LaTeX 连字：bib 里 `--` 是短破折号、`---` 是长破折号、`~` 是不换行空格
     return (
