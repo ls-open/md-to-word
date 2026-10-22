@@ -114,6 +114,11 @@ From a source checkout the same commands run through `bash <skill-dir>/scripts/e
 from the manuscript's directory. Add `--verbose` when a format does not seem to take effect; add
 `--pdf` (macOS with Word) to expand fields and spot-check the result.
 
+Add `--json` whenever the result has to be read back programmatically: stdout then carries one JSON
+object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `messages`, `errors` — while progress
+and diagnostics stay on stderr. The keys are fixed; the sentences inside them follow the manuscript's
+language.
+
 Two gate levels, split by "would the mistake be visible afterwards":
 
 - **Blocking** — silently wrong later: dropped content, syntax printed literally, formatting never
@@ -158,3 +163,16 @@ interface in both directions is a Markdown file plus a `format.txt`.
 
 Engine, pip package, changelog and issue tracker:
 [md-to-word](https://github.com/ls-open/md-to-word).
+
+## 8. Version contract
+
+This file must keep working after `pip install -U`, without being edited. What is frozen:
+
+- the commands `md-to-word` and `md-to-word-template`, and the flags `-o`, `-r`, `--preset`,
+  `--contract`, `--version`, `--json`
+- exit codes `0` / `1` / `3`, and the JSON keys under `--json`
+- the manuscript contract in §2 and the vocabulary in §3
+
+Everything else — message wording, the layout inside the installed package, preset file names, the
+version number — may change between releases. Never parse the prose of a message: pass `--json` and
+read the keys.

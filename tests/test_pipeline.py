@@ -295,3 +295,36 @@ def test_contract_cheatsheet_needs_no_manuscript(capsys) -> None:
     assert main(["--contract"]) == 0
     out = capsys.readouterr().out
     assert "%% 样式名" in out and "文档标题" in out and "@eq-" in out
+
+
+def test_json_output_is_one_machine_readable_object(tmp_path: Path, capsys) -> None:
+    """Agent 与脚本读键，不读措辞：stdout 只有一行 JSON，键名固定。"""
+    import json
+
+    from md_to_word.cli import main
+
+    fixture_dir = Path(__file__).resolve().parent / "fixtures"
+    for name in ("manuscript.md", "refs.bib"):
+        shutil.copy(fixture_dir / name, tmp_path / name)
+
+    code = main([str(tmp_path / "manuscript.md"), "-o", str(tmp_path / "out.docx"), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == payload["returncode"] == 0
+    assert payload["ok"] is True
+    assert payload["output"].endswith("out.docx")
+    assert payload["errors"] == []
+    assert set(payload) == {"ok", "returncode", "input", "output", "pdf", "lang", "messages", "errors"}
+
+
+def test_json_output_reports_a_missing_manuscript(tmp_path: Path, capsys) -> None:
+    import json
+
+    from md_to_word.cli import main
+
+    code = main([str(tmp_path / "nope.md"), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == payload["returncode"] == 1
+    assert payload["ok"] is False and payload["errors"]
+    assert payload["output"] is None

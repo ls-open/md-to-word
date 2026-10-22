@@ -137,6 +137,15 @@ if not result.ok:
 **当作 Agent 技能**——把活交给 AI 时，克隆本仓库，让 Agent 读根目录的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md)，
 它依次完成：整理稿件 → 写 `format.txt` → 导出 → 读门禁、按行号改稿。
 
+**给脚本与 Agent**——加 `--json`，结果是一行 JSON，消息走 stderr：
+
+```bash
+md-to-word 稿件.md -o 稿件.docx --json
+```
+
+键名固定（`ok`、`returncode`、`output`、`pdf`、`messages`、`errors`），不随版本变；
+里面的句子跟着稿件语种走。读键，不读措辞。
+
 ## 环境
 
 - **依赖**：`python-docx`、`lxml`、`PyYAML`、`latex2mathml`、`citeproc-py`，5 个纯 Python 包

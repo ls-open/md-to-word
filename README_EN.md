@@ -155,6 +155,16 @@ if not result.ok:
 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) in the root. It normalizes the
 manuscript → writes `format.txt` → exports → reads the gates and fixes the reported lines.
 
+**From a script or an agent** — add `--json`: one JSON object on stdout, messages on stderr.
+
+```bash
+md-to-word manuscript.md -o manuscript.docx --json
+```
+
+The keys are fixed (`ok`, `returncode`, `output`, `pdf`, `messages`, `errors`) and do not change
+between versions; the sentences inside them follow the manuscript's language. Read the keys, not the
+wording.
+
 ## Environment
 
 - **Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py` — five pure-Python packages

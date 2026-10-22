@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -143,6 +144,7 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("--pdf", action="store_true", help=t("cli.pdf", lang))
     parser.add_argument("-v", "--verbose", action="store_true", help=t("cli.verbose", lang))
     parser.add_argument("--contract", action="store_true", help=t("cli.contract", lang))
+    parser.add_argument("--json", dest="as_json", action="store_true", help=t("cli.json", lang))
     parser.add_argument(
         "--version",
         action="version",
@@ -179,6 +181,21 @@ def main(args: list[str] | None = None) -> int:
     )
 
     result = run_export_pipeline(options)
+
+    if parsed.as_json:
+        # 给程序与 Agent 用：stdout 只有这一行，键名是契约（不随版本改），值原样透传——
+        # 消息按稿件语种可能中可能英，解析方读的是键，不是措辞。进度与报错仍走 stderr。
+        print(json.dumps({
+            "ok": result.ok,
+            "returncode": result.returncode,
+            "input": str(parsed.input),
+            "output": str(result.output_docx) if result.output_docx else None,
+            "pdf": str(result.output_pdf) if result.output_pdf else None,
+            "lang": result.lang,
+            "messages": list(result.messages),
+            "errors": list(result.errors),
+        }, ensure_ascii=False))
+        return result.returncode
 
     for msg in result.messages:
         print(msg)

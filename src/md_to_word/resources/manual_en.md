@@ -59,6 +59,17 @@ other language.
 but `--pdf` was not rendered (non-macOS). `0` means every gate passed — **it does not mean the
 layout has been checked by eye** (§5.3).
 
+**`--json`**: for programs and agents. stdout carries one JSON object; progress and errors still go
+to stderr:
+
+```json
+{"ok": true, "returncode": 0, "input": "paper.md", "output": "…/paper.docx", "pdf": null,
+ "lang": "en", "messages": ["…"], "errors": []}
+```
+
+The keys are fixed and do not change between versions; the values of `messages` and `errors` are
+sentences for humans, in the manuscript's language. Parse the keys, not the wording.
+
 **Library call**:
 
 ```python

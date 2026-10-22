@@ -54,6 +54,16 @@ md-to-word 稿件.md -o 输出.docx --verbose            # 逐样式明细，排
 **退出码**：`0` 完成；`1` 稿件、门禁或依赖问题；`3` `.docx` 已写出但 `--pdf` 未渲染（非 macOS）。
 `0` 表示已通过全部闸门，**不等于版面已经肉眼核对过**（§5.3）。
 
+**`--json`**：给程序与 Agent 用。stdout 只有一行 JSON，进度与报错仍走 stderr：
+
+```json
+{"ok": true, "returncode": 0, "input": "稿件.md", "output": "…/稿件.docx", "pdf": null,
+ "lang": "zh", "messages": ["…"], "errors": []}
+```
+
+键名固定、不随版本变；`messages` 与 `errors` 的值是给人读的句子，跟着稿件语种走。
+解析方读键，不读措辞。
+
 **库调用**：
 
 ```python
