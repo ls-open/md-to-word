@@ -1,4 +1,4 @@
-"""Smoke tests for nature-paper2word.
+"""Smoke tests for md-to-word.
 
 Two layers:
 

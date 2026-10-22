@@ -82,8 +82,9 @@ md-to-word 稿件.md -r format.txt -o 稿件.docx
 - **质量门禁**：导前预检（契约、样式、引文）、导后防丢数、逐条样式对账
 - **无外部程序**：不调用 Pandoc、Quarto 或 Word，导出不依赖任何外部二进制
 
-做不到什么、为什么，以及完整词表见包内[使用手册](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md)
-（中英各一份，随 wheel 发布）；实现取舍见 [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md)。
+做不到什么、为什么，以及完整词表见[使用手册](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md)——
+`md-to-word --contract` 会打印它的路径（中英各一份）；实现取舍见
+[`design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md)。
 
 ## 与其他方案的区别
 
@@ -111,9 +112,6 @@ if not result.ok:
 
 **当作 Agent 技能**——把活交给 AI 时，克隆本仓库，让 Agent 读根目录的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md)，
 它依次完成：整理稿件 → 写 `format.txt` → 导出 → 读门禁、按行号改稿。
-同样的入口也存在于 `nature-skills` 仓库的
-[`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)，
-那边只有技能文档，引擎走同一个 pip 包。
 
 ## 环境
 
@@ -135,22 +133,6 @@ md-to-word-template 学校模板.docx -o 论文_format.txt
 对齐、行距（区分倍数/固定值/最小值）、段前段后、缩进（含字符单位）、段落下边框、表格边框与
 表头行、页眉页脚内容与域。**读不出的项列成待确认清单**，不假装读到了。
 
-## 文档与仓库结构
-
-| 路径 | 读它做什么 |
-|:--|:--|
-| [`src/md_to_word/resources/manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) | **使用手册**：稿件契约、完整词表、代办流程、门禁、能力边界、CSL 清单（中英各一份，随包发布） |
-| [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) | 技能入口：代办流程、门禁判据、能力边界。事实一律指向手册 |
-| [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md) | 设计原理与故障排查（导出结果不符合预期时先看它的 §2） |
-| [`demo/`](https://github.com/ls-open/md-to-word/blob/main/demo/) | 四份样例：最小样例、中文学位论文、技术白皮书、英文期刊投稿 |
-| `src/md_to_word/` | 实现本体：模型 → OOXML 写出器、样式生成、校验、对账 |
-
-发到用户机器上的只有 `src/`（内含 `md_to_word/presets/` 与 `md_to_word/resources/`，含两份手册）
-与包元数据（wheel 约 320 KB）；`tests/`、`demo/`、`scripts/`、`references/`、`SKILL.md` 是仓库的
-验收面与技能入口，不进包。`md-to-word --help` 列出全部选项，帮助语言跟随稿件语种；
-`--verbose` 打印逐个样式套用的明细。退出码：`0` 完成；`1` 稿件、门禁或依赖问题；
-`3` `.docx` 已写出但 `--pdf` 未渲染。
-
 ## 推荐上游生态
 
 本项目专注下游的确定性排版与格式交付，写稿、找文献的部分推荐配合这两个学术 Agent 框架使用：
@@ -164,6 +146,6 @@ md-to-word-template 学校模板.docx -o 论文_format.txt
 
 ## 许可
 
-代码为 [MIT](https://github.com/ls-open/md-to-word/blob/main/LICENSE)。`resources/csl/` 下的引文样式来自
+代码为 [MIT](https://github.com/ls-open/md-to-word/blob/main/LICENSE)。内置引文样式来自
 [citation-style-language/styles](https://github.com/citation-style-language/styles)，按 CC BY-SA 3.0 使用；
-`resources/pure_modern_base.docx` 由本项目生成，随 MIT 发布。
+内置底模由本项目生成，随 MIT 发布。
