@@ -75,14 +75,14 @@ md-to-word hello.md -r requirements.txt -o hello.docx
 
 ## 安装
 
-实现只有一份：Python 包 `md-to-word`。命令行、库调用、技能目录都是它的入口——技能目录整棵
-vendor 这份源码，因此不装包也能跑。
+实现只有一份：Python 包 `md-to-word`。命令行、库调用、技能入口都是它的入口——`SKILL.md`
+指向包内手册，`scripts/export.sh` 用仓库里的 `src/`，所以不装包也能跑。
 
 | 用法 | 适合 | 安装 | 使用 |
 |:--|:--|:--|:--|
 | **命令行** | 本地导出、CI | `pip install md-to-word-docx` | `md-to-word 稿件.md -o 输出.docx` |
 | **Python 库** | 写脚本、接自有流程 | 同上 | `from md_to_word import export` |
-| **AI 技能** | 让 Agent 代办、且不想装任何东西 | 用自包含的技能目录（整棵源码 + `SKILL.md` + `references/`），本仓库只发布引擎 | 「按学校的格式要求把这份稿子导出成 Word」 |
+| **AI 技能** | 让 Agent 代办 | 克隆这个仓库即可，`SKILL.md` 就是技能入口（自带源码，不装包也能跑） | 「按学校的格式要求把这份稿子导出成 Word」 |
 
 **PyPI**：`pip install md-to-word-docx`（PyPI 上 `md-to-word` 已被近似项目占用，包名多一个后缀；
 装完的命令仍然是 `md-to-word`）。在源码检出里跑则是 `pip install -r requirements.txt` 之后用
@@ -128,8 +128,8 @@ print(result.output_docx)    # result.messages 是进度与提醒
 ```
 
 **AI 技能**：把 Markdown 交给 Agent 并说明格式要求即可，例如「按某某大学研究生学位论文的
-格式要求导出为 Word」。技能目录是自包含的（整棵源码 + `SKILL.md` + `references/`），不依赖
-`pip`；Agent 在那边按 `SKILL.md` 走完格式提取、稿件规范化、模板生成与三道门禁。
+格式要求导出为 Word」。Agent 读本仓库的 `SKILL.md`（几十行，只写流程），具体写法查包内手册；
+不需要装任何包，`scripts/export.sh` 直接用仓库里的源码。
 
 ---
 
@@ -180,6 +180,7 @@ md-to-word-template 学校模板.docx -o 论文_requirements.txt
 
 | 路径 | 读它做什么 |
 |:--|:--|
+| [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) | 技能入口：代办流程、门禁读法、能做什么说不出来的东西。事实一律指向手册 |
 | [`src/md_to_word/resources/manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) | **使用手册**：稿件契约、`requirements.txt` 完整词表、代办流程、门禁、能力边界、CSL 清单。随包发布 |
 | [`README.md`](https://github.com/ls-open/md-to-word/blob/main/README.md) / [`README_EN.md`](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | 是什么、怎么装、怎么跑 |
 | [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md) | 设计原理与故障排查（导出结果不符合预期时先看它 §2） |
@@ -190,9 +191,9 @@ md-to-word-template 学校模板.docx -o 论文_requirements.txt
 | `presets/` | 内置格式预设：`zh-academic.txt`（默认）、`en-nature.txt` |
 
 仓库里什么会发到用户机器上：`src/`（含 `manual.md`）、`presets/`、`resources/` 与包元数据
-（wheel 约 300 KB）；`tests/`、`demo/`、`scripts/`、`references/` 不进包——它们是仓库的验收面，
-不是运行时的依赖。**技能文档不在本仓库**：自包含技能目录整棵 vendor 这里的源码，另有自己的
-`SKILL.md` 与 `references/`。
+（wheel 约 300 KB）；`tests/`、`demo/`、`scripts/`、`references/`、`SKILL.md` 不进包——它们是仓库的
+验收面与技能入口，不是运行时的依赖。另有一个自包含的技能版（同一份源码，自带技能文档）在
+`nature-skills` 仓库，供"完全不装 pip"的用户使用。
 
 ---
 

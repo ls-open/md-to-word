@@ -80,14 +80,14 @@ and note — nothing was clicked in Word.
 ## Install
 
 There is one implementation: the Python package `md-to-word`. The command line, the library API and
-the skill directory are all entries into it — the skill directory vendors this source tree, so it
-runs without installing anything.
+the skill entry are all entries into it — `SKILL.md` points at the manual shipped in the package and
+`scripts/export.sh` uses the source tree in this repository, so neither needs installing the package.
 
 | Entry | For | Install | Use |
 |:--|:--|:--|:--|
 | **Command line** | local exports, CI | `pip install md-to-word-docx` | `md-to-word paper.md -o paper.docx` |
 | **Python library** | scripts, custom pipelines | same | `from md_to_word import export` |
-| **AI skill** | handing the job to an agent, without installing anything | use the self-contained skill directory (source + `SKILL.md` + `references/`); this repository publishes the engine | "Export this manuscript as Word, following my school's format." |
+| **AI skill** | handing the job to an agent | clone this repository — `SKILL.md` is the skill entry and the source is right there, so nothing needs installing | "Export this manuscript as Word, following my school's format." |
 
 **PyPI status**: not published yet. Until then install from source or Git; after the release the
 first command above is the one to use.
@@ -138,10 +138,10 @@ if not result.ok:            # ok = the .docx was written (a skipped --pdf is no
 print(result.output_docx)    # result.messages holds progress notes and reminders
 ```
 
-**AI skill**: hand the Markdown to an agent together with the format requirement. The skill
-directory is self-contained (full source + `SKILL.md` + `references/`) and needs no `pip`; the agent
-follows `SKILL.md` through format extraction, manuscript normalisation, template generation and the
-gates.
+**AI skill**: hand the Markdown to an agent together with the format requirement. The agent reads
+`SKILL.md` in this repository (a few dozen lines of workflow only) and looks up the spelling in the
+manual inside the package; nothing needs installing, because `scripts/export.sh` runs the source
+tree directly.
 
 ---
 
@@ -195,6 +195,7 @@ to-confirm item** — it does not pretend to have read it.
 
 | Path | What it is for |
 |:--|:--|
+| [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) | Skill entry: agent workflow, how to read the gates, what cannot be expressed. Facts live in the manual |
 | [`src/md_to_word/resources/manual.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md) | **The manual**: manuscript contract, full `requirements.txt` vocabulary, agent workflow, gates, limits, CSL inventory. Ships inside the package |
 | [`references/design.md`](https://github.com/ls-open/md-to-word/blob/main/references/design.md) | Design rationale and troubleshooting (start at its §2 when output looks wrong) |
 | [`demo/`](https://github.com/ls-open/md-to-word/blob/main/demo/) | Four samples: minimal, Chinese thesis, technical whitepaper, English journal submission |
@@ -204,10 +205,10 @@ to-confirm item** — it does not pretend to have read it.
 | `presets/` | Built-in presets: `zh-academic.txt` (default), `en-nature.txt` |
 
 What ships to a user's machine: `src/` (with `manual.md`), `presets/`, `resources/` and package
-metadata (wheel ≈ 300 KB). `tests/`, `demo/`, `scripts/` and `references/` are the repository's
-acceptance surface, not runtime dependencies. **Skill documentation is not in this repository**: the
-self-contained skill directory vendors this source tree and carries its own `SKILL.md` and
-`references/`.
+metadata (wheel ≈ 300 KB). `tests/`, `demo/`, `scripts/`, `references/` and `SKILL.md` are the
+repository's acceptance surface and skill entry, not runtime dependencies. A self-contained skill
+edition (same source, its own skill docs) also lives in the `nature-skills` repository, for users who
+install nothing at all.
 
 ---
 

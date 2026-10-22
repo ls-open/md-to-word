@@ -1,46 +1,50 @@
 #!/usr/bin/env bash
-# export.sh — 仓库里的转发壳：找到已安装的 md-to-word，把参数原样交给它。
+# export.sh — 仓库里的导出入口：用本目录的 `src/` 跑，不依赖是否装过包。
 #
-# 本仓库走 pip 分发：实现是包，升级是 `pip install -U md-to-word-docx`，本文件只做转发。
-# 已安装的实现优先——这正是分发形态下的正常路径；仓库自带的 `src/` 只在开发检出、
-# 且没有装过包时兜底。
-#
-# 自包含的技能目录用的是另一份壳（在那里 `src/` 优先、装过旧包也不会被借走），
-# 两者的差别只有这一处优先级，引擎完全同一份。
+# 这个仓库既是 pip 包的源码，也是一个技能目录（`SKILL.md` 是入口）。所以这里**优先用
+# 仓库自己的源码**——克隆下来跑的永远是仓库里这一份，不会被机器上装过的旧版本悄悄顶掉。
+# 源码缺失时才退回已安装的 `md-to-word`（例如只拷了 scripts/ 的情况）。
 #
 # 用法:
 #   bash export.sh 稿件.md -o 输出.docx
+#   bash export.sh 稿件.md -r 要求.txt -o 输出.docx
 #   bash export.sh 稿件.md --preset en-nature -o 输出.docx
+#   bash export.sh --contract        # 契约速查 + 手册与预设的路径
 #   bash export.sh --help            # 全部选项
-#   bash export.sh --version         # 确认引擎版本（低版本先 pip install -U）
 #
 # 退出码: 0=全部完成 / 1=稿件、门禁或依赖问题 / 3=docx 已生成但 --pdf 未渲染
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-SKILL_ROOT="$(dirname "$SCRIPT_DIR")"
+ROOT="$(dirname "$SCRIPT_DIR")"
+VENDORED="$ROOT/src/md_to_word"
 
-# 1. 已安装的实现优先：这是分发形态下的正常路径，升级也走这条
+# 1. 仓库自带的实现优先
+if [[ -d "$VENDORED" ]] && command -v python3 >/dev/null 2>&1; then
+    if python3 -c "import docx, lxml, yaml, latex2mathml, citeproc" >/dev/null 2>&1; then
+        export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+        exec python3 -m md_to_word "$@"
+    fi
+    cat >&2 <<'MSG'
+缺少 Python 依赖，先在仓库根目录执行一次：
+
+  pip install -r requirements.txt
+
+（只装依赖，引擎就在本目录的 src/ 里。）
+MSG
+    exit 1
+fi
+
+# 2. 没有源码时退回已安装的包
 if command -v md-to-word >/dev/null 2>&1; then
     exec md-to-word "$@"
 fi
 
-# 2. 开发检出兜底：有源码、且依赖齐全时，直接用仓库里的这份
-if [[ -d "$SKILL_ROOT/src/md_to_word" ]] \
-    && command -v python3 >/dev/null 2>&1 \
-    && python3 -c "import docx, lxml, yaml, latex2mathml, citeproc" >/dev/null 2>&1; then
-    export PYTHONPATH="$SKILL_ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
-    exec python3 -m md_to_word "$@"
-fi
+cat >&2 <<'MSG'
+找不到实现：本目录缺 src/md_to_word，也没有已安装的 md-to-word。
 
-# 3. 都没有：给出可照抄的安装命令，不要让用户对着 command not found 猜
-cat >&2 <<'EOF'
-未找到 md-to-word。这个技能只是入口，实现要单独安装：
+  pip install md-to-word-docx      # 改用 pip 分发的版本
 
-  pip install md-to-word-docx                      # 已发布到 PyPI 后
-  pip install "git+https://github.com/ls-open/md-to-word@main"   # 在此之前
-
-更新：pip install -U md-to-word-docx（不想装进当前环境就用 pipx install / pipx upgrade）
-如果你是从源码检出的仓库里直接运行，先在仓库根目录执行 pip install -r requirements.txt。
-EOF
+或重新获取完整仓库（自带 src/）。
+MSG
 exit 1
