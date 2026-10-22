@@ -20,6 +20,7 @@ from md_to_word.i18n import resolve_lang, t
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.spec.parser import parse_requirements
 from md_to_word.template.builder import build_template
+from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED
 from md_to_word.template.generator import TemplateError
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
@@ -48,7 +49,7 @@ class ExportOptions:
 class ExportResult:
     """流水线执行结果。"""
 
-    returncode: int  # 0=成功, 1=错误/门禁失败, 3=DOCX 成功但 PDF 抽查跳过
+    returncode: int  # EXIT_OK / EXIT_ERROR / EXIT_PDF_SKIPPED（见 status.py）
     output_docx: Optional[Path] = None
     output_pdf: Optional[Path] = None
     messages: list[str] = field(default_factory=list)
@@ -58,7 +59,7 @@ class ExportResult:
     @property
     def ok(self) -> bool:
         """docx 是否已经写出来了（`--pdf` 跳过不算失败）。"""
-        return self.returncode in (0, 3)
+        return self.returncode in (EXIT_OK, EXIT_PDF_SKIPPED)
 
 
 def _normalized_csl(path: Path, temp_dir: Path, res: ExportResult) -> Path:
@@ -118,7 +119,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     res = ExportResult(returncode=0)
     in_p = Path(options.input_path).resolve()
     if not in_p.is_file():
-        res.returncode = 1
+        res.returncode = EXIT_ERROR
         res.errors.append(t("pipeline.input_missing", res.lang, path=in_p))
         return res
     try:
@@ -136,13 +137,13 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     # 目录不存在时当场说清楚：否则要等整条流水线跑完、写文件那一刻才抛 FileNotFoundError，
     # 对着 traceback 的人不会想到是自己漏建了一个目录。
     if not out_p.parent.is_dir():
-        res.returncode = 1
+        res.returncode = EXIT_ERROR
         res.errors.append(t("pipeline.output_dir_missing", res.lang, dir=out_p.parent))
         return res
     # `-o 某个目录` 是常见笔误（把目录当成文件名传进来），python-docx 会抛 IsADirectoryError，
     # 到时候看到的是 zipfile 的 traceback——这里先拦住。
     if out_p.is_dir():
-        res.returncode = 1
+        res.returncode = EXIT_ERROR
         res.errors.append(t("pipeline.output_is_dir", res.lang, path=out_p))
         return res
 
@@ -153,7 +154,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     if options.requirements_path:
         p_req = Path(options.requirements_path).resolve()
         if not p_req.is_file():
-            res.returncode = 1
+            res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.requirements_missing", res.lang, path=p_req))
             return res
         req_file = p_req
@@ -161,7 +162,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     elif options.preset:
         p_pre = resolve_preset_path(options.preset)
         if not p_pre or not p_pre.is_file():
-            res.returncode = 1
+            res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.preset_missing", res.lang, name=options.preset))
             return res
         req_file = p_pre
@@ -176,7 +177,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             # 不说是哪一份时，后面的报错看着就像凭空冒出来的。
             res.messages.append(t("pipeline.txt_auto", res.lang, path=req_file.name))
         elif len(txt_candidates) > 1 and not options.template_path:
-            res.returncode = 1
+            res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.many_txt", res.lang, dir=in_p.parent))
             return res
         elif not options.template_path:
@@ -194,7 +195,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     if options.template_path:
         p_tpl = Path(options.template_path).resolve()
         if not p_tpl.is_file():
-            res.returncode = 1
+            res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.template_missing", res.lang, path=p_tpl))
             return res
         custom_template = p_tpl
@@ -212,7 +213,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             in_p, template_docx=custom_template, spec_path=req_file, lang=res.lang
         )
         if not v_report.valid:
-            res.returncode = 1
+            res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.rejected", res.lang, count=len(v_report.errors)))
             res.errors.extend(v_report.errors)
             return res
@@ -260,19 +261,19 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                     tpl_for_render, Path(temp_dir) / "template.docx", res.lang
                 )
             except TemplateError as exc:
-                res.returncode = 1
+                res.returncode = EXIT_ERROR
                 res.errors.append(str(exc))
                 return res
         if not tpl_for_render:
             if not req_content:
-                res.returncode = 1
+                res.returncode = EXIT_ERROR
                 res.errors.append(t("pipeline.no_spec", res.lang))
                 return res
             temp_tpl_path = Path(temp_dir) / "template.docx"
             try:
                 build_template(req_content, temp_tpl_path, lang=res.lang)
             except TemplateError as exc:
-                res.returncode = 1
+                res.returncode = EXIT_ERROR
                 res.errors.append(
                     t("pipeline.requirements_template_failed", res.lang, reason=exc)
                 )
@@ -314,7 +315,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             try:
                 engine = CitationEngine(bib_text, csl_path, res.lang)
             except (CitationError, OSError) as exc:
-                res.returncode = 1
+                res.returncode = EXIT_ERROR
                 res.errors.append(t("pipeline.csl_error", res.lang, reason=exc))
                 return res
 
@@ -332,12 +333,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 lang=res.lang,
             )
         except UnsupportedFeature as exc:
-            res.returncode = 1
+            res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.unsupported", res.lang, reason=exc))
             return res
         except OSError as exc:
             # 目录只读、磁盘满、文件被 Word 占着：都是"写不进去"，不该甩 traceback。
-            res.returncode = 1
+            res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
             return res
 
@@ -345,7 +346,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         if options.postflight:
             all_kept, missing = verify_numeric_integrity(in_p, out_p)
             if not all_kept:
-                res.returncode = 1
+                res.returncode = EXIT_ERROR
                 res.errors.append(
                     t("pipeline.numeric_failed", res.lang,
                       count=len(missing), sample=", ".join(missing[:5]))
@@ -357,7 +358,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         if options.audit and req_file:
             matched, problems = audit_docx_against_spec(out_p, req_file, res.lang)
             if not matched:
-                res.returncode = 1
+                res.returncode = EXIT_ERROR
                 res.errors.append(t("pipeline.audit_failed", res.lang, count=len(problems)))
                 for cat, msg in problems:
                     res.errors.append(f"  [{cat}] {msg}")

@@ -10,6 +10,7 @@ from pathlib import Path
 from md_to_word import __version__
 from md_to_word.i18n import SUPPORTED, resolve_lang, t
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
+from md_to_word.status import EXIT_OK, EXIT_PDF_SKIPPED, EXIT_USAGE
 from md_to_word.utils.skill_utils import configure_logging
 
 
@@ -201,15 +202,15 @@ def main(args: list[str] | None = None) -> int:
 
     if parsed.guide:
         print(guide_document(lang))
-        return 0
+        return EXIT_OK
     if parsed.contract:
         print(contract_cheatsheet(lang))
-        return 0
+        return EXIT_OK
     if not parsed.input:
         # 没有参数时给人一段能照着敲的简述（描述 + 三条示例 + 去哪儿读全部），
         # 而不是 argparse 的 usage 加一句 "the following arguments are required"。
         print(t("cli.brief", lang, version=__version__), file=sys.stderr)
-        return 2
+        return EXIT_USAGE
 
     options = ExportOptions(
         input_path=parsed.input,
@@ -247,16 +248,16 @@ def main(args: list[str] | None = None) -> int:
     # 「用了哪份要求文件」会印在报错后面，读起来像事后补的解释。
     sys.stdout.flush()
 
-    if result.returncode != 0 and result.returncode != 3:
+    if result.returncode not in (EXIT_OK, EXIT_PDF_SKIPPED):
         for err in result.errors:
             print(f"❌ {err}", file=sys.stderr)
         return result.returncode
 
-    if result.returncode == 3:
+    if result.returncode == EXIT_PDF_SKIPPED:
         print(f"⚠️ {t('pipeline.pdf_skipped', result.lang)}", file=sys.stderr)
-        return 3
+        return EXIT_PDF_SKIPPED
 
-    return 0
+    return EXIT_OK
 
 
 if __name__ == "__main__":
