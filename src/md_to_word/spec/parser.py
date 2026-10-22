@@ -16,6 +16,8 @@ from md_to_word.spec.constants import (
     PAGE_SIZE_MAP,
     SIZE_MAP,
     STYLE_CN,
+    STYLE_EN,
+    ROW_NAME_EN,
     STYLE_MAP,
     TABLE_ALIGN_MAP,
     TABLE_STYLE_MAP,
@@ -66,7 +68,9 @@ TABLE_WIDTH_KEYS = {
 
 def _set_once(props: dict, key: str, value: Any, what: str, desc: str) -> None:
     if key in props:
-        raise ValueError(f"{what}写了两次/重复定义（{desc.strip()}）")
+        if _english(desc):
+            raise ValueError(f"{_label(what, True)} is declared twice ({desc.strip()})")
+        raise ValueError(f"{_label(what, False)}写了两次/重复定义（{desc.strip()}）")
     props[key] = value
 
 
@@ -74,7 +78,17 @@ def _set_indent(props: dict, m: re.Match, desc: str, kind: str) -> None:
     itype = "hanging" if ("悬挂" in kind or "hanging" in kind.lower()) else "first_line"
     if "indent" in props:
         if props.get("indent_type") == itype:
+            if _english(desc):
+                raise ValueError(f"indent is declared twice ({desc.strip()})")
             raise ValueError(f"缩进写了两次/重复声明（{desc.strip()}）")
+        if _english(desc):
+            raise ValueError(
+                "Only one indent kind is allowed per line, but this line declares both "
+                "first-line and hanging indent: "
+                + desc.strip()
+                + "\n  They share the same underlying property. "
+                "For an English reference list, `hanging-indent 0.5in` is enough."
+            )
         raise ValueError(
             "缩进只能声明一种，但这一行同时出现了首行缩进与悬挂缩进："
             + desc.strip()
@@ -229,31 +243,67 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
     ),
 ]
 
+def _english(desc: str) -> bool:
+    """错误文案跟随输入语言：这一行没有中日韩字符，就说英文。"""
+    return not re.search(r"[\u4e00-\u9fff]", desc or "")
+
+
+def _who(name: str, english: bool) -> str:
+    """样式名按用户的语言回显：中文源回中文名，英文源回英文名。"""
+    if english:
+        return STYLE_EN.get(name, ROW_NAME_EN.get(name, name))
+    return STYLE_CN.get(name, name)
+
+
+def _label(what: str, english: bool) -> str:
+    """`字号/font_size` 这种双语标签按语言取一半；只有一侧时原样返回。"""
+    if "/" not in what:
+        return what
+    zh, _, en = what.partition("/")
+    return en.strip() if english else zh.strip()
+
+
+# (匹配模式, 中文提示, 英文提示)——英文为 None 表示该写法只可能出现在中文输入里
 _HINTS = [
     # ── 行距纠偏（引导到唯一正典：行距N倍 / 行距N磅）──
-    (re.compile(r"^行距\d+(?:\.\d+)?$"), "行距必须带单位「倍」或「磅」（如 行距1.5倍、行距20磅，英文：line-spacing 1.5 / line-spacing 20pt）"),
-    (re.compile(r"固定值|固定行距|fixed-line-spacing"), "固定磅值行距请统一写「行距N磅」（如 行距20磅，英文：line-spacing 20pt）"),
-    (re.compile(r"^\d+(?:\.\d+)?倍(?:行距)?$"), "行距倍数请统一写「行距N倍」（如 行距1.5倍，英文：line-spacing 1.5）"),
-    (re.compile(r"^(?:单倍|双倍)(?:行距)?$"), "行距倍数请统一写「行距1.0倍」或「行距2.0倍」（英文：line-spacing 1.0）"),
-    (re.compile(r"最小行距|line-spacing-min"), "行距最小值请统一写「行距最小值N磅」（英文：min-line-spacing N pt）"),
-    (re.compile(r"行间距"), "行距请统一写「行距N倍」或「行距N磅」（英文：line-spacing N）"),
+    (re.compile(r"^行距\d+(?:\.\d+)?$"), "行距必须带单位「倍」或「磅」（如 行距1.5倍、行距20磅，英文：line-spacing 1.5 / line-spacing 20pt）", None),
+    (re.compile(r"固定值|固定行距|fixed-line-spacing"), "固定磅值行距请统一写「行距N磅」（如 行距20磅，英文：line-spacing 20pt）", "Write a fixed line height as `line-spacing 20pt`."),
+    (re.compile(r"^\d+(?:\.\d+)?倍(?:行距)?$"), "行距倍数请统一写「行距N倍」（如 行距1.5倍，英文：line-spacing 1.5）", None),
+    (re.compile(r"^(?:单倍|双倍)(?:行距)?$"), "行距倍数请统一写「行距1.0倍」或「行距2.0倍」（英文：line-spacing 1.0）", None),
+    (re.compile(r"最小行距|line-spacing-min"), "行距最小值请统一写「行距最小值N磅」（英文：min-line-spacing N pt）", "Write a minimum line height as `min-line-spacing 25pt`."),
+    (re.compile(r"行间距"), "行距请统一写「行距N倍」或「行距N磅」（英文：line-spacing N）", None),
     # ── 缩进纠偏（引导到唯一正典：首行缩进N字符 / 首行缩进0）──
-    (re.compile(r"^(?:无缩进|不缩进|no-indent)$"), "免缩进请统一写「首行缩进0」（英文：indent 0）"),
-    (re.compile(r"^缩进\d"), "首行缩进请统一写「首行缩进N字符」（如 首行缩进2字符，英文：indent 2chars）"),
+    (re.compile(r"^(?:无缩进|不缩进|no-indent)$"), "免缩进请统一写「首行缩进0」（英文：indent 0）", "Write no indent as `indent 0`."),
+    (re.compile(r"^缩进\d"), "首行缩进请统一写「首行缩进N字符」（如 首行缩进2字符，英文：indent 2chars）", None),
     # ── 字号纠偏 ──
-    (re.compile(r"^\d+(?:\.\d+)?磅$"), "数值字号必须带单位 pt（如 12pt）；「磅」仅用于行距/段前/段后/线宽"),
-    (re.compile(r"^\d+(?:\.\d+)?$"), "数值字号必须带单位 pt（如 12pt、10.5pt）或使用中文字号（如 小四、五号）"),
+    (re.compile(r"^\d+(?:\.\d+)?磅$"), "数值字号必须带单位 pt（如 12pt）；「磅」仅用于行距/段前/段后/线宽", None),
+    (re.compile(r"^\d+(?:\.\d+)?$"), "数值字号必须带单位 pt（如 12pt、10.5pt）或使用中文字号（如 小四、五号）", "A bare number is ambiguous: write a font size such as `12pt`."),
     # ── 字形与边框纠偏 ──
-    (re.compile(r"斜体"), "字体倾斜请写「倾斜」（英文：italic）"),
-    (re.compile(r"下划线"), "下边框请写「下边框单线」（Word 字符级下划线不受模板样式控制）"),
+    (re.compile(r"斜体"), "字体倾斜请写「倾斜」（英文：italic）", None),
+    (re.compile(r"下划线"), "下边框请写「下边框单线」（Word 字符级下划线不受模板样式控制）", None),
+    # ── 英文否定式：正典写法是 not-bold / not-italic，中间必须带连字符 ──
+    (re.compile(r"^(?:not|no)$", re.I), None,
+     "To cancel a style, write `not-bold` or `not-italic` (with a hyphen)."),
+    (re.compile(r"^(?:notbold|notitalic|notbolditalic)$", re.I), None,
+     "Write `not-bold` / `not-italic` (hyphenated)."),
 ]
 
 
 def _unknown_word_msg(word: str, name: str, desc: str, lineno: Optional[int]) -> str:
-    where = f"第 {lineno} 行 " if lineno else ""
-    hint = next((f"（是不是想写 {right}？）" for pat, right in _HINTS if pat.search(word)), "")
+    english = _english(desc)
+    where = (f"Line {lineno}: " if english else f"第 {lineno} 行 ") if lineno else ""
+    hints = [en if english else zh for pat, zh, en in _HINTS if pat.search(word)]
+    hint = hints[0] if hints else ""
+    if english:
+        tail = f"\n  {hint}" if hint else ""
+        return (
+            f"{where}{_who(name, True)}: unknown property word `{word}`.{tail}\n"
+            f"  Properties use the canonical English (or Chinese) spelling, separated by spaces.\n"
+            f"  Line: {desc.strip()}"
+        )
+    hint = f"（是不是想写 {hint}？）" if hint else ""
     return (
-        f"{where}{STYLE_CN.get(name, name)}: 不认识属性词「{word}」{hint}\n"
+        f"{where}{_who(name, False)}: 不认识属性词「{word}」{hint}\n"
         f"  属性须按中/英标准写法书写，词间用空格分隔。\n"
         f"  原文：{desc.strip()}"
     )
@@ -403,12 +453,19 @@ def _split_font(
     for w in font_words:
         if re.match(r"^\d+(?:\.\d+)?$", w):
             raise ValueError(_unknown_word_msg(w, name, desc, lineno))
-        if any(pat.search(w) for pat, _ in _HINTS):
+        if any(pat.search(w) for pat, _zh, _en in _HINTS):
             raise ValueError(_unknown_word_msg(w, name, desc, lineno))
     font_text = " ".join(font_words)
     if font_words and (_CLAUSE_WORD_HINT.search(font_text) or _SIZE_RE.search(font_text)):
+        if _english(desc):
+            raise ValueError(
+                f"{_who(name, True)}: the font segment `{font_text}` contains a property word.\n"
+                f"  Separate the font name from the size and properties with a space "
+                f"(e.g. `Times New Roman 12pt ...`).\n"
+                f"  Line: {desc.strip()}"
+            )
         raise ValueError(
-            f"{STYLE_CN.get(name, name)}: 字体段「{font_text}」里混进了属性词。\n"
+            f"{_who(name, False)}: 字体段「{font_text}」里混进了属性词。\n"
             f"  字体与后面的字号/属性之间必须留空格（如 `Times New Roman 12pt …`）。\n"
             f"  原文：{desc.strip()}"
         )
@@ -427,23 +484,30 @@ _TOC_INELIGIBLE = {
 
 
 def _check_clause_preconditions(props: dict, style_name: str, desc: str, lineno: Optional[int]) -> None:
-    where = f"第 {lineno} 行 " if lineno else ""
-    who = STYLE_CN.get(style_name, style_name)
-    tail = f"\n  原文：{desc.strip()}"
+    english = _english(desc)
+    where = (f"Line {lineno}: " if english else f"第 {lineno} 行 ") if lineno else ""
+    who = _who(style_name, english)
+    tail = f"\n  Line: {desc.strip()}" if english else f"\n  原文：{desc.strip()}"
 
     if "border_width_pt" in props and props.get("bottom_border") not in ("single", "double"):
         raise ValueError(
-            f"{where}{who}: 写了「边框粗 / border-width」，却没声明下边框为单线或双线。{tail}"
+            f"{where}{who}: `border-width` is set, but no single or double bottom border was declared.{tail}"
+            if english
+            else f"{where}{who}: 写了「边框粗 / border-width」，却没声明下边框为单线或双线。{tail}"
         )
 
     if props.get("repeat_header") and style_name not in ("表头", "Table Header"):
         raise ValueError(
-            f"{where}{who}: 「跨页重复 / repeat-header」只能写在表头行。{tail}"
+            f"{where}{who}: `repeat-header` only applies to the table header row.{tail}"
+            if english
+            else f"{where}{who}: 「跨页重复 / repeat-header」只能写在表头行。{tail}"
         )
 
     if props.get("join_toc") and style_name in _TOC_INELIGIBLE:
         raise ValueError(
-            f"{where}{who}: 「加入目录 / join-toc」只能写在标题类样式上。{tail}"
+            f"{where}{who}: `join-toc` only applies to heading styles.{tail}"
+            if english
+            else f"{where}{who}: 「加入目录 / join-toc」只能写在标题类样式上。{tail}"
         )
 
 
@@ -546,6 +610,12 @@ def parse_margins(desc: str, lineno: Optional[int] = None) -> dict[str, float]:
 
 
 def _bad_value(lineno: Optional[int], key: str, desc: str, should: str, why: str = "") -> ValueError:
+    if _english(desc):
+        return ValueError(
+            f"Line {lineno}: unrecognised value for `{key}`: {desc}"
+            + (f"\n  {why}" if why else "")
+            + f"\n  Expected: {key}: {should}"
+        )
     return ValueError(
         f"第 {lineno} 行「{key}」的值不认识：{desc}"
         + (f"\n  {why}" if why else "")
@@ -589,10 +659,10 @@ def _line_gutter(spec: TemplateSpec, desc: str, lineno: int) -> None:
 def _line_doc_grid(spec: TemplateSpec, desc: str, lineno: int) -> None:
     m = re.fullmatch(r"(?:每页(\d+)行|(\d+)\s*lines)", desc, re.I)
     if not m:
-        raise _bad_value(lineno, "文档网格", desc, "每页22行")
+        raise _bad_value(lineno, "文档网格/Document Grid", desc, "每页22行 (22 lines)")
     n = int(m.group(1) or m.group(2))
     if not 1 <= n <= 200:
-        raise _bad_value(lineno, "文档网格", desc, "每页22行", why="行数要在 1–200 之间")
+        raise _bad_value(lineno, "文档网格/Document Grid", desc, "每页22行 (22 lines)", why="行数要在 1–200 之间 / line count must be 1–200")
     spec.doc_grid_lines = n
 
 

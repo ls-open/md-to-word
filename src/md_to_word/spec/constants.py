@@ -131,6 +131,14 @@ STYLE_MAP: dict[str, str] = {
 }
 
 STYLE_CN: dict[str, str] = {v: k for k, v in STYLE_MAP.items() if re.search(r"[\u4e00-\u9fff]", k)}
+# 英文原名：报错时按用户书写语言回显，避免英文稿里出现「正文」这种中文标签
+STYLE_EN: dict[str, str] = {v: k for k, v in STYLE_MAP.items() if not re.search(r"[\u4e00-\u9fff]", k)}
+
+# 表格相关的配置行在代码里用中文名标识（无对应 Word 样式名），报错时补一份英文
+ROW_NAME_EN: dict[str, str] = {
+    "表格": "Table",
+    "表头": "Table Header",
+}
 
 # 常见易错键名提示
 WRONG_KEY_HINTS: dict[str, str] = {

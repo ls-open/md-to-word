@@ -499,20 +499,6 @@ def write_para_props(ppr, props):
 
 # ── 解析函数 ──
 
-def parse_font_size(text):
-    """从一行里取字号 → Pt 或 None（供调用方与测试做定点查询）。
-
-    走的是与解析器同一张子句表：整词匹配，不做子串探测。旧实现按"键长降序 + 出现位置"
-    在描述里挑字号的串，`小四号` 同时含 `小四` 与 `四号`，靠排序侥幸才取对。
-    """
-    words = text.split()
-    for i in range(len(words)):
-        m = _SIZE_RE.fullmatch(words[i])
-        if m:
-            return SIZE_MAP[m.group('sz')] if m.group('sz') else Pt(float(m.group('num')))
-    return None
-
-
 def parse_font_name(text):
     """提取字体名，返回 [cjk_font, latin_font] 或 None"""
     parts = re.split(r'[/／]', text)
@@ -618,242 +604,20 @@ def modify_style(doc, style_name, props, default_latin=None):
 
 # ── 子句表：属性语法的**全部**唯一写法都在这张表里 ─────────────────────────
 #
-# 解析 = 把一行的属性部分（字体段之后）按空格切词，每个词与这张表做整词 fullmatch；
-# 认不出的词当场报错并提示标准写法，不做子串猜测，也不做多写法冗余兼容。
-_S = 'style'    # 样式行 / 表头行
-_T = 'table'    # 表格行
+# 解析器已收敛到 md_to_word.spec.parser（中英双语词表、封闭取值、1 对 1 纠错提示）。
+# 这里只做转发：本文件负责「把 spec 写成 OOXML」，不负责「读懂格式要求文本」。
+from md_to_word.spec.parser import (  # noqa: E402
+    parse_requirements,
+    parse_style_props,
+    parse_table_props,
+)
 
-_INDENT_UNITS = {'字符': 'chars', '英寸': 'pt'}
-# 字号只认中文标准号数（SIZE_MAP 键名，如「小四」「三号」）与 `<数字>pt`（如 `12pt`）
-_SZ_ALT = '|'.join(sorted(SIZE_MAP, key=len, reverse=True))
-_SIZE_PAT = rf'(?P<sz>{_SZ_ALT})|(?P<num>\d+(?:\.\d+)?)pt'
-_SIZE_RE = re.compile(_SIZE_PAT)
-
-_CLAUSE_TABLE: list = [
-    (_S, _SIZE_RE,
-     lambda p, m, d: _set_once(p, 'font_size',
-                               SIZE_MAP[m.group('sz')] if m.group('sz')
-                               else Pt(float(m.group('num'))), '字号', d)),
-    (_S, re.compile(r'加粗'), lambda p, m, d: _set_once(p, 'bold', True, '加粗/不加粗', d)),
-    (_S, re.compile(r'不加粗'), lambda p, m, d: _set_once(p, 'bold', False, '加粗/不加粗', d)),
-    (_S, re.compile(r'倾斜'), lambda p, m, d: _set_once(p, 'italic', True, '倾斜/不倾斜', d)),
-    (_S, re.compile(r'不倾斜'), lambda p, m, d: _set_once(p, 'italic', False, '倾斜/不倾斜', d)),
-    (_S, re.compile(r'居中|左对齐|右对齐|两端对齐'),
-     lambda p, m, d: _set_once(p, 'alignment', ALIGN_MAP[m.group(0)], '对齐', d)),
-    # 行距三种写法对应 OOXML 的三种 lineRule：倍数 / 固定值（磅） / 最小值（磅）
-    (_S, re.compile(r'行距最小值(?P<v>\d+(?:\.\d+)?)磅'),
-     lambda p, m, d: _set_once(p, 'line_spacing', MinLineSpacing(float(m.group('v'))), '行距', d)),
-    (_S, re.compile(r'行距(?P<v>\d+(?:\.\d+)?)倍'),
-     lambda p, m, d: _set_once(p, 'line_spacing', float(m.group('v')), '行距', d)),
-    (_S, re.compile(r'行距(?P<v>\d+(?:\.\d+)?)磅'),
-     lambda p, m, d: _set_once(p, 'line_spacing', Pt(float(m.group('v'))), '行距', d)),
-    (_S, re.compile(r'段前(?P<v>\d+(?:\.\d+)?)磅'),
-     lambda p, m, d: _set_once(p, 'space_before', Pt(float(m.group('v'))), '段前', d)),
-    (_S, re.compile(r'段后(?P<v>\d+(?:\.\d+)?)磅'),
-     lambda p, m, d: _set_once(p, 'space_after', Pt(float(m.group('v'))), '段后', d)),
-    # 首行缩进与悬挂缩进共用 w:ind 的同一组属性，一行里都写只有一个生效，故合判一个键
-    (_S, re.compile(r'首行缩进(?P<v>\d+(?:\.\d+)?)(?P<u>字符|英寸)'),
-     lambda p, m, d: _set_indent(p, m, d, '首行缩进')),
-    (_S, re.compile(r'悬挂缩进(?P<v>\d+(?:\.\d+)?)(?P<u>英寸)'),
-     lambda p, m, d: _set_indent(p, m, d, '悬挂缩进')),
-    (_S, re.compile(r'左缩进(?P<v>\d+(?:\.\d+)?)字符'),
-     lambda p, m, d: _set_once(p, 'left_indent_chars', float(m.group('v')), '左缩进', d)),
-    (_S, re.compile(r'无边框'), lambda p, m, d: _set_once(p, 'no_border', True, '边框', d)),
-    # 「下边框无」曾与「无边框」并存，但两者产物**逐字节相同**（都走
-    # _write_para_props 里那个 `no_border or bottom_border == 'none'` 分支），
-    # 属于同一效果两种写法，故只留「无边框」。
-    (_S, re.compile(r'下边框(?P<k>单线|双线)'),
-     lambda p, m, d: _set_once(p, 'bottom_border',
-                               {'单线': 'single', '双线': 'double'}[m.group('k')],
-                               '边框', d)),
-    (_S, re.compile(r'边框粗(?P<v>\d+(?:\.\d+)?)磅'),
-     lambda p, m, d: _set_once(p, 'border_width_pt', float(m.group('v')), '边框粗', d)),
-    # 字符间距（Word「字体 → 高级 → 字符间距」）。正数加宽、负数紧缩，单位磅。
-    # rPr/spacing 的 val 是二十分之一磅，所以乘 20。
-    (_S, re.compile(r'字距(?P<v>-?\d+(?:\.\d+)?)磅'),
-     lambda p, m, d: _set_once(p, 'char_spacing_pt', float(m.group('v')), '字距', d)),
-    (_S, re.compile(r'点线制表位'), lambda p, m, d: _set_once(p, 'dot_leader_tab', True, '点线制表位', d)),
-    (_S, re.compile(r'加入目录'), lambda p, m, d: _set_once(p, 'join_toc', True, '加入目录', d)),
-    (_S, re.compile(r'与下段同页'), lambda p, m, d: _set_once(p, 'keep_next', True, '与下段同页', d)),
-    # 分页控制的另外三种（Word「段落 → 换行和分页」里的复选框）。
-    # 「段前分页」比手写 {{< pagebreak >}} 稳：内容增删后仍自动从新页开始，不用去挪标记。
-    (_S, re.compile(r'段中不分页'), lambda p, m, d: _set_once(p, 'keep_lines', True, '段中不分页', d)),
-    (_S, re.compile(r'段前分页'), lambda p, m, d: _set_once(p, 'page_break_before', True, '段前分页', d)),
-    (_S, re.compile(r'取消孤行控制'), lambda p, m, d: _set_once(p, 'widow_control', False, '孤行控制', d)),
-    (_S, re.compile(r'(?<!取消)孤行控制'), lambda p, m, d: _set_once(p, 'widow_control', True, '孤行控制', d)),
-    (_S, re.compile(r'跨页重复'), lambda p, m, d: _set_once(p, 'repeat_header', True, '跨页重复', d)),
-    (_T, re.compile(r'居中|左对齐|右对齐'),
-     lambda p, m, d: _set_once(p, 'align', TABLE_ALIGN_MAP[m.group(0)], '表格对齐', d)),
-    (_T, re.compile(r'三线表|全网格线|顶底线|无边框'),
-     lambda p, m, d: _set_once(p, 'style', TABLE_STYLE_MAP[m.group(0)], '表格边框样式', d)),
-    (_T, re.compile(r'线宽(?P<k>上|底|表头下|内)(?P<v>\d+(?:\.\d+)?)磅'),
-     lambda p, m, d: p.setdefault('widths', {}).__setitem__(TABLE_WIDTH_KEYS['线宽' + m.group('k')],
-                                                            float(m.group('v')))),
-    (_T, re.compile(r'单元格垂直(?P<k>居中|顶端|底端)'),
-     lambda p, m, d: _set_once(p, 'valign', TABLE_VALIGN_MAP[m.group('k')], '单元格垂直对齐', d)),
-    (_T, re.compile(r'单元格内边距(?P<v>\d+(?:\.\d+)?)cm'),
-     lambda p, m, d: _set_once(p, 'cell_margin_cm', float(m.group('v')), '单元格内边距', d)),
-]
-
-
-def _set_once(props, key, value, what, desc):
-    """同一个属性只许写一处；写了两次即报错。"""
-    if key in props:
-        raise ValueError(f'{what}写了两次，同一属性只能写一处：{desc.strip()}')
-    props[key] = value
-
-
-def _set_indent(props, m, desc, kind):
-    itype = 'hanging' if kind == '悬挂缩进' else 'first_line'
-    if 'indent' in props:
-        if props['indent_type'] == itype:
-            raise ValueError(f'缩进写了两次，同一属性只能写一处：{desc.strip()}')
-        raise ValueError(
-            '缩进只能声明一种，但这一行两种都写了：' + desc.strip() + '\n'
-            '  「首行缩进」与「悬挂缩进」共用同一组属性，同时写只有一个会生效。\n'
-            '  参考文献写「悬挂缩进0.5英寸」即可，不要再写「首行缩进0字符」。')
-    props['indent'] = float(m.group('v')) * (72.0 if m.group('u') == '英寸' else 1.0)
-    props['indent_type'] = itype
-    props['indent_unit'] = _INDENT_UNITS[m.group('u')]
-
-
-# 易错写法的报错引导提示（只在词不被识别、报错时提示应写形式）
-_HINTS = [
-    (re.compile(r'^(?:小初|小[一二三四五六])号$'), '去掉末尾的「号」（应写「小四」「小五」等）'),
-    (re.compile(r'^\d+(?:\.\d+)?磅$'), '数值字号单位用 pt（如「12pt」；「磅」仅用于行距/段前/段后/线宽）'),
-    (re.compile(r'^(?:行距|段前|段后|边框粗|线宽).*pt$', re.I), '行距、段间距与线宽单位统一用「磅」（如「段前6磅」「行距20磅」；pt 仅用于字号）'),
-    (re.compile(r'最小行距'), '「行距最小值N磅」'),
-    (re.compile(r'行距.*固定'), '「行距N磅」'),
-    (re.compile(r'行间距'), '「行距N倍」或「行距N磅」'),
-    (re.compile(r'倍行距'), '「行距N倍」'),
-    (re.compile(r'靠[左右]'), '「左对齐」「右对齐」'),
-    (re.compile(r'居中对齐'), '「居中」'),
-    (re.compile(r'分散对齐'), '「两端对齐」'),
-    (re.compile(r'斜体'), '「倾斜」（开）或「不倾斜」（关）'),
-    (re.compile(r'中等倾斜'), '「倾斜」'),
-    (re.compile(r'悬挂缩进\d+字符'), '「悬挂缩进0.5英寸」（悬挂缩进只用英寸单位）'),
-    (re.compile(r'^(?:单元格(?:内|左右)?|内)边距'), '「单元格内边距0.19cm」（单位用 cm，不写即 0）'),
-    (re.compile(r'下划线'), '「下边框单线」（段落下边框；下划线是字符属性，本技能不支持）'),
-    (re.compile(r'下边框无'), '「无边框」（「下边框无」与它效果完全相同，只保留一种写法）'),
-    # 兜底放最后（提示表按顺序取第一个命中，具体的放前面）：`宋体 12 两端对齐` 里那个 `12`
-    # 想写的是字号。以前它在字体段内部被静默滤掉（`parse_font_name` 拒绝数字开头的候选，
-    # 那条护栏是防"字号被当成字体名"，但**滤掉就滤掉了**），于是等于没写。
-    (re.compile(r'^\d'), '数值字号单位用 pt（如「12pt」；「磅」仅用于行距/段前/段后/线宽）'),
-]
-
-
-def _unknown_word_msg(word, name, desc, lineno):
-    where = f'第 {lineno} 行 ' if lineno else ''
-    hint = next((f'（是不是想写 {right}？）' for pat, right in _HINTS if pat.search(word)), '')
-    return (f'{where}{STYLE_CN.get(name, name)}: 不认识属性词「{word}」{hint}\n'
-            f'  每个属性须按标准唯一写法书写（词内不加空格，词间空格分隔，详见 references/reference.md §1.5）。\n'
-            f'  原文：{desc.strip()}')
-
-
-def _consume(props, words, mode, name, desc, lineno):
-    """逐词消费进 props；有词没人认领即报错。"""
-    for word in words:
-        hit = None
-        for m_mode, pat, fn in _CLAUSE_TABLE:
-            if m_mode != mode:
-                continue
-            m = pat.fullmatch(word)
-            if m:
-                hit = (fn, m)
-                break
-        if not hit:
-            raise ValueError(_unknown_word_msg(word, name, desc, lineno))
-        fn, m = hit
-        fn(props, m, desc)
-
-
-# 字体名是唯一的自由文本，靠位置定界：字号之前的词都是字体。若字号写丢了，
-# 退到第一个能认出的属性词之前。字体段里若混进属性词（如 `宋体小四` 忘了空格），直接报错。
-_CLAUSE_WORD_HINT = re.compile(
-    r'行距|段前|段后|缩进|加粗|倾斜|对齐|居中|边框|制表位|加入目录|与下段同页|跨页重复|段中不分页|段前分页|孤行控制')
-
-
-def _split_font(words, name, desc, lineno):
-    size_i = next((i for i, w in enumerate(words) if _SIZE_RE.fullmatch(w)), None)
-    if size_i is None:
-        size_i = next((i for i, w in enumerate(words) if _consumable_word(w)), len(words))
-    font_words = words[:size_i]
-    for w in font_words:
-        if any(pat.search(w) for pat, _ in _HINTS):
-            raise ValueError(_unknown_word_msg(w, name, desc, lineno))
-    font_text = ' '.join(font_words)
-    if font_words and (_CLAUSE_WORD_HINT.search(font_text) or _SIZE_RE.search(font_text)):
-        raise ValueError(
-            f'{STYLE_CN.get(name, name)}: 字体段「{font_text}」里混进了属性词。\n'
-            f'  字体与后面的字号/属性之间必须留空格（如 `宋体/Times New Roman 小四 …`）。\n  原文：{desc.strip()}')
-    font = parse_font_name(font_text)
-    if font_words and not font:
-        raise ValueError(_unknown_word_msg(font_words[0], name, desc, lineno))
-    return font, words[size_i:]
-
-
-def _consumable_word(word: str) -> bool:
-    return any(m_mode == _S and pat.fullmatch(word) for m_mode, pat, _ in _CLAUSE_TABLE)
-
-
-# 「加入目录」是给**标题类**样式挂大纲级别（outlineLvl=0）的。挂在正文类样式上不是
-# 报错而是灾难：Word 的目录域按大纲级别收集条目，于是每一段正文都变成一条目录。
-_TOC_INELIGIBLE = {'Body Text': '正文', 'First Paragraph': '首段',
-                   'Normal': '普通', 'Compact': '紧凑'}
-
-# 只在**别的写法已写**时才有意义的子句。写了它却没有前提 = 写了等于没写，
-# 且 Word 那边看不出来（属性根本没落进 XML），只能在这里拦。
-# 实测：`文档标题：… 边框粗1.5磅`（无下边框）→ 产物 pPr 里连 w:pBdr 都没有；
-# `正文：… 跨页重复` → 与不写它的产物逐字节相同。
-def _check_clause_preconditions(props, style_name, desc, lineno):
-    """写法之间的**前提**：某子句依赖别的子句、或只能在某一行出现。"""
-    where = f'第 {lineno} 行 ' if lineno else ''
-    who = STYLE_CN.get(style_name, style_name)
-    tail = f'\n  原文：{desc.strip()}'
-
-    if 'border_width_pt' in props and props.get('bottom_border') not in ('single', 'double'):
-        raise ValueError(
-            f'{where}{who}: 写了「边框粗」，却没写「下边框单线」或「下边框双线」。\n'
-            f'  「边框粗」只改那一条下框线的粗细，没有下边框时无处可落（静默无效）。{tail}')
-
-    if props.get('repeat_header') and style_name != '表头':
-        raise ValueError(
-            f'{where}{who}: 「跨页重复」只能写在「表头：」那一行。\n'
-            f'  它描述的是表头行（w:tblHeader），写在别的样式上不会生效。{tail}')
-
-    if props.get('join_toc') and style_name in _TOC_INELIGIBLE:
-        raise ValueError(
-            f'{where}{who}: 「加入目录」只能写在标题类样式上。\n'
-            f'  它给样式挂大纲级别，而 Word 的目录域按大纲级别收集条目——挂在'
-            f'「{_TOC_INELIGIBLE[style_name]}」上会让**每一段正文都变成目录条目**。{tail}')
-
-
-def parse_style_props(style_name, desc, lineno=None):
-    """解析一条样式行/表头行的**属性部分** → props 字典。"""
-    words = desc.split()
-    props = {'style_name': style_name}
-    font_names, rest = _split_font(words, style_name, desc, lineno)
-    if font_names:
-        props['font_name'] = font_names
-    _consume(props, rest, _S, style_name, desc, lineno)
-    _check_clause_preconditions(props, style_name, desc, lineno)
-    return props
-
-
-# 表格行的**封闭取值表**（唯一写法）
-TABLE_ALIGN_MAP = {cn: v for cn, v in ALIGN_VAL.items() if cn != '两端对齐'}
-TABLE_STYLE_MAP = {'三线表': 'three-line', '全网格线': 'grid', '顶底线': 'top-bottom', '无边框': 'none'}
-TABLE_VALIGN_MAP = {'居中': 'center', '顶端': 'top', '底端': 'bottom'}
-TABLE_WIDTH_KEYS = {'线宽上': 'top', '线宽底': 'bottom', '线宽表头下': 'header_bottom', '线宽内': 'inside'}
-
-
-def parse_table_props(desc, lineno=None):
-    """解析「表格：<对齐> <边框样式> [线宽上/线宽底/线宽表头下N磅] [线宽内N磅（仅全网格线）]
-    [单元格垂直居中|顶端|底端]」。
-    """
-    table: dict = {}
-    _consume(table, desc.split(), _T, '表格', desc, lineno)
-    return table
+_S = "style"
+_T = "table"
+TABLE_ALIGN_MAP = {cn: v for cn, v in ALIGN_VAL.items() if cn != "两端对齐"}
+TABLE_STYLE_MAP = {"三线表": "three-line", "全网格线": "grid", "顶底线": "top-bottom", "无边框": "none"}
+TABLE_VALIGN_MAP = {"居中": "center", "顶端": "top", "底端": "bottom"}
+TABLE_WIDTH_KEYS = {"线宽上": "top", "线宽底": "bottom", "线宽表头下": "header_bottom", "线宽内": "inside"}
 
 
 def decor_token_to_field(tok):
@@ -906,66 +670,6 @@ class TemplateSpec:
     proofing_lang: Optional[str] = None                # 校对语言（zh-CN 等）
     header_distance: Optional[float] = None            # 页眉距边界（cm）
     footer_distance: Optional[float] = None            # 页脚距边界（cm）
-
-
-def parse_requirements(text):
-    """解析格式要求文本 → TemplateSpec（支持中英双语格式语法）。"""
-    try:
-        from md_to_word.spec.parser import parse_requirements as _bilingual_parse
-        return _bilingual_parse(text)
-    except Exception as e:
-        # 若双语解析失败且有明确报错，优先暴露其错误信息
-        if "第 " in str(e) or "Line " in str(e):
-            raise e
-    spec = TemplateSpec()
-    seen_keys = {}
-
-    for lineno, raw in enumerate(text.split('\n'), 1):
-        line = raw.strip()
-        if not line or line.startswith('#'):
-            continue
-
-        parts = line.split('：', 1) if '：' in line else line.split(':', 1)
-        if len(parts) != 2:
-            raise ValueError(
-                f'第 {lineno} 行没有冒号，无法解析：{line!r}\n'
-                f'  每行须写成「键名：属性值」（冒号用 ：或 :），分块说明请用 # 注释。')
-
-        key = parts[0].strip()
-        desc = parts[1].strip()
-        if not desc:
-            raise ValueError(
-                f'第 {lineno} 行的「{key}」没有给值：{line!r}\n'
-                f'  确实要让页眉/页脚容器为空请写「无」（如「首页页眉内容：无」）。')
-
-        handler = _LINE_KEYS.get(key)
-        if handler is not None:
-            if key in seen_keys:
-                raise ValueError(
-                    f'第 {lineno} 行「{key}」重复定义（前一次在第 {seen_keys[key]} 行）：{line}\n'
-                    f'  同一个键只能写一处。')
-            seen_keys[key] = lineno
-            handler(spec, desc, lineno)
-            continue
-
-        if key not in STYLE_MAP:
-            hint = f'（请改写为「{_WRONG_KEY_HINTS[key]}」）' if key in _WRONG_KEY_HINTS else ''
-            valid_styles = '、'.join(STYLE_MAP.keys())
-            valid_lines = '、'.join(_LINE_KEYS.keys())
-            raise ValueError(
-                f'第 {lineno} 行不认识的键名「{key}」{hint}：{line}\n'
-                f'  可填样式名：{valid_styles}\n'
-                f'  可填配置项：{valid_lines}')
-
-        style_name = STYLE_MAP[key]
-        if style_name in seen_keys:
-            raise ValueError(
-                f'第 {lineno} 行「{key}」重复定义（前一次在第 {seen_keys[style_name]} 行）：{line}\n'
-                f'  同一个样式只能写一处。')
-        seen_keys[style_name] = lineno
-        spec.styles.append(parse_style_props(style_name, desc, lineno))
-
-    return spec
 
 
 def _bad_value(lineno, key, desc, should, why=''):
