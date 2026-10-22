@@ -6,10 +6,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
 from md_to_word.config import get_csl_dir
 from md_to_word.transform.bibtex import parse_bibtex
 from md_to_word.transform.citations import CitationEngine, _collapse_numeric_runs

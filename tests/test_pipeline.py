@@ -104,3 +104,46 @@ def test_build_template_accepts_spec_object(tmp_path: Path):
     spec = parse_requirements(preset.read_text(encoding="utf-8"))
     out = build_template(spec, tmp_path / "t.docx")
     assert out.exists() and out.stat().st_size > 0
+
+
+def _write_bib(directory: Path) -> None:
+    (directory / "refs.bib").write_text(
+        "@article{smith2024,\n  author={Smith, John},\n  title={A Study},\n"
+        "  year={2024},\n  journal={Journal of Tests}\n}\n",
+        encoding="utf-8",
+    )
+
+
+def _paragraph_texts(docx_path: Path) -> list[str]:
+    from docx import Document
+
+    return [p.text for p in Document(docx_path).paragraphs]
+
+
+def test_default_csl_is_shared_by_both_writers(tmp_path: Path) -> None:
+    """稿件没写 `csl:` 时，两条通道必须用同一个默认样式。
+
+    否则同一份稿子换个后端就换出两种文献表——作者只会觉得"怎么又变了"。
+    """
+    _write_bib(tmp_path)
+    (tmp_path / "m.md").write_text(
+        '---\ntitle: "题"\nbibliography: refs.bib\n---\n\n# 一 引言\n\n'
+        "中文正文引用一次 [@smith2024] 即可。\n",
+        encoding="utf-8",
+    )
+    native = tmp_path / "native.docx"
+    result = run_export_pipeline(
+        ExportOptions(input_path=tmp_path / "m.md", output_path=native, check_md=False)
+    )
+    assert result.returncode == 0, result.errors
+    text = "\n".join(_paragraph_texts(native))
+    assert "[1]" in text, "中文稿未写 csl: 时应走 GB/T 数字制"
+    assert "Smith, John. (2024)" not in text, "不该走作者-年份制"
+
+
+def test_default_csl_follows_language(tmp_path: Path) -> None:
+    """英文稿不写 `csl:` 走 APA：同一个机制，按字种选样式。"""
+    from md_to_word.config import default_csl_path
+
+    assert default_csl_path("这是一份中文稿件。" * 20).name == "chinese-gb7714-2015-numeric.csl"
+    assert default_csl_path("This is an English manuscript. " * 20).name == "apa.csl"

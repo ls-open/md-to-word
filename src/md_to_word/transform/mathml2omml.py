@@ -247,14 +247,18 @@ def _hide(nary, *, sub: bool = False, sup: bool = False) -> None:
 
 
 def _nary(symbol: str):
-    """求和/积分：OMML 的 nary。上下限由外层 msubsup 提供，这里只放算子本身。"""
+    """求和/积分：OMML 的 nary。
+
+    sub/sup 先留空，由外层的上下标填；`m:e` 由 `_children` 用紧随其后的一项填。
+    三项都缺时 Word 会画空占位框，所以填过之后要用 `_hide()` 标出哪侧真的有内容。
+    """
     nary = _el("nary")
     pr = etree.SubElement(nary, _m("naryPr"))
     etree.SubElement(pr, _m("chr")).set(_m("val"), symbol)
     etree.SubElement(pr, _m("limLoc")).set(_m("val"), "undOvr" if symbol in "∑∏" else "subSup")
     etree.SubElement(nary, _m("sub"))
     etree.SubElement(nary, _m("sup"))
-    e = etree.SubElement(nary, _m("e"))
+    etree.SubElement(nary, _m("e"))
     return nary
 
 
