@@ -66,6 +66,8 @@ def test_pep604_unions_need_future_annotations(path: Path) -> None:
 def test_no_python310_syntax(path: Path) -> None:
     """`match` 是 3.10 语法；3.9 上直接 SyntaxError。"""
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    assert not any(isinstance(n, ast.Match) for n in ast.walk(tree)), (
+    match_node = getattr(ast, "Match", None)  # 3.9 里没有这个名字
+    offenders = [n for n in ast.walk(tree) if match_node and isinstance(n, match_node)]
+    assert not offenders, (
         f"{path.relative_to(SRC.parent.parent)} 用了 3.10 才有的 match 语句"
     )
