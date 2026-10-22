@@ -89,13 +89,12 @@ def test_missing_renderer_reports_environment_error(tmp_path: Path, monkeypatch)
     assert any("渲染引擎" in error or "quarto" in error.lower() for error in result.errors)
 
 
-def test_build_template_rejects_spec_object(tmp_path: Path):
-    """TemplateSpec → 文本的序列化还没做：宁可当场报清楚，也不拼出乱码要求文本。"""
+def test_build_template_accepts_spec_object(tmp_path: Path):
+    """TemplateSpec 能直接拿去生成模板：解析与生成这两个 API 必须能组合。"""
     from md_to_word.spec.parser import parse_requirements
     from md_to_word.template.builder import build_template
 
-    spec = parse_requirements(
-        "正文：宋体 小四 不加粗 不倾斜 左对齐 行距1.5倍 段前0磅 段后6磅 首行缩进2字符"
-    )
-    with pytest.raises(TypeError, match="序列化尚未实现"):
-        build_template(spec, tmp_path / "t.docx")
+    preset = Path(__file__).resolve().parents[1] / "presets" / "zh-academic.txt"
+    spec = parse_requirements(preset.read_text(encoding="utf-8"))
+    out = build_template(spec, tmp_path / "t.docx")
+    assert out.exists() and out.stat().st_size > 0

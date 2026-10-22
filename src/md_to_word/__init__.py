@@ -6,6 +6,7 @@
 from md_to_word.pipeline import ExportOptions, ExportResult, run_export_pipeline
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_requirements
+from md_to_word.spec.serializer import serialize_requirements
 from md_to_word.template.builder import build_template
 from md_to_word.validator.check import ValidationReport, validate_manuscript
 
@@ -19,6 +20,7 @@ __all__ = [
     "ValidationReport",
     "build_template",
     "parse_requirements",
+    "serialize_requirements",
     "TemplateSpec",
     "__version__",
 ]
