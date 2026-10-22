@@ -13,7 +13,12 @@ from pathlib import Path
 from typing import Iterable
 
 from docx import Document as open_docx
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.opc.packuri import PackURI
+from docx.opc.part import Part
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls, qn
 from docx.shared import Cm
 
 from md_to_word.model.document import (
@@ -32,6 +37,12 @@ _ALIGN = {
 }
 
 
+def _escape(text: str) -> str:
+    return (
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    )
+
+
 class UnsupportedFeature(NotImplementedError):
     """模型里有、但写出器还没实现的结构。"""
 
@@ -41,6 +52,8 @@ class _Writer:
         self.model = document
         self.docx = docx
         self._after_heading = False  # 下一段正文若是「标题后的第一段」，落 First Paragraph
+        self._compact_style = self._style_name("Compact")
+        self._footnote_ids: dict[str, int] = {}
 
     # ── 入口 ─────────────────────────────────────────────────────────
     def write(self) -> None:
@@ -52,6 +65,8 @@ class _Writer:
         self._title_block()
         for block in self.model.blocks:
             self.block(block)
+        if self._footnote_ids:
+            self._write_footnotes()
 
     def _title_block(self) -> None:
         """YAML 里的标题区：文档标题、副标题、作者、日期各占一段。"""
@@ -123,24 +138,68 @@ class _Writer:
             self.inlines(paragraph, inner.inlines)
 
     def _list(self, block: ListBlock) -> None:
-        style = self.docx.styles["Compact"] if "Compact" in [s.name for s in self.docx.styles] else None
+        """列表写出：真实编号（numbering.xml），不是字面量序号。
+
+        字面量的代价是：Word 里按退格改不了级别、增删条目不会自动重编号、目录与交叉引用也
+        抓不到。既然目标是「导出的文档还能在 Word 里继续改」，编号就得是域。
+        """
+        num_id = self._numbered_list(block.ordered, block.start)
         for item in block.items:
-            paragraph = self.docx.add_paragraph(style=style) if style else self.docx.add_paragraph()
-            self._apply_numbering(paragraph, block, len(item.blocks))
             for inner in item.blocks:
                 if not isinstance(inner, Paragraph):
                     raise UnsupportedFeature("列表项里目前只支持段落")
+                paragraph = self.docx.add_paragraph(style=self._compact_style)
+                self._apply_numbering(paragraph, num_id)
                 self.inlines(paragraph, inner.inlines)
-            if block.ordered:
-                paragraph.paragraph_format.left_indent = Cm(0.74)
 
-    def _apply_numbering(self, paragraph, block: ListBlock, _n: int) -> None:
-        """列表序号先写成字面字符。
+    def _ensure_numbering(self) -> None:
+        """模板里的 numbering.xml 是空的：首次用到列表时补两套定义（无序/有序）。"""
+        numbering = self.docx.part.numbering_part.element
+        if numbering.findall(qn("w:abstractNum")):
+            return
+        xml = (
+            f'<w:numbering {nsdecls("w")}>'
+            '<w:abstractNum w:abstractNumId="0"><w:multiLevelType w:val="singleLevel"/>'
+            '<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/>'
+            '<w:lvlText w:val="•"/><w:lvlJc w:val="left"/>'
+            '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>'
+            '<w:abstractNum w:abstractNumId="1"><w:multiLevelType w:val="singleLevel"/>'
+            '<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/>'
+            '<w:lvlText w:val="%1."/><w:lvlJc w:val="left"/>'
+            '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>'
+            '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>'
+            '<w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>'
+            "</w:numbering>"
+        )
+        for child in parse_xml(xml):
+            numbering.append(child)
 
-        真正的编号要写 `numbering.xml`（abstractNum + numId + 缓存序号），属于 v3.0 的
-        后续增量；先落字面量能保证「导出的内容和作者写的一致」，不静默丢序号。
-        """
-        raise UnsupportedFeature("列表的真实编号（numbering.xml）尚未实现；v3.0 后续补")
+    def _numbered_list(self, ordered: bool, start: int) -> int:
+        """返回该列表要用的 numId；起始编号不是 1 时另建一个带 startOverride 的 num。"""
+        self._ensure_numbering()
+        base_id = 2 if ordered else 1
+        if not ordered or start == 1:
+            return base_id
+
+        numbering = self.docx.part.numbering_part.element
+        self._override_seq = getattr(self, "_override_seq", 99)
+        self._override_seq += 1
+        new_id = self._override_seq
+        xml = (
+            f'<w:num {nsdecls("w")} w:numId="{new_id}">'
+            f'<w:abstractNumId w:val="{base_id - 1}"/>'
+            f'<w:lvlOverride w:ilvl="0"><w:startOverride w:val="{start}"/></w:lvlOverride>'
+            "</w:num>"
+        )
+        numbering.append(parse_xml(xml))
+        return new_id
+
+    @staticmethod
+    def _apply_numbering(paragraph, num_id: int) -> None:
+        pPr = paragraph._p.get_or_add_pPr()
+        numPr = pPr.get_or_add_numPr()
+        numPr.get_or_add_ilvl().val = 0
+        numPr.get_or_add_numId().val = num_id
 
     def _table(self, block: Table) -> None:
         rows = len(block.rows) + (1 if block.header else 0)
@@ -189,6 +248,70 @@ class _Writer:
         for node in nodes:
             self.inline(paragraph, node)
 
+    def _footnote_reference(self, paragraph, label: str) -> None:
+        """脚注引用：run 里挂 `w:footnoteReference`，正文内容稍后统一写进 footnotes.xml。"""
+        fids = self._footnote_ids
+        if label not in fids:
+            fids[label] = len(fids) + 1
+        run = paragraph.add_run()
+        style = self._style_name("Footnote Reference")
+        if style:
+            run.style = style
+        run._r.append(parse_xml(f'<w:footnoteReference {nsdecls("w")} w:id="{fids[label]}"/>'))
+
+    def _write_footnotes(self) -> None:
+        """生成 word/footnotes.xml 并挂上关系。
+
+        python-docx 没有脚注 API，这里直接构造部件。分隔符（id=-1）与续页分隔符（id=0）
+        是 Word 的约定，缺了它们脚注区在那条横线上会显示异常。
+        """
+        body: list[str] = []
+        by_label = {f.label: f for f in self.model.footnotes}
+        for label, fid in self._footnote_ids.items():
+            footnote = by_label.get(label)
+            paragraphs = "".join(self._footnote_paragraph(b) for b in (footnote.blocks if footnote else []))
+            if not paragraphs:
+                paragraphs = self._footnote_paragraph(Paragraph(inlines=[]))
+            body.append(f'<w:footnote w:id="{fid}">{paragraphs}</w:footnote>')
+
+        xml = (
+            f'<w:footnotes {nsdecls("w")}>'
+            '<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>'
+            '<w:footnote w:type="continuationSeparator" w:id="0">'
+            "<w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>"
+            + "".join(body)
+            + "</w:footnotes>"
+        )
+        part = Part(
+            PackURI("/word/footnotes.xml"),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml",
+            xml.encode("utf-8"),
+            self.docx.part.package,
+        )
+        self.docx.part.relate_to(part, RT.FOOTNOTES)
+
+    def _footnote_paragraph(self, block) -> str:
+        if not isinstance(block, Paragraph):
+            raise UnsupportedFeature("脚注内容目前只支持段落")
+        style = (block.style or "Footnote Text").replace(" ", "")
+        runs = "".join(self._run_xml(node) for node in block.inlines)
+        return f'<w:p><w:pPr><w:pStyle w:val="{style}"/></w:pPr>{runs}</w:p>'
+
+    def _run_xml(self, node) -> str:
+        text = getattr(node, "value", None)
+        if text is not None:
+            return f'<w:r><w:t xml:space="preserve">{_escape(text)}</w:t></w:r>'
+        children = getattr(node, "children", None)
+        if children is None:
+            raise UnsupportedFeature(f"脚注里的 {type(node).__name__} 尚未支持")
+        inner = "".join(self._run_xml(c) for c in children)
+        props = ""
+        if isinstance(node, Strong):
+            props = "<w:b/>"
+        elif isinstance(node, Emphasis):
+            props = "<w:i/>"
+        return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
+
     def _style_name(self, name: str) -> str | None:
         """按名称取样式名（没有就返回 None，不静默套用别的样式）。"""
         return name if name in {s.name for s in self.docx.styles} else None
@@ -217,7 +340,7 @@ class _Writer:
         elif isinstance(node, (Citation, CrossRef)):
             raise UnsupportedFeature("引文与交叉引用的编译尚未实现；先走 Pandoc 通道")
         elif isinstance(node, FootnoteRef):
-            raise UnsupportedFeature("脚注写出尚未实现")
+            self._footnote_reference(paragraph, node.label)
         else:
             paragraph.add_run(getattr(node, "value", str(node)))
 
