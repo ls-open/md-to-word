@@ -252,11 +252,14 @@ def parse_bibtex(text: str) -> list[dict]:
             item["author"] = _parse_names(fields.get("raw:author", fields["author"]))
         if fields.get("editor"):
             item["editor"] = _parse_names(fields.get("raw:editor", fields["editor"]))
+        if fields.get("translator"):
+            item["translator"] = _parse_names(fields.get("raw:translator", fields["translator"]))
         for source, target in (
             ("title", "title"),
             ("journal", "container-title"),
             ("journaltitle", "container-title"),
             ("booktitle", "container-title"),
+            ("shorttitle", "title-short"),
             ("volume", "volume"),
             ("number", "issue"),
             ("pages", "page"),
@@ -267,6 +270,11 @@ def parse_bibtex(text: str) -> list[dict]:
             ("doi", "DOI"),
             ("url", "URL"),
             ("edition", "edition"),
+            ("series", "collection-title"),
+            ("note", "note"),
+            ("numpages", "number-of-pages"),
+            ("numberofpages", "number-of-pages"),
+            ("volumes", "number-of-volumes"),
         ):
             if fields.get(source) and target not in item:
                 item[target] = fields[source]

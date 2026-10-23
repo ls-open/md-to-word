@@ -150,3 +150,17 @@ def test_superscript_numeric_runs_collapse() -> None:
     text = "".join(segment[0] for segment in engine.cite([("n1", ""), ("n2", ""), ("n3", "")]))
     assert "–" in text and "1" in text and "3" in text, text
     assert "1,2,3" not in text
+
+
+def test_translator_series_and_note_are_mapped() -> None:
+    """`.bib` 里这些字段以前直接丢掉：译者在文献表里整段不见、丛书名与注释也消失。"""
+    from md_to_word.transform.bibtex import parse_bibtex
+
+    entry = parse_bibtex(
+        "@book{b, author={A, B}, title={T}, series={LNCS}, translator={C, D}, "
+        "note={注}, numpages={123}, year={2020}}"
+    )[0]
+    assert entry["collection-title"] == "LNCS"
+    assert entry["translator"] == [{"family": "C", "given": "D"}]
+    assert entry["note"] == "注"
+    assert entry["number-of-pages"] == "123"
