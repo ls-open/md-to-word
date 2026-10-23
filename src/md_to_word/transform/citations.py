@@ -58,8 +58,11 @@ class CitationEngine:
         options = citation_attrs(style_text)
         self._year_suffix = options.get("disambiguate-add-year-suffix") == "true"
         self._add_names = options.get("disambiguate-add-names") == "true"
-        # 只处理作者-年份制的 collapse="year"；数字制的编号合并另有 _collapse_numeric_runs
-        self._collapse = options.get("collapse") in ("year", "year-suffix", "year-suffix-ranged")
+        mode = options.get("collapse", "")
+        self._collapse = mode in ("year", "year-suffix", "year-suffix-ranged")
+        # 后缀区间只有 year-suffix 系样式才折（CSL 的 year-suffix-ranged）；
+        # collapse="year" 与数字制该逐条列出，不能折
+        self._collapse_ranged = mode in ("year-suffix", "year-suffix-ranged")
         # 数字制的连续编号合并：方括号形态（GB/T、IEEE）与上标形态（Nature、AMA）
         self._numeric = options.get("collapse") == "citation-number"
         self._expand_pages = 'page-range-format="expanded"' in style_text
@@ -205,7 +208,8 @@ class CitationEngine:
             else:
                 groups.append([names, [date]])
         body = delimiter.join(
-            names + ", ".join(dates) if names else dates[0] for names, dates in groups
+            names + _join_dates(dates, self._collapse_ranged) if names else dates[0]
+            for names, dates in groups
         )
         return f"{prefix}{body}{suffix}"
 
@@ -459,6 +463,51 @@ def _suffix_label(index: int) -> str:
         index, rest = divmod(index - 1, 26)
         label = chr(ord("a") + rest) + label
     return label
+
+
+def _suffix_index(label: str) -> int:
+    """`_suffix_label` 的逆：a → 0，aa → 26。"""
+    index = 0
+    for char in label:
+        index = index * 26 + ord(char) - ord("a") + 1
+    return index - 1
+
+
+_SUFFIX_DATE_RE = re.compile(r"^(\d{4})([a-z]+)$")
+
+
+def _join_dates(dates: list[str], ranged: bool) -> str:
+    """同一作者下的年份串；ranged 时把同年后缀连续的 ≥3 条折成 `2020a–c`。
+
+    CSL 只在 year-suffix 系样式里折后缀，两条不折（citeproc-js 也不折）。
+    """
+    if not ranged:
+        return ", ".join(dates)
+    parts: list[str] = []
+    index = 0
+    while index < len(dates):
+        match = _SUFFIX_DATE_RE.match(dates[index])
+        if match:
+            year, suffix = match.group(1), match.group(2)
+            start = _suffix_index(suffix)
+            end = index
+            while end + 1 < len(dates):
+                following = _SUFFIX_DATE_RE.match(dates[end + 1])
+                if (
+                    not following
+                    or following.group(1) != year
+                    or _suffix_index(following.group(2)) != start + (end + 1 - index)
+                ):
+                    break
+                end += 1
+            if end - index + 1 >= 3:
+                label = _suffix_label(start + end - index)
+                parts.append(f"{year}{suffix}–{label}")
+                index = end + 1
+                continue
+        parts.append(dates[index])
+        index += 1
+    return ", ".join(parts)
 
 
 def _declares_sort(csl_path: str) -> bool:
