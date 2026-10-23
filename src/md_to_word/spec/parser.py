@@ -747,7 +747,7 @@ def _line_decor(container: str, key: str) -> Callable[[TemplateSpec, str, int], 
 
 _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     # 中文
-    "西文字体": lambda s, d, l: setattr(s, "default_latin", d),
+    "西文字体": lambda s, d, ln: setattr(s, "default_latin", d),
     "页边距": _line_margins,
     "校对语言": _line_proofing_lang,
     "页眉距边界": _line_distance("header_distance", "页眉距边界"),
@@ -757,12 +757,12 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "文档网格": _line_doc_grid,
     "公式编号": _line_equation_number,
     "公式编号格式": _line_equation_format,
-    "页码": lambda s, d, l: setattr(s, "page_number", parse_page_number(d, l)),
-    "表格": lambda s, d, l: setattr(s, "table", parse_table_props(d, l)),
-    "表头": lambda s, d, l: setattr(s, "table_header", parse_style_props("表头", d, l)),
+    "页码": lambda s, d, ln: setattr(s, "page_number", parse_page_number(d, ln)),
+    "表格": lambda s, d, ln: setattr(s, "table", parse_table_props(d, ln)),
+    "表头": lambda s, d, ln: setattr(s, "table_header", parse_style_props("表头", d, ln)),
     # 英文
-    "Font": lambda s, d, l: setattr(s, "default_latin", d),
-    "Latin Font": lambda s, d, l: setattr(s, "default_latin", d),
+    "Font": lambda s, d, ln: setattr(s, "default_latin", d),
+    "Latin Font": lambda s, d, ln: setattr(s, "default_latin", d),
     "Margins": _line_margins,
     "Proofing Language": _line_proofing_lang,
     "Language": _line_proofing_lang,
@@ -774,9 +774,9 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "Document Grid": _line_doc_grid,
     "Equation Number": _line_equation_number,
     "Equation Number Format": _line_equation_format,
-    "Page Number": lambda s, d, l: setattr(s, "page_number", parse_page_number(d, l)),
-    "Table": lambda s, d, l: setattr(s, "table", parse_table_props(d, l)),
-    "Table Header": lambda s, d, l: setattr(s, "table_header", parse_style_props("表头", d, l)),
+    "Page Number": lambda s, d, ln: setattr(s, "page_number", parse_page_number(d, ln)),
+    "Table": lambda s, d, ln: setattr(s, "table", parse_table_props(d, ln)),
+    "Table Header": lambda s, d, ln: setattr(s, "table_header", parse_style_props("表头", d, ln)),
     **{key: _line_decor(container, key) for key, container in DECOR_CONTENT_KEYS.items()},
 }
 

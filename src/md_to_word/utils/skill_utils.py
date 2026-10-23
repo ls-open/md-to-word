@@ -17,7 +17,6 @@ from typing import Optional
 
 from lxml import etree
 
-from md_to_word.config import looks_chinese
 from md_to_word.i18n import t
 
 # ══════════════════════════════════════════════════════════════════════

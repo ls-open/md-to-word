@@ -184,3 +184,16 @@ def test_english_field_hints_are_parseable_properties() -> None:
     for field in ("font_name", "font_size", "alignment", "line_spacing",
                   "space_before", "space_after", "indent", "bold", "italic"):
         assert field in row, f"英文提示没解析出 {field}：{_MESSAGES[f'template.hint.{field}'][1]}"
+
+
+def test_no_duplicate_keys_in_messages_source() -> None:
+    """_MESSAGES 字典源码中严禁出现重复定义的 key。"""
+    import ast
+    i18n_path = REPO_ROOT / "src" / "md_to_word" / "i18n.py"
+    tree = ast.parse(i18n_path.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", None) == "_MESSAGES":
+            keys = [k.value for k in node.value.keys if isinstance(k, ast.Constant)]
+            duplicates = [k for k in set(keys) if keys.count(k) > 1]
+            assert not duplicates, f"_MESSAGES 包含重复定义的 key: {duplicates}"
+

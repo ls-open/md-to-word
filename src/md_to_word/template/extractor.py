@@ -430,8 +430,8 @@ def body_line_multiple(ref: Ref) -> float:
         if sid is None or sid not in ref.by_id:
             continue
         cs, _, _ = clauses_for(ref, sid)          # 丢弃 doubt：主流程还会再读一次
-        for t in cs:
-            m = re.fullmatch(r'行距(\d+(?:\.\d+)?)倍', t)
+        for clause in cs:
+            m = re.fullmatch(r'行距(\d+(?:\.\d+)?)倍', clause)
             if m:
                 return float(m.group(1))
     return 1.0

@@ -466,165 +466,53 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "从参考 .docx 反推 format.txt 草稿（读不出的项单独列出，不猜值）",
         "Draft a format.txt from a reference .docx (unreadable items are listed, never guessed)",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.cli.docx": ("参考 .docx 路径", "path to the reference .docx"),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.cli.output": ("输出路径（默认打印到 stdout）", "output path (prints to stdout by default)"),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.cli.lang": (
         "消息语言：auto=按参考文件语种 / zh / en",
         "Message language: auto (follows the reference file) / zh / en",
-    ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.draft_written": (
         "已写出草稿: {path}（样式 {styled} 条，需确认 {notes} 项）",
         "draft written: {path} ({styled} style(s), {notes} item(s) to confirm)",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.notes_header": ("需人工确认", "needs a human check"),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.font_undefined": (
         "字体未定义（参考文件里这条样式没有设字体，生效值取决于打开它的软件）",
         "font undefined (this style sets none in the reference file; the effective font depends on "
         "the app that opens it)",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.size_undefined": (
         "字号未定义（参考文件里这条样式没有设字号）",
         "font size undefined (this style sets none in the reference file)",
-    ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.note.alignment_unsupported": (
         "对齐方式「{value}」本工具不支持（如分散对齐），已按左对齐处理",
         'alignment "{value}" is not supported by this tool (distributed, for example); '
         "left-aligned was assumed",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.line_spacing_default": (
         "行距未显式设置，按单倍（未写 spacing 时的默认，内容更高也不会被裁）",
         "line spacing is not set explicitly, so single is assumed (the default when no spacing is "
         "written; taller content will not be clipped)",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.line_unit_converted": (
         "{label}原文件用「行」为单位（{lines:g} 行），已折算为磅，请核对",
         "{label} the reference uses lines ({lines:g}), which was converted to points — please check",
-    ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.note.hanging_chars_converted": (
         "悬挂缩进原文件用「字符」为单位，本工具只支持英寸，已换算",
         "the reference gives the hanging indent in characters; this tool only supports inches, "
         "so it was converted",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.left_indent_converted": (
         "左缩进原文件用绝对值（磅）而非「字符」，本工具只支持字符，已按字号折算",
         "the reference gives the left indent as an absolute value (points) instead of characters; "
         "this tool only supports characters, so it was derived from the font size",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.border_kind_unknown": (
         "下边框样式「{value}」不认识，已按单线处理",
         'bottom border style "{value}" is not recognised; a single line was assumed',
-    ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.note.tabs_limited": (
         "用了 {count} 个制表位（{where}）——本工具的 `点线制表位` 只能表达"
@@ -634,38 +522,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "right-aligned + dot leader + at the right edge of the text block; the rest cannot be "
         "expressed in the draft and must be set by hand in Word (see manual.md §6)",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.table_border_default": (
         "表格边框不是四种标准样式之一，已按三线表处理",
         "the table borders are not one of the four standard styles; a three-line table was assumed",
-    ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.note.table_border_undefined": (
         "参考文件的 Table 样式没有边框定义（表格样式可能靠直接格式做的）",
         "the Table style in the reference file defines no borders (the table may be styled with "
         "direct formatting)",
-    ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.note.multi_section": (
         "参考文件是 {count} 节的，页面设置只读了**正文节**那一份"
@@ -674,37 +538,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "(same convention as the export side). Page numbers and margins of the front sections "
         "(TOC/abstract) were not read — add them yourself if needed",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.paper_unsupported": (
         "纸张尺寸 {width}×{height}cm 不在本工具的 A4/Letter 之内",
         "paper size {width}×{height}cm is not one of this tool's A4/Letter sizes",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.page_number_format_unknown": (
         "页码格式「{value}」不在本工具词表里",
         'page number format "{value}" is not in this tool\'s vocabulary',
-    ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.note.doc_grid_skipped": (
         "读到了文档网格（linePitch），但纸张不是 A4/Letter 或缺页边距，"
@@ -712,26 +552,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "a document grid (linePitch) was found, but the paper is not A4/Letter or margins are "
         "missing, so lines-per-page cannot be computed; the draft skipped this row",
     ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
-    ),
     "extractor.note.styles_skipped": (
         "参考文件里这些样式**没有定义属性**（字体/字号都没有），草稿已跳过：{names}",
         "these styles define no properties (no font, no size) in the reference file and were "
         "skipped in the draft: {names}",
-    ),
-    "extractor.not_docx": (
-        "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
-        "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",
-    ),
-    "extractor.no_styles": (
-        "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
-        "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.note.styles_unmapped": (
         "参考文件里这些样式没映射到本工具词汇（要不要用请自行判断）：{names}",
