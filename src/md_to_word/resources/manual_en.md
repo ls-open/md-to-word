@@ -269,7 +269,7 @@ of page 1, or it may come after a cover page; in YAML it can only be the former.
 |:--|:--|
 | Bibliography, CSL style | YAML `bibliography:` / `csl:` |
 | Cross-reference prefixes, numbering by chapter | YAML `crossref:` (`eq-prefix`, `chapters`; `fig-prefix`, `tbl-prefix` reserved and unused) |
-| Whether citations are hyperlinked | YAML `link-citations:`: currently always on (`false` does not change the behaviour) |
+| Whether citations are hyperlinked | YAML `link-citations:`, on by default; with `false` the in-text citation gets no hyperlink (the bibliography bookmark stays) |
 | Title, subtitle, author, date, abstract, keywords, references section title | body style lines, see §2.1 and §2.2 |
 
 ```markdown

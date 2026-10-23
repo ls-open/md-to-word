@@ -69,7 +69,7 @@ position on the page is the author's decision and YAML has no position. Pre-flig
 and prints the exact line to write instead.
 
 **YAML holds only position-independent configuration**: `bibliography:`, `csl:`, `crossref:`
-(`link-citations:` is currently always on).
+(`link-citations: false` drops the in-text hyperlink).
 
 **Equations** — `$$...$$ {#eq-name}` on its own line, referenced as `@eq-name`. Chinese manuscripts
 get 「式/图/表」 prefixes and （1）numbering, English ones Equation/Figure/Table and (1);

@@ -218,7 +218,7 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 |:--|:--|
 | 文献库、CSL 样式 | YAML `bibliography:` / `csl:` |
 | 交叉引用前缀、按章编号 | YAML `crossref:`（`eq-prefix`、`chapters`；`fig-prefix`、`tbl-prefix` 保留未用） |
-| 引文是否加超链接 | YAML `link-citations:`：目前恒为开启（写 `false` 不改变行为） |
+| 引文是否加超链接 | YAML `link-citations:`，默认开启；写 `false` 时文内引用不带内链（文献表的书签仍保留） |
 | 标题、副标题、作者、日期、摘要、关键词、文献区标题 | 正文样式行，见 §2.1、§2.2 |
 
 ```markdown
