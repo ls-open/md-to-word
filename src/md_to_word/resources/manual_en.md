@@ -655,6 +655,7 @@ examples. The tag is a stable category identifier; the text after it says which 
 | `[paragraph style]` | The name after `%%` is not in the §3.4 vocabulary; check the spelling |
 | Requirements file does not parse | A property word is not in the §3.1 vocabulary; the error gives the line number, the original word and the expected form |
 | Image is not centred | The `Figure:` style line has no indent, so it inherits the body's first-line indent |
+| An equation lost characters or structure | unbalanced braces (`\frac{a}{b`): the converter reports nothing and silently drops content; add the missing `}` at the reported line |
 | A Chinese manuscript is underlined in red throughout | The requirements file has no `Proofing Language: zh-CN` |
 | References were not generated | YAML is missing `bibliography:`, the body has no `[@key]`, or the references section title line is missing |
 | TOC entry font is wrong | The TOC entry styles were not written as Word's built-in styles (`TOC 1/2/3`), or `dot-leader-tab` was written on them (no effect) |

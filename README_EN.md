@@ -111,7 +111,7 @@ exported PDFs, not mock-ups.
 - **Page and body text**: paper size, margins, gutter, document grid, CJK/Latin fonts, size, line spacing, indent, space before/after, alignment, colour
 - **Headings, headers, footers**: six heading levels, odd/even and first-page variants, sections, page-number format and start, `{页码}` `{总页数}` `{样式标题}` fields
 - **Tables**: three-line, full grid, top-and-bottom, none; border widths, repeating header rows, cell alignment and padding, column width ratios
-- **Equations**: native OMML, centred with the number set hard right, per-chapter numbering, declarable number template, `@eq-` cross-references
+- **Equations**: native OMML objects — editable in Word, not images and not literal text — centred with the number set hard right, per-chapter numbering, declarable number template, `@eq-` cross-references
 - **Figures and captions**: image width clamped to the text block, caption bound to the figure, caption placement chosen by the author
 - **Bibliography**: `.bib` + CSL, 29 bundled styles (GB/T 7714, APA, Nature, IEEE, Vancouver and more), or a CSL file of your own
 - **Inline text**: bold, italic, strikethrough, underline, super/subscript, inline code, inline maths, links, footnotes
