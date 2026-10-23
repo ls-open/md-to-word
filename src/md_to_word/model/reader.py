@@ -16,11 +16,11 @@ import yaml
 
 from md_to_word.model.document import (
     Block, Citation, CitationItem, Code, CodeBlock, CrossRef, Document, Emphasis, Equation,
-    Figure, Footnote, FootnoteRef, Heading, Link, ListBlock, ListItem, Math, Metadata,
+    Figure, Footnote, FootnoteRef, Heading, LineBreak, Link, ListBlock, ListItem, Math, Metadata,
     MAX_LIST_LEVEL, PageBreak, Paragraph, Quote, SectionBreak, Strikethrough, Strong, Subscript,
     Superscript, Table, Text, Toc, Underline,
 )
-from md_to_word.preprocessor.blocks import resolve_style_name, split_style_line
+from md_to_word.preprocessor.blocks import hard_break, resolve_style_name, split_style_line
 from md_to_word.utils.typography import smart_quotes
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
@@ -321,12 +321,34 @@ def _parse_shortcode(name: str, rest: str) -> Optional[Block]:
     return None
 
 
+def _starts_block(line: str) -> bool:
+    """这一行是不是另一个块的开始（列表接续时用来判断该不该把行收进来）。"""
+    s = line.strip()
+    if not s:
+        return True
+    return bool(
+        _FENCE_RE.match(s)
+        or _HEADING_RE.match(s)
+        or _SHORTCODE_RE.match(s)
+        or _FOOTNOTE_DEF_RE.match(s)
+        or _TABLE_ROW_RE.match(s)
+        or _IMAGE_ONLY_RE.match(s)
+        or s.startswith("$$")
+        or s.startswith(">")
+        or s == "---"
+        or _BULLET_RE.match(line)
+        or _ORDERED_RE.match(line)
+        or split_style_line(line) is not None
+    )
+
+
 class _Reader:
     def __init__(self, body: str, citation_keys: Optional[set[str]] = None) -> None:
         self.lines = body.split("\n")
         self.citation_keys = citation_keys
         self.doc = Document()
         self.pending_style: Optional[tuple[str, str]] = None  # (样式名, 内容)
+        self.pending_prose: Optional[list] = None  # 段内换行还没收尾的正文段
 
     # -- 小工具 --------------------------------------------------------
     def _inl(self, text: str) -> list:
@@ -334,12 +356,14 @@ class _Reader:
         return parse_inlines(text, self.citation_keys)
 
     def _flush_pending(self) -> None:
-        """把待定的样式段落落盘。"""
-        if self.pending_style is None:
-            return
-        style, content = self.pending_style
-        self.pending_style = None
-        self.doc.blocks.append(Paragraph(inlines=self._inl(content), style=style))
+        """把待定的样式段落与还没收尾的正文段落落盘。"""
+        if self.pending_style is not None:
+            style, content = self.pending_style
+            self.pending_style = None
+            self.doc.blocks.append(Paragraph(inlines=self._inl(content), style=style))
+        if self.pending_prose is not None:
+            inlines, self.pending_prose = self.pending_prose, None
+            self.doc.blocks.append(Paragraph(inlines=inlines))
 
     def _append(self, block: Block) -> None:
         """统一入口：入块之前先把待定的样式段落落盘，顺序即位置。"""
@@ -438,9 +462,15 @@ class _Reader:
                 i = self._read_list(i)
                 continue
 
-            # 普通段落
-            self._flush_pending()
-            self._append(Paragraph(inlines=self._inl(stripped)))
+            # 普通段落：行尾 `\` 或两个空格表示「同一段落内换行」，否则本行收尾
+            text, continues = hard_break(line)
+            inlines = self._inl(text.strip())
+            if self.pending_prose is not None:
+                self.pending_prose.extend([LineBreak(), *inlines])
+            else:
+                self.pending_prose = inlines
+            if not continues:
+                self._flush_pending()
             i += 1
 
         self._flush_pending()
@@ -551,14 +581,22 @@ class _Reader:
             is_ordered = number is not None
             if level == 0 and is_ordered != ordered:
                 break  # 顶层换了编号形式 → 这是另一个列表
+            # 列表项同样认行尾 `\` / 两个空格：换行不换项，编号仍只出一次
+            text, continues = hard_break(match.group("text"))
+            inlines = self._inl(text.strip())
+            i += 1
+            while continues and i < len(self.lines) and not _starts_block(self.lines[i]):
+                next_text, continues = hard_break(self.lines[i])
+                inlines.append(LineBreak())
+                inlines.extend(self._inl(next_text.strip()))
+                i += 1
             items.append(
                 ListItem(
-                    blocks=[Paragraph(inlines=self._inl(match.group("text")))],
+                    blocks=[Paragraph(inlines=inlines)],
                     level=level,
                     ordered=is_ordered,
                 )
             )
-            i += 1
         self._flush_pending()
         self._append(ListBlock(items=items, ordered=ordered, start=start_no))
         return i

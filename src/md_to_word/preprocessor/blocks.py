@@ -25,6 +25,23 @@ _HEADING_STYLES = {"Heading 1", "Heading 2", "Heading 3", "Heading 4", "Heading 
 # 参考文献列表由 .bib + csl 生成，不接受手写清单（否则会与生成结果并存、样式打架）
 GENERATED_STYLES = {"Bibliography"}
 
+
+def hard_break(line: str) -> tuple[str, bool]:
+    """行尾的段内换行标记 → (去掉标记的行, 是否要接续下一行)。
+
+    两种写法都收：行尾一个反斜杠、行尾两个以上空格。反斜杠成对出现是字面反斜杠
+    （`C:\\tmp\\`），不接续——否则路径结尾会被吃掉一个字符。
+    """
+    trimmed = line.rstrip()
+    if len(line) - len(trimmed) >= 2:
+        return trimmed, True
+    if trimmed.endswith("\\"):
+        trailing = len(trimmed) - len(trimmed.rstrip("\\"))
+        if trailing % 2:
+            return trimmed[:-1].rstrip(), True
+    return trimmed, False
+
+
 # 长名优先：`摘要标题` 必须先于 `摘要` 命中，否则会被拆成 `摘要` + 内容「标题 …」
 _NAMES_BY_LENGTH = sorted(STYLE_MAP, key=len, reverse=True)
 

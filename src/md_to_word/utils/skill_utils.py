@@ -18,6 +18,7 @@ from typing import Optional
 from lxml import etree
 
 from md_to_word.i18n import t
+from md_to_word.preprocessor.blocks import hard_break
 
 # ══════════════════════════════════════════════════════════════════════
 # 1. 统一日志配置
@@ -575,6 +576,8 @@ def soft_wrap_issues(text: str) -> list:
             continue
         if here.rstrip().endswith(tuple(_TERMINAL_PUNCT)):
             continue
+        if hard_break(here)[1]:
+            continue  # 行尾写了 `\` / 两个空格 = 作者要的就是段内换行，不是折行
         snippet = here.strip()
         issues.append((i + 2 + offset, snippet[:24] + ("…" if len(snippet) > 24 else "")))
     return issues
@@ -596,6 +599,9 @@ _NOEDGE_TABLE_RE = re.compile(r"^\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+$")
 _NESTED_QUOTE_RE = re.compile(r"^\s*>\s*>")
 _WIDE_STYLE_RE = re.compile(r"^\s*％％")
 _EMPTY_HEADING_RE = re.compile(r"^\s*#{1,6}\s*$")
+_HIGHLIGHT_RE = re.compile(r"==[^=\s][^=]*?==")
+_SPAN_ATTR_RE = re.compile(r"\[[^\]]*\]\{\s*(?P<attr>[.#][^}]*)\}")
+_PAREN_MATH_RE = re.compile(r"\\\(.+?\\\)")
 _NO_SPACE_HEADING_RE = re.compile(r"^\s*#{1,6}[^\s#]")
 # 图片行能带的属性只有宽度；`{align=right}` 这类「写了等于没写」的写法要拦下来
 _IMAGE_ATTR_RE = re.compile(r"!\[[^\]]*\]\([^)\s]+\)\s*\{(?P<attrs>[^}]*)\}")
@@ -671,6 +677,17 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
             if not _IMAGE_ATTR_OK.match(attrs):
                 issues.append((line_no, t("gate.dialect.image_attr", lang)))
                 break
+        if _HIGHLIGHT_RE.search(code_free):
+            issues.append((line_no, t("gate.dialect.highlight", lang)))
+            continue
+        span = _SPAN_ATTR_RE.search(code_free)
+        if span and span.group("attr").strip() != ".underline":
+            # `{.underline}` 是引擎支持的写法，其余属性落到字面量，拦下来
+            issues.append((line_no, t("gate.dialect.span_attr", lang)))
+            continue
+        if _PAREN_MATH_RE.search(code_free):
+            issues.append((line_no, t("gate.dialect.inline_math_paren", lang)))
+            continue
         if _EMPTY_HEADING_RE.match(code_free):
             issues.append((line_no, t("gate.dialect.empty_heading", lang)))
             continue

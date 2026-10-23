@@ -243,7 +243,7 @@ def main(args: list[str] | None = None) -> int:
         return result.returncode
 
     for msg in result.messages:
-        print(msg)
+        print(f"⚠️ {msg}" if msg in result.warnings else msg)
     # 进度走 stdout、错误走 stderr。管道里 stdout 是块缓冲的，不先 flush 的话
     # 「用了哪份要求文件」会印在报错后面，读起来像事后补的解释。
     sys.stdout.flush()

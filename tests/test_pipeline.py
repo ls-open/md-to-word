@@ -116,13 +116,16 @@ def test_default_csl_follows_language(tmp_path: Path) -> None:
 
 def test_export_reminds_to_open_the_result(tmp_path: Path) -> None:
     """门禁全绿不等于版面合格。行高列宽、公式与题注的落版只能目视核对，
-    因此每次成功导出都必须附一条核对提醒，使其成为交付流程的一环。"""
+    因此每次成功导出都必须附一条核对提醒，使其成为交付流程的一环。
+
+    措辞只给一句整体提醒，不列举该看哪里：逐项列举既啰嗦，又会让「看过了」变成
+    「按清单看过、清单外没看」——真要看的是整份版面。"""
     (tmp_path / "m.md").write_text('---\n---\n\n# 一 引言\n\n正文。\n', encoding="utf-8")
     result = run_export_pipeline(
         ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx", preset="zh-academic")
     )
     assert result.returncode == 0, result.errors
-    assert any("版面仍需在 Word 里目视核对" in m for m in result.messages), result.messages
+    assert any("版面效果仍须在 Word 中人工核验" in m for m in result.messages), result.messages
 
 
 def test_image_paths_are_relative_to_the_manuscript(tmp_path: Path, monkeypatch) -> None:

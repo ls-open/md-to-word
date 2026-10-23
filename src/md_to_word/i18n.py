@@ -140,6 +140,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "未指定格式要求，自动使用同目录唯一的 {path}（要换一份就加 -r）。",
         "No requirements given; using the only .txt beside the manuscript: {path} (pass -r to choose another).",
     ),
+    "pipeline.txt_named": (
+        "未指定格式要求，取同目录的 format.txt（要换一份就加 -r）。",
+        "no format file given; using the format.txt beside the manuscript (pass -r to use another)",
+    ),
     "pipeline.template_missing": ("指定的模板文件不存在: {path}", "Template file not found: {path}"),
     "pipeline.template_unreadable": (
         "底模读取失败（{path}）：{err}\n  底模必须是能正常打开的 .docx。",
@@ -251,14 +255,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
     "pipeline.pdf_skipped": ("docx 已正常生成；PDF 渲染未执行或未完成。", "docx written; the PDF step was skipped or did not finish."),
     "pipeline.reminder": (
-        "导出完成。版面仍需在 Word 里目视核对：\n"
-        "  · 表格的行高与列宽按内容自适应\n"
-        "  · 公式、三线表、图片与题注的落版\n"
-        "  · 页眉与页脚",
-        "Export complete. The layout still needs a look in Word:\n"
-        "  · table row heights and column widths adapt to content\n"
-        "  · where equations, three-line tables, figures and captions land\n"
-        "  · headers and footers",
+        "导出完成。版面效果仍须在 Word 中人工核验。",
+        "Export complete. The layout still requires a manual check in Word.",
     ),
     # ── 模板生成 ────────────────────────────────────────────────────
     "template.built": (
@@ -815,6 +813,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     # 复用，标签也只翻一次，改口径时不会漏掉某一道。
     "gate.line": ("行 {line} [{tag}]: {why}", "Line {line} [{tag}]: {why}"),
     "gate.line_item": ("行 {line}", "line {line}"),
+    "gate.line_grouped": (
+        "「{tag}」{count} 处（行 {lines}）：{why}",
+        "{count} × [{tag}] (lines {lines}): {why}",
+    ),
+    "gate.line_more": (" 等 {count} 处", " and {count} more"),
     "gate.list_sep": ("、", ", "),
     # 方括号里的标签
     "gate.tag.citation_key": ("引文 key 缺失", "citation key missing"),
@@ -1063,11 +1066,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     # ── 折行与方言 ──
     "gate.soft_wrap": (
-        "上一行没有句末标点而本行紧随其后（「{snippet}」）；"
-        "本引擎按「一行一段」读取，会拆成两段。若本意是同一段，请合并到一行",
+        "上一行没有句末标点而本行紧随其后（「{snippet}」）。本引擎按「一行一段」读取，"
+        "这两行会拆成两段、各吃一次首行缩进。若本意是同一段落内换行，把上一行行尾加一个 `\\`；"
+        "若本意是同一段落的一整句，合并成一行；若本意就是两个短段落，不必处理",
         "the previous line has no sentence-ending punctuation and this line follows it (\"{snippet}\"); "
-        "this engine reads one line as one paragraph, so it becomes two. If it is meant to be one "
-        "paragraph, join the lines",
+        "this engine reads one line as one paragraph, so the two become separate paragraphs, each with "
+        "its own first-line indent. For a line break inside one paragraph, end the previous line with a "
+        "backslash; to make them one running paragraph, join the lines; if they are meant to be two "
+        "short paragraphs, no action is needed",
     ),
     "gate.wikilink": (
         "行 {line}: 发现未转换的 Obsidian WikiLink 语法（请改用标准 Markdown 链接）",
@@ -1105,8 +1111,22 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "a heading's `#` must be followed by a space; without one the `#` is printed as body text",
     ),
     "gate.dialect.image_percent": (
-        "图片宽度按绝对长度写（`{width=8cm}`），百分比宽度不支持",
-        "declare image width as an absolute length (`{width=8cm}`); percentage widths are not supported",
+        "图片宽度不支持百分比，请写绝对长度，例如 `{width=14cm}`",
+        "percentage image widths are not supported; write an absolute length, e.g. `{width=14cm}`",
+    ),
+    "gate.dialect.highlight": (
+        "不支持 `==高亮==`；去掉等号即可，重点靠正文样式表达",
+        "`==highlight==` is not supported; drop the equals signs and let the body style carry emphasis",
+    ),
+    "gate.dialect.span_attr": (
+        "行内属性只支持 `[文字]{.underline}`；`{.{类名}}`、`{{#标识}}` 其余写法会连同花括号印出来，"
+        "要改样式请整段写成 `%% 样式名 内容`",
+        "the only inline attribute is `[text]{.underline}`; other `{.{class}}` or `{{#id}}` forms are "
+        "printed with their braces — for a different style write the paragraph as `%% Style content`",
+    ),
+    "gate.dialect.inline_math_paren": (
+        "行内公式用 `$…$`，不支持 `\\(…\\)`（会连同括号当成正文印出来）",
+        "inline math uses `$...$`; `\\(...\\)` is not supported and is printed as body text",
     ),
     "gate.dialect.image_attr": (
         "图片行只认 `{width=…}`；对齐请写要求文件的「图：… 左对齐」",

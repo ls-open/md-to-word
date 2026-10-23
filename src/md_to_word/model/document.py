@@ -38,6 +38,11 @@ class Text:
 
 
 @dataclass(frozen=True)
+class LineBreak:
+    """段内换行（稿件的行尾 `\\` 或两个空格）——换行不换段，段落属性仍是一套。"""
+
+
+@dataclass(frozen=True)
 class Strong:
     children: tuple["Inline", ...]
 
@@ -121,7 +126,7 @@ class FootnoteRef:
 
 
 Inline = Union[
-    Text, Strong, Emphasis, Strikethrough, Underline, Code,
+    Text, LineBreak, Strong, Emphasis, Strikethrough, Underline, Code,
     Superscript, Subscript, Math, Link, Citation, CrossRef, FootnoteRef,
 ]
 

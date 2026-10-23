@@ -54,6 +54,7 @@ class ExportResult:
     output_pdf: Optional[Path] = None
     messages: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)  # messages 里的提醒条目，供 CLI 加标记
     lang: str = "zh"
 
     @property
@@ -168,14 +169,20 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         req_file = p_pre
         req_content = p_pre.read_text(encoding="utf-8")
     else:
-        # 寻找同目录唯一 .txt
+        # 寻找同目录唯一 .txt；`format.txt` 是本工具的固定名，它单独在场时直接认它，
+        # 不再因为旁边多了个笔记文件就判「无法判定」。
         txt_candidates = list(in_p.parent.glob("*.txt"))
+        named = in_p.parent / "format.txt"
+        by_name = named.is_file()
+        if by_name:
+            txt_candidates = [named]
         if len(txt_candidates) == 1 and txt_candidates[0].is_file():
             req_file = txt_candidates[0]
             req_content = req_file.read_text(encoding="utf-8")
             # 接管了哪一份必须报出来：同目录的 .txt 可能是笔记、也可能是格式要求，
             # 不说是哪一份时，后面的报错看着就像凭空冒出来的。
-            res.messages.append(t("pipeline.txt_auto", res.lang, path=req_file.name))
+            key = "pipeline.txt_named" if by_name else "pipeline.txt_auto"
+            res.messages.append(t(key, res.lang, path=req_file.name))
         elif len(txt_candidates) > 1 and not options.template_path:
             res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.many_txt", res.lang, dir=in_p.parent))
@@ -217,8 +224,11 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             res.errors.append(t("pipeline.rejected", res.lang, count=len(v_report.errors)))
             res.errors.extend(v_report.errors)
             return res
+        # 提醒进 `result.messages`：`--json` 的消费方（技能、脚本）只有拿到结构化结果才能
+        # 转述，靠正则去刮 stderr 是另一种脆弱。人看的那一份由 CLI 统一加 ⚠️ 打印。
         for w in v_report.warnings:
-            logger.warning(f"⚠️ {w}")
+            res.messages.append(w)
+            res.warnings.append(w)
 
     # 5. 准备工作环境与 CSL 解析
     temp_dir = tempfile.mkdtemp(prefix="md2word_")

@@ -49,6 +49,30 @@ from md_to_word.utils.skill_utils import (
 )
 
 
+_GROUP_LIMIT = 8  # 一类提醒最多列这么多个行号，其余只报数量
+
+
+def _group_warn(report: ValidationReport, tag: str, items: list[tuple[int, str]], lang: str) -> None:
+    """同一类提醒合并成一条：一处照旧逐行说，多处只列行号。
+
+    门禁的提醒是按行产生的，一稿折行三十处就会刷三十行，真正要紧的东西被冲掉。
+    合并后每类只有一条，行号照给，改起来一样清楚。
+    """
+    if not items:
+        return
+    if len(items) == 1:
+        report.warnings.append(
+            t("gate.line", lang, line=items[0][0], tag=tag, why=items[0][1])
+        )
+        return
+    sep = t("gate.list_sep", lang)
+    lines = sep.join(str(line_no) for line_no, _ in items[:_GROUP_LIMIT])
+    if len(items) > _GROUP_LIMIT:
+        lines += t("gate.line_more", lang, count=len(items) - _GROUP_LIMIT)
+    report.warnings.append(
+        t("gate.line_grouped", lang, tag=tag, count=len(items), lines=lines, why=items[0][1])
+    )
+
 @dataclass
 class ValidationReport:
     """导前校验结果报告。"""
@@ -430,17 +454,11 @@ def validate_manuscript(
         )
 
     # 7. 分节符后又写分页：多顶出一页空白。看得见，只提醒
-    for line_no, why in section_pagebreak_issues(md_text, lang):
-        report.warnings.append(
-            t("gate.line", lang, line=line_no,
-              tag=t("gate.tag.section_marker", lang), why=why)
-        )
+    _group_warn(report, t("gate.tag.section_marker", lang),
+                section_pagebreak_issues(md_text, lang), lang)
 
     # 8. 标题层级：跳级会让大纲级别错位，但内容与样式都还在，提醒即可
-    for line_no, why in heading_issues(md_text, lang):
-        report.warnings.append(
-            t("gate.line", lang, line=line_no, tag=t("gate.tag.heading", lang), why=why)
-        )
+    _group_warn(report, t("gate.tag.heading", lang), heading_issues(md_text, lang), lang)
 
     # 9. 未定义交叉引用标签
     for line_no, why in undefined_crossref_issues(md_text, lang=lang):
@@ -457,18 +475,13 @@ def validate_manuscript(
         )
 
     # 11. 图表题注邻近性：题注离表格/图片远了，样式仍会生效，只是位置不对，提醒即可
-    for line_no, why in caption_adjacency_issues(md_text, lang):
-        report.warnings.append(
-            t("gate.line", lang, line=line_no,
-              tag=t("gate.tag.caption_adjacency", lang), why=why)
-        )
+    _group_warn(report, t("gate.tag.caption_adjacency", lang),
+                caption_adjacency_issues(md_text, lang), lang)
 
     # 11b. 折行段落：按「一行一段」读取会拆成几段，每段都吃一次首行缩进，看得见但内容没丢
-    for line_no, snippet in soft_wrap_issues(md_text):
-        report.warnings.append(
-            t("gate.line", lang, line=line_no, tag=t("gate.tag.soft_wrap", lang),
-              why=t("gate.soft_wrap", lang, snippet=snippet))
-        )
+    _group_warn(report, t("gate.tag.soft_wrap", lang),
+                [(line_no, t("gate.soft_wrap", lang, snippet=snippet))
+                 for line_no, snippet in soft_wrap_issues(md_text)], lang)
 
     # 12. `\tag{}` 公式编号（不认这个写法，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):
@@ -484,11 +497,8 @@ def validate_manuscript(
         # 13. 图片声明宽度超过版心：会被钳到版心宽，但图还在页内，提醒即可
         width_cm = content_width_cm(spec)
         if width_cm:
-            for line_no, why in image_width_issues(md_text, width_cm, lang):
-                report.warnings.append(
-                    t("gate.line", lang, line=line_no,
-                      tag=t("gate.tag.image_width", lang), why=why)
-                )
+            _group_warn(report, t("gate.tag.image_width", lang),
+                        image_width_issues(md_text, width_cm, lang), lang)
         elif has_declared_image_width(md_text):
             report.warnings.append(t("gate.image_width.no_margins", lang))
 

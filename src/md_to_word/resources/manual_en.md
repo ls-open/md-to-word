@@ -73,8 +73,10 @@ to stderr:
 ```
 
 The keys are fixed and do not change between versions; the values of `messages` and `errors` are
-sentences for humans, in the manuscript's language. Parse the keys, not the wording. A usage error
-(exit code `2`) happens during argument parsing, so no JSON is produced.
+sentences for humans, in the manuscript's language. `messages` holds progress, **reminders** and the
+closing check prompt (one merged line per reminder kind, with every line number), so everything worth
+relaying on a successful run is there — no need to parse stderr. Parse the keys, not the wording. A
+usage error (exit code `2`) happens during argument parsing, so no JSON is produced.
 
 **Library call**:
 
@@ -238,6 +240,13 @@ Only three are recognised, **each on its own line** and separated from body text
 - **Footnotes**: write `[^1]` in the body plus `[^1]: the note text`; **nothing has to be declared
   in the requirements file** (without it the style is inferred from the body: same font and
   alignment as the body, one size smaller, single line spacing, superscript number).
+- **Paragraphs and line breaks**: **one line is one paragraph**; consecutive plain lines are never
+  joined — a short one-sentence paragraph per line is a normal way to write, and each one can carry
+  its own `%%` style. For a break *inside* one paragraph (an address, verse, a long title), end the
+  line with a backslash or two spaces: it becomes a line break within the same paragraph, with the
+  paragraph properties unchanged. Suspected wrapping (a line without closing punctuation followed
+  by another plain line) arrives as one grouped warning with the line numbers; leave it alone when
+  the lines really are short paragraphs.
 - **Inline formatting is written directly in the text**: `**bold**`, `*italic*`,
   `~~strikethrough~~`, `[underline]{.underline}`, `H~2~O`, `x^2^` — the renderer writes them
   straight as character properties; no declaration in the requirements file is needed and they do
@@ -286,7 +295,9 @@ definition lists, task checkboxes `- [ ]`, tables without leading and trailing p
 inside a block quote, full-width `％％`, four-space indented code blocks, bold spanning two lines
 `**…(newline)…**`, inline maths spanning two lines, a second paragraph in a list item (blank line +
 indentation), a heading with no space after `#`, a heading with only `#` and no text, properties
-other than `width` on an image line (such as `{align=right}`).
+other than `width` on an image line (such as `{align=right}`), percentage image widths
+(`{width=60%}` — write an absolute length such as `{width=14cm}`), `==highlight==`,
+`[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`).
 
 ---
 
@@ -554,12 +565,16 @@ Reminders do not block export: the author may have meant it, or may intend to fi
 Word. If they blocked, the only way out would be `--no-check`, which would also switch off the real
 blockers.
 
+Reminders of one kind are **merged into a single line** listing every line number, rather than one
+line per occurrence; they are also carried in `--json` `messages`, so skills and scripts can relay
+them.
+
 ### 5.3 You must check with your own eyes before delivery
 
-A `0` return only says structure, styles and counts passed the gates; **the layout must be looked
-at in Word**: table row heights and column widths adapt to content, where equations and captions
-land, and headers and footers can only be confirmed by opening the file. The export script prints
-this reminder at the end.
+A `0` return only says structure, styles and counts passed the gates; **the layout still requires a
+manual check in Word**: table row heights and column widths adapt to content, where equations and
+captions land, and headers and footers can only be confirmed by opening the file. The export prints
+this one reminder at the end.
 
 **With dynamic fields (TOC, `{style-title}` headers, cross-section page numbers) or wide complex
 tables, run `--pdf` once before formal delivery** — it is the only way to expand the fields and see

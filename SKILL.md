@@ -57,6 +57,12 @@ these are the ones that come up in almost every document:
 
 Full list: manual §3.4.
 
+**Paragraphs** — one line is one paragraph; consecutive lines are never joined. A break *inside* a
+paragraph (an address, verse, a long title) is written as a backslash or two spaces at the end of the
+line: it becomes a line break within the same paragraph, not a new paragraph. Suspected wrapping — a
+plain line without closing punctuation followed by another plain line — is reported as a warning with
+the line numbers; short paragraphs written one per line are correct as they are.
+
 **Title, author, abstract and keywords go in the body as style lines, never in YAML** — their
 position on the page is the author's decision and YAML has no position. Pre-flight blocks those keys
 and prints the exact line to write instead.
@@ -83,7 +89,7 @@ also work). A section marker closes *the section above it*; never add a page bre
 **Unsupported Markdown is blocked with a replacement, never printed literally**: HTML tags, `---`
 rules, `====` headings, definition lists, `- [ ]` boxes, tables without outer pipes, nested block
 quotes, full-width `％％`, four-space code blocks, `**` across lines, a second paragraph inside a list
-item.
+item, `==highlight==`, `[text]{.class}` (except `.underline`), `\(...\)` inline math.
 
 ## 3. The format requirements file
 
@@ -105,8 +111,9 @@ it is the Python dependency list.
 Citation style comes from `csl:` with a bundled name (manual §7) or a path to the user's own CSL.
 Without `csl:`, Chinese manuscripts get GB/T 7714 numeric and everything else APA 7th.
 
-Without `-r` the engine first takes over a **lone `.txt`** beside the manuscript (several of them →
-exit 1); otherwise the preset follows the **manuscript's language**. Report which one was used.
+Without `-r` the engine takes a file named exactly `format.txt` beside the manuscript; failing that,
+a **lone `.txt`** (several of them and no `format.txt` → exit 1); otherwise the preset follows the
+**manuscript's language**. Report which one was used.
 
 ## 4. Export, then the gates
 
@@ -132,7 +139,9 @@ Two gate levels, split by "would the mistake be visible afterwards":
   mapped, a title in YAML, a caption inside an image's brackets. Fix the reported line; do not reach
   for `--no-check`, which turns off the blocking gates too.
 - **Warning** — visible but non-compliant: an image wider than the text block (it gets clamped), a
-  caption far from its figure, a skipped heading level, a page break next to a section marker.
+  caption far from its figure, a skipped heading level, a page break next to a section marker,
+  suspected line wrapping. Warnings of one kind arrive as a single line listing every line number;
+  they are also carried in `--json` `messages`, so report them.
 
 Exit codes: `0` every gate passed; `1` manuscript, gate or dependency problem; `2` a usage error
 (bad flags or a missing argument); `3` the `.docx` was written but the optional `--pdf` proof was
@@ -142,8 +151,9 @@ skipped. Messages follow the manuscript's language.
 
 - Confirm the `.docx` exists and the command exited `0`.
 - Report the preset or requirements file, the citation style, and anything the run warned about.
-- Say plainly that the layout still needs a look in Word: table heights and column widths are
-  content-driven, and equations, captions and headers only settle in the real renderer.
+- Say plainly that the layout still needs a manual check in Word. The engine verifies text and
+  structure; row heights, column widths and where equations and captions settle are only visible in
+  a real renderer.
 - With a TOC, `{style-title}` headers or per-section page numbers, run once with `--pdf` and check the
   first page, the widest table, an equation-heavy page and the references.
 

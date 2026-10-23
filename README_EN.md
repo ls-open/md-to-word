@@ -131,6 +131,7 @@ Chinese. Design decisions are in
 |:--|:--|
 | A section heading | `# Introduction`, `## 2.1 Method` — one `#` per level, no skipped levels |
 | A styled paragraph | Start the line with `%% Abstract …` (one line is one paragraph, no closing fence) |
+| A break inside a paragraph | end the line with `\` or two spaces (addresses, verse, long titles); with no marker each line is its own paragraph |
 | A numbered equation | `$$E=mc^2$$ {#eq-mass}`, referenced in the text as `@eq-mass` |
 | A citation | `bibliography: refs.bib` in YAML, `[@smith2024]` in the text |
 | A figure | `![](figures/arch.png){width=13cm}` then `%% Image Caption Figure 1 Architecture` |

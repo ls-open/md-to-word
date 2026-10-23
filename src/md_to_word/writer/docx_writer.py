@@ -31,7 +31,8 @@ from md_to_word.spec.constants import PAGE_NUMBER_FMT
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
-    Inline, Link, ListBlock, MAX_LIST_LEVEL, Math, PageBreak, Paragraph, Quote, SectionBreak, Strikethrough,
+    Inline, LineBreak, Link, ListBlock, MAX_LIST_LEVEL, Math, PageBreak, Paragraph, Quote,
+    SectionBreak, Strikethrough,
     Strong, Subscript, Superscript, Table, Text, Toc, Underline, Citation, CrossRef,
 )
 
@@ -652,6 +653,8 @@ class _Writer:
         return f'<w:p><w:pPr><w:pStyle w:val="{style}"/></w:pPr>{runs}</w:p>'
 
     def _run_xml(self, node) -> str:
+        if isinstance(node, LineBreak):
+            return "<w:r><w:br/></w:r>"
         text = getattr(node, "value", None)
         if text is not None:
             return f'<w:r><w:t xml:space="preserve">{_escape(text)}</w:t></w:r>'
@@ -724,6 +727,8 @@ class _Writer:
             self._styled(paragraph, node.children, superscript=True)
         elif isinstance(node, Subscript):
             self._styled(paragraph, node.children, subscript=True)
+        elif isinstance(node, LineBreak):
+            paragraph.add_run().add_break()
         elif isinstance(node, Math):
             try:
                 nodes = latex_to_omml(node.latex, self.lang)
@@ -825,6 +830,8 @@ class _Writer:
         for node in nodes:
             if isinstance(node, Code):
                 yield node.value, fmt
+            elif isinstance(node, LineBreak):
+                continue  # 链接文字里的换行没有落点，跳过
             elif type(node) in self._FORMAT_ATTR:
                 yield from self._flatten_text(node.children, {**fmt, self._FORMAT_ATTR[type(node)]: True})
             else:

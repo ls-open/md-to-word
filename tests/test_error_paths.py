@@ -119,3 +119,77 @@ def test_documented_exit_codes_match_the_code(doc: str) -> None:
     assert joined, f"{doc} 没有写退出码"
     for code in (EXIT_OK, EXIT_ERROR, EXIT_USAGE, EXIT_PDF_SKIPPED):
         assert f"`{code}`" in joined, f"{doc} 的退出码缺少 {code}：{joined}"
+
+
+# ── 门禁分级、聚合与 `--json` 的一致性 ──────────────────────────────────
+
+WRAPPED = "%% 文档标题 题目\n\n# 一\n\n第一行没有标点\n第二行没有标点\n第三行没有标点\n"
+
+
+def test_warnings_are_grouped_into_one_line(workdir: Path, capsys) -> None:
+    """一类提醒只出一条：一稿折行十处不该刷十行，行号照给。"""
+    (workdir / "w.md").write_text(WRAPPED, encoding="utf-8")
+
+    code, output = _run([str(workdir / "w.md"), "-o", str(workdir / "w.docx")], capsys)
+
+    assert code == EXIT_OK
+    assert output.count("折行段落") == 1, output
+    for line_no in ("6", "7"):
+        assert line_no in output, output
+
+
+def test_warnings_reach_the_json_consumer(workdir: Path, capsys) -> None:
+    """`--json` 的 `messages` 必须带提醒 —— 技能靠它转述，刮 stderr 是另一种脆弱。"""
+    import json
+
+    (workdir / "w.md").write_text(WRAPPED, encoding="utf-8")
+
+    code = main([str(workdir / "w.md"), "-o", str(workdir / "w.docx"), "--json"])
+    captured = capsys.readouterr()
+
+    assert code == EXIT_OK
+    payload = json.loads(captured.out)
+    assert any("折行段落" in message for message in payload["messages"]), payload
+
+
+def test_named_format_file_wins_over_other_txt(workdir: Path, capsys) -> None:
+    """`format.txt` 是本工具的固定名：旁边多一个笔记文件也不该让导出失败。"""
+    from md_to_word.pipeline import resolve_preset_path
+
+    preset = resolve_preset_path("zh-academic")
+    assert preset is not None
+    (workdir / "format.txt").write_text(preset.read_text(encoding="utf-8"), encoding="utf-8")
+    (workdir / "笔记.txt").write_text("随手记\n", encoding="utf-8")
+
+    code, output = _run([str(workdir / "ok.md"), "-o", str(workdir / "o.docx")], capsys)
+
+    assert code == EXIT_OK, output
+
+
+@pytest.mark.parametrize(
+    ("line", "expect"),
+    [
+        ("带 ==高亮== 的正文。", "高亮"),
+        ("带 [文字]{.red} 的正文。", "行内属性"),
+        ("行内公式 \\(a+b\\) 写法。", "行内公式"),
+    ],
+)
+def test_markdown_leftovers_are_blocked(workdir: Path, capsys, line: str, expect: str) -> None:
+    """不会渲染的写法要在导出前拦住 —— 否则连同符号一起印进 Word。"""
+    (workdir / "d.md").write_text(f"%% 文档标题 题目\n\n# 一\n\n{line}\n", encoding="utf-8")
+
+    code, output = _run([str(workdir / "d.md"), "-o", str(workdir / "d.docx")], capsys)
+
+    assert code == EXIT_ERROR
+    assert expect in output, output
+
+
+def test_underline_span_is_still_supported(workdir: Path, capsys) -> None:
+    """`{.underline}` 是引擎支持的写法，不能被「属性写法」这条门禁误伤。"""
+    (workdir / "u.md").write_text(
+        "%% 文档标题 题目\n\n# 一\n\n带 [文字]{.underline} 的正文。\n", encoding="utf-8"
+    )
+
+    code, output = _run([str(workdir / "u.md"), "-o", str(workdir / "u.docx")], capsys)
+
+    assert code == EXIT_OK, output
