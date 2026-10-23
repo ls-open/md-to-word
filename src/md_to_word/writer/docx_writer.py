@@ -764,6 +764,7 @@ class _Writer:
         elif isinstance(node, Link):
             self._hyperlink(paragraph, node)
         elif isinstance(node, CrossRef):
+            self._trim_cjk_gap(paragraph)
             paragraph.add_run(self._resolve_crossref(node.target))
         elif isinstance(node, Citation):
             if self.citations is None:
@@ -771,15 +772,22 @@ class _Writer:
             keys = [(item.key, item.locator, item.prefix, item.label) for item in node.items]
             segments = self.citations.cite(keys, narrative=node.narrative)
             # 中文行文里「基石 [1]」应为「基石[1]」；西文保留空格
-            if not node.narrative and paragraph.runs:
-                last = paragraph.runs[-1]
-                if last.text.endswith(" ") and _ends_with_cjk(last.text):
-                    last.text = last.text.rstrip() or " "
+            if not node.narrative:
+                self._trim_cjk_gap(paragraph)
             self._linked_run(paragraph, segments, f"_Ref_{keys[0][0]}")
         elif isinstance(node, FootnoteRef):
             self._footnote_reference(paragraph, node.label)
         else:
             paragraph.add_run(getattr(node, "value", str(node)))
+
+    @staticmethod
+    def _trim_cjk_gap(paragraph) -> None:
+        """中文后面的那个空格要去掉：引文、交叉引用都走同一条规则。"""
+        if not paragraph.runs:
+            return
+        last = paragraph.runs[-1]
+        if last.text.endswith(" ") and _ends_with_cjk(last.text):
+            last.text = last.text.rstrip() or " "
 
     def _linked_run(self, paragraph, segments, anchor: str) -> None:
         """引文跳到文末对应条目（Word 内链）。片段里的格式（Nature 的上标编号）要保留。"""

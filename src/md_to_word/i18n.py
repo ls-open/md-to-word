@@ -956,6 +956,22 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "or TIFF, so the export would stop here. Save it as PNG first, or reference a PDF directly "
         "(PDF figures are rasterised at 300 dpi during export)",
     ),
+    "gate.table.row_unclosed": (
+        "行 {line}: 表格行缺少行尾竖线——这一行会掉出表格变成正文，竖线原样印出来。补上结尾的 `|`",
+        "Line {line}: the table row has no closing pipe — it falls out of the table and is printed as "
+        "a body paragraph with the pipes showing. Add the trailing `|`",
+    ),
+    "gate.style_line.no_space": (
+        "行 {line}: `%%` 后面少了空格，整行会原样印成正文。写成 `%% 样式名 内容`",
+        "Line {line}: the `%%` style line has no space after the marker, so the whole line is printed "
+        "as body text. Write `%% Style Name content`",
+    ),
+    "gate.yaml.unknown": (
+        "YAML 里有认不出的键「{keys}」，会被忽略——它们不会让版面发生任何变化。"
+        "只认 bibliography、csl、crossref、link-citations",
+        "Unrecognised YAML keys ({keys}) are ignored and change nothing in the layout. Only "
+        "bibliography, csl, crossref and link-citations are read",
+    ),
     "gate.image.inline": (
         "行 {line}: 图片没有独立成行——行内图片不会落成图段，只会印出一个 `!`。"
         "把 `![](…)` 单独放一行，题注用 `%% 图片题注` 另起一段",

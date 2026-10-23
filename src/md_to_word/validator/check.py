@@ -356,6 +356,17 @@ def validate_manuscript(
                 report.valid = False
                 report.errors.append(t("gate.citation.suppress_author", lang, line=line_no))
 
+        known = {"bibliography", "csl", "crossref", "link-citations"}
+        blocked = {"title", "subtitle", "author", "date", "abstract", "keywords"}
+        unknown = [
+            key for key in (fm_data or {})
+            if key not in known and key not in blocked and not str(key).startswith("reference-section")
+        ]
+        if unknown:
+            report.warnings.append(
+                t("gate.yaml.unknown", lang, keys=", ".join(sorted(map(str, unknown))))
+            )
+
         # 1d. 正文引用的 key 是否在 .bib 里
         if fm_data.get("bibliography"):
             bib_path, how = resolve_manuscript_path(str(fm_data["bibliography"]), md_path)
@@ -464,6 +475,19 @@ def validate_manuscript(
             if label not in defined:
                 report.valid = False
                 report.errors.append(t("gate.footnote.undefined", lang, line=i, label=label))
+
+    # 2d. 表格行缺少行尾竖线：那一行会掉出表格、变成正文，竖线原样印出来
+    for i, line in enumerate(md_text.split("\n"), 1):
+        stripped = line.strip()
+        if stripped.startswith("|") and not stripped.endswith("|"):
+            report.valid = False
+            report.errors.append(t("gate.table.row_unclosed", lang, line=i))
+
+    # 2e. 样式行 `%%` 后面必须有空格，否则整行原样印成正文
+    for i, line in enumerate(md_text.split("\n"), 1):
+        if line.startswith("%%") and not line.startswith("%% "):
+            report.valid = False
+            report.errors.append(t("gate.style_line.no_space", lang, line=i))
 
     # 3. Obsidian WikiLinks
     for i, line in enumerate(md_text.split("\n"), 1):

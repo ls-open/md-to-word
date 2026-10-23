@@ -454,7 +454,11 @@ class _Reader:
             if heading:
                 self._flush_pending()
                 self._append(
-                    Heading(level=len(heading.group(1)), inlines=self._inl(heading.group(2)))
+                    Heading(
+                        level=len(heading.group(1)),
+                        # CommonMark：标题尾部可以写一串 `#` 收尾，它不属于标题文字
+                        inlines=self._inl(heading.group(2).rstrip().rstrip("#").rstrip()),
+                    )
                 )
                 i += 1
                 continue
