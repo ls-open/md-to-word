@@ -70,3 +70,34 @@ def test_packaged_guide_is_the_skill_entry() -> None:
     body = skill.split("---", 2)[2].lstrip("\n")
     guide = (PKG_RESOURCES / "guide.md").read_text(encoding="utf-8")
     assert guide == body, "SKILL.md 正文与包内 guide.md 不一致：改了一处要同步另一处"
+
+
+def test_skill_frozen_surface_exists_in_the_code() -> None:
+    """技能文件里的「版本契约」必须兑现：写了要冻结的东西，代码里就得真有。
+
+    这份技能会被拷进别人的 `~/.claude/skills`，`pip install -U` 不会更新它。所以它列进
+    §8 的每一样都是承诺——命令、参数、退出码、预设名、`format.txt`。承诺与实现对不上时，
+    用户看到的是「按文档敲，命令不存在」，而我们要等下一次有人手动去翻才会知道。
+    """
+    import re
+
+    from md_to_word.cli import build_parser
+    from md_to_word.config import resolve_preset_path
+
+    text = (REPO_ROOT / "SKILL.md").read_text(encoding="utf-8")
+    section = text[text.index("## 8. Version contract"):]
+
+    parser = build_parser("zh")
+    known = {opt for action in parser._actions for opt in action.option_strings}
+    flags = set(re.findall(r"`(--[a-z][a-z0-9-]+)`", section))
+    assert flags, "§8 没列出任何参数"
+    missing_flags = sorted(flags - known - {"--force"})   # --force 属于 init 子命令
+    assert not missing_flags, f"§8 冻结的参数在 CLI 里不存在：{missing_flags}"
+
+    for preset in ("zh-academic", "en-nature"):
+        assert f"`{preset}`" in section, f"§8 没冻结预设名 {preset}"
+        path = resolve_preset_path(preset)
+        assert path is not None and path.is_file(), f"预设 {preset} 解析不到文件"
+
+    assert "`format.txt`" in section
+    assert "`init`" in section and "md-to-word init" in text

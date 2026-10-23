@@ -130,8 +130,7 @@ from the manuscript's directory. Add `--verbose` when a format does not seem to 
 
 Add `--json` whenever the result has to be read back programmatically: stdout then carries one JSON
 object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `messages`, `errors` — while progress
-and diagnostics stay on stderr. The keys are fixed; the sentences inside them follow the manuscript's
-language.
+logs stay on stderr. The keys are fixed; the sentences inside them follow the manuscript's language.
 
 Two gate levels, split by "would the mistake be visible afterwards":
 
@@ -141,8 +140,7 @@ Two gate levels, split by "would the mistake be visible afterwards":
 - **Warning** — visible but non-compliant: an image wider than the text block (it gets clamped), a
   caption far from its figure, a skipped heading level, a page break next to a section marker,
   suspected line wrapping. Warnings of one kind arrive as a single line (up to eight line numbers,
-  then a count);
-  they are also carried in `--json` `messages`, so report them.
+  then a count), and they are also carried in `--json` `messages`, so report them.
 
 Exit codes: `0` every gate passed; `1` manuscript, gate or dependency problem; `2` a usage error
 (bad flags or a missing argument); `3` the `.docx` was written but the optional `--pdf` proof was
@@ -167,7 +165,8 @@ skipped. Messages follow the manuscript's language.
 - Sum and integral limits stay to the right of the symbol in numbered equations (Word stacks limits
   only in display math). Content and symbols are correct; only the arrangement differs.
 - TOC page numbers and chapter headers are Word fields; Word asks once whether to update them.
-- Runtime: Python 3.10+ and nothing else (3.9 is end-of-life and the math library no longer supports it). From a source checkout, `pip install -r requirements.txt`;
+- Runtime: whatever Python version the package declares — pip refuses older interpreters, so this
+  file never names one — and nothing else. From a source checkout, `pip install -r requirements.txt`;
   where only the documentation is present, `pip install -U md-to-word-docx`. Export starts no
   external program: the whole chain runs inside the Python process.
 
@@ -180,18 +179,18 @@ polishing, searching for sources and verifying reference metadata belong to what
 the user already works with: take the Markdown they hand you, produce the `.docx`, return it. The
 interface in both directions is a Markdown file plus a `format.txt`.
 
-Engine, pip package, changelog and issue tracker:
-[md-to-word](https://github.com/ls-open/md-to-word).
+Engine, pip package and issue tracker: [md-to-word](https://github.com/ls-open/md-to-word).
 
 ## 8. Version contract
 
 This file must keep working after `pip install -U`, without being edited. What is frozen:
 
-- the commands `md-to-word` and `md-to-word-template`, and the flags `-o`, `-r`, `--preset`,
-  `--contract`, `--version`, `--json`
+- the commands `md-to-word`, `md-to-word-template` and `init`; every flag named in this file
+  (`-o`, `-r`, `--preset`, `--contract`, `--guide`, `--version`, `--json`, `--pdf`, `--lang`) keeps
+  its name and meaning
 - exit codes `0` / `1` / `2` / `3`, and the JSON keys under `--json`
-- the manuscript contract in §2 and the vocabulary in §3
+- the manuscript contract in §2, the vocabulary in §3, the preset names `zh-academic` and
+  `en-nature`, and the fixed file name `format.txt`
 
-Everything else — message wording, the layout inside the installed package, preset file names, the
-version number — may change between releases. Never parse the prose of a message: pass `--json` and
-read the keys.
+Everything else — message wording, the layout inside the installed package, the version number — may
+change between releases. Never parse the prose of a message: pass `--json` and read the keys.
