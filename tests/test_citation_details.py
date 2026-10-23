@@ -133,9 +133,11 @@ def test_locator_labels_are_kept() -> None:
     assert (item.label, item.locator) == ("paragraph", "4")
 
 
-def test_duplicate_keys_collapse() -> None:
+def test_duplicate_keys_are_rendered_as_written() -> None:
+    """CSL 不在一条引用里消重（官方用例 `collapse_NumericDuplicate` 就是这么期望的）：
+    重复的 key 原样渲染，作者能一眼看出自己写重了，而不是被悄悄合并。"""
     engine = _apa()
-    assert _text(engine, ("adams2019", ""), ("adams2019", "")) == "(Adams & Cole, 2019)"
+    assert _text(engine, ("adams2019", ""), ("adams2019", "")) == "(Adams & Cole, 2019, 2019)"
 
 
 def test_superscript_numeric_runs_collapse() -> None:

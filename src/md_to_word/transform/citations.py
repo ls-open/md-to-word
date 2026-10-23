@@ -70,7 +70,11 @@ class CitationEngine:
         self._initials_all = rule.startswith("all-names")
         self._initials_only = rule.endswith("with-initials")
         self._cloner = StyleCloner(style_text, int(options.get("et-al-use-first", "1") or 1))
-        layout = re.search(r"<layout\b([^>]*)>", _citation_block(style_text))
+        citation_block = _citation_block(style_text)
+        sort_block = re.search(r"<sort>(.*?)</sort>", citation_block, re.S)
+        sort_vars = re.findall(r'variable="([^"]+)"', sort_block.group(1)) if sort_block else []
+        self._citation_sort = (sort_vars[0] if sort_vars else "author") if sort_block else None
+        layout = re.search(r"<layout\b([^>]*)>", citation_block)
         layout_attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', layout.group(1))) if layout else {}
         self._layout = (
             layout_attrs.get("prefix", ""), layout_attrs.get("suffix", ""),
@@ -175,7 +179,7 @@ class CitationEngine:
         （`(Kim & Park, 2019, 2020a)`）。citeproc-py 不实现 collapse，也不支持逐条换形态。
         """
         prefix, suffix, delimiter = self._layout
-        ordered = sorted(pairs, key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
+        ordered = self._sort_pairs(pairs)
         pieces = []
         for pair in ordered:
             locator = pair[1] if len(pair) > 1 else ""
@@ -204,6 +208,14 @@ class CitationEngine:
             names + ", ".join(dates) if names else dates[0] for names, dates in groups
         )
         return f"{prefix}{body}{suffix}"
+
+    def _sort_pairs(self, pairs) -> list:
+        """按样式声明的 `<sort>` 排；没声明就保持输入顺序（CSL 的规矩）。"""
+        if not self._citation_sort:
+            return list(pairs)
+        if self._citation_sort in ("issued", "date"):
+            return sorted(pairs, key=lambda pair: _sort_key(self._by_key.get(pair[0], {}))[1:])
+        return sorted(pairs, key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
 
     def _split_author(self, key: str, text: str):
         """把一条渲染好的引用拆成「作者部分」与「年份部分」，供 collapse 归并。"""
@@ -264,7 +276,7 @@ class CitationEngine:
 
         返回 (文本, 格式) 片段序列——上标/斜体这类格式由 CSL 决定，不能丢成纯文本。
         """
-        pairs = tuple(_unique(tuple(pair) for pair in keys))
+        pairs = tuple(tuple(pair) for pair in keys)
         cache_key = (pairs, narrative)
         if cache_key in self._rendered:
             return self._rendered[cache_key]
@@ -352,14 +364,11 @@ _BARE_NUMERIC_RE = re.compile(r"(?<![\d.])(\d+(?:\s*,\s*\d+){2,})(?![\d.])")
 def _collapse_numeric_runs(html: str, bare: bool = False) -> str:
     """数字制的连续编号合并成区间：`[4,5,6]` → `[4–6]`。
 
-    这是 GB/T 7714 与 IEEE 这类数字制的硬要求，citeproc-py 只管把编号一个个列出来。
-    三条以上的连续号才合并，`[4,5]` 保持原样。
+    GB/T 7714、IEEE 这类用方括号，Nature、AMA 这类直接写上标数字；citeproc-py 两种都
+    一个个列出来。三条以上连续才合并，`[4,5]` 保持原样。
     """
 
-    def repl(match: re.Match) -> str:
-        numbers = [int(n) for n in re.findall(r"\d+", match.group(1))]
-        if numbers != sorted(numbers) or len(set(numbers)) != len(numbers):
-            return match.group(0)
+    def merge(numbers: list[int]) -> str:
         parts: list[str] = []
         start = prev = numbers[0]
         for n in numbers[1:] + [None]:
@@ -370,10 +379,34 @@ def _collapse_numeric_runs(html: str, bare: bool = False) -> str:
                          ",".join(str(x) for x in range(start, prev + 1)))
             if n is not None:
                 start = prev = n
-        return "[" + ",".join(parts) + "]"
+        return ",".join(parts)
 
-    html = _NUMERIC_CITE_RE.sub(repl, html)
-    return _BARE_NUMERIC_RE.sub(repl, html) if bare else html
+    def inside_brackets(match: re.Match) -> str:
+        if re.search(r"[–\-]", match.group(1)):   # 已经是区间，别再拆
+            return match.group(0)
+        numbers = [int(n) for n in re.findall(r"\d+", match.group(1))]
+        if numbers != sorted(numbers) or len(set(numbers)) != len(numbers):
+            return match.group(0)
+        return "[" + merge(numbers) + "]"
+
+    def listed_separately(match: re.Match) -> str:
+        """`[1], [2], [3]` 逐条列出的也并成 `[1]–[3]`。"""
+        numbers = [int(n) for n in re.findall(r"\[(\d+)\]", match.group(0))]
+        if numbers != list(range(numbers[0], numbers[0] + len(numbers))):
+            return match.group(0)
+        return f"[{numbers[0]}]–[{numbers[-1]}]"
+
+    html = _NUMERIC_CITE_RE.sub(inside_brackets, html)
+    html = re.sub(r"\[\d+\](?:\s*,\s*\[\d+\]){2,}", listed_separately, html)
+    if bare:
+        def bare_run(match: re.Match) -> str:
+            numbers = [int(n) for n in re.findall(r"\d+", match.group(0))]
+            if numbers != sorted(numbers) or len(set(numbers)) != len(numbers):
+                return match.group(0)
+            return merge(numbers)
+
+        html = _BARE_NUMERIC_RE.sub(bare_run, html)
+    return html
 
 
 _TAG_RE = re.compile(r"</?(?P<tag>i|b|sup|sub|sc|span)[^>]*>")

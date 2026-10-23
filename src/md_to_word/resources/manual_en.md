@@ -180,9 +180,7 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   alternative text, and `{width=…}` is clamped to the text block (an over-wide value is clamped to
   the text-block width and reported as a reminder; a percentage is blocked).
 - **An image may point straight at a PDF** — the default export of matplotlib, MATLAB, Origin,
-  Visio and TikZ. The export renders page 1 at 300 dpi for the declared width (one figure per file,
-  a multi-page PDF uses page 1 with a reminder). Encrypted or damaged PDFs, and formats Word cannot
-  hold (`.svg`, `.webp`, `.eps`), are blocked in pre-flight with the fix.
+  Visio and TikZ. The export renders page 1 at 300 dpi for the declared width; a multi-page PDF uses page 1 with a reminder, and formats Word cannot hold (`.svg`, `.webp`, `.eps`) are blocked in pre-flight.
 - **Do not add a `{#fig-xxx}` label to an image line**: it would get the three-line table's rules
   and lose its centring. Type the figure number into the caption text instead.
 - Local formatting inside a caption is written directly in the text (`**Table 1**` for a bold
@@ -270,8 +268,8 @@ of page 1, or it may come after a cover page; in YAML it can only be the former.
 | Element | How to write it |
 |:--|:--|
 | Bibliography, CSL style | YAML `bibliography:` / `csl:` |
-| Cross-reference prefixes, numbering by chapter | YAML `crossref:` (`eq-prefix`, `fig-prefix`, `tbl-prefix`, `chapters`) |
-| Whether citations are hyperlinked | YAML `link-citations:` (on by default; `false` turns it off) |
+| Cross-reference prefixes, numbering by chapter | YAML `crossref:` (`eq-prefix`, `chapters`; `fig-prefix`, `tbl-prefix` reserved and unused) |
+| Whether citations are hyperlinked | YAML `link-citations:`: currently always on (`false` does not change the behaviour) |
 | Title, subtitle, author, date, abstract, keywords, references section title | body style lines, see §2.1 and §2.2 |
 
 ```markdown
@@ -359,7 +357,7 @@ another rule.
 | Character spacing | `char-spacing <N>pt` (positive widens, negative tightens) | `char-spacing 0.5pt`, `char-spacing -0.2pt` | `letter-spacing 0.5pt` |
 | Paper | `Paper: <A4\|Letter>` (defaults to A4) | `Paper: A4` | `Paper: B5` |
 | Margins | `Margins: top <N>cm bottom <N>cm left <N>cm right <N>cm` | `Margins: top 2.54cm bottom 2.54cm left 2.54cm right 2.54cm` | — |
-| Gutter | `Gutter: <N>cm` | `Gutter: 1cm` | — (it is added outside the left margin; do not fold it into the left margin) |
+| Gutter | `Gutter: <N>cm` | `Gutter: 1cm` | — (the engine folds it into the left margin; write this line only) |
 | Header / footer distance from the edge | `Header Distance: <N>cm` / `Footer Distance: <N>cm` | `Header Distance: 1.40cm` | — |
 | Document grid | `Document Grid: <N> lines` | `Document Grid: 22 lines` | specify it by line count only; line-spacing multiples are compensated automatically, so no manual tuning is needed; **there is no "characters per line" switch** (it follows font size and text-block width) |
 | Latin font | `Font: <typeface>` (global Latin default) | `Font: Times New Roman` | — |
@@ -567,7 +565,7 @@ The template is generated fresh on every export and never cached; `-t` can point
 | Level | Criterion | Examples |
 |:--|:--|:--|
 | **Blocking** | A silent error you cannot see afterwards | Lost characters (a table row with the wrong column count), degradation to literal text (`\tag{}`, undefined cross-references), formatting that never takes effect (a style name missing from the template, a table style missing from the requirements file), an abstract or keywords written in YAML, a caption written into the image's square brackets |
-| **Reminder** | Visible, just non-compliant | An over-wide image (it gets clamped), a caption too far from its figure or table, skipped heading levels, an extra page break after a section break, a wrapped paragraph, a missing cross-reference prefix |
+| **Reminder** | Visible, just non-compliant | An over-wide image (it gets clamped), a caption too far from its figure or table, skipped heading levels, an extra page break after a section break, a wrapped paragraph |
 
 Reminders do not block export: the author may have meant it, or may intend to finish the job in
 Word. If they blocked, the only way out would be `--no-check`, which would also switch off the real
@@ -674,4 +672,4 @@ examples. The tag is a stable category identifier; the text after it says which 
 | TOC entry font is wrong | The TOC entry styles were not written as Word's built-in styles (`TOC 1/2/3`), or `dot-leader-tab` was written on them (no effect) |
 | Header shows "Error! Reference source not found" | X in `{style-title:X}` is not a Word style name (write `Heading 1`) |
 | The font looks right but is wrong in Word | A third-party template's theme attributes override the explicit font; when passed via `-t`, `asciiTheme` / `eastAsiaTheme` / `themeColor` are stripped automatically |
-| Two exports of the same manuscript differ | This should not happen: the zip timestamp is fixed at 1980-01-01 and the output is byte-for-byte reproducible; if it happens, report a defect |
+| Two exports of the same manuscript differ | This should not happen: the output is byte-for-byte reproducible; if it happens, report a defect |

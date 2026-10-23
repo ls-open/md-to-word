@@ -62,8 +62,8 @@ the line numbers; short paragraphs written one per line are correct as they are.
 position on the page is the author's decision and YAML has no position. Pre-flight blocks those keys
 and prints the exact line to write instead.
 
-**YAML holds only position-independent configuration**: `bibliography:`, `csl:`, `crossref:`,
-`link-citations:`.
+**YAML holds only position-independent configuration**: `bibliography:`, `csl:`, `crossref:`
+(`link-citations:` is currently always on).
 
 **Equations** — `$$...$$ {#eq-name}` on its own line, referenced as `@eq-name`. Chinese manuscripts
 get 「式/图/表」 prefixes and （1）numbering, English ones Equation/Figure/Table and (1);
@@ -81,10 +81,7 @@ follow the separator row's dash lengths.
 `{{< toc >}}`, `{{< section page_number=lowerRoman start=1 >}}` (Chinese parameters `页码=` `起始=`
 also work). A section marker closes *the section above it*; never add a page break next to one.
 
-**Unsupported Markdown is blocked with a replacement, never printed literally**: HTML tags, `---`
-rules, `====` headings, definition lists, `- [ ]` boxes, tables without outer pipes, nested block
-quotes, full-width `％％`, four-space code blocks, a second paragraph inside a list
-item, `==highlight==`, `[text]{.class}` (except `.underline`), `\(...\)` inline math.
+**Unsupported Markdown is blocked with a replacement, never printed literally** — the list is manual §2.8.
 
 ## 3. The format requirements file
 
@@ -125,15 +122,10 @@ Add `--json` whenever the result has to be read back programmatically: stdout th
 object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `messages`, `errors` — while progress
 logs stay on stderr. The keys are fixed; the sentences inside them follow the manuscript's language.
 
-Two gate levels, split by "would the mistake be visible afterwards":
+Two gate levels, split by "would the mistake be visible afterwards" (criteria: manual §5):
 
-- **Blocking** — silently wrong later: dropped content, syntax printed literally, formatting never
-  mapped, a title in YAML, a caption inside an image's brackets. Fix the reported line; do not reach
-  for `--no-check`, which turns off the blocking gates too.
-- **Warning** — visible but non-compliant: an image wider than the text block (it gets clamped), a
-  caption far from its figure, a skipped heading level, a page break next to a section marker,
-  suspected line wrapping. Warnings of one kind arrive as a single line (up to eight line numbers,
-  then a count), and they are also carried in `--json` `messages`, so report them.
+- **Blocking** — invisible afterwards (dropped content, literal syntax, unmapped formatting); fix the line, never `--no-check`.
+- **Warning** — visible but non-compliant (over-wide image, distant caption, skipped level); report it.
 
 Exit codes: `0` every gate passed; `1` manuscript, gate or dependency problem; `2` a usage error
 (bad flags or a missing argument); `3` the `.docx` was written but the optional `--pdf` proof was

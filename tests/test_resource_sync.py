@@ -1,14 +1,7 @@
 """预设与资源两份拷贝必须一致（手册除外）。
 
-技能按目录分发（`presets/`、`resources/` 在仓库根），pip 安装则用包内的同名目录
-（`src/md_to_word/presets/`、`src/md_to_word/resources/`）。同一份事实两处存放，
-改一份忘另一份就会「本地跑对、装完跑错」。
-
-为什么不用软链接合并：本技能要在 Windows 上跑，而 Windows 的 git checkout 默认
-不落软链接。既然只能存两份，就让测试盯着它们不许分叉。
-
-`resources/manual.md` / `resources/manual_en.md` 是唯一例外：使用手册只随包发布，仓库根
-不放副本——它必须与代码同一个版本，而仓库根那份既没人读，也没人负责同步。
+技能按目录分发、pip 用包内同名目录；同一份事实存两处，改一份忘另一份就会「本地跑对、装完跑错」。
+不用软链接是因为 Windows 的 git checkout 默认不落软链接；手册（`manual*.md`）只随包发布，故测试只盯其余资源。
 """
 
 from __future__ import annotations

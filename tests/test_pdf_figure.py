@@ -1,13 +1,4 @@
-"""PDF 图：Word 只放得下位图，导出时按版面尺寸渲染成 300 dpi 的 PNG。
-
-盯三件事：
-
-1. 渲染出来的位图在声明宽度上正好是 300 dpi——这是期刊对位图的要求线，
-   少了它印刷上能看出来，多了只是变大文件；
-2. 没声明宽度时，图按 PDF 页面的物理尺寸落版（PNG 里写 pHYs，python-docx 照它还原）；
-3. Word 放不下的格式（svg、webp、eps…）在门禁就拦下并给出改法，不留给 python-docx
-   抛一屏没有行号的 traceback。
-"""
+"""PDF 图回归：300 dpi、无宽度时按物理尺寸、不支持的格式在预检拦下（原理见 references/design.md §1.6.1）。"""
 
 from __future__ import annotations
 
