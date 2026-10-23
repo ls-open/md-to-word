@@ -56,7 +56,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.no_postflight": ("跳过产物数值防丢检查（不推荐）", "Skip the numeric-integrity check (not recommended)"),
     "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against requirements"),
     "cli.pdf": ("导出后再渲染一份 PDF 供核对（macOS + 本机 Word）", "Also render a PDF for review (macOS + local Word)"),
-    "cli.input_required": ("缺少稿件路径：md-to-word 稿件.md", "Missing manuscript path: md-to-word paper.md"),
     "cli.brief": (
         "md-to-word {version} — 把 Markdown 编译成符合声明格式的 Word（.docx）\n\n"
         "  md-to-word init                            生成一份格式声明与可直接导出的样例稿件\n"

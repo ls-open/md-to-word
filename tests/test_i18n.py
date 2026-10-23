@@ -197,3 +197,26 @@ def test_no_duplicate_keys_in_messages_source() -> None:
             duplicates = [k for k in set(keys) if keys.count(k) > 1]
             assert not duplicates, f"_MESSAGES 包含重复定义的 key: {duplicates}"
 
+
+
+def test_every_literal_key_used_in_code_exists() -> None:
+    """代码里写字面量的 `t("...")` 必须查得到 —— 查不到就是运行时 KeyError。
+
+    只查字面量：`t(feat_key)`、`t(f"audit.cat.{key}")` 这类拼出来的键交给各自的
+    调用点自证（它们的前缀散落在常量表里，静态追不全，追了就成一堆误报）。
+    """
+    import ast
+
+    missing: list[str] = []
+    for path in sorted((REPO_ROOT / "src" / "md_to_word").rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == "t" and node.args):
+                continue
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                if first.value not in _MESSAGES:
+                    rel = path.relative_to(REPO_ROOT)
+                    missing.append(f"{rel}:{node.lineno} → {first.value}")
+    assert not missing, "这些 t() 的字面量键在 _MESSAGES 里不存在：\n" + "\n".join(missing)
