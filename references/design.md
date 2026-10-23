@@ -126,6 +126,20 @@ Word 打印时会把它加到左边距之外，但**算版心的公式里没有�
 
 图片行 `![](path){width=Xcm}` 落成 Captioned Figure 段落，模板中已设为居中。
 
+### 1.6.1 PDF 图为什么在导出时栅格化
+
+Word 的内联图片只有位图这一种形态（PNG/JPEG/GIF/BMP/TIFF），PDF 里的矢量内容没有直接的
+嵌入方式。学术稿的图大多出自 matplotlib、MATLAB、Origin、Visio、TikZ，默认导出就是 PDF，
+所以转换放在导出流程里做，而不是要求作者先自己转：
+
+| 决定 | 为什么 |
+|:--|:--|
+| 按**声明宽度的 300 dpi** 渲染，不是按 PDF 页面尺寸 | 声明 `{width=13cm}` 时，13cm 上要有 300 dpi 的像素，印刷才够；按页面尺寸渲染再缩放，宽度越大小字越糊 |
+| 未声明宽度时按页面物理尺寸渲染，并写 PNG 的 `pHYs` | python-docx 按 PNG 里的 DPI 还原物理尺寸；缺这个块会按 72 dpi 算，图在版面上大出四倍 |
+| 只取第 1 页，多页出提醒 | 多页 PDF 多半是整本插图集，悄悄只取第一页才是真出事 |
+| 自己写 PNG 编码器（`utils/pdf_figure.py::_png_bytes`） | 只需要 zlib 一行压缩，为它拉 Pillow 是十几 MB 的依赖；顺便保证不写时间戳，同一份 PDF 每次导出字节一致 |
+| 放不下的格式在**预检**拦下 | 否则 python-docx 抛 `UnrecognizedImageError`——一屏 traceback、没有行号 |
+
 ### 1.7 缩进单位换算技术细节
 
 `src/md_to_word/template/generator.py` 的缩进子句支持两种单位（单写法收敛，厘米单位已移除）：

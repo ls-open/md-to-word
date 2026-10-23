@@ -36,6 +36,9 @@ dependencies = [
     "latex2mathml>=3.0",
     # CSL 引文渲染：2 MB，只依赖 lxml
     "citeproc-py>=0.6",
+    # PDF 图 → 位图（Word 的内联图片只认位图）。学术稿的图大多默认导出 PDF，
+    # 这一步不装就有一半稿件导不出去；4.30 起 API 与 5.x 一致，老 macOS 也还有轮子
+    "pypdfium2>=4.30",
 ]
 
 [project.urls]

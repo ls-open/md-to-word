@@ -190,6 +190,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "独立公式「{snippet}」解析失败：{err}",
         "the display equation `{snippet}` could not be parsed: {err}",
     ),
+    "writer.figure_pdf_failed": (
+        "PDF 图「{path}」渲染成位图失败：{err}",
+        "the PDF figure {path} could not be rasterised: {err}",
+    ),
     "writer.quote_children": (
         "引用块里目前只支持段落、列表与代码块",
         "a blockquote currently supports only paragraphs, lists and code blocks",
@@ -938,6 +942,22 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.image.missing": (
         "行 {line}: 图片文件不存在「{path}」",
         "Line {line}: image file not found: {path}",
+    ),
+    "gate.image.unsupported": (
+        "行 {line}: 图片是 {ext} 格式，Word 的内联图片只接受 PNG/JPEG/GIF/BMP/TIFF，"
+        "导出会在这里中断。另存为 PNG 后再引用；PDF 也可以直接引用，导出时会按 300 dpi 转成位图",
+        "Line {line}: the image is {ext}, and Word's inline pictures accept only PNG, JPEG, GIF, BMP "
+        "or TIFF, so the export would stop here. Save it as PNG first, or reference a PDF directly "
+        "(PDF figures are rasterised at 300 dpi during export)",
+    ),
+    "gate.image.pdf_unreadable": (
+        "行 {line}: 打不开 PDF「{path}」（{err}）——加密、损坏，或者根本不是 PDF",
+        "Line {line}: cannot open the PDF at {path} ({err}) — encrypted, damaged, or not a PDF",
+    ),
+    "gate.image.pdf_multipage": (
+        "行 {line}: PDF「{path}」有 {pages} 页，只取第 1 页；一页一图请拆成单页文件再引用",
+        "Line {line}: the PDF at {path} has {pages} pages but only page 1 is used — split it into "
+        "one figure per file",
     ),
     "gate.image_width.over": (
         "图片声明宽 {width:g}cm，超过版心 {content:.2f}cm——导出时会被**静默钳成版心宽**"

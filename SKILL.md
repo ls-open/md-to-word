@@ -80,8 +80,10 @@ get 「式/图/表」 prefixes and （1）numbering, English ones Equation/Figur
 `[@key]` without `bibliography:` would be printed literally.
 
 **Figures and tables** — `![](path/img.png){width=13cm}`, caption in its own `%% Image Caption`
-paragraph; table caption above, note below. Do not put `{#fig-...}` labels on images. Column widths
-follow the separator row's dash lengths.
+paragraph; table caption above, note below. A figure may point straight at a PDF (the default
+export of matplotlib, MATLAB, Visio, TikZ): page 1 is rendered at 300 dpi for the declared width,
+one figure per file. Do not put `{#fig-...}` labels on images. Column widths follow the separator
+row's dash lengths.
 
 **Block markers** — three, each on its own line with blank lines around it: `{{< pagebreak >}}`,
 `{{< toc >}}`, `{{< section page_number=lowerRoman start=1 >}}` (Chinese parameters `页码=` `起始=`
@@ -90,7 +92,8 @@ also work). A section marker closes *the section above it*; never add a page bre
 **Unsupported Markdown is blocked with a replacement, never printed literally**: HTML tags, `---`
 rules, `====` headings, definition lists, `- [ ]` boxes, tables without outer pipes, nested block
 quotes, full-width `％％`, four-space code blocks, a second paragraph inside a list
-item, `==highlight==`, `[text]{.class}` (except `.underline`), `\(...\)` inline math.
+item, image formats Word cannot hold (`.svg`, `.webp`, `.eps`), `==highlight==`, `[text]{.class}`
+(except `.underline`), `\(...\)` inline math.
 
 ## 3. The format requirements file
 

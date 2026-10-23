@@ -112,7 +112,7 @@ exported PDFs, not mock-ups.
 - **Headings, headers, footers**: six heading levels, odd/even and first-page variants, sections, page-number format and start, `{页码}` `{总页数}` `{样式标题}` fields
 - **Tables**: three-line, full grid, top-and-bottom, none; border widths, repeating header rows, cell alignment and padding, column width ratios
 - **Equations**: native OMML objects — editable in Word, not images and not literal text — centred with the number set hard right, per-chapter numbering, declarable number template, `@eq-` cross-references
-- **Figures and captions**: image width clamped to the text block, caption bound to the figure, caption placement chosen by the author
+- **Figures and captions**: image width clamped to the text block, caption bound to the figure, caption placement chosen by the author; figures may point straight at a PDF (rasterised at 300 dpi on export)
 - **Bibliography**: `.bib` + CSL, 29 bundled styles (GB/T 7714, APA, Nature, IEEE, Vancouver and more), or a CSL file of your own
 - **Inline text**: bold, italic, strikethrough, underline, super/subscript, inline code, inline maths, links, footnotes
 - **Lists**: ordered, unordered, three nesting levels, lists inside block quotes

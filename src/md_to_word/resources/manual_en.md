@@ -169,6 +169,7 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 | Table caption | one line above the table: `%% Table Caption **Table 1** Comparison of methods` | `Table Caption` |
 | Table note | one line below the table: `%% Table Note Note: …` | `Table Note` |
 | Image | `![](path/img.png){width=14cm}` | `Figure` |
+| Image (vector PDF) | `![](path/fig.pdf){width=14cm}` | `Figure` |
 | Image caption | one line above or below the image: `%% Image Caption Figure 1 System overview` | `Image Caption` |
 
 - A caption is a **separate paragraph**, not a field attached to the table or image; a leading
@@ -178,6 +179,11 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 - The image line describes the image itself only: the square brackets hold the accessible
   alternative text, and `{width=…}` is clamped to the text block (an over-wide value is clamped to
   the text-block width and reported as a reminder; a percentage is blocked).
+- **An image may point straight at a PDF** — the default export format of matplotlib, MATLAB,
+  Origin, Visio and TikZ. Word inline pictures hold bitmaps only, so the export renders page 1 at
+  300 dpi for the declared width; one figure per file. A multi-page PDF uses page 1 and reports a
+  reminder; an encrypted or damaged PDF is blocked in pre-flight. Other formats (`.svg`, `.webp`,
+  `.eps`) are blocked there too, with the fix — never left to fail inside the writer.
 - **Do not add a `{#fig-xxx}` label to an image line**: it would get the three-line table's rules
   and lose its centring. Type the figure number into the caption text instead.
 - Local formatting inside a caption is written directly in the text (`**Table 1**` for a bold
@@ -297,7 +303,8 @@ definition lists, task checkboxes `- [ ]`, tables without leading and trailing p
 inside a block quote, full-width `％％`, four-space indented code blocks, inline maths spanning two lines, a second paragraph in a list item (blank line +
 indentation), a heading with no space after `#`, a heading with only `#` and no text, properties
 other than `width` on an image line (such as `{align=right}`), percentage image widths
-(`{width=60%}` — write an absolute length such as `{width=14cm}`), `==highlight==`,
+(`{width=60%}` — write an absolute length such as `{width=14cm}`), image formats Word cannot hold
+(`.svg`, `.webp`, `.eps` — save them as PNG, or reference a PDF), `==highlight==`,
 `[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`).
 
 ---
@@ -609,6 +616,7 @@ inline formatting; three-level lists and lists inside block quotes; footnotes.
 | A custom cover page (crest, underlined fill-in fields, signature page) | `%% Title` generates one standard title block only; merge a cover supplied by your institution into the first page in Word, or lay out a simple one with a table |
 | Merged cells, diagonal header cells, cell shading | A Markdown table is a regular two-dimensional grid; export the grid, then merge those cells in Word |
 | Multi-column layouts, floating figures with text wrapping | Single column is the only layout; images go into their own centred figure paragraph |
+| A figure kept as a vector (PDF embedded as-is) | Word inline pictures hold bitmaps only; a PDF figure is rasterised at 300 dpi, which is enough for print but no longer infinitely scalable |
 | Limits above and below the sum/integral sign in a numbered equation | Word only stacks limits above and below the symbol in a display equation; a numbered equation is an inline equation (the number sits at the right via a tab). The content and symbols are correct; the layout differs |
 | Arbitrary tab stops | Only `dot-leader-tab` exists (right-aligned with a dot leader) |
 | Inline text colour | Colour is a style property (`color#1F4E79`); inline `{color=…}` is not supported |

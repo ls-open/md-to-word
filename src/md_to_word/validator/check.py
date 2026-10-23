@@ -27,6 +27,7 @@ from md_to_word.spec.parser import parse_requirements
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
 from md_to_word.preprocessor.blocks import resolve_style_name
 from md_to_word.template.generator import PAGE_SIZES_CM, missing_styles_for_body
+from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES, PdfFigureError, page_count
 
 # 复用 utils 中的基础文本解析工具
 from md_to_word.utils.skill_utils import (
@@ -417,6 +418,29 @@ def validate_manuscript(
             if not img_file.exists():
                 report.valid = False
                 report.errors.append(t("gate.image.missing", lang, line=i, path=clean_path))
+                continue
+            # 格式检查：Word 的内联图片只认位图，PDF 由导出流程在渲染阶段转成位图。
+            # 其余格式（svg、webp、eps…）python-docx 会抛 UnrecognizedImageError——
+            # 一屏 traceback、没有行号，所以在这里拦下并给出改法。
+            suffix = img_file.suffix.lower()
+            if suffix == PDF_SUFFIX:
+                try:
+                    pages = page_count(img_file)
+                except PdfFigureError as exc:
+                    report.valid = False
+                    report.errors.append(
+                        t("gate.image.pdf_unreadable", lang, line=i, path=clean_path, err=exc)
+                    )
+                else:
+                    if pages > 1:
+                        report.warnings.append(
+                            t("gate.image.pdf_multipage", lang, line=i, path=clean_path, pages=pages)
+                        )
+            elif suffix not in RASTER_SUFFIXES:
+                report.valid = False
+                report.errors.append(
+                    t("gate.image.unsupported", lang, line=i, path=clean_path, ext=suffix or "（无扩展名）")
+                )
 
     # 3. Obsidian WikiLinks
     for i, line in enumerate(md_text.split("\n"), 1):

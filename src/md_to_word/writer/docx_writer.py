@@ -26,6 +26,7 @@ from docx.shared import Cm, Emu
 from md_to_word.config import default_crossref_prefixes, looks_chinese
 from md_to_word.i18n import t
 from md_to_word.utils.docx_zip import normalize_zip
+from md_to_word.utils.pdf_figure import PdfFigureError, is_pdf, rasterize
 from md_to_word.preprocessor.markers import MarkerError, section_paragraph_xml, toc_xml
 from md_to_word.spec.constants import PAGE_NUMBER_FMT
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
@@ -591,9 +592,24 @@ class _Writer:
         path = Path(block.path)
         if not path.is_absolute():
             path = self.base_dir / path
-        run = paragraph.add_run()
-        if block.width_cm:
-            run.add_picture(str(path), width=Cm(block.width_cm))
+        if not is_pdf(path):
+            self._embed(paragraph.add_run(), path, block.width_cm)
+            return
+        # Word 只放得下位图，PDF 里的矢量得先渲染成像素。渲染的临时文件
+        # 用完即删：python-docx 在这一步已经把字节读进包里了。
+        try:
+            png = rasterize(path, block.width_cm)
+        except PdfFigureError as exc:
+            raise UnsupportedFeature(t("writer.figure_pdf_failed", self.lang, path=path.name, err=exc)) from exc
+        try:
+            self._embed(paragraph.add_run(), png, block.width_cm)
+        finally:
+            png.unlink(missing_ok=True)
+
+    @staticmethod
+    def _embed(run, path: Path, width_cm: Optional[float]) -> None:
+        if width_cm:
+            run.add_picture(str(path), width=Cm(width_cm))
         else:
             run.add_picture(str(path))
 
