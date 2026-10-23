@@ -5,7 +5,6 @@ English: `manual_en.md`
 Markdown → 规范 Word（`.docx`）。内容与排版分离：Markdown 是源，格式全部声明在要求文件里；
 导出是确定性的，同一份源任何时候重跑，产物逐字节一致。
 
-本手册随 Python 包发布，版本与实现同步——`pip install -U` 换掉的是一整份一致的实现与说明。
 `md-to-word --contract` 打印契约速查、入门文档与本文件的绝对路径、内置预设路径。
 
 一次导出只需要两个文件：
@@ -37,7 +36,6 @@ Markdown → 规范 Word（`.docx`）。内容与排版分离：Markdown 是源�
 | 命令行 | `md-to-word 稿件.md -o 输出.docx` |
 | Python | `from md_to_word import export` |
 | 从参考 `.docx` 反推要求草稿 | `md-to-word-template 参考.docx -o format.txt` |
-| AI 技能 | 技能目录的 `export.sh` 调用已安装的 `md-to-word`；克隆本仓库时直接用仓库里的 `src/` |
 | 入门文档 | 包内 `guide.md`：按什么顺序做、门禁怎么读、边界在哪。只装了包时先读它：`md-to-word --guide` 直接打印 |
 | 从零起步 | `md-to-word init [目录]`：放好 `format.txt` 与一份能直接导出的 `hello.md` |
 

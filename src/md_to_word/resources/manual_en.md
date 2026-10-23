@@ -6,10 +6,8 @@ Markdown → compliant Word (`.docx`). Content and layout are separate: Markdown
 every format decision is declared in the requirements file; export is deterministic — rerun the
 same source at any time and the output is byte-for-byte identical.
 
-This manual ships with the Python package and is versioned with the implementation — `pip install -U`
-replaces an implementation and its documentation together. `md-to-word --contract` prints the
-contract cheatsheet, the absolute paths of the getting-started guide and of this file, and the
-built-in preset paths.
+`md-to-word --contract` prints the contract cheatsheet, the absolute paths of the getting-started
+guide and of this file, and the built-in preset paths.
 
 One export needs two files:
 
@@ -40,7 +38,6 @@ One export needs two files:
 | Command line | `md-to-word manuscript.md -o out.docx` |
 | Python | `from md_to_word import export` |
 | Reverse-engineer a requirements draft from a reference `.docx` | `md-to-word-template reference.docx -o format.txt` |
-| AI skill | The skill directory's `export.sh` calls an installed `md-to-word`; a source checkout runs `src/` directly |
 | Getting-started guide | `guide.md` inside the package: order of work, how to read the gates, boundaries. Read it first when only the package is installed: `md-to-word --guide` prints it |
 | Starting from nothing | `md-to-word init [dir]`: writes a `format.txt` and a `hello.md` that exports as-is |
 

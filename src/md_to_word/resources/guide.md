@@ -99,8 +99,7 @@ item, `==highlight==`, `[text]{.class}` (except `.underline`), `\(...\)` inline 
 
 Each property has exactly one accepted spelling, plus its Chinese or English counterpart; anything
 else is a hard error with a line number (manual §3.1). `format.txt` in these instructions means *the
-format requirements file* — any filename works, `-r` takes it. `requirements.txt` never means that;
-it is the Python dependency list.
+format requirements file* — any filename works, `-r` takes it.
 
 Citation style comes from `csl:` with a bundled name (manual §7) or a path to the user's own CSL.
 Without `csl:`, Chinese manuscripts get GB/T 7714 numeric and everything else APA 7th.
@@ -118,9 +117,8 @@ md-to-word --guide                                             # this file, prin
 md-to-word manuscript.md --contract                            # contract + guide, manual and preset paths
 ```
 
-From a source checkout the same commands run through `bash <skill-dir>/scripts/export.sh`. Run it
-from the manuscript's directory. Add `--verbose` when a format does not seem to take effect; add
-`--pdf` (macOS with Word) to expand fields and spot-check the result.
+Run every command from the manuscript's directory: relative image and `.bib` paths resolve against
+it. Add `--pdf` (macOS with Word) to expand fields and spot-check the result.
 
 Add `--json` whenever the result has to be read back programmatically: stdout then carries one JSON
 object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `messages`, `errors` — while progress
@@ -159,10 +157,6 @@ skipped. Messages follow the manuscript's language.
 - Sum and integral limits stay to the right of the symbol in numbered equations (Word stacks limits
   only in display math). Content and symbols are correct; only the arrangement differs.
 - TOC page numbers and chapter headers are Word fields; Word asks once whether to update them.
-- Runtime: whatever Python version the package declares — pip refuses older interpreters, so this
-  file never names one — and nothing else. From a source checkout, `pip install -r requirements.txt`;
-  where only the documentation is present, `pip install -U md-to-word-docx`. Export starts no
-  external program: the whole chain runs inside the Python process.
 
 Full statements: manual §6 (limits) and §8 (symptom → fix).
 
@@ -173,11 +167,7 @@ polishing, searching for sources and verifying reference metadata belong to what
 the user already works with: take the Markdown they hand you, produce the `.docx`, return it. The
 interface in both directions is a Markdown file plus a `format.txt`.
 
-Engine, pip package and issue tracker: [md-to-word](https://github.com/ls-open/md-to-word).
-
-## 8. Version contract
-
-This file must keep working after `pip install -U`, without being edited. What is frozen:
+## 8. What this file may rely on
 
 - the commands `md-to-word`, `md-to-word-template` and `init`; every flag named in this file
   (`-o`, `-r`, `--preset`, `--contract`, `--guide`, `--version`, `--json`, `--pdf`, `--lang`) keeps
@@ -187,4 +177,4 @@ This file must keep working after `pip install -U`, without being edited. What i
   `en-nature`, and the fixed file name `format.txt`
 
 Everything else — message wording, the layout inside the installed package, the version number — may
-change between releases. Never parse the prose of a message: pass `--json` and read the keys.
+change. Never parse the prose of a message: pass `--json` and read the keys.

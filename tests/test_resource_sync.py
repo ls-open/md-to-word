@@ -85,7 +85,7 @@ def test_skill_frozen_surface_exists_in_the_code() -> None:
     from md_to_word.config import resolve_preset_path
 
     text = (REPO_ROOT / "SKILL.md").read_text(encoding="utf-8")
-    section = text[text.index("## 8. Version contract"):]
+    section = text[text.index("## 8. "):]   # 小节标题可改，编号是契约
 
     parser = build_parser("zh")
     known = {opt for action in parser._actions for opt in action.option_strings}
