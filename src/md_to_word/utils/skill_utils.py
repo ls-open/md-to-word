@@ -730,10 +730,7 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
             issues.append((line_no, t("gate.dialect.indented_code", lang)))
             continue
 
-        # 强调与行内公式必须在同一行内闭合：跨行时不会配对，符号会原样印出去
-        if code_free.count("**") % 2:
-            issues.append((line_no, t("gate.dialect.unclosed_bold", lang)))
-            continue
+        # 行内公式必须在同一行内闭合：不配对时后文会被整段当成公式吞掉
         unescaped_dollars = re.sub(r"\\\$", "", code_free)
         if not in_display_math and unescaped_dollars.count("$") % 2:
             issues.append((line_no, t("gate.dialect.unclosed_dollar", lang)))

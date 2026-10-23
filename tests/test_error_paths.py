@@ -81,7 +81,7 @@ def test_no_arguments_prints_a_usable_brief(capsys) -> None:
 
 def test_skill_entry_survives_a_broken_manuscript(tmp_path: Path) -> None:
     """技能侧走 `scripts/export.sh`：稿件坏了也要是一句话，不是 traceback。"""
-    (tmp_path / "bad.md").write_text("# Heading\n\nOpen **bold across\nlines**.\n", encoding="utf-8")
+    (tmp_path / "bad.md").write_text("# Heading\n\n---\n", encoding="utf-8")
 
     result = subprocess.run(
         ["bash", str(REPO_ROOT / "scripts" / "export.sh"), "bad.md"],

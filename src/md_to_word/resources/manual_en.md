@@ -294,8 +294,7 @@ the pre-flight check always stops them and gives an alternative:
 
 HTML tags and `<https://…>` autolinks, horizontal rules `---`, setext (`====`) headings,
 definition lists, task checkboxes `- [ ]`, tables without leading and trailing pipes, a block quote
-inside a block quote, full-width `％％`, four-space indented code blocks, bold spanning two lines
-`**…(newline)…**`, inline maths spanning two lines, a second paragraph in a list item (blank line +
+inside a block quote, full-width `％％`, four-space indented code blocks, inline maths spanning two lines, a second paragraph in a list item (blank line +
 indentation), a heading with no space after `#`, a heading with only `#` and no text, properties
 other than `width` on an image line (such as `{align=right}`), percentage image widths
 (`{width=60%}` — write an absolute length such as `{width=14cm}`), `==highlight==`,

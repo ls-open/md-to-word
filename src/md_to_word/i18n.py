@@ -1161,11 +1161,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "不支持四空格缩进的代码块；代码一律用 ``` 围栏包起来",
         "four-space indented code blocks are not supported; always wrap code in ``` fences",
     ),
-    "gate.dialect.unclosed_bold": (
-        "`**` 没有在同一行内闭合；跨行加粗不支持，把它和文字写在同一行",
-        "`**` is not closed on the same line; multi-line bold is not supported, keep it on one line "
-        "with the text",
-    ),
     "gate.dialect.unclosed_dollar": (
         "`$` 没有在同一行内闭合；行内公式要写成 `$公式$`，与文字在同一行",
         "`$` is not closed on the same line; write inline math as `$math$` on the same line as the text",

@@ -89,7 +89,7 @@ also work). A section marker closes *the section above it*; never add a page bre
 
 **Unsupported Markdown is blocked with a replacement, never printed literally**: HTML tags, `---`
 rules, `====` headings, definition lists, `- [ ]` boxes, tables without outer pipes, nested block
-quotes, full-width `％％`, four-space code blocks, `**` across lines, a second paragraph inside a list
+quotes, full-width `％％`, four-space code blocks, a second paragraph inside a list
 item, `==highlight==`, `[text]{.class}` (except `.underline`), `\(...\)` inline math.
 
 ## 3. The format requirements file
