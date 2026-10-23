@@ -956,6 +956,25 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "or TIFF, so the export would stop here. Save it as PNG first, or reference a PDF directly "
         "(PDF figures are rasterised at 300 dpi during export)",
     ),
+    "gate.image.inline": (
+        "行 {line}: 图片没有独立成行——行内图片不会落成图段，只会印出一个 `!`。"
+        "把 `![](…)` 单独放一行，题注用 `%% 图片题注` 另起一段",
+        "Line {line}: the image is not on its own line — an inline image does not become a figure "
+        "paragraph, only a stray `!` is printed. Put `![](…)` on its own line and give the caption "
+        "its own `%% Image Caption` paragraph",
+    ),
+    "gate.footnote.undefined": (
+        "行 {line}: 脚注引用 `[^{label}]` 没有对应定义（`[^{label}]: …`），"
+        "导出后是一个空号，整段注释文字会丢",
+        "Line {line}: the footnote reference `[^{label}]` has no definition "
+        "(`[^{label}]: …`); the export would print an empty mark and drop the note",
+    ),
+    "gate.equation.duplicate_label": (
+        "公式标签 `{{#{label}}}` 重复：第 {first} 行已有同名标签，两条公式会抢同一个编号，"
+        "引用只能指到其中一条",
+        "Duplicate equation label `{{#{label}}}`: line {first} already defines it; the two equations "
+        "compete for one number and a reference can only reach one of them",
+    ),
     "gate.image.pdf_unreadable": (
         "行 {line}: 打不开 PDF「{path}」（{err}）——加密、损坏，或者根本不是 PDF",
         "Line {line}: cannot open the PDF at {path} ({err}) — encrypted, damaged, or not a PDF",

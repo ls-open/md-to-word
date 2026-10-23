@@ -10,10 +10,10 @@
 
 ## Contents
 
-1. 模板生成原理
-2. 深层故障排查
-3. 分发形态：一份实现，两个入口
-4. 为什么是 AI 原生
+- 模板生成原理
+- 深层故障排查
+- 分发形态：一份实现，两个入口
+- 为什么是 AI 原生
 
 ## 1. 模板生成原理
 
@@ -98,29 +98,12 @@
 
 ### 1.5 页面尺寸与图片宽度（pgSz + pgMar）
 
-图片的显示宽度上限是版心宽：从模板的 `sectPr` 里取 `pgSz`（页面尺寸）与 `pgMar`（页边距），
-算 `版心宽 = pgSz.w - pgMar.left - pgMar.right`。**任一项缺失**时按 A4 + 2.54cm 边距兜底。
+版心宽 = `pgSz.w - pgMar.left - pgMar.right`；模板保存前由
+`src/md_to_word/template/generator.py` 按 `纸张：` 行写入这两组元素，缺任一项按 A4 + 2.54cm 兜底。
 
-**图片宽度为什么会莫名变小**——模板的 `sectPr` 里如果没有 `pgSz`/`pgMar`，就只能按兜底值算版心。
-
-`src/md_to_word/template/generator.py` 现在在保存模板前自动设置：
-- `section.page_width` / `section.page_height`（写入 `<w:pgSz>`）
-- `section.left_margin` 等（写入 `<w:pgMar>`，默认 2.54cm）
-- 纸张尺寸由 requirements 文件的 `纸张：A4|Letter` 行设定（不写默认 A4，见 manual.md §3.1）
-
-设置后，A4 页面内容宽度 = 21.0 - 2.54 - 2.54 = 15.92cm，`{width=15cm}` 可正确生效。
-
-**装订线不在这条公式里，所以折进左边距写**。`w:gutter` 是"在装订侧再多留一段空白"，
-Word 打印时会把它加到左边距之外，但**算版心的公式里没有它**，本技能算正文
-宽度的两处（`_content_width_twips`、`_text_width_pt`）同样。后果实测：A4 + 2.54cm 边距 +
-`装订线：1cm`，`{width=25cm}` 被钳成 15.90cm（本应 14.92cm），而文字起点已经右移 1cm——
-于是在 Word 渲染的 PDF 上量出图片右缘在 **19.44cm**，越过 18.46cm 的右边距 **0.98cm**，
-而导前预检、防丢数、导出后对账三道闸门全绿。
-
-改法是把装订线**加进 `pgMar/@w:left`**（2.54 + 1 = 3.54cm），不写 `w:gutter`。单节、不开
-镜像页边距时，两者在打印上等效，但折进去之后算出来的才是**真实版心**
-（14.92cm），图片、公式网格表、点线制表位的落点一起跟着对——是"算得对"，不是"再补一刀"。
-对账侧（`src/md_to_word/audit/inspector.py`）左边的期望值相应加上装订线。
+**装订线折进左边距写**：`w:gutter` 不进上述公式，版心会算大，所以 `pgMar/@w:left` 写
+`左边距 + 装订线`。`_content_width_twips` 已含装订线，仍漏加的是目录的 `dot_leader_pos`
+（生成时只传了页边距）。对账侧（`audit/inspector.py`）左边的期望值也加上装订线。
 
 ### 1.6 原生图语法居中
 

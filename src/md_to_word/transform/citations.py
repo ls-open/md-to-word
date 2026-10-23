@@ -62,11 +62,13 @@ class CitationEngine:
         self._collapse = options.get("collapse") in ("year", "year-suffix", "year-suffix-ranged")
         # 数字制的连续编号合并：方括号形态（GB/T、IEEE）与上标形态（Nature、AMA）
         self._numeric = options.get("collapse") == "citation-number"
+        self._expand_pages = 'page-range-format="expanded"' in style_text
         self._add_givenname = options.get("disambiguate-add-givenname") == "true"
         # by-cite 只按引用消歧；其余四种规则连「名字」一起消歧（APA 用的就是后者）
         rule = options.get("givenname-disambiguation-rule", "by-cite")
         self._rule_names = rule != "by-cite"
         self._initials_all = rule.startswith("all-names")
+        self._initials_only = rule.endswith("with-initials")
         self._cloner = StyleCloner(style_text, int(options.get("et-al-use-first", "1") or 1))
         layout = re.search(r"<layout\b([^>]*)>", _citation_block(style_text))
         layout_attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', layout.group(1))) if layout else {}
@@ -91,9 +93,8 @@ class CitationEngine:
             return
 
         if self._add_givenname and self._rule_names:
-            for group in self._same_surname(cited):
-                for key in group:
-                    self._variants[key] = Variant(initials=True)
+            for key, variant in self._name_variants(cited).items():
+                self._variants[key] = variant
 
         if self._add_names:
             for group in _groups({k: self._render_single(k, self._variant(k)) for k in cited}):
@@ -121,8 +122,8 @@ class CitationEngine:
             )
             self._variant_cache.clear()
 
-    def _with_initials(self, key: str) -> list:
-        """这条引用的条目副本：按规则给首名（或全部名字）补上首字母。"""
+    def _with_names(self, key: str, full: bool = False) -> list:
+        """这条引用的条目副本：按规则给首名（或全部名字）补首字母，或展开全名。"""
         decorated = []
         for entry in self.entries:
             if entry["id"] != key:
@@ -135,7 +136,7 @@ class CitationEngine:
                 given = person.get("given", "")
                 family = person.get("family")
                 if given and family:
-                    person["family"] = initials(given) + family
+                    person["family"] = (given + " " if full else initials(given)) + family
             copy["author"] = people
             decorated.append(copy)
         return decorated
@@ -143,18 +144,29 @@ class CitationEngine:
     def _variant(self, key: str) -> Variant:
         return self._variants.get(key, BASE)
 
-    def _same_surname(self, cited: list[str]) -> list[list[str]]:
-        """第一作者同姓但不同人的分组——这些人要补首字母。"""
+    def _name_variants(self, cited: list[str]) -> dict[str, Variant]:
+        """第一作者同姓不同人的，补首字母；首字母也撞的（J. Smith 有两位），展开全名。"""
         buckets: dict[str, list[str]] = {}
         for key in cited:
             people = self._by_key[key].get("author") or []
             if people:
                 buckets.setdefault(people[0].get("family") or people[0].get("literal", ""), []).append(key)
-        return [
-            group
-            for group in buckets.values()
-            if len({(self._by_key[k].get("author") or [{}])[0].get("given", "") for k in group}) > 1
-        ]
+
+        out: dict[str, Variant] = {}
+        for group in buckets.values():
+            firsts = [(self._by_key[k].get("author") or [{}])[0] for k in group]
+            givens = {person.get("given", "") for person in firsts}
+            if len(givens) < 2:
+                continue
+            initials_seen = {initials(given).strip() for given in givens}
+            # `…-with-initials` 规则只允许补到首字母，撞了就落到年份后缀（APA 8.20 那条例外
+            # 「J. Smith [John]」CSL 表达不了，写在手册的能力边界里）
+            collide = len(initials_seen) < len(givens)
+            full = collide and not self._initials_only
+            variant = Variant(full_names=True) if full else Variant(initials=True)
+            for key in group:
+                out[key] = variant
+        return out
 
     def _render_group(self, pairs) -> str:
         """逐条渲染再按样式的布局合起来：这条路上消歧形态与 collapse 归我们自己管。
@@ -222,8 +234,8 @@ class CitationEngine:
         补名字走**样式副本**：显示几个名字是样式属性，条目数据改不了。
         """
         entries = self.entries
-        if variant.initials:
-            entries = self._with_initials(key)
+        if variant.initials or variant.full_names:
+            entries = self._with_names(key, full=variant.full_names)
         style = self._style
         if variant.extra_names:
             style = CitationStylesStyle(str(self._cloner.path(Variant(extra_names=variant.extra_names))), validate=False)
@@ -232,12 +244,14 @@ class CitationEngine:
         )
         args: dict = {}
         if locator:
+            if label == "page" and self._expand_pages:
+                locator = _expand_range(locator)
             args["locator"] = Locator(label, locator)
         if prefix:
             args["prefix"] = prefix.strip() + " "
         citation = Citation([CitationItem(key, **args)])
         bibliography.register(citation)
-        return str(bibliography.cite(citation, lambda item: item))
+        return _with_year_suffix(str(bibliography.cite(citation, lambda item: item)), self._by_key.get(key, {}))
 
     def has(self, key: str) -> bool:
         return key in self._known
@@ -268,6 +282,8 @@ class CitationEngine:
             prefix = pair[2] if len(pair) > 2 else ""
             label = pair[3] if len(pair) > 3 else "page"
             if locator:
+                if label == "page" and self._expand_pages:
+                    locator = _expand_range(locator)
                 args["locator"] = Locator(label, locator)
             if prefix:
                 # CSL 把 prefix 当原样文本，空格要自己带
@@ -316,7 +332,10 @@ class CitationEngine:
         `citeproc-py` 有 `style.sort_bibliography()`，但实测不生效（ape.csl 依旧按注册顺序
         返回），所以这里自己做。排序键用条目字段近似 CSL 的宏排序——够覆盖作者-年份制。
         """
-        rendered = [str(entry) for entry in self._bibliography.bibliography()]
+        rendered = [
+            _with_year_suffix(str(entry), self._by_key.get(key, {}))
+            for key, entry in zip(self._order, self._bibliography.bibliography())
+        ]
         if not self._sorted or len(rendered) != len(self._order):
             return rendered
 
@@ -491,6 +510,34 @@ def _unique(pairs) -> list:
         seen.add(pair[0])
         unique.append(pair)
     return unique
+
+
+def _expand_range(value: str) -> str:
+    """`33-5` → `33-35`（CSL 的 `page-range-format="expanded"`）。"""
+    def repl(m: re.Match) -> str:
+        start, end = m.group(1), m.group(2)
+        if len(end) < len(start):
+            end = start[: len(start) - len(end)] + end
+        return f"{start}\u2013{end}"
+
+    return re.sub(r"(?<![\d.])(\d+)\s*[-\u2013]\s*(\d+)(?![\d.])", repl, value)
+
+
+def _with_year_suffix(text: str, entry: dict) -> str:
+    """样式没引用 `year-suffix` 变量时，按 CSL 默认位置把后缀补在年份后面。
+
+    规范说后缀默认跟在「cite 与文献表里 cs:date 渲染出的第一个年份」后面，是否显式渲染
+    由样式决定；citeproc-py 两样都不做，所以缺了这一步的样式（如 elsevier-harvard）
+    后缀根本不出现，同一作者同年的文献就撞车。
+    """
+    suffix = entry.get("year-suffix")
+    if not suffix:
+        return text
+    issued = (entry.get("issued") or {}).get("date-parts", [[None]])
+    year = str(issued[0][0]) if issued and issued[0] else ""
+    if not year or f"{year}{suffix}" in text:
+        return text
+    return text.replace(year, f"{year}{suffix}", 1)
 
 
 def _citation_block(style_text: str) -> str:

@@ -185,3 +185,32 @@ def test_styled_chinese_citation_gap_trimmed(tmp_path: Path) -> None:
     res_doc = open_docx(out_docx)
     p0 = res_doc.paragraphs[0].text
     assert "重要结论[1]" in p0 or "重要结论" in p0 and " [1]" not in p0
+
+
+def test_footnotes_are_numbered_and_images_keep_their_alt_text(tmp_path: Path) -> None:
+    """脚注区缺 `w:footnoteRef` 会正文有号、注文无号；图片的替代文字以前读进来就丢了。"""
+    import re
+    import shutil
+    import zipfile
+
+    from md_to_word.model.reader import read_markdown
+    from md_to_word.template.builder import build_template
+    from md_to_word.writer import write_docx
+
+    repo = Path(__file__).resolve().parents[1]
+    pic = repo / "demo" / "01_chinese_thesis" / "figures" / "qa_pipeline.png"
+    shutil.copy(pic, tmp_path / "pic.png")
+    build_template(
+        (repo / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+    )
+    md = (
+        "# 一\n\n正文有脚注[^n]，还有图。\n\n![系统架构图](pic.png){width=5cm}\n\n"
+        "%% 图片题注 图 1 架构\n\n[^n]: 注释内容。\n"
+    )
+    write_docx(read_markdown(md), tmp_path / "tpl.docx", tmp_path / "o.docx", base_dir=tmp_path)
+
+    package = zipfile.ZipFile(tmp_path / "o.docx")
+    document = package.read("word/document.xml").decode("utf-8")
+    footnotes = package.read("word/footnotes.xml").decode("utf-8")
+    assert 'descr="系统架构图"' in document
+    assert "footnoteRef" in footnotes

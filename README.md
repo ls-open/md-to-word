@@ -155,12 +155,12 @@ if not result.ok:
 md-to-word 稿件.md -o 稿件.docx --json
 ```
 
-键名固定（`ok`、`returncode`、`output`、`pdf`、`messages`、`errors`），不随版本变；
+键名固定（`ok`、`returncode`、`input`、`output`、`pdf`、`lang`、`messages`、`errors`），不随版本变；
 里面的句子跟着稿件语种走。读键，不读措辞。
 
 ## 环境
 
-- **依赖**：`python-docx`、`lxml`、`PyYAML`、`latex2mathml`、`citeproc-py` 五个包；除 `lxml`（C 扩展，各平台都有现成轮子）外都是纯 Python
+- **依赖**：`python-docx`、`lxml`、`PyYAML`、`latex2mathml`、`citeproc-py`、`pypdfium2` 六个包；`lxml` 与 `pypdfium2` 是带各平台二进制轮子的扩展，其余是纯 Python
 - **导出不启动外部程序**：整条链路在 Python 进程内完成
 - **`--pdf` 核对版**才用到本机 Word（仅 macOS；不可用时自动跳过，不影响 `.docx`）
 - **中英双语**：运行时消息、门禁报错、使用手册各有两份，语言跟着**稿件语种**走——

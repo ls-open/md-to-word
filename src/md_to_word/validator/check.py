@@ -448,6 +448,23 @@ def validate_manuscript(
                     t("gate.image.unsupported", lang, line=i, path=clean_path, ext=suffix or "（无扩展名）")
                 )
 
+    # 2b. 图片必须独立成行：行内图片不会落成图段，只会印出一个 `!`
+    for i, line in enumerate(md_text.split("\n"), 1):
+        stripped = line.strip()
+        if not re.search(r"!\[.*?\]\(", line) or stripped.startswith("```"):
+            continue
+        if not re.fullmatch(r"!\[[^\]]*\]\([^)]*\)(?:\{[^}]*\})?", stripped):
+            report.valid = False
+            report.errors.append(t("gate.image.inline", lang, line=i))
+
+    # 2c. 脚注引用必须有定义：缺定义的脚注会印成空号，整段注释丢字
+    defined = set(re.findall(r"^\s*\[\^([^\]]+)\]:", md_text, re.M))
+    for i, line in enumerate(md_text.split("\n"), 1):
+        for label in re.findall(r"\[\^([^\]]+)\](?!:)", line):
+            if label not in defined:
+                report.valid = False
+                report.errors.append(t("gate.footnote.undefined", lang, line=i, label=label))
+
     # 3. Obsidian WikiLinks
     for i, line in enumerate(md_text.split("\n"), 1):
         if re.search(r"!\[\[.*?\]\]|\[\[.*?\]\]", line):
@@ -504,6 +521,19 @@ def validate_manuscript(
         report.errors.append(
             t("gate.line", lang, line=line_no, tag=t("gate.tag.table", lang), why=why)
         )
+
+    # 10b. 公式标签重复：两条公式共用一个标签，后面那条的编号会盖掉前面，引用只能指到一条
+    labels_seen: dict[str, int] = {}
+    for i, line in enumerate(md_text.split("\n"), 1):
+        for label in re.findall(r"\{#(eq-[\w:.\-]+)\}", line):
+            if label in labels_seen:
+                report.valid = False
+                report.errors.append(
+                    t("gate.equation.duplicate_label", lang, label=label,
+                      first=labels_seen[label], line=i)
+                )
+            else:
+                labels_seen[label] = i
 
     # 11. 图表题注邻近性：题注离表格/图片远了，样式仍会生效，只是位置不对，提醒即可
     _group_warn(report, t("gate.tag.caption_adjacency", lang),

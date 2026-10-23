@@ -28,10 +28,11 @@ class Variant:
 
     extra_names: int = 0
     initials: bool = False
+    full_names: bool = False   # 首字母也分不开时展开全名（primary-name 规则的最后一步）
 
     @property
     def plain(self) -> bool:
-        return not self.extra_names and not self.initials
+        return not self.extra_names and not self.initials and not self.full_names
 
 
 BASE = Variant()
@@ -103,7 +104,7 @@ class StyleCloner:
 
     def path(self, variant: Variant) -> Path:
         if variant not in self._paths:
-            target = Path(self._dir.name) / f"csl-{variant.extra_names}-{int(variant.initials)}.csl"
+            target = Path(self._dir.name) / f"csl-{variant.extra_names}.csl"
             target.write_text(clone(self._text, self._base, variant), encoding="utf-8")
             self._paths[variant] = target
         return self._paths[variant]

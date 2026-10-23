@@ -174,13 +174,13 @@ manuscript → writes `format.txt` → exports → reads the gates and fixes the
 md-to-word manuscript.md -o manuscript.docx --json
 ```
 
-The keys are fixed (`ok`, `returncode`, `output`, `pdf`, `messages`, `errors`) and do not change
+The keys are fixed (`ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `messages`, `errors`) and do not change
 between versions; the sentences inside them follow the manuscript's language. Read the keys, not the
 wording.
 
 ## Environment
 
-- **Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py` — five packages, all pure Python except `lxml` (a C extension, wheels available for every platform)
+- **Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py`, `pypdfium2` — six packages; `lxml` and `pypdfium2` are compiled extensions with binary wheels for every platform, the rest is pure Python
 - **Export starts no external program**: the whole chain runs inside the Python process
 - **Only the optional `--pdf` proof** uses the local Word installation (macOS; skipped elsewhere, `.docx` unaffected)
 - **Chinese and English**: runtime messages, gate diagnostics and the manual each exist in both

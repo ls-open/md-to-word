@@ -593,7 +593,7 @@ class _Writer:
         if not path.is_absolute():
             path = self.base_dir / path
         if not is_pdf(path):
-            self._embed(paragraph.add_run(), path, block.width_cm)
+            self._embed(paragraph.add_run(), path, block.width_cm, block.alt)
             return
         # Word 只放得下位图，PDF 里的矢量得先渲染成像素。渲染的临时文件
         # 用完即删：python-docx 在这一步已经把字节读进包里了。
@@ -602,16 +602,19 @@ class _Writer:
         except PdfFigureError as exc:
             raise UnsupportedFeature(t("writer.figure_pdf_failed", self.lang, path=path.name, err=exc)) from exc
         try:
-            self._embed(paragraph.add_run(), png, block.width_cm)
+            self._embed(paragraph.add_run(), png, block.width_cm, block.alt)
         finally:
             png.unlink(missing_ok=True)
 
     @staticmethod
-    def _embed(run, path: Path, width_cm: Optional[float]) -> None:
-        if width_cm:
+    def _embed(run, path: Path, width_cm: Optional[float], alt: str = "") -> None:
+        shape = (
             run.add_picture(str(path), width=Cm(width_cm))
-        else:
-            run.add_picture(str(path))
+            if width_cm
+            else run.add_picture(str(path))
+        )
+        if alt:
+            shape._inline.docPr.set("descr", alt)
 
     # ── 内联 ─────────────────────────────────────────────────────────
     def inlines(self, paragraph, nodes: Iterable[Inline]) -> None:
@@ -666,7 +669,12 @@ class _Writer:
             raise UnsupportedFeature(t("writer.footnote_paragraph_only", self.lang))
         style = (block.style or "Footnote Text").replace(" ", "")
         runs = "".join(self._run_xml(node) for node in block.inlines)
-        return f'<w:p><w:pPr><w:pStyle w:val="{style}"/></w:pPr>{runs}</w:p>'
+        # 脚注区每条前面的编号由 `w:footnoteRef` 域生成，缺了它正文有号、注文无号
+        number = (
+            '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr>'
+            "<w:footnoteRef/></w:r><w:r><w:t xml:space=\"preserve\"> </w:t></w:r>"
+        )
+        return f'<w:p><w:pPr><w:pStyle w:val="{style}"/></w:pPr>{number}{runs}</w:p>'
 
     def _run_xml(self, node) -> str:
         if isinstance(node, LineBreak):
