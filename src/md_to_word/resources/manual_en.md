@@ -616,6 +616,7 @@ inline formatting; three-level lists and lists inside block quotes; footnotes.
 | A custom cover page (crest, underlined fill-in fields, signature page) | `%% Title` generates one standard title block only; merge a cover supplied by your institution into the first page in Word, or lay out a simple one with a table |
 | Merged cells, diagonal header cells, cell shading | A Markdown table is a regular two-dimensional grid; export the grid, then merge those cells in Word |
 | Multi-column layouts, floating figures with text wrapping | Single column is the only layout; images go into their own centred figure paragraph |
+| Initials for same-surname first authors, extra names for a shared first author (APA 8.20) | The citation engine implements neither rule; edit those in-text citations in Word after export. Same-author same-year suffixes (2020a/b) are supported |
 | A figure kept as a vector (PDF embedded as-is) | Word inline pictures hold bitmaps only; a PDF figure is rasterised at 300 dpi, which is enough for print but no longer infinitely scalable |
 | Limits above and below the sum/integral sign in a numbered equation | Word only stacks limits above and below the symbol in a display equation; a numbered equation is an inline equation (the number sits at the right via a tab). The content and symbols are correct; the layout differs |
 | Arbitrary tab stops | Only `dot-leader-tab` exists (right-aligned with a dot leader) |

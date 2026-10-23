@@ -325,6 +325,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
         try:
             model = read_markdown(contract_text, citation_keys=citation_keys)
+            if engine is not None:
+                # 年份后缀要在第一次渲染之前定下来（同作者同年的多条文献编 a/b/c），
+                # 而引擎是在模型读出来之前建的，所以这里把真正引用到的 key 交回去
+                from md_to_word.transform.citations import cited_keys
+
+                engine.reserve(cited_keys(model))
             write_docx(
                 model,
                 tpl_for_render,

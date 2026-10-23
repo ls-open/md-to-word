@@ -11,9 +11,10 @@ CSL 的 author-in-text 形式渲染。这里对作者-年份制做一次保守�
 
 from __future__ import annotations
 
+import dataclasses
 import re
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Sequence
 
 from citeproc import Citation, CitationItem, CitationStylesBibliography, CitationStylesStyle, formatter
 from citeproc.source.json import CiteProcJSON
@@ -40,6 +41,7 @@ class CitationEngine:
             raise CitationError(t("citations.style_unparsable", lang, path=csl_path, err=exc)) from exc
         # html 而不是 plain：CSL 里的斜体、上标（Nature 的引文编号就是上标）只有带标记
         # 才能还原。返回给我们自己解析，最终落成带格式的 run。
+        self._style = style
         self._bibliography = CitationStylesBibliography(
             style, CiteProcJSON(self.entries), formatter.html
         )
@@ -48,6 +50,45 @@ class CitationEngine:
         self._order: list[str] = []          # 首次引用顺序（数字制就用它）
         self._by_key = {entry["id"]: entry for entry in self.entries}
         self._sorted = _declares_sort(str(csl_path))
+        style_text = Path(csl_path).read_text(encoding="utf-8")
+        self._year_suffix = _declares_option(style_text, "disambiguate-add-year-suffix")
+
+    def reserve(self, keys: Iterable[str]) -> None:
+        """渲染之前定下年份后缀（CSL 的 `disambiguate-add-year-suffix`）。
+
+        CSL 的条件是「文内引用会完全相同的多条文献」，结果是按文献表里的先后加 a/b/c，
+        而且**文内引用和文献表两处都要带**。这里按数据近似那个条件：作者（姓）序列相同、
+        年份相同。这条近似恰好避开另外两条规则的地盘——同姓不同人、同姓不同合作者的
+        作者序列不同，不加后缀；那是「补首字母 / 补作者」管的事。
+
+        `citeproc-py` 自己不分配后缀，但 `year-suffix` 是它认识的变量：写进条目数据，
+        样式里引用它的地方就会渲染出来（实测 `2020a` / `2020b` 文内与文献表都对）。
+
+        必须在**第一次 cite 之前**调用：后缀一旦参与渲染就不能再改，缓存也按它存。
+        """
+        if not self._year_suffix:
+            return
+        groups: dict[tuple, list[str]] = {}
+        for key in keys:
+            entry = self._by_key.get(key)
+            if entry is None:
+                continue
+            groups.setdefault(_author_year(entry), []).append(key)
+
+        changed = False
+        for group in groups.values():
+            if len(group) < 2:
+                continue
+            group.sort(key=lambda k: _sort_key(self._by_key[k]))
+            for index, key in enumerate(group):
+                self._by_key[key]["year-suffix"] = _suffix_label(index)
+                changed = True
+
+        if changed:
+            # 条目数据变了，重建一份引用源：CiteProcJSON 的条目在构造时已抓走
+            self._bibliography = CitationStylesBibliography(
+                self._style, CiteProcJSON(self.entries), formatter.html
+            )
 
     def has(self, key: str) -> bool:
         return key in self._known
@@ -178,6 +219,30 @@ def html_to_segments(html: str) -> list[tuple[str, dict]]:
     return segments or [(unescape(html or ""), {})]
 
 
+def _declares_option(style_text: str, name: str) -> bool:
+    """样式有没有声明某个 `citation` 选项。CSL 的处理选项都写在这一个元素上。"""
+    block = re.search(r"<citation\b[^>]*>", style_text)
+    return bool(block and re.search(rf'{name}="true"', block.group(0)))
+
+
+def _author_year(entry: dict) -> tuple:
+    """「同作者 + 同年」的分组键：作者（姓）序列与年份。"""
+    people = entry.get("author") or entry.get("editor") or []
+    names = tuple(p.get("family") or p.get("literal", "") for p in people)
+    issued = (entry.get("issued") or {}).get("date-parts", [[None]])
+    return (names, issued[0][0] if issued and issued[0] else None)
+
+
+def _suffix_label(index: int) -> str:
+    """0 → a，25 → z，26 → aa（CSL 的年份后缀序列）。"""
+    label = ""
+    index += 1
+    while index:
+        index, rest = divmod(index - 1, 26)
+        label = chr(ord("a") + rest) + label
+    return label
+
+
 def _declares_sort(csl_path: str) -> bool:
     try:
         import re as _re
@@ -214,3 +279,31 @@ def _as_narrative(text: str) -> str:
     if not match:
         return text
     return f"{match.group('author')} ({match.group('year')})"
+
+
+def cited_keys(model) -> list[str]:
+    """文档模型里引用到的文献 key，按出现顺序去重。
+
+    年份后缀必须在第一次渲染之前定下来，而引擎是在模型读出来之前建的，
+    所以由调用方读完模型再把 key 交回去（`CitationEngine.reserve`）。
+    """
+    from md_to_word.model.document import Citation as CitationNode  # 与 citeproc 的 Citation 同名，别混
+
+    found: list[str] = []
+
+    def walk(node) -> None:
+        if isinstance(node, CitationNode):
+            found.extend(item.key for item in node.items)
+            return
+        if node is None or isinstance(node, str):
+            return
+        if isinstance(node, (list, tuple)):
+            for child in node:
+                walk(child)
+            return
+        if dataclasses.is_dataclass(node) and not isinstance(node, type):
+            for field in dataclasses.fields(node):
+                walk(getattr(node, field.name))
+
+    walk(model)
+    return list(dict.fromkeys(found))
