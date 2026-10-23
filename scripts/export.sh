@@ -21,7 +21,7 @@ VENDORED="$ROOT/src/md_to_word"
 
 # 1. 仓库自带的实现优先
 if [[ -d "$VENDORED" ]] && command -v python3 >/dev/null 2>&1; then
-    if python3 -c "import docx, lxml, yaml, latex2mathml, citeproc" >/dev/null 2>&1; then
+    if python3 -c "import docx, lxml, yaml, latex2mathml, citeproc, pypdfium2" >/dev/null 2>&1; then
         export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
         exec python3 -m md_to_word "$@"
     fi
