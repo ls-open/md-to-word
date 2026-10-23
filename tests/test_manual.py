@@ -111,3 +111,19 @@ def test_contract_points_at_real_files() -> None:
         assert path.as_posix() in out, f"--contract --lang {lang} 没指向 {path.name}"
         for name in ("zh-academic", "en-nature"):
             assert re.search(rf"{name}\s+\S+{name}\.txt", out), f"没给 {name} 预设的路径"
+
+
+# 章节编号是**对外契约**：技能文档（含另一个仓库里的 nature-paper2word）用 §3.1 / §3.4 /
+# §6 / §7 / §8 指路。改手册时随手重排小节，那些指路就会静默指着别的段落，而对方仓库
+# 的文档改不动也发现不了。这里把被外部引用的编号钉住。
+REFERENCED_SECTIONS = {
+    "zh": ["### 3.1 ", "### 3.3 ", "### 3.4 ", "## 6. ", "## 7. ", "## 8. "],
+    "en": ["### 3.1 ", "### 3.3 ", "### 3.4 ", "## 6. ", "## 7. ", "## 8. "],
+}
+
+
+def test_section_numbers_cited_elsewhere_stay_put() -> None:
+    for lang, headings in REFERENCED_SECTIONS.items():
+        text = MANUALS[lang].read_text(encoding="utf-8")
+        missing = [h.strip() for h in headings if h not in text]
+        assert not missing, f"{lang} 手册缺了对外引用的章节编号：{missing}"
