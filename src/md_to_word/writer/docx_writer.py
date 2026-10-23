@@ -656,6 +656,7 @@ class _Writer:
         是 Word 的约定，缺了它们脚注区在那条横线上会显示异常。
         """
         body: list[str] = []
+        self._footnote_links: list[str] = []
         by_label = {f.label: f for f in self.model.footnotes}
         for label, fid in self._footnote_ids.items():
             footnote = by_label.get(label)
@@ -675,9 +676,13 @@ class _Writer:
         part = Part(
             PackURI("/word/footnotes.xml"),
             "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml",
-            xml.encode("utf-8"),
+            b"",
             self.docx.part.package,
         )
+        for index, url in enumerate(self._footnote_links):
+            rid = part.relate_to(url, RT.HYPERLINK, is_external=True)
+            xml = xml.replace(f"{{{{L{index}}}}}", rid)
+        part._blob = xml.encode("utf-8")
         self.docx.part.relate_to(part, RT.FOOTNOTES)
 
     def _footnote_paragraph(self, block) -> str:
@@ -695,6 +700,10 @@ class _Writer:
     def _run_xml(self, node) -> str:
         if isinstance(node, LineBreak):
             return "<w:r><w:br/></w:r>"
+        if isinstance(node, Code):   # 等宽是叶子节点，别落进下面的纯文本分支
+            style = self._style_name("Verbatim Char")
+            props = f'<w:rStyle w:val="{style}"/>' if style else ""
+            return f'<w:r><w:rPr>{props}</w:rPr><w:t xml:space="preserve">{_escape(node.value)}</w:t></w:r>'
         text = getattr(node, "value", None)
         if text is not None:
             return f'<w:r><w:t xml:space="preserve">{_escape(text)}</w:t></w:r>'
@@ -708,6 +717,20 @@ class _Writer:
             props = "<w:b/>"
         elif isinstance(node, Emphasis):
             props = "<w:i/>"
+        elif isinstance(node, Strikethrough):
+            props = "<w:strike/>"
+        elif isinstance(node, Underline):
+            props = '<w:u w:val="single"/>'
+        elif isinstance(node, Superscript):
+            props = '<w:vertAlign w:val="superscript"/>'
+        elif isinstance(node, Subscript):
+            props = '<w:vertAlign w:val="subscript"/>'
+        elif isinstance(node, Link):
+            # 脚注区是手工拼的 XML，超链接要先拿到 rId——占位符在这里埋，写部件时替换
+            index = len(self._footnote_links)
+            self._footnote_links.append(node.url)
+            inner = "".join(self._run_xml(child) for child in node.children)
+            return f'<w:hyperlink r:id="{{{{L{index}}}}}">{inner}</w:hyperlink>' 
         return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
 
     def _render_eq_number(self, chapter: int, index: int) -> str:
@@ -790,7 +813,11 @@ class _Writer:
             # 中文行文里「基石 [1]」应为「基石[1]」；西文保留空格
             if not node.narrative:
                 self._trim_cjk_gap(paragraph)
-            self._linked_run(paragraph, segments, f"_Ref_{keys[0][0]}")
+            if self.model.meta.link_citations:
+                self._linked_run(paragraph, segments, f"_Ref_{keys[0][0]}")
+            else:
+                for text, fmt in segments:
+                    self._run_element(paragraph._p, text, fmt)
         elif isinstance(node, FootnoteRef):
             self._footnote_reference(paragraph, node.label)
         else:

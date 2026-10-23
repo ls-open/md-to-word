@@ -261,3 +261,61 @@ def test_an_over_wide_image_is_clamped_to_the_text_block(tmp_path: Path) -> None
     section = document.sections[0]
     limit = Emu(section.page_width - section.left_margin - section.right_margin).cm
     assert document.inline_shapes[0].width.cm == pytest.approx(limit, abs=0.02)
+
+
+def test_footnotes_keep_inline_formatting_and_links(tmp_path: Path) -> None:
+    """脚注区以前只有纯文本 run：删除线、下划线、上下标、等宽、链接的 URL 全丢。"""
+    import zipfile
+
+    from md_to_word.template.builder import build_template
+
+    repo = Path(__file__).resolve().parents[1]
+    build_template(
+        (repo / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+    )
+    md = (
+        "# 一\n\n正文[^1]。\n\n"
+        "[^1]: 含 ~~删除~~、[下划线]{.underline}、H~2~O、x^2^、`代码`、[链接](https://e.example)。\n"
+    )
+    write_docx(read_markdown(md), tmp_path / "tpl.docx", tmp_path / "o.docx")
+    package = zipfile.ZipFile(tmp_path / "o.docx")
+    notes = package.read("word/footnotes.xml").decode("utf-8")
+    for marker in ("<w:strike/>", "w:u w:val", "vertAlign", "Verbatim", "hyperlink"):
+        assert marker in notes, f"{marker} 没写进脚注：{notes[-300:]}"
+    rels = "".join(
+        package.read(name).decode("utf-8", "ignore")
+        for name in package.namelist()
+        if name.endswith(".rels")
+    )
+    assert "https://e.example" in rels
+
+
+def test_link_citations_false_writes_plain_citations(tmp_path: Path) -> None:
+    """YAML 写 `link-citations: false` 时不该再建内链。"""
+    import zipfile
+
+    from md_to_word.template.builder import build_template
+
+    repo = Path(__file__).resolve().parents[1]
+    (tmp_path / "refs.bib").write_text(
+        "@article{a, author={Adams, Bo}, title={A}, journal={J}, year={2019}}\n", encoding="utf-8"
+    )
+    build_template(
+        (repo / "presets" / "en-nature.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+    )
+    md = "---\nbibliography: refs.bib\nlink-citations: false\n---\n\n# One\n\nSee [@a].\n"
+    from md_to_word.config import get_csl_dir
+
+    engine = CitationEngine(
+        (tmp_path / "refs.bib").read_text(encoding="utf-8"), get_csl_dir() / "nature.csl", lang="en"
+    )
+    write_docx(
+        read_markdown(md, citation_keys={"a"}),
+        tmp_path / "tpl.docx",
+        tmp_path / "o.docx",
+        citations=engine,
+        base_dir=tmp_path,
+    )
+    document = zipfile.ZipFile(tmp_path / "o.docx").read("word/document.xml").decode("utf-8")
+    # 书签本身要留（文献表靠它定位），不该有的是文内那条超链接
+    assert "<w:hyperlink" not in document
