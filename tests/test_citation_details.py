@@ -96,3 +96,43 @@ def test_year_only_citation_is_blocked(tmp_path: Path) -> None:
     report = validate_manuscript(tmp_path / "m.md")
     assert not report.valid
     assert any("[-@" in error for error in report.errors)
+
+
+def test_group_authors_and_name_particles_survive() -> None:
+    """`{{World Health Organization}}` 是团体作者，`Ludwig van Beethoven` 的 van 是姓氏前缀，
+    `Smith, Jr., John` 的 Jr. 是后缀——三种以前都会被拆错，而且不报错。"""
+    from md_to_word.transform.bibtex import parse_bibtex
+
+    assert parse_bibtex("@book{a, author={{World Health Organization}}, title={R}}")[0]["author"] == [
+        {"literal": "World Health Organization"}
+    ]
+    person = parse_bibtex("@book{b, author={Ludwig van Beethoven}, title={S}}")[0]["author"][0]
+    assert person["family"] == "Beethoven" and person["non-dropping-particle"] == "van"
+    person = parse_bibtex("@book{c, author={Smith, Jr., John}, title={T}}")[0]["author"][0]
+    assert person["suffix"] == "Jr." and person["given"] == "John"
+
+
+def test_month_and_thesis_genre_reach_the_output() -> None:
+    from md_to_word.transform.bibtex import parse_bibtex
+
+    entry = parse_bibtex("@article{a, author={Month, Only}, title={M}, year={2020}, month={mar}}")[0]
+    assert entry["issued"]["date-parts"][0] == [2020, 3]
+    thesis = parse_bibtex("@phdthesis{b, author={Doe, Jane}, title={T}, school={MIT}, year={2018}}")[0]
+    assert thesis["genre"] == "Doctoral dissertation"
+
+
+def test_locator_labels_are_kept() -> None:
+    """`para.` 以前被当成页码前缀剥成 `ara.`；标签要换成 CSL 的变量名传下去。"""
+    from md_to_word.model.reader import read_markdown
+
+    model = read_markdown("# H\n\n见 [@a, para. 4]。\n", citation_keys={"a"})
+    item = next(
+        i for b in model.blocks for n in getattr(b, "inlines", [])
+        if type(n).__name__ == "Citation" for i in n.items
+    )
+    assert (item.label, item.locator) == ("paragraph", "4")
+
+
+def test_duplicate_keys_collapse() -> None:
+    engine = _apa()
+    assert _text(engine, ("adams2019", ""), ("adams2019", "")) == "(Adams & Cole, 2019)"

@@ -80,7 +80,11 @@ def _parse_fields(body: str) -> dict:
             break
         value, pos = _read_field_value(body, m.end())
         if value:
-            fields[m.group(1).lower()] = _clean(value)
+            name = m.group(1).lower()
+            # 原始值另存一份：团体作者靠花括号保护（`{{World Health Organization}}`），
+            # 清洗会把它和「名 姓」混成一类
+            fields[f"raw:{name}"] = value
+            fields[name] = _clean(value)
         # 跳过字段间的逗号
         while pos < len(body) and body[pos] in " ,\t\n\r":
             pos += 1
@@ -143,22 +147,60 @@ def _person(family: str, given: str = "") -> dict:
     return person
 
 
+_SUFFIXES = {"jr", "sr", "ii", "iii", "iv"}
+
+
 def _parse_names(raw: str) -> list[dict]:
+    """BibTeX 姓名 → CSL 名字。三种写法都要认：
+
+    `{World Health Organization}` 整体加花括号是团体作者（有逗号也不拆）；
+    `Smith, Jr., John` 是「姓, 后缀, 名」；`Ludwig van Beethoven` 的小写词是姓氏前缀。
+    """
+    text = raw.strip()
+    if text[:1] == "{" and text[-1:] == "}":
+        text = text[1:-1]          # 字段值自己的外层花括号
     people: list[dict] = []
-    for chunk in re.split(r"\s+and\s+", _clean(raw)):
+    for chunk in re.split(r"\s+and\s+", text):
         chunk = chunk.strip()
         if not chunk:
             continue
-        if "," in chunk:
-            family, _, given = chunk.partition(",")
-            people.append(_person(family, given))
+        if chunk.startswith("{") and chunk.endswith("}"):
+            people.append({"literal": _clean(chunk)})
+            continue
+        text = _clean(chunk)
+        if "," in text:
+            parts = [part.strip() for part in text.split(",")]
+            family, rest = parts[0], parts[1:]
+            suffix = ""
+            if len(rest) > 1 and rest[0].rstrip(".").lower() in _SUFFIXES:
+                suffix, rest = rest[0], rest[1:]
+            person = _person(family, ", ".join(rest))
+            if suffix:
+                person["suffix"] = suffix
+            people.append(person)
         else:
-            parts = chunk.split()
-            if len(parts) == 1:
-                people.append({"literal": parts[0]})
-            else:
-                people.append(_person(parts[-1], " ".join(parts[:-1])))
+            words = text.split()
+            if len(words) == 1:
+                people.append({"literal": words[0]})
+                continue
+            cut = len(words) - 1
+            while cut > 0 and words[cut - 1][:1].islower():
+                cut -= 1
+            people.append(_person(" ".join(words[cut:]), " ".join(words[:cut])))
     return people
+
+
+_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+
+def _month(raw: str) -> int | None:
+    text = (raw or "").strip().strip("{}").lower()[:3]
+    if text.isdigit() and 1 <= int(text) <= 12:
+        return int(text)
+    return _MONTHS.get(text)
 
 
 def _issued(raw_date: str, year: str) -> dict | None:
@@ -207,9 +249,9 @@ def parse_bibtex(text: str) -> list[dict]:
         fields = _parse_fields(body)
         item: dict = {"id": key, "type": _TYPE_MAP.get(kind, "article")}
         if fields.get("author"):
-            item["author"] = _parse_names(fields["author"])
+            item["author"] = _parse_names(fields.get("raw:author", fields["author"]))
         if fields.get("editor"):
-            item["editor"] = _parse_names(fields["editor"])
+            item["editor"] = _parse_names(fields.get("raw:editor", fields["editor"]))
         for source, target in (
             ("title", "title"),
             ("journal", "container-title"),
@@ -229,8 +271,19 @@ def parse_bibtex(text: str) -> list[dict]:
             if fields.get(source) and target not in item:
                 item[target] = fields[source]
         issued = _issued(fields.get("date", ""), fields.get("year", ""))
+        month = _month(fields.get("month", ""))
+        if issued and month and len(issued["date-parts"][0]) == 1:
+            issued["date-parts"][0].append(month)
         if issued:
             item["issued"] = issued
+        if kind == "phdthesis":
+            item["genre"] = "Doctoral dissertation"
+        elif kind == "mastersthesis":
+            item["genre"] = "Master's thesis"
+        if fields.get("eprint"):
+            item["genre"] = item.get("genre", "preprint")
+            if not item.get("URL") and "arxiv" in fields.get("archiveprefix", "").lower():
+                item["URL"] = f"https://arxiv.org/abs/{fields['eprint']}"
         accessed = _issued(fields.get("urldate", ""), "")
         if accessed:
             item["accessed"] = accessed

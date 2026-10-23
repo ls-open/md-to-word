@@ -166,7 +166,8 @@ class CitationEngine:
         for pair in ordered:
             locator = pair[1] if len(pair) > 1 else ""
             item_prefix = pair[2] if len(pair) > 2 else ""
-            text = self._render(pair[0], self._variant(pair[0]), locator, item_prefix)
+            label = pair[3] if len(pair) > 3 else "page"
+            text = self._render(pair[0], self._variant(pair[0]), locator, item_prefix, label)
             if prefix and text.startswith(prefix):
                 text = text[len(prefix):]
             if suffix and text.endswith(suffix):
@@ -211,7 +212,7 @@ class CitationEngine:
         self._variant_cache[cache_key] = html
         return html
 
-    def _render(self, key: str, variant: Variant, locator: str, prefix: str) -> str:
+    def _render(self, key: str, variant: Variant, locator: str = "", prefix: str = "", label: str = "page") -> str:
         """用指定的名字形态渲染一条引用，返回 html 标记串。
 
         补首字母走**条目数据**（只改这条引用用的副本，文献表用的原条目不动）：CSL 没有
@@ -229,7 +230,7 @@ class CitationEngine:
         )
         args: dict = {}
         if locator:
-            args["locator"] = Locator("page", locator)
+            args["locator"] = Locator(label, locator)
         if prefix:
             args["prefix"] = prefix.strip() + " "
         citation = Citation([CitationItem(key, **args)])
@@ -247,7 +248,7 @@ class CitationEngine:
 
         返回 (文本, 格式) 片段序列——上标/斜体这类格式由 CSL 决定，不能丢成纯文本。
         """
-        pairs = tuple(tuple(pair) for pair in keys)
+        pairs = tuple(_unique(tuple(pair) for pair in keys))
         cache_key = (pairs, narrative)
         if cache_key in self._rendered:
             return self._rendered[cache_key]
@@ -263,8 +264,9 @@ class CitationEngine:
             args: dict = {}
             locator = pair[1] if len(pair) > 1 else ""
             prefix = pair[2] if len(pair) > 2 else ""
+            label = pair[3] if len(pair) > 3 else "page"
             if locator:
-                args["locator"] = Locator("page", locator)
+                args["locator"] = Locator(label, locator)
             if prefix:
                 # CSL 把 prefix 当原样文本，空格要自己带
                 args["prefix"] = prefix.strip() + " "
@@ -416,10 +418,12 @@ def _declares_sort(csl_path: str) -> bool:
 def _sort_key(entry: dict) -> tuple:
     """作者（姓）→ 年份 → 题名。够近似 CSL 里 author/date/title 那几条 key。"""
     people = entry.get("author") or entry.get("editor") or []
-    names = tuple(p.get("family") or p.get("literal", "") for p in people)
+    title = entry.get("title", "")
+    # 没有作者的条目按题名排（CSL：用 substitute 后的内容排），排在最前是错的
+    names = tuple(p.get("family") or p.get("literal", "") for p in people) or (title.casefold(),)
     issued = (entry.get("issued") or {}).get("date-parts", [[9999]])
     year = issued[0][0] if issued and issued[0] else 9999
-    return (names, year, entry.get("title", ""))
+    return (names, year, title)
 
 
 def _as_narrative(text: str) -> str:
@@ -432,12 +436,16 @@ def _as_narrative(text: str) -> str:
     if not (stripped.startswith("(") and stripped.endswith(")")):
         return text
     inner = stripped[1:-1]
-    if ";" in inner:
+    # 多篇文献用 `; ` 分隔；`&amp;` 这类实体里也有分号，先去掉实体再判
+    if ";" in re.sub(r"&[a-zA-Z#0-9]+;", "", inner):
         return text
-    match = re.match(r"^(?P<author>.+?),\s*(?P<year>\d{4}[a-z]?)$", inner.strip())
+    match = re.match(
+        r"^(?P<author>.+?),\s*(?P<rest>\d{4}[a-z]?(?:,\s*p{1,2}\.\s*[\d\-–]+)?)$",
+        inner.strip(),
+    )
     if not match:
         return text
-    return f"{match.group('author')} ({match.group('year')})"
+    return f"{match.group('author')} ({match.group('rest')})"
 
 
 def cited_keys(model) -> list[str]:
@@ -466,6 +474,18 @@ def cited_keys(model) -> list[str]:
 
     walk(model)
     return list(dict.fromkeys(found))
+
+
+def _unique(pairs) -> list:
+    """同一条引用里同一个 key 只算一次（CSL 要求消重），定位符不同的保留第一处。"""
+    seen: set = set()
+    unique = []
+    for pair in pairs:
+        if pair[0] in seen:
+            continue
+        seen.add(pair[0])
+        unique.append(pair)
+    return unique
 
 
 def _citation_block(style_text: str) -> str:

@@ -115,22 +115,31 @@ def _restore(text: str, hold: dict[str, str]) -> str:
         return text
     return "".join(hold.get(ch, ch) for ch in text)
 
-# 页码定位符：`,` 之后可以是 `p. 33` / `pp. 33-35`，也可以直接写 `33`。
-# 前缀 `p.` / `pp.` 只是标签，交给 CSL 自己按单复数生成，所以这里剥掉。
+# 定位符：`,` 之后写 `p. 33`、`chap. 3`、`3, 7` 都认。标签换成 CSL 的变量名，
+# 单复数由 CSL 自己生成，所以 `p.` / `pp.` 一律按 page 传。
 _CITE_TOKEN_RE = re.compile(
-    r"(?P<suppress>-)?@(?P<key>[\w:.\-]+)"
-    r"(?P<rest>(?:,\s*(?:p{1,2}\.?\s*)?[^;,\[\]]+)?)"
+    r"(?P<suppress>-)?@(?P<key>[\w:.\-]+)(?P<rest>(?:,\s*[^;\[\]]+)?)"
 )
 
+# 叙述式引用的定位符：`@a [p. 33]`、`@a [chap. 3]`
+_NARRATIVE_LOCATOR_RE = re.compile(r"\s*\[(?P<loc>[^\]]+)\]")
+
+_LABELS = {
+    "p": "page", "pp": "page", "page": "page", "pages": "page",
+    "chap": "chapter", "chapter": "chapter", "sec": "section", "section": "section",
+    "para": "paragraph", "paragraph": "paragraph", "fig": "figure", "figure": "figure",
+    "tbl": "table", "table": "table", "n": "note", "note": "note",
+    "vol": "volume", "volume": "volume", "no": "issue", "issue": "issue",
+}
 
 
-# 叙述式引用的页码：`@a [p. 33]`、`@a [33]`（手册里两种都认）
-_NARRATIVE_LOCATOR_RE = re.compile(r"\s*\[(?P<page>(?:p{1,2}\.?\s*)?[\d][\d\s\-–,]*)\]")
-
-
-def _page_locator(raw: str) -> str:
-    """`p. 33` / `pp. 33-35` → `33` / `33-35`：标签交给 CSL 按单复数自己生成。"""
-    return re.sub(r"^p{1,2}\.?\s*", "", raw.strip()).strip()
+def _locator(raw: str) -> tuple[str, str]:
+    """`p. 33` → ("page", "33")，`chap. 3` → ("chapter", "3")；不认识的标签按 page。"""
+    text = raw.strip().lstrip(", ").strip()
+    m = re.match(r"^(?P<label>[A-Za-z]{1,11})\.?\s+(?P<value>.+)$", text)
+    if m and m.group("label").lower() in _LABELS:
+        return _LABELS[m.group("label").lower()], m.group("value").strip()
+    return "page", text
 
 
 def _parse_citation_body(body: str, narrative: bool) -> Citation:
@@ -144,12 +153,13 @@ def _parse_citation_body(body: str, narrative: bool) -> Citation:
         if not m:
             continue
         prefix = chunk[: m.start()].strip()
-        locator = _page_locator((m.group("rest") or "").lstrip(", "))
+        label, locator = _locator(m.group("rest") or "")
         items.append(
             CitationItem(
                 key=m.group("key"),
                 prefix=prefix,
                 locator=locator,
+                label=label,
                 suppress_author=bool(m.group("suppress")),
             )
         )
@@ -209,11 +219,14 @@ def parse_inlines(
             if citation_keys and key in citation_keys:
                 # 叙述式引用的页码跟在标签后面：`正如 @a [p. 33] 指出`
                 hit = _NARRATIVE_LOCATOR_RE.match(guarded[end:])
-                locator = _page_locator(hit.group(1)) if hit else ""
+                label, locator = _locator(hit.group("loc")) if hit else ("page", "")
                 if hit:
                     end += hit.end()
                 nodes.append(
-                    Citation(items=(CitationItem(key=key, locator=locator),), narrative=True)
+                    Citation(
+                        items=(CitationItem(key=key, locator=locator, label=label),),
+                        narrative=True,
+                    )
                 )
             else:
                 nodes.append(CrossRef(target=key))

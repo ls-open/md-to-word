@@ -99,6 +99,7 @@ class CitationItem:
     key: str
     prefix: str = ""
     locator: str = ""
+    label: str = "page"     # CSL 的定位符标签：page / chapter / section / paragraph / figure…
     suffix: str = ""
     suppress_author: bool = False
 
