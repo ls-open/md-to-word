@@ -634,6 +634,10 @@ laid out slightly differently from the reference implementation — check here w
 | Full-name-level disambiguation (`all-names`) compares first authors only: when the clash is in the second author it is not resolved, and `(Roe, Doe, 2020)` comes out twice identically | Tell them apart with page numbers, or spell out the authors in the text |
 | A narrative citation is rewritten as `Smith (2020)` only when it is a single reference and the style prints one pair of parentheses; with several references, a prefix, or a numeric style it stays parenthetical or numeric | Write several references as separate sentences; a single `@key` is unaffected |
 
+**Not possible**: a fenced code block inside a list item. List items carry paragraphs only; the
+block would be written as a top-level paragraph and lose its place in the list, so the export stops
+with a message instead of moving it silently.
+
 **Silent clamping**: an image wider than the text block is clamped to the text-block width (15.92
 cm on A4 with 2.54 cm margins, less any gutter). The pre-flight check computes the real text block
 from the requirements file and reports an over-wide width as a reminder (it does not stop the
