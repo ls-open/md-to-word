@@ -140,7 +140,8 @@ Two gate levels, split by "would the mistake be visible afterwards":
   for `--no-check`, which turns off the blocking gates too.
 - **Warning** — visible but non-compliant: an image wider than the text block (it gets clamped), a
   caption far from its figure, a skipped heading level, a page break next to a section marker,
-  suspected line wrapping. Warnings of one kind arrive as a single line listing every line number;
+  suspected line wrapping. Warnings of one kind arrive as a single line (up to eight line numbers,
+  then a count);
   they are also carried in `--json` `messages`, so report them.
 
 Exit codes: `0` every gate passed; `1` manuscript, gate or dependency problem; `2` a usage error

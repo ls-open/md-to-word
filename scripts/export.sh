@@ -12,7 +12,7 @@
 #   bash export.sh --contract        # 契约速查 + 手册与预设的路径
 #   bash export.sh --help            # 全部选项
 #
-# 退出码: 0=全部完成 / 1=稿件、门禁或依赖问题 / 3=docx 已生成但 --pdf 未渲染
+# 退出码: 0=全部完成 / 1=稿件、门禁或依赖问题 / 2=参数用法错误 / 3=docx 已生成但 --pdf 未渲染
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

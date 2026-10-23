@@ -168,7 +168,7 @@ if not result.ok:
 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) in the root. It normalizes the
 manuscript → writes `format.txt` → exports → reads the gates and fixes the reported lines.
 
-**From a script or an agent** — add `--json`: one JSON object on stdout, messages on stderr.
+**From a script or an agent** — add `--json` for one JSON object on stdout: which format file was used, every reminder and the closing check prompt are in `messages`; failures are in `errors`. Progress logs and error text stay on stderr.
 
 ```bash
 md-to-word manuscript.md -o manuscript.docx --json

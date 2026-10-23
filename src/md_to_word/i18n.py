@@ -40,8 +40,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.input": ("输入的 Markdown 稿件 (.md)", "Input Markdown manuscript (.md)"),
     "cli.output": ("输出的 Word 文档路径 (.docx)", "Output .docx path"),
     "cli.requirements": (
-        "格式要求文件 (.txt)；未传时优先按同目录唯一 .txt 或内置预设",
-        "Format requirements (.txt); falls back to the only .txt beside the manuscript or a preset",
+        "格式要求文件 (.txt)；未传时先取同目录 format.txt，其次唯一 .txt，都没有则用内置预设",
+        "Format requirements (.txt); without it: format.txt beside the manuscript, else the only .txt, else a preset",
     ),
     "cli.preset": (
         "内置格式预设：zh-academic（中文学术默认）或 en-nature（英文国际期刊）",

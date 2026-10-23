@@ -251,7 +251,7 @@ def image_width_issues(text: str, content_cm: float, lang: str = "zh") -> list[t
 
     **写超了不会报错，会被静默改小**：实测 A4 + 2.54cm 边距下写 `{width=25cm}`，
     产物里是 15.90cm——算式是 `pgSz − pgMar`，与计算版心用的是同一条公式。
-    作者以为排的是 25cm，拿到的是别的数；因此写超即视为写错，导出前拦下。
+    作者以为排的是 25cm，拿到的是别的数；因此写超出一律提醒，并给出真实版心宽度。
     """
     if not text:
         return []

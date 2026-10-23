@@ -16,7 +16,7 @@ One export needs two files:
 | File | What it holds |
 |:--|:--|
 | manuscript `*.md` | body text + three conventions (§2) |
-| requirements `*.txt` | one line of typography declarations per style (§3); without `-r` the built-in preset is used |
+| requirements `*.txt` | one line of typography declarations per style (§3); without `-r` a `format.txt` or lone `.txt` beside the manuscript is taken over, otherwise the built-in preset |
 
 ---
 
@@ -55,10 +55,10 @@ md-to-word --contract --lang en                          # same, in English (can
 md-to-word manuscript.md -o out.docx --verbose           # per-style log, for "the format had no effect"
 ```
 
-**Choosing the requirements file — one of three**: pass `-r`; otherwise a single `.txt` beside the
-manuscript is taken over automatically (the run reports which one); otherwise the built-in preset is
-used, **selected by the manuscript's language**: `zh-academic` for Chinese, `en-nature` for every
-other language.
+**Choosing the requirements file — one of four**: pass `-r`; otherwise a `format.txt` beside the
+manuscript is taken over by name; failing that, a single `.txt` beside it; failing both, the built-in
+preset is used, **selected by the manuscript's language**: `zh-academic` for Chinese, `en-nature` for
+every other language. The run reports which file it took over.
 
 **Exit codes**: `0` done; `1` a manuscript, gate or dependency problem; `2` a usage error; `3` the `.docx` was written
 but `--pdf` was not rendered (non-macOS). `0` means every gate passed — **it does not mean the
@@ -74,7 +74,7 @@ to stderr:
 
 The keys are fixed and do not change between versions; the values of `messages` and `errors` are
 sentences for humans, in the manuscript's language. `messages` holds progress, **reminders** and the
-closing check prompt (one merged line per reminder kind, with every line number), so everything worth
+closing check prompt (one merged line per reminder kind, listing up to eight line numbers), so everything worth
 relaying on a successful run is there — no need to parse stderr. Parse the keys, not the wording. A
 usage error (exit code `2`) happens during argument parsing, so no JSON is produced.
 
@@ -174,8 +174,8 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   is controlled by `keep-with-next` on the caption style, and the writer adds it according to
   whether the caption sits above or below the figure.
 - The image line describes the image itself only: the square brackets hold the accessible
-  alternative text, and `{width=…}` is clamped to the text block (an over-wide value is silently
-  clamped to the text-block width; the pre-flight check stops the over-wide spelling).
+  alternative text, and `{width=…}` is clamped to the text block (an over-wide value is clamped to
+  the text-block width and reported as a reminder; a percentage is blocked).
 - **Do not add a `{#fig-xxx}` label to an image line**: it would get the three-line table's rules
   and lose its centring. Type the figure number into the caption text instead.
 - Local formatting inside a caption is written directly in the text (`**Table 1**` for a bold
@@ -505,7 +505,7 @@ manuscript normalisation and configuration generation end to end.
    an old `.docx` or a `.pdf`. Turn it into a `.md` that follows the contract in §2; when the user
    already has a `.md`, create a copy in the same directory and adapt that, leaving the original
    untouched.
-2. **Prepare the requirements file**: pick one of the three paths in §3.3.
+2. **Prepare the requirements file**: pick one of the four paths in §3.3.
 3. **Export**: `md-to-word manuscript.md -r format.txt -o out.docx`.
 4. **Read the gate output**: on exit code `1`, fix the manuscript or add the missing style lines
    according to the reported line numbers; do not bypass it with `--no-check`.
@@ -565,7 +565,7 @@ Reminders do not block export: the author may have meant it, or may intend to fi
 Word. If they blocked, the only way out would be `--no-check`, which would also switch off the real
 blockers.
 
-Reminders of one kind are **merged into a single line** listing every line number, rather than one
+Reminders of one kind are **merged into a single line** listing up to eight line numbers, rather than one
 line per occurrence; they are also carried in `--json` `messages`, so skills and scripts can relay
 them.
 
@@ -616,7 +616,8 @@ inline formatting; three-level lists and lists inside block quotes; footnotes.
 
 **Silent clamping**: an image wider than the text block is clamped to the text-block width (15.92
 cm on A4 with 2.54 cm margins, less any gutter). The pre-flight check computes the real text block
-from the requirements file and stops over-wide spellings.
+from the requirements file and reports an over-wide width as a reminder (it does not stop the
+export); a percentage width is blocked.
 
 ---
 

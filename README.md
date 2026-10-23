@@ -149,7 +149,7 @@ if not result.ok:
 **当作 Agent 技能**——把活交给 AI 时，克隆本仓库，让 Agent 读根目录的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md)，
 它依次完成：整理稿件 → 写 `format.txt` → 导出 → 读门禁、按行号改稿。
 
-**给脚本与 Agent**——加 `--json`，结果是一行 JSON，消息走 stderr：
+**给脚本与 Agent**——加 `--json`，结果是一行 JSON：用了哪份格式要求、每条提醒、结尾的核对提示都在 `messages` 里，失败原因在 `errors` 里；进度日志与报错文字走 stderr：
 
 ```bash
 md-to-word 稿件.md -o 稿件.docx --json
