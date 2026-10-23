@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+
+import pytest
 from docx import Document as open_docx
 
 from md_to_word.model.reader import read_markdown
@@ -214,3 +216,48 @@ def test_footnotes_are_numbered_and_images_keep_their_alt_text(tmp_path: Path) -
     footnotes = package.read("word/footnotes.xml").decode("utf-8")
     assert 'descr="系统架构图"' in document
     assert "footnoteRef" in footnotes
+
+
+def test_each_ordered_list_restarts_numbering(tmp_path: Path) -> None:
+    """两个独立的有序列表共用一个 numId 时，第二个会接着 3.、4. 往下编。"""
+    import re
+    import zipfile
+
+    from md_to_word.model.reader import read_markdown
+    from md_to_word.template.builder import build_template
+    from md_to_word.writer import write_docx
+
+    repo = Path(__file__).resolve().parents[1]
+    build_template(
+        (repo / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+    )
+    md = "# 一\n\n1. 甲\n2. 乙\n\n中间正文。\n\n1. 丙\n2. 丁\n"
+    write_docx(read_markdown(md), tmp_path / "tpl.docx", tmp_path / "o.docx")
+    xml = zipfile.ZipFile(tmp_path / "o.docx").read("word/document.xml").decode("utf-8")
+    ids = re.findall(r'<w:numId w:val="(\d+)"/>', xml)
+    assert len(set(ids)) == 2, f"两个列表应各用一份编号：{ids}"
+
+
+def test_an_over_wide_image_is_clamped_to_the_text_block(tmp_path: Path) -> None:
+    """手册承诺「超宽会被钳成版心宽」；不钳的话图会溢出页面被裁。"""
+    import shutil
+
+    from docx import Document
+    from docx.shared import Emu
+
+    from md_to_word.model.reader import read_markdown
+    from md_to_word.template.builder import build_template
+    from md_to_word.writer import write_docx
+
+    repo = Path(__file__).resolve().parents[1]
+    shutil.copy(repo / "demo/01_chinese_thesis/figures/qa_pipeline.png", tmp_path / "pic.png")
+    build_template(
+        (repo / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+    )
+    md = "# 一\n\n![](pic.png){width=25cm}\n\n%% 图片题注 图 1 宽图\n"
+    write_docx(read_markdown(md), tmp_path / "tpl.docx", tmp_path / "o.docx", base_dir=tmp_path)
+
+    document = Document(tmp_path / "o.docx")
+    section = document.sections[0]
+    limit = Emu(section.page_width - section.left_margin - section.right_margin).cm
+    assert document.inline_shapes[0].width.cm == pytest.approx(limit, abs=0.02)

@@ -464,11 +464,13 @@ class _Writer:
             numbering.append(child)
 
     def _numbered_list(self, ordered: bool, start: int) -> int:
-        """返回该列表要用的 numId；起始编号不是 1 时另建一个带 startOverride 的 num。"""
+        """返回该列表要用的 numId。有序列表各自一份，编号才从 1（或指定值）重新开始。"""
         self._ensure_numbering()
         base_id = 2 if ordered else 1
-        if not ordered or start == 1:
+        if not ordered:
             return base_id
+        # 有序列表每个都要自己的 numId：共用一个的话，第二个列表会接着上一个往下编号
+        # （Word 里就是 3.、4.），而且起始号也被忽略。
 
         numbering = self.docx.part.numbering_part.element
         self._override_seq = getattr(self, "_override_seq", 99)
@@ -592,19 +594,33 @@ class _Writer:
         path = Path(block.path)
         if not path.is_absolute():
             path = self.base_dir / path
+        width = self._clamp(block.width_cm)
         if not is_pdf(path):
-            self._embed(paragraph.add_run(), path, block.width_cm, block.alt)
+            self._embed(paragraph.add_run(), path, width, block.alt)
             return
         # Word 只放得下位图，PDF 里的矢量得先渲染成像素。渲染的临时文件
         # 用完即删：python-docx 在这一步已经把字节读进包里了。
         try:
-            png = rasterize(path, block.width_cm)
+            png = rasterize(path, width)
         except PdfFigureError as exc:
             raise UnsupportedFeature(t("writer.figure_pdf_failed", self.lang, path=path.name, err=exc)) from exc
         try:
-            self._embed(paragraph.add_run(), png, block.width_cm, block.alt)
+            self._embed(paragraph.add_run(), png, width, block.alt)
         finally:
             png.unlink(missing_ok=True)
+
+    def _clamp(self, width_cm: Optional[float]) -> Optional[float]:
+        """超出版心的宽度钳到版心：手册承诺过这一条，不钳就是图和正文对不齐、右侧被裁。"""
+        section = self.docx.sections[0] if self.docx.sections else None
+        if section is None:
+            return width_cm
+        widths = (section.page_width, section.left_margin, section.right_margin)
+        if any(value is None for value in widths):
+            return width_cm
+        limit = Emu(widths[0] - widths[1] - widths[2]).cm
+        if limit <= 0:
+            return width_cm
+        return limit if width_cm is None or width_cm > limit else width_cm
 
     @staticmethod
     def _embed(run, path: Path, width_cm: Optional[float], alt: str = "") -> None:
