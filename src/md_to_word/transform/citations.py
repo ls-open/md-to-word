@@ -21,6 +21,9 @@ from citeproc.source import Locator
 from citeproc.source.json import CiteProcJSON
 
 from md_to_word.transform.bibtex import parse_bibtex
+from md_to_word.transform.disambiguation import (
+    BASE, StyleCloner, Variant, citation_attrs, initials,
+)
 from md_to_word.i18n import t
 
 
@@ -52,38 +55,160 @@ class CitationEngine:
         self._by_key = {entry["id"]: entry for entry in self.entries}
         self._sorted = _declares_sort(str(csl_path))
         style_text = Path(csl_path).read_text(encoding="utf-8")
-        self._year_suffix = _declares_option(style_text, "disambiguate-add-year-suffix")
+        options = citation_attrs(style_text)
+        self._year_suffix = options.get("disambiguate-add-year-suffix") == "true"
+        self._add_names = options.get("disambiguate-add-names") == "true"
+        self._add_givenname = options.get("disambiguate-add-givenname") == "true"
+        # by-cite 只按引用消歧；其余四种规则连「名字」一起消歧（APA 用的就是后者）
+        rule = options.get("givenname-disambiguation-rule", "by-cite")
+        self._rule_names = rule != "by-cite"
+        self._initials_all = rule.startswith("all-names")
+        self._cloner = StyleCloner(style_text, int(options.get("et-al-use-first", "1") or 1))
+        layout = re.search(r"<layout\b([^>]*)>", _citation_block(style_text))
+        layout_attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', layout.group(1))) if layout else {}
+        self._layout = (
+            layout_attrs.get("prefix", ""), layout_attrs.get("suffix", ""),
+            layout_attrs.get("delimiter", "; "),
+        )
+        self._variants: dict[str, Variant] = {}
+        self._variant_cache: dict[tuple, str] = {}
 
     def reserve(self, keys: Iterable[str]) -> None:
-        """定下年份后缀（CSL 的 `disambiguate-add-year-suffix`），必须在第一次 cite 之前调用。
+        """过一遍消歧，必须在第一次 cite 之前调用。
 
-        CSL 的条件是「文内引用会完全相同的多条文献」，结果按文献表先后加 a/b/c，文内与文献表
-        两处都要带。这里按数据近似：作者（姓）序列 + 年份相同。这条近似恰好避开另两条规则的
-        地盘——同姓不同人、同姓不同合作者的作者序列不同，不加后缀。
+        CSL 的顺序是：补首字母 → 补名字 → 年份后缀。前两条落在引用的**名字形态**上
+        （样式副本），第三条落在**条目数据**上（`year-suffix`）。
+
+        首字母那条是名字级的，不是引用级的：同姓不同人即使年份不同也要补（APA 8.20），
+        所以按「第一作者姓」分组判定，而不是比较整条引用。
         """
-        if not self._year_suffix:
+        cited = [key for key in dict.fromkeys(keys) if key in self._known]
+        if not cited:
             return
-        groups: dict[tuple, list[str]] = {}
-        for key in keys:
-            entry = self._by_key.get(key)
-            if entry is None:
-                continue
-            groups.setdefault(_author_year(entry), []).append(key)
 
-        changed = False
-        for group in groups.values():
-            if len(group) < 2:
-                continue
-            group.sort(key=lambda k: _sort_key(self._by_key[k]))
-            for index, key in enumerate(group):
-                self._by_key[key]["year-suffix"] = _suffix_label(index)
-                changed = True
+        if self._add_givenname and self._rule_names:
+            for group in self._same_surname(cited):
+                for key in group:
+                    self._variants[key] = Variant(initials=True)
 
-        if changed:
-            # 条目数据变了，重建一份引用源：CiteProcJSON 的条目在构造时已抓走
+        if self._add_names:
+            for group in _groups({k: self._render_single(k, self._variant(k)) for k in cited}):
+                best = 0
+                for extra in range(1, _max_extra_names([self._by_key[k] for k in group]) + 1):
+                    candidate = Variant(extra_names=extra, initials=self._variant(group[0]).initials)
+                    shown = len({self._render_single(k, candidate) for k in group})
+                    if shown == len(group):
+                        best = extra
+                        break
+                if best:
+                    for key in group:
+                        base = self._variant(key)
+                        self._variants[key] = Variant(extra_names=best, initials=base.initials)
+
+        if self._year_suffix:
+            final = {key: self._render_single(key, self._variant(key)) for key in cited}
+            for group in _groups(final):
+                group.sort(key=lambda k: _sort_key(self._by_key[k]))
+                for index, key in enumerate(group):
+                    self._by_key[key]["year-suffix"] = _suffix_label(index)
+            # 条目数据变了，重建引用源：CiteProcJSON 的条目在构造时已抓走
             self._bibliography = CitationStylesBibliography(
                 self._style, CiteProcJSON(self.entries), formatter.html
             )
+            self._variant_cache.clear()
+
+    def _with_initials(self, key: str) -> list:
+        """这条引用的条目副本：按规则给首名（或全部名字）补上首字母。"""
+        decorated = []
+        for entry in self.entries:
+            if entry["id"] != key:
+                decorated.append(entry)
+                continue
+            copy = dict(entry)
+            people = [dict(person) for person in (entry.get("author") or [])]
+            targets = people if self._initials_all else people[:1]
+            for person in targets:
+                given = person.get("given", "")
+                family = person.get("family")
+                if given and family:
+                    person["family"] = initials(given) + family
+            copy["author"] = people
+            decorated.append(copy)
+        return decorated
+
+    def _variant(self, key: str) -> Variant:
+        return self._variants.get(key, BASE)
+
+    def _same_surname(self, cited: list[str]) -> list[list[str]]:
+        """第一作者同姓但不同人的分组——这些人要补首字母。"""
+        buckets: dict[str, list[str]] = {}
+        for key in cited:
+            people = self._by_key[key].get("author") or []
+            if people:
+                buckets.setdefault(people[0].get("family") or people[0].get("literal", ""), []).append(key)
+        return [
+            group
+            for group in buckets.values()
+            if len({(self._by_key[k].get("author") or [{}])[0].get("given", "") for k in group}) > 1
+        ]
+
+    def _render_group(self, pairs) -> str:
+        """一个括号里各条目形态不同时（有的要补名字、有的不用），逐条渲染再按样式的分隔符合起来。"""
+        ordered = sorted(pairs, key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
+        prefix, suffix, delimiter = self._layout
+        parts = []
+        for pair in ordered:
+            locator = pair[1] if len(pair) > 1 else ""
+            item_prefix = pair[2] if len(pair) > 2 else ""
+            text = self._render(pair[0], self._variants.get(pair[0], BASE), locator, item_prefix)
+            if prefix and text.startswith(prefix):
+                text = text[len(prefix):]
+            if suffix and text.endswith(suffix):
+                text = text[: -len(suffix)]
+            parts.append(text)
+        return f"{prefix}{delimiter.join(parts)}{suffix}"
+
+    def _separates(self, group: list[str], variant: Variant, texts: dict[str, str]) -> bool:
+        """这组条目换成 `variant` 之后是否互不相同（分得开才值得加）。"""
+        rendered = [self._render_single(key, variant) for key in group]
+        if len(set(rendered)) == len(rendered):
+            return True
+        # 只要求比原来多分出一些也算进展，避免一步跨不到底时原地不动
+        return len(set(rendered)) > len({texts[key] for key in group})
+
+    def _render_single(self, key: str, variant: Variant = BASE) -> str:
+        """单独渲染一条引用（不带定位符），用于判断两条会不会撞。"""
+        cache_key = (key, variant)
+        if cache_key in self._variant_cache:
+            return self._variant_cache[cache_key]
+        html = self._render(key, variant, "", "")
+        self._variant_cache[cache_key] = html
+        return html
+
+    def _render(self, key: str, variant: Variant, locator: str, prefix: str) -> str:
+        """用指定的名字形态渲染一条引用，返回 html 标记串。
+
+        补首字母走**条目数据**（只改这条引用用的副本，文献表用的原条目不动）：CSL 没有
+        「只给第一个名字加首字母」的写法，`primary-name-with-initials` 只能这么做。
+        补名字走**样式副本**：显示几个名字是样式属性，条目数据改不了。
+        """
+        entries = self.entries
+        if variant.initials:
+            entries = self._with_initials(key)
+        style = self._style
+        if variant.extra_names:
+            style = CitationStylesStyle(str(self._cloner.path(Variant(extra_names=variant.extra_names))), validate=False)
+        bibliography = CitationStylesBibliography(
+            style, CiteProcJSON(entries), formatter.html
+        )
+        args: dict = {}
+        if locator:
+            args["locator"] = Locator("page", locator)
+        if prefix:
+            args["prefix"] = prefix.strip() + " "
+        citation = Citation([CitationItem(key, **args)])
+        bibliography.register(citation)
+        return str(bibliography.cite(citation, lambda item: item))
 
     def has(self, key: str) -> bool:
         return key in self._known
@@ -119,8 +244,12 @@ class CitationEngine:
                 args["prefix"] = prefix.strip() + " "
             items.append(CitationItem(pair[0], **args))
         citation = Citation(items)
+        # 先登记：文献表的成员与数字制编号都靠这一步，跟怎么渲染文内引用无关
         self._bibliography.register(citation)
-        html = str(self._bibliography.cite(citation, lambda item: item))
+        if any(not self._variant(pair[0]).plain for pair in pairs):
+            html = self._render_group(pairs)
+        else:
+            html = str(self._bibliography.cite(citation, lambda item: item))
         if narrative:
             html = _as_narrative(html)
         html = _collapse_numeric_runs(html)
@@ -227,12 +356,6 @@ def html_to_segments(html: str) -> list[tuple[str, dict]]:
     return segments or [(unescape(html or ""), {})]
 
 
-def _declares_option(style_text: str, name: str) -> bool:
-    """样式有没有声明某个 `citation` 选项。CSL 的处理选项都写在这一个元素上。"""
-    block = re.search(r"<citation\b[^>]*>", style_text)
-    return bool(block and re.search(rf'{name}="true"', block.group(0)))
-
-
 def _author_year(entry: dict) -> tuple:
     """「同作者 + 同年」的分组键：作者（姓）序列与年份。"""
     people = entry.get("author") or entry.get("editor") or []
@@ -315,3 +438,22 @@ def cited_keys(model) -> list[str]:
 
     walk(model)
     return list(dict.fromkeys(found))
+
+
+def _citation_block(style_text: str) -> str:
+    start = style_text.find("<citation")
+    end = style_text.find("</citation>")
+    return style_text[start : end + len("</citation>")] if start >= 0 and end >= 0 else ""
+
+
+def _groups(texts: dict) -> list:
+    """把渲染结果相同的条目归成一组；只返回撞车的那些组。"""
+    buckets: dict = {}
+    for key, text in texts.items():
+        buckets.setdefault(text, []).append(key)
+    return [group for group in buckets.values() if len(group) > 1]
+
+
+def _max_extra_names(entries: list) -> int:
+    """补名字最多补到把作者全列出来为止。"""
+    return max((len(entry.get("author") or entry.get("editor") or []) for entry in entries), default=1) - 1

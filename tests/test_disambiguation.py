@@ -63,11 +63,11 @@ def test_a_lone_work_keeps_its_plain_year() -> None:
     assert _text(engine, ["lee2020"]) == "(Lee & Park, 2020)"
 
 
-def test_different_co_authors_are_not_suffixed() -> None:
-    """同姓不同合作者要靠「补作者」区分，不是加年份后缀；加错了反而更乱。"""
+def test_different_co_authors_are_separated_by_names() -> None:
+    """同姓不同合作者靠「补名字」区分（CSL 方法 2），不加年份后缀——加错了反而更乱。"""
     engine = _apa()
-    assert _text(engine, ["bai2024sun"]) == "(Bai et al., 2024)"
-    assert _text(engine, ["bai2024yu"]) == "(Bai et al., 2024)"
+    assert _text(engine, ["bai2024sun"]) == "(Bai, Sun, et al., 2024)"
+    assert _text(engine, ["bai2024yu"]) == "(Bai, Yu, et al., 2024)"
 
 
 def test_a_combined_citation_lists_every_suffix() -> None:
@@ -119,3 +119,42 @@ def test_the_exported_docx_carries_the_suffix(tmp_path: Path) -> None:
     xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
     text = "".join(re.findall(r"<w:t[^>]*>([^<]*)</w:t>", xml))
     assert "2020a" in text and "2020b" in text, text
+
+
+def test_same_surname_different_people_get_initials() -> None:
+    """APA 8.20：第一作者同姓不同人，文内一律带首字母，即使年份不同也一样。"""
+    engine = CitationEngine(
+        "@article{a, author={Zhang, Dianfeng and Li, Wei and Xu, Bo}, title={A}, journal={J}, year={2024}}\n"
+        "@article{b, author={Zhang, Tingru and Chen, Hao and Ma, Li}, title={B}, journal={J}, year={2021}}\n",
+        CSL_DIR / "apa.csl",
+        lang="en",
+    )
+    engine.reserve(["a", "b"])
+    assert _text(engine, ["a"]) == "(D. Zhang et al., 2024)"
+    assert _text(engine, ["b"]) == "(T. Zhang et al., 2021)"
+
+
+def test_initials_go_to_the_primary_name_only() -> None:
+    """`primary-name-with-initials`：只有第一作者补首字母，合作者不动。"""
+    engine = CitationEngine(
+        "@article{a, author={Doe, John and Ray, Al}, title={A}, journal={J}, year={2022}}\n"
+        "@article{b, author={Doe, Jane and Ray, Al}, title={B}, journal={J}, year={2019}}\n",
+        CSL_DIR / "apa.csl",
+        lang="en",
+    )
+    engine.reserve(["a", "b"])
+    assert _text(engine, ["a"]) == "(J. Doe & Ray, 2022)"
+
+
+def test_the_bibliography_keeps_full_names() -> None:
+    """补首字母只作用于文内引用，文献表仍按样式排全名。"""
+    engine = CitationEngine(
+        "@article{a, author={Doe, John and Ray, Al}, title={A}, journal={J}, year={2022}}\n"
+        "@article{b, author={Doe, Jane and Ray, Al}, title={B}, journal={J}, year={2019}}\n",
+        CSL_DIR / "apa.csl",
+        lang="en",
+    )
+    engine.reserve(["a", "b"])
+    _text(engine, ["a"])
+    entries = dict(engine.bibliography_segments())
+    assert "Doe, J." in "".join(frag for frag, _ in entries["a"])
