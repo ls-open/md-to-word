@@ -6,7 +6,8 @@ file on every run — so do not substitute a hand-written python-docx script; ru
 
 **Read this before the first run.** The flags are not enough to drive it: the manuscript has a
 contract (§2) and the format file has a closed vocabulary (§3), and neither can be guessed from
-`--help`. Work through §1 once, then the commands are enough for everything after.
+`--help`. Work through §1 once, then the commands are enough for everything after. An identical
+copy ships inside the package as `guide.md` (`md-to-word --guide`); reading one copy suffices.
 
 **The facts live in the manual. This file is the order of work.** `md-to-word --contract` prints the
 manual's absolute path (Chinese or English, following the manuscript), the built-in preset paths and

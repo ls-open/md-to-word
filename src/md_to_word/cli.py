@@ -98,7 +98,7 @@ en-nature otherwise). One style per line, for example
 `Body Text: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 0pt indent 0`.
 Starting from a preset is recommended: copy the file below next to the manuscript and change only the lines you need.
 
-Getting-started guide (order of work, gates, boundaries — read this first): {guide}
+Getting-started guide (identical to SKILL.md at the skill entry; one copy suffices): {guide}
 Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits): {manual}
 Built-in presets:
 {presets}
@@ -126,7 +126,7 @@ Built-in presets:
 每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
 推荐从预设起步：将下面那份复制到稿件旁，仅修改需要的行。
 
-入门文档（代办流程、门禁判据、能力边界，先读这份）：{guide}
+入门文档（与技能入口 SKILL.md 同文，读其一即可）：{guide}
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界）：{manual}
 内置预设：
 {presets}
