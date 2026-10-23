@@ -340,6 +340,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 equation_number_format=spec.equation_number_format if spec else "",
                 equation_number_placement=spec.equation_number if spec else "right",
                 no_row_split=bool(spec and spec.table.get("no_row_split")),
+                repeat_header=bool(spec and spec.table.get("repeat_header")),
                 lang=res.lang,
             )
         except UnsupportedFeature as exc:

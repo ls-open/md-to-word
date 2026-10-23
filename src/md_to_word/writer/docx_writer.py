@@ -129,6 +129,7 @@ class _Writer:
         equation_number_placement="right",
         equation_number_format="",
         no_row_split: bool = False,
+        repeat_header: bool = False,
         lang: Optional[str] = None,
     ) -> None:
         self.model = document
@@ -143,6 +144,7 @@ class _Writer:
         self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
         self._bibliography_written = False  # 文献表只在「参考文献标题」后写一次
         self.no_row_split = no_row_split  # 表格行是否禁止跨页断开（要求文件写「行不跨页」）
+        self.repeat_header = repeat_header  # 表头跨页重复（要求文件写「跨页重复」）
         chinese = looks_chinese(self._prose_text())
         # 报错语言：流水线按 `--lang`/稿件语种传进来；直接调库时按正文自己判
         self.lang = lang or ("zh" if chinese else "en")
@@ -519,7 +521,7 @@ class _Writer:
                 trPr = row._tr.get_or_add_trPr()
                 if trPr.find(qn("w:cantSplit")) is None:
                     trPr.append(trPr.makeelement(qn("w:cantSplit"), {}))
-        if block.header:
+        if block.header and self.repeat_header:
             self._mark_header_row(table)
         if block.widths:
             self._apply_column_widths(table, block.widths)
@@ -964,6 +966,7 @@ def write_docx(
     equation_number_placement: str = "right",
     equation_number_format: str = "",
     no_row_split: bool = False,
+    repeat_header: bool = False,
     lang: Optional[str] = None,
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
@@ -984,6 +987,7 @@ def write_docx(
         equation_number_placement=equation_number_placement,
         equation_number_format=equation_number_format,
         no_row_split=no_row_split,
+        repeat_header=repeat_header,
         lang=lang,
     ).write()
     out = Path(output)

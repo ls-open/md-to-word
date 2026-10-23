@@ -57,12 +57,18 @@ def test_first_paragraph_after_heading_uses_first_paragraph_style(template: Path
 
 
 def test_table_header_is_marked_and_cells_use_compact(template: Path, tmp_path: Path) -> None:
+    """表头跨页重复只在要求文件写了「跨页重复」时才加——以前无条件加，配置等于没写。"""
     model = read_markdown("| 甲 | 乙 |\n|:--|--:|\n| 1 | 2 |\n")
-    out = write_docx(model, template, tmp_path / "c.docx")
+
+    out = write_docx(model, template, tmp_path / "c.docx", repeat_header=True)
     xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
     assert "<w:tbl>" in xml
-    assert "tblHeader" in xml, "表头行要标记跨页重复"
+    assert "tblHeader" in xml, "声明了跨页重复就要标记表头"
     assert xml.count('w:val="Compact"') == 4  # 表头两格 + 数据两格
+
+    out = write_docx(model, template, tmp_path / "d.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    assert "tblHeader" not in xml, "没声明就不该重复表头"
 
 
 def test_code_block_keeps_line_breaks(template: Path, tmp_path: Path) -> None:
