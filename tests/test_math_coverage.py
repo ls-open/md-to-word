@@ -36,8 +36,10 @@ RENDERABLE = [
     ("accent", r"\hat{x} + \vec{v}", "acc"),
     ("matrix", r"\begin{matrix} a & b \\ c & d \end{matrix}", "m"),
     ("cases", r"\begin{cases} 1 & x>0 \\ 0 & x \le 0 \end{cases}", "m"),
-    ("split", r"\begin{split} y &= ax + b \\ z &= c \end{split}", "m"),
-    ("aligned", r"\begin{aligned} y &= ax + b \\ z &= c \end{aligned}", "m"),
+    # 对齐环境落成 eqArr 而非矩阵：ECMA-376 里带对齐分组的 mtable 对应 eqArr（每行一个
+    # m:e、`&` 处是 m:rPr/m:aln 对齐点），`m:m` 只用于真矩阵
+    ("split", r"\begin{split} y &= ax + b \\ z &= c \end{split}", "eqArr"),
+    ("aligned", r"\begin{aligned} y &= ax + b \\ z &= c \end{aligned}", "eqArr"),
     ("text", r"\text{其中 } x>0", "t"),
 ]
 
@@ -56,11 +58,17 @@ def test_common_constructs_render_to_omml(name: str, latex: str, element: str) -
 
 
 def test_aligned_is_translated_not_silently_dropped() -> None:
-    """`aligned` 要真的落成两行矩阵，而不是被吞掉或退化成一行。"""
-    matrix = latex_to_omml(r"\begin{aligned} y &= ax + b \\ z &= c \end{aligned}")[0]
-    rows = [child for child in matrix if etree.QName(child).localname == "mr"]
+    """`aligned` 要真的落成两行 eqArr——每行一个 `m:e`，不是被吞掉、也不是退化成一行。
 
-    assert len(rows) == 2, etree.tostring(matrix, encoding="unicode")[:300]
+    这里从断言"两行 `m:mr` 矩阵"改成"两行 `m:e` 的 `m:eqArr`"：对齐环境在 OOXML 里
+    就是 eqArr（ECMA-376：带对齐分组的 mtable → eqArr；`m:m` 只用于真矩阵）。矩阵版本
+    里 `&` 只剩一列空格子，行间并不真对齐，断言矩阵会把那个错误结构说成正确。
+    """
+    aligned = latex_to_omml(r"\begin{aligned} y &= ax + b \\ z &= c \end{aligned}")[0]
+    assert etree.QName(aligned).localname == "eqArr"
+    rows = [child for child in aligned if etree.QName(child).localname == "e"]
+
+    assert len(rows) == 2, etree.tostring(aligned, encoding="unicode")[:300]
 
 
 def test_unknown_mathml_still_fails_loudly() -> None:
