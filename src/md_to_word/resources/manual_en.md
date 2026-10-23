@@ -621,6 +621,19 @@ inline formatting; three-level lists and lists inside block quotes; footnotes.
 | Footnote position | Always printed at the bottom of the page that cites it — a Word layout rule |
 | More than three list levels | The fourth level and beyond merge into the third |
 
+**CSL typesetting differences** (choices made by the citation engine: the content is complete, it is just
+laid out slightly differently from the reference implementation — check here when something looks off):
+
+| What you will see | What to do instead |
+|:--|:--|
+| Styles that quote titles (MLA, Chicago and similar) print the full stop outside the closing quote: `“A Study of Things”.`; a title ending in a question mark gains an extra stop: `“Why Things Happen?”.`. Punctuation-in-quote follows the engine's own implementation, so a few styles end up with one mark too many where a quote meets a comma | Fix those entries in Word after export (search for `”.`), or use a style that does not quote titles (APA, Nature, GB/T 7714) |
+| With `collapse="year-suffix"` (e.g. `springer-basic-author-date.csl`) several works by the same author in the same year repeat the year: `(Smith 2020a, 2020b, 2020c)` where the reference implementation gives `(Smith 2020a, b, c)` | The content is complete, just less compact; merge the years in Word if the style must be followed exactly |
+| A year range prints its start year only: `year = {2020-2021}` comes out as `2020`, the end year never appears | Export with the start year and add the range in Word, or split it into two entries |
+| Styles that print only `et al.` and no author names (`et-al-use-first="0"`) gain a stray leading space: `( et al., 2020)` | Use a style that lists authors, or delete the space after export |
+| A branch meant to run only when disambiguation is needed (`disambiguate="true"` in `<choose>`) always runs: a citation that should take the plain branch carries that branch's content too | Affects a few styles only; check that citation after export and edit it in Word if needed |
+| Full-name-level disambiguation (`all-names`) compares first authors only: when the clash is in the second author it is not resolved, and `(Roe, Doe, 2020)` comes out twice identically | Tell them apart with page numbers, or spell out the authors in the text |
+| A narrative citation is rewritten as `Smith (2020)` only when it is a single reference and the style prints one pair of parentheses; with several references, a prefix, or a numeric style it stays parenthetical or numeric | Write several references as separate sentences; a single `@key` is unaffected |
+
 **Silent clamping**: an image wider than the text block is clamped to the text-block width (15.92
 cm on A4 with 2.54 cm margins, less any gutter). The pre-flight check computes the real text block
 from the requirements file and reports an over-wide width as a reminder (it does not stop the
