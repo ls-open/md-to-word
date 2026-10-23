@@ -648,6 +648,12 @@ If a journal is missing from the list, download its CSL from <https://www.zotero
 point `csl:` at it; it is normalised automatically on export. Every bundled style is rendered by a
 test, so what you get is not "downloaded but unusable".
 
+**The three CSL disambiguation methods are implemented here** (the citation engine has none of
+them): initials for same-surname first authors (`(D. Zhang et al., 2024)`), extra names when a first
+author is shared (`(Bai, Sun, et al., 2024)`), and year suffixes when those still collide
+(`2020a` / `2020b`, in the text and in the reference list). Only what the style declares is applied;
+numeric styles are untouched.
+
 ---
 
 ## 8. Error quick reference
