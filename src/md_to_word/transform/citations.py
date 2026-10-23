@@ -60,6 +60,8 @@ class CitationEngine:
         self._add_names = options.get("disambiguate-add-names") == "true"
         # 只处理作者-年份制的 collapse="year"；数字制的编号合并另有 _collapse_numeric_runs
         self._collapse = options.get("collapse") in ("year", "year-suffix", "year-suffix-ranged")
+        # 数字制的连续编号合并：方括号形态（GB/T、IEEE）与上标形态（Nature、AMA）
+        self._numeric = options.get("collapse") == "citation-number"
         self._add_givenname = options.get("disambiguate-add-givenname") == "true"
         # by-cite 只按引用消歧；其余四种规则连「名字」一起消歧（APA 用的就是后者）
         rule = options.get("givenname-disambiguation-rule", "by-cite")
@@ -282,7 +284,7 @@ class CitationEngine:
             html = str(self._bibliography.cite(citation, lambda item: item))
         if narrative:
             html = _as_narrative(html)
-        html = _collapse_numeric_runs(html)
+        html = _collapse_numeric_runs(html, bare=self._numeric)
         segments = html_to_segments(html)
         self._rendered[cache_key] = segments
         return segments
@@ -324,9 +326,11 @@ class CitationEngine:
 
 
 _NUMERIC_CITE_RE = re.compile(r"\[(\d+(?:\s*[,\-–]\s*\d+)+)\]")
+# 上标/无括号的数字制（Nature、AMA、Cell 一类）：`1,2,3` 也要合并
+_BARE_NUMERIC_RE = re.compile(r"(?<![\d.])(\d+(?:\s*,\s*\d+){2,})(?![\d.])")
 
 
-def _collapse_numeric_runs(html: str) -> str:
+def _collapse_numeric_runs(html: str, bare: bool = False) -> str:
     """数字制的连续编号合并成区间：`[4,5,6]` → `[4–6]`。
 
     这是 GB/T 7714 与 IEEE 这类数字制的硬要求，citeproc-py 只管把编号一个个列出来。
@@ -349,7 +353,8 @@ def _collapse_numeric_runs(html: str) -> str:
                 start = prev = n
         return "[" + ",".join(parts) + "]"
 
-    return _NUMERIC_CITE_RE.sub(repl, html)
+    html = _NUMERIC_CITE_RE.sub(repl, html)
+    return _BARE_NUMERIC_RE.sub(repl, html) if bare else html
 
 
 _TAG_RE = re.compile(r"</?(?P<tag>i|b|sup|sub|sc|span)[^>]*>")

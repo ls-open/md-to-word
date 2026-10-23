@@ -136,3 +136,15 @@ def test_locator_labels_are_kept() -> None:
 def test_duplicate_keys_collapse() -> None:
     engine = _apa()
     assert _text(engine, ("adams2019", ""), ("adams2019", "")) == "(Adams & Cole, 2019)"
+
+
+def test_superscript_numeric_runs_collapse() -> None:
+    """Nature/AMA 这类上标数字制没有方括号，连续编号同样要并成区间。"""
+    bib = "\n".join(
+        f"@article{{n{i}, author={{A{i}, X}}, title={{P{i}}}, journal={{J}}, year={{200{i}}}}}"
+        for i in range(1, 4)
+    )
+    engine = CitationEngine(bib, CSL / "nature.csl", lang="en")
+    text = "".join(segment[0] for segment in engine.cite([("n1", ""), ("n2", ""), ("n3", "")]))
+    assert "–" in text and "1" in text and "3" in text, text
+    assert "1,2,3" not in text
