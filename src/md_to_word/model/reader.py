@@ -52,7 +52,7 @@ def _indent_width(indent: str) -> int:
 # 闭符前面不能是空白。少了这两条，`注：* P<0.05，** P<0.01，*** P<0.001。` 会被配成
 # 一段强调，把显著性星号当格式标记吃掉——这是静默丢字，比报错难查得多。
 _INLINE_RE = re.compile(
-    r"(?P<code>`[^`]+`)"
+    r"(?P<code>``[^`]*(?:`[^`]*)*``|`[^`]+`)"
     r"|(?P<math>\$(?=\S)[^$\n]*\S\$)"
     r"|(?P<strongem>(?<![A-Za-z0-9_])\*\*\*(?=[^\s*])(.+?)(?<=[^\s*])\*\*\*)"
     r"|(?P<strong>(?<![A-Za-z0-9_])\*\*(?=[^\s*])(.+?)(?<=[^\s*])\*\*)"
@@ -190,7 +190,8 @@ def parse_inlines(
         kind = m.lastgroup
         raw = m.group(0)
         if kind == "code":
-            nodes.append(Code(_restore(raw[1:-1], hold)))
+            tick = 2 if raw.startswith("``") and raw.endswith("``") and len(raw) > 4 else 1
+            nodes.append(Code(_restore(raw[tick:-tick], hold)))
         elif kind == "math":
             nodes.append(Math(raw[1:-1]))
         elif kind == "strongem":

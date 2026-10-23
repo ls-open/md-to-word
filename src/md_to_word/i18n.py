@@ -997,6 +997,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Line {line}: the footnote reference `[^{label}]` has no definition "
         "(`[^{label}]: …`); the export would print an empty mark and drop the note",
     ),
+    "gate.equation.before_chapter": (
+        "行 {line}: 这条公式写在第一个一级标题之前，按章编号会得到「0-1」。把它移到第一章之后，"
+        "或关掉 YAML 里的 `crossref: chapters`",
+        "Line {line}: this equation comes before the first level-1 heading, so chapter numbering "
+        "makes it 0-1. Move it after the first chapter, or drop `crossref: chapters`",
+    ),
     "gate.equation.duplicate_label": (
         "公式标签 `{{#{label}}}` 重复：第 {first} 行已有同名标签，两条公式会抢同一个编号，"
         "引用只能指到其中一条",

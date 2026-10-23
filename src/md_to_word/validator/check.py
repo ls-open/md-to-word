@@ -575,6 +575,16 @@ def validate_manuscript(
             else:
                 labels_seen[label] = i
 
+    # 10c. 按章编号时，第一个一级标题之前的公式会编成「0-1」
+    crossref = fm_data.get("crossref") if isinstance(fm_data, dict) else None
+    if isinstance(crossref, dict) and crossref.get("chapters"):
+        seen_heading = False
+        for i, line in enumerate(md_text.split("\n"), 1):
+            if re.match(r"^#\s+", line):
+                seen_heading = True
+            elif not seen_heading and re.search(r"\$\$.*\{#(eq-[\w:.\-]+)\}", line):
+                report.warnings.append(t("gate.equation.before_chapter", lang, line=i))
+
     # 11. 图表题注邻近性：题注离表格/图片远了，样式仍会生效，只是位置不对，提醒即可
     _group_warn(report, t("gate.tag.caption_adjacency", lang),
                 caption_adjacency_issues(md_text, lang), lang)
