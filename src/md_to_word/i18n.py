@@ -956,6 +956,18 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "or TIFF, so the export would stop here. Save it as PNG first, or reference a PDF directly "
         "(PDF figures are rasterised at 300 dpi during export)",
     ),
+    "gate.section.page_format": (
+        "行 {line}: 分节标记的页码格式「{value}」认不出，会被丢掉，页码格式不生效。"
+        "可用：阿拉伯 / 罗马 / 小写罗马 / 字母 / 大写字母",
+        "Line {line}: the section marker's page format {value!r} is not recognised and would be "
+        "dropped, so the page numbering would not change. Use decimal, upperRoman, lowerRoman, "
+        "lowerLetter or upperLetter",
+    ),
+    "gate.section.start": (
+        "行 {line}: 分节标记的起始页码「{value}」不是数字，会被当成 1",
+        "Line {line}: the section marker's start page {value!r} is not a number and would fall back "
+        "to 1",
+    ),
     "gate.table.row_unclosed": (
         "行 {line}: 表格行缺少行尾竖线——这一行会掉出表格变成正文，竖线原样印出来。补上结尾的 `|`",
         "Line {line}: the table row has no closing pipe — it falls out of the table and is printed as "

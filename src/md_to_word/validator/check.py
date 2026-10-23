@@ -21,7 +21,7 @@ import yaml
 
 from md_to_word.config import get_csl_dir
 from md_to_word.i18n import t
-from md_to_word.spec.constants import ROW_NAME_EN
+from md_to_word.spec.constants import PAGE_NUMBER_FMT, ROW_NAME_EN
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_requirements
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
@@ -488,6 +488,22 @@ def validate_manuscript(
         if line.startswith("%%") and not line.startswith("%% "):
             report.valid = False
             report.errors.append(t("gate.style_line.no_space", lang, line=i))
+
+    # 2f. 分节标记的参数：写错就被静默丢掉，页码格式与起始值等于没写
+    for i, line in enumerate(md_text.split("\n"), 1):
+        m = re.search(r"\{\{<\s*section\b([^>]*)>\}\}", line)
+        if not m:
+            continue
+        for key, value in re.findall(r"([^\s=]+)\s*=\s*([^\s>]+)", m.group(1)):
+            if key in ("页码", "page_number", "format"):
+                if value not in PAGE_NUMBER_FMT:
+                    report.valid = False
+                    report.errors.append(
+                        t("gate.section.page_format", lang, line=i, value=value)
+                    )
+            elif key in ("起始", "start") and not value.isdigit():
+                report.valid = False
+                report.errors.append(t("gate.section.start", lang, line=i, value=value))
 
     # 3. Obsidian WikiLinks
     for i, line in enumerate(md_text.split("\n"), 1):
