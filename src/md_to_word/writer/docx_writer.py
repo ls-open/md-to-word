@@ -405,13 +405,16 @@ class _Writer:
         抓不到。既然目标是「导出的文档还能在 Word 里继续改」，编号就得是域。
         """
         body_style = self._style_name("Body Text") or self._compact_style
+        # 每一层各自的起始号（读取端按层记在块上）：只写 ilvl=0 的话，深层会从 1 重数，
+        # 作者写的 `3.` 到 Word 里变成 a)。
+        starts = getattr(block, "level_starts", None) or {0: block.start}
         # numId 必须整块列表共用一个：`_numbered_list` 遇到起始号不是 1 时会**新建**一个
         # 带 startOverride 的编号实例，逐项调用就会逐项重新从起始号数起——「4. 5.」变成「4. 4.」。
         num_ids: dict[bool, int] = {}
         for item in block.items:
             ordered = block.ordered if item.ordered is None else item.ordered
             if ordered not in num_ids:
-                num_ids[ordered] = self._numbered_list(ordered, block.start)
+                num_ids[ordered] = self._numbered_list(ordered, starts)
             num_id = num_ids[ordered]
             for inner in item.blocks:
                 if not isinstance(inner, Paragraph):
@@ -465,7 +468,7 @@ class _Writer:
         for child in parse_xml(xml):
             numbering.append(child)
 
-    def _numbered_list(self, ordered: bool, start: int) -> int:
+    def _numbered_list(self, ordered: bool, starts: dict[int, int]) -> int:
         """返回该列表要用的 numId。有序列表各自一份，编号才从 1（或指定值）重新开始。"""
         self._ensure_numbering()
         base_id = 2 if ordered else 1
@@ -474,6 +477,13 @@ class _Writer:
         # 有序列表每个都要自己的 numId：共用一个的话，第二个列表会接着上一个往下编号
         # （Word 里就是 3.、4.），而且起始号也被忽略。
 
+        # 起始号按层写：深层要拿到自己的 lvlOverride，只写 ilvl=0 只能救顶层。
+        # 起始号本来就是 1 的层（抽象定义里的默认值）不写，numbering.xml 不因此变胖。
+        levels = [0] + [lv for lv in sorted(starts) if lv > 0 and starts[lv] != 1]
+        overrides = "".join(
+            f'<w:lvlOverride w:ilvl="{lv}"><w:startOverride w:val="{starts.get(lv, 1)}"/></w:lvlOverride>'
+            for lv in levels
+        )
         numbering = self.docx.part.numbering_part.element
         self._override_seq = getattr(self, "_override_seq", 99)
         self._override_seq += 1
@@ -481,7 +491,7 @@ class _Writer:
         xml = (
             f'<w:num {nsdecls("w")} w:numId="{new_id}">'
             f'<w:abstractNumId w:val="{base_id - 1}"/>'
-            f'<w:lvlOverride w:ilvl="0"><w:startOverride w:val="{start}"/></w:lvlOverride>'
+            f"{overrides}"
             "</w:num>"
         )
         numbering.append(parse_xml(xml))

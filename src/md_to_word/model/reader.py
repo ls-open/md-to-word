@@ -274,8 +274,11 @@ def _metadata(raw: str) -> Metadata:
     )
 
 
-def split_table_cells(body: str) -> list[str]:
-    r"""切分表格单元格，保护转义竖线 \|、行内代码 `...` 以及行内公式 $...$ 中的竖线。"""
+def _split_table_cells_raw(body: str) -> list[str]:
+    r"""切分表格单元格，保护转义竖线 \|、行内代码 `...` 以及行内公式 $...$ 中的竖线。
+
+    保留每格原样（含行尾空白）：行尾两个空格是换行标记，先 `strip()` 就再也认不出来了。
+    """
     cells: list[str] = []
     current: list[str] = []
     i = 0
@@ -301,19 +304,30 @@ def split_table_cells(body: str) -> list[str]:
             i += 1
             continue
         elif ch == "|" and not in_code and not in_math:
-            cells.append("".join(current).strip())
+            cells.append("".join(current))
             current = []
             i += 1
             continue
         current.append(ch)
         i += 1
-    cells.append("".join(current).strip())
+    cells.append("".join(current))
     return cells
+
+
+def split_table_cells(body: str) -> list[str]:
+    """去空白后的单元格文本：列宽、对齐、列数都按它判断，行尾空格在那里没有意义。"""
+    return [cell.strip() for cell in _split_table_cells_raw(body)]
 
 
 def _table_cells(line: str) -> list[str]:
     body = _TABLE_ROW_RE.match(line).group("body")
     return split_table_cells(body)
+
+
+def _table_cell_texts(line: str) -> list[str]:
+    """未去空白的单元格文本，给「单元格内联」用：换行标记要在去空白之前识别。"""
+    body = _TABLE_ROW_RE.match(line).group("body")
+    return _split_table_cells_raw(body)
 
 
 def _column_widths(separator: str) -> Optional[list[float]]:
@@ -518,16 +532,21 @@ class _Reader:
         return self.doc
 
     # -- 各块读取 ------------------------------------------------------
-    def _read_code_block(self, start: int, fence: re.Match) -> int:
+    def _scan_code_block(self, start: int, fence: re.Match) -> tuple[CodeBlock, int]:
+        """扫一个围栏代码块，返回 (块, 收尾围栏之后的行号)。列表项里也要用同一套扫描。"""
         marker, language = fence.group(1), fence.group(2).strip()
         body: list[str] = []
         i = start + 1
         while i < len(self.lines) and not self.lines[i].strip().startswith(marker):
             body.append(self.lines[i])
             i += 1
+        return CodeBlock(value="\n".join(body), language=language), i + 1
+
+    def _read_code_block(self, start: int, fence: re.Match) -> int:
+        block, i = self._scan_code_block(start, fence)
         self._flush_pending()
-        self._append(CodeBlock(value="\n".join(body), language=language))
-        return i + 1
+        self._append(block)
+        return i
 
     def _read_equation(self, start: int) -> int:
         """读一条独立公式，支持跨行与 `{#eq-x}` 标签。
@@ -556,15 +575,29 @@ class _Reader:
         self._append(Equation(latex="\n".join(parts).strip(), label=label))
         return i + 1
 
+    def _table_cell_inlines(self, line: str) -> list[list]:
+        """单元格内容与正文同一条硬换行规则：行尾 `\\` / 两个空格 → `LineBreak`。
+
+        单元格只能写在一行里，换行标记接不到下一行，但也不能因此把标记印成字符或抹掉。
+        """
+        cells = []
+        for cell in _table_cell_texts(line):
+            text, breaks = hard_break(cell)
+            inlines = self._inl(text.strip())
+            if breaks:
+                inlines.append(LineBreak())
+            cells.append(inlines)
+        return cells
+
     def _read_table(self, start: int) -> int:
-        header = [self._inl(c) for c in _table_cells(self.lines[start])]
+        header = self._table_cell_inlines(self.lines[start])
         separator = self.lines[start + 1]
         alignments = _alignments(separator)
         widths = _column_widths(separator)
         rows: list[list] = []
         i = start + 2
         while i < len(self.lines) and _TABLE_ROW_RE.match(self.lines[i].strip()):
-            rows.append([self._inl(c) for c in _table_cells(self.lines[i])])
+            rows.append(self._table_cell_inlines(self.lines[i]))
             i += 1
 
         self._append(Table(header=header, rows=rows, alignments=alignments, widths=widths))
@@ -603,11 +636,13 @@ class _Reader:
         start_no = int(first.group("num")) if first else 1
         base = _indent_width((first or _BULLET_RE.match(self.lines[start])).group("indent"))
         levels = [base]  # 每一层对应的缩进宽度
+        level_starts: dict[int, int] = {}  # 每层第一个有序项的编号（深层也从作者写的数开始）
         items: list[ListItem] = []
         i = start
         while i < len(self.lines):
-            bullet = _BULLET_RE.match(self.lines[i])
-            number = _ORDERED_RE.match(self.lines[i])
+            line = self.lines[i]
+            bullet = _BULLET_RE.match(line)
+            number = _ORDERED_RE.match(line)
             match = number or bullet
             if not match:
                 break
@@ -622,6 +657,8 @@ class _Reader:
             is_ordered = number is not None
             if level == 0 and is_ordered != ordered:
                 break  # 顶层换了编号形式 → 这是另一个列表
+            if is_ordered and level not in level_starts:
+                level_starts[level] = int(number.group("num"))
             # 列表项同样认行尾 `\` / 两个空格：换行不换项，编号仍只出一次
             text, continues = hard_break(match.group("text"))
             inlines = self._inl(text.strip())
@@ -631,15 +668,30 @@ class _Reader:
                 inlines.append(LineBreak())
                 inlines.extend(self._inl(next_text.strip()))
                 i += 1
-            items.append(
-                ListItem(
-                    blocks=[Paragraph(inlines=inlines)],
-                    level=level,
-                    ordered=is_ordered,
-                )
+            item = ListItem(
+                blocks=[Paragraph(inlines=inlines)],
+                level=level,
+                ordered=is_ordered,
             )
+            items.append(item)
+            # 比列表项内容更深的围栏代码属于这一项。以前读成顶层块，从属关系静默消失；
+            # 模型能表达（ListItem.blocks），写出器只支持段落——交给它的
+            # UnsupportedFeature 明确报错，比悄悄把代码块挪出列表更接近事实。
+            content_col = _indent_width(line[: match.start("text")])
+            while i < len(self.lines):
+                stripped = self.lines[i].lstrip()
+                fence = _FENCE_RE.match(stripped)
+                leading = self.lines[i][: len(self.lines[i]) - len(stripped)]
+                if fence is None or _indent_width(leading) < content_col:
+                    break
+                code, i = self._scan_code_block(i, fence)
+                item.blocks.append(code)
         self._flush_pending()
-        self._append(ListBlock(items=items, ordered=ordered, start=start_no))
+        block = ListBlock(items=items, ordered=ordered, start=start_no)
+        # 逐层起始号是编号实例的属性，模型里没有对应字段；挂在块实例上作为读→写的
+        # 内部通道（写出器按 getattr 取），不扩散到 model/document.py。
+        block.level_starts = level_starts
+        self._append(block)
         return i
 
 
