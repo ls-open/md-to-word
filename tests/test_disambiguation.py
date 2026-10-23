@@ -70,9 +70,10 @@ def test_different_co_authors_are_separated_by_names() -> None:
     assert _text(engine, ["bai2024yu"]) == "(Bai, Yu, et al., 2024)"
 
 
-def test_a_combined_citation_lists_every_suffix() -> None:
+def test_a_combined_citation_collapses_the_year() -> None:
+    """CSL 的 `collapse="year"`：同一括号里作者相同时，年份并到一处。"""
     engine = _apa()
-    assert _text(engine, ["kim2020a", "kim2020b"]) == "(Kim & Park, 2020a; Kim & Park, 2020b)"
+    assert _text(engine, ["kim2020a", "kim2020b"]) == "(Kim & Park, 2020a, 2020b)"
 
 
 def test_numeric_styles_are_untouched() -> None:

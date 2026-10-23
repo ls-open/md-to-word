@@ -58,6 +58,8 @@ class CitationEngine:
         options = citation_attrs(style_text)
         self._year_suffix = options.get("disambiguate-add-year-suffix") == "true"
         self._add_names = options.get("disambiguate-add-names") == "true"
+        # 只处理作者-年份制的 collapse="year"；数字制的编号合并另有 _collapse_numeric_runs
+        self._collapse = options.get("collapse") in ("year", "year-suffix", "year-suffix-ranged")
         self._add_givenname = options.get("disambiguate-add-givenname") == "true"
         # by-cite 只按引用消歧；其余四种规则连「名字」一起消歧（APA 用的就是后者）
         rule = options.get("givenname-disambiguation-rule", "by-cite")
@@ -153,28 +155,52 @@ class CitationEngine:
         ]
 
     def _render_group(self, pairs) -> str:
-        """一个括号里各条目形态不同时（有的要补名字、有的不用），逐条渲染再按样式的分隔符合起来。"""
-        ordered = sorted(pairs, key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
+        """逐条渲染再按样式的布局合起来：这条路上消歧形态与 collapse 归我们自己管。
+
+        CSL 的 `collapse="year"`：同一括号里作者部分相同的几条，年份并到一处
+        （`(Kim & Park, 2019, 2020a)`）。citeproc-py 不实现 collapse，也不支持逐条换形态。
+        """
         prefix, suffix, delimiter = self._layout
-        parts = []
+        ordered = sorted(pairs, key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
+        pieces = []
         for pair in ordered:
             locator = pair[1] if len(pair) > 1 else ""
             item_prefix = pair[2] if len(pair) > 2 else ""
-            text = self._render(pair[0], self._variants.get(pair[0], BASE), locator, item_prefix)
+            text = self._render(pair[0], self._variant(pair[0]), locator, item_prefix)
             if prefix and text.startswith(prefix):
                 text = text[len(prefix):]
             if suffix and text.endswith(suffix):
                 text = text[: -len(suffix)]
-            parts.append(text)
-        return f"{prefix}{delimiter.join(parts)}{suffix}"
+            pieces.append((pair[0], text))
 
-    def _separates(self, group: list[str], variant: Variant, texts: dict[str, str]) -> bool:
-        """这组条目换成 `variant` 之后是否互不相同（分得开才值得加）。"""
-        rendered = [self._render_single(key, variant) for key in group]
-        if len(set(rendered)) == len(rendered):
-            return True
-        # 只要求比原来多分出一些也算进展，避免一步跨不到底时原地不动
-        return len(set(rendered)) > len({texts[key] for key in group})
+        if not self._collapse:
+            return f"{prefix}{delimiter.join(text for _key, text in pieces)}{suffix}"
+
+        groups: list[list] = []
+        for key, text in pieces:
+            names, date = self._split_author(key, text)
+            if names is None:
+                groups.append([None, [text]])
+            elif groups and groups[-1][0] == names:
+                groups[-1][1].append(date)
+            else:
+                groups.append([names, [date]])
+        body = delimiter.join(
+            names + ", ".join(dates) if names else dates[0] for names, dates in groups
+        )
+        return f"{prefix}{body}{suffix}"
+
+    def _split_author(self, key: str, text: str):
+        """把一条渲染好的引用拆成「作者部分」与「年份部分」，供 collapse 归并。"""
+        year = str((self._by_key.get(key, {}).get("issued") or {}).get("date-parts", [[None]])[0][0])
+        if not year or year == "None":
+            return None, text
+        suffix = str(self._by_key.get(key, {}).get("year-suffix", ""))
+        token = year + suffix
+        index = text.rfind(token)
+        if index <= 0:
+            return None, text
+        return text[:index], text[index:]
 
     def _render_single(self, key: str, variant: Variant = BASE) -> str:
         """单独渲染一条引用（不带定位符），用于判断两条会不会撞。"""
@@ -246,7 +272,9 @@ class CitationEngine:
         citation = Citation(items)
         # 先登记：文献表的成员与数字制编号都靠这一步，跟怎么渲染文内引用无关
         self._bibliography.register(citation)
-        if any(not self._variant(pair[0]).plain for pair in pairs):
+        if self._collapse and len(pairs) > 1:
+            html = self._render_group(pairs)
+        elif any(not self._variant(pair[0]).plain for pair in pairs):
             html = self._render_group(pairs)
         else:
             html = str(self._bibliography.cite(citation, lambda item: item))
