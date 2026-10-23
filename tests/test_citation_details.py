@@ -152,6 +152,61 @@ def test_superscript_numeric_runs_collapse() -> None:
     assert "1,2,3" not in text
 
 
+SAME_SURNAME_BIB = """
+@article{liming, author={Li, Ming}, title={Gamma}, journal={J}, year={2021}}
+@article{lichaoyang, author={Li, Chaoyang}, title={Delta}, journal={J}, year={2023}}
+@article{gaoj, author={Gao, Juliet}, title={Alpha}, journal={J}, year={2024}}
+@article{gaoq, author={Gao, Quebec}, title={Beta}, journal={J}, year={2024}}
+@article{lichen, author={Li, Chen}, title={Epsilon}, journal={J}, year={2019}}
+@article{lichaoyang2, author={Li, Chaoyang}, title={Zeta}, journal={J}, year={2018}}
+"""
+SAME_SURNAME_KEYS = ["liming", "lichaoyang", "gaoj", "gaoq", "lichen", "lichaoyang2"]
+
+
+def _bibliography_titles(style: str) -> list[str]:
+    """文献表的顺序，用题名（每条不重复）表示——各样式把年份、题名套在不同标点里。"""
+    titles = ("Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta")
+    engine = CitationEngine(SAME_SURNAME_BIB, CSL / f"{style}.csl", lang="en")
+    engine.reserve(SAME_SURNAME_KEYS)
+    for key in SAME_SURNAME_KEYS:
+        engine.cite([(key, "")])
+    entries = ["".join(text for text, _ in segments) for _key, segments in engine.bibliography_entries()]
+    return [next(title for title in titles if title in entry) for entry in entries]
+
+
+def test_same_surname_authors_sort_by_given_name() -> None:
+    """同姓不同人按名排，不是按姓撞成一个键就掉到年份上。
+
+    只比姓的话 `Li, C.` 与 `Li, M.` 完全同键，顺序由年份定：`Li, M. (2021)` 会排到
+    `Li, C. (2023)` 前面。改后与 citeproc-js 对同一组条目的输出逐条对齐。
+    """
+    assert _bibliography_titles("apa") == ["Alpha", "Beta", "Zeta", "Epsilon", "Delta", "Gamma"]
+
+
+def test_the_given_name_form_follows_the_style() -> None:
+    """名的形态跟着样式走，不是我们自己挑一种。
+
+    APA 在样式根上写了 `initialize-with`，名收成首字母：`Chaoyang` 与 `Chen` 都是 `C.`，
+    分不开，于是落到年份——`Zeta (2018)`、`Epsilon (2019)`、`Delta (2023)`。
+    Chicago 与 MLA 在 `<name>` 上写了 `initialize="false"`，比全名：`Chaoyang` 排在
+    `Chen` 前面。MLA 的排序键里根本没有日期，同作者按**题名**排（`Delta` → `Zeta`），
+    按年份排就错了。三档都以 citeproc-js 为准。
+    """
+    assert _bibliography_titles("chicago-author-date") == [
+        "Alpha", "Beta", "Zeta", "Delta", "Epsilon", "Gamma",
+    ]
+    assert _bibliography_titles("modern-language-association") == [
+        "Alpha", "Beta", "Delta", "Zeta", "Epsilon", "Gamma",
+    ]
+
+
+def test_a_descending_sort_key_is_honoured() -> None:
+    """Elsevier Harvard 的 `<key variable="issued" sort="descending"/>`：同作者年份倒序。"""
+    assert _bibliography_titles("elsevier-harvard") == [
+        "Alpha", "Beta", "Delta", "Epsilon", "Zeta", "Gamma",
+    ]
+
+
 def test_translator_series_and_note_are_mapped() -> None:
     """`.bib` 里这些字段以前直接丢掉：译者在文献表里整段不见、丛书名与注释也消失。"""
     from md_to_word.transform.bibtex import parse_bibtex

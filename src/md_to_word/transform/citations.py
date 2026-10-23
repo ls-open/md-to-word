@@ -53,8 +53,10 @@ class CitationEngine:
         self._rendered: dict[tuple, str] = {}
         self._order: list[str] = []          # 首次引用顺序（数字制就用它）
         self._by_key = {entry["id"]: entry for entry in self.entries}
-        self._sorted = _declares_sort(str(csl_path))
         style_text = Path(csl_path).read_text(encoding="utf-8")
+        self._sort_by_initials = _sort_names_initialized(style_text)
+        self._sort_order = _declared_sort_keys(style_text)
+        self._sorted = bool(self._sort_order)
         options = citation_attrs(style_text)
         self._year_suffix = options.get("disambiguate-add-year-suffix") == "true"
         self._add_names = options.get("disambiguate-add-names") == "true"
@@ -120,7 +122,7 @@ class CitationEngine:
         if self._year_suffix:
             final = {key: self._render_single(key, self._variant(key)) for key in cited}
             for group in _groups(final):
-                group.sort(key=lambda k: _sort_key(self._by_key[k]))
+                group = self._sorted_keys(group)
                 for index, key in enumerate(group):
                     self._by_key[key]["year-suffix"] = _suffix_label(index)
             # 条目数据变了，重建引用源：CiteProcJSON 的条目在构造时已抓走
@@ -217,9 +219,11 @@ class CitationEngine:
         """按样式声明的 `<sort>` 排；没声明就保持输入顺序（CSL 的规矩）。"""
         if not self._citation_sort:
             return list(pairs)
-        if self._citation_sort in ("issued", "date"):
-            return sorted(pairs, key=lambda pair: _sort_key(self._by_key.get(pair[0], {}))[1:])
-        return sorted(pairs, key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
+        kind = "year" if self._citation_sort in ("issued", "date") else "names"
+        return sorted(
+            pairs,
+            key=lambda pair: _sort_value(kind, self._by_key.get(pair[0], {}), self._sort_by_initials),
+        )
 
     def _split_author(self, key: str, text: str):
         """把一条渲染好的引用拆成「作者部分」与「年份部分」，供 collapse 归并。"""
@@ -325,11 +329,22 @@ class CitationEngine:
         """(key, 片段序列)——写出器要用 key 建书签、用片段还原斜体。"""
         return self.bibliography_segments()
 
+    def _sorted_keys(self, keys) -> list[str]:
+        """按 `<sort>` 声明的键序与方向排。
+
+        多字段混搭（作者升序、年份降序）靠稳定排序从最后一条键往前做，一趟一条键；
+        把几条键塞进一个元组是做不到的——元组里没法让某一项逆序。
+        """
+        result = list(keys)
+        for kind, descending in reversed(self._sort_order):
+            result.sort(
+                key=lambda key: _sort_value(kind, self._by_key.get(key, {}), self._sort_by_initials),
+                reverse=descending,
+            )
+        return result
+
     def _ordered_keys(self) -> list[str]:
-        keys = list(self._order)
-        if self._sorted:
-            keys.sort(key=lambda k: _sort_key(self._by_key.get(k, {})))
-        return keys
+        return self._sorted_keys(self._order) if self._sorted else list(self._order)
 
     def bibliography_segments(self) -> list[tuple[str, list[tuple[str, dict]]]]:
         """(key, 片段序列)——写出器要用 key 建书签、用片段还原斜体。"""
@@ -342,11 +357,12 @@ class CitationEngine:
     def bibliography(self) -> list[str]:
         """文末文献列表（仍是 html 标记串；要片段用 bibliography_segments）。
 
-        顺序分两种：CSL 在 `<bibliography>` 里声明了 `<sort>` 的（作者-年份制）按作者与年份
-        排；没声明的（数字顺序制，如 GB/T 7714、Nature）按首次引用顺序。
+        顺序分两种：CSL 在 `<bibliography>` 里声明了 `<sort>` 的（作者-年份制）按声明的键序
+        与方向排；没声明的（数字顺序制，如 GB/T 7714、Nature）按首次引用顺序。
 
-        `citeproc-py` 有 `style.sort_bibliography()`，但实测不生效（ape.csl 依旧按注册顺序
-        返回），所以这里自己做。排序键用条目字段近似 CSL 的宏排序——够覆盖作者-年份制。
+        `citeproc-py` 有 `style.sort_bibliography()`，但实测不生效（apa.csl 依旧按注册顺序
+        返回），所以这里自己做：键序、升降序、名的形态都取自样式本身，见
+        `_declared_sort_keys` 与 `_sort_names_initialized`。
         """
         rendered = [
             _with_year_suffix(str(entry), self._by_key.get(key, {}))
@@ -355,9 +371,8 @@ class CitationEngine:
         if not self._sorted or len(rendered) != len(self._order):
             return rendered
 
-        pairs = list(zip(self._order, rendered))
-        pairs.sort(key=lambda pair: _sort_key(self._by_key.get(pair[0], {})))
-        return [text for _key, text in pairs]
+        text_by_key = dict(zip(self._order, rendered))
+        return [text_by_key[key] for key in self._sorted_keys(self._order)]
 
 
 _NUMERIC_CITE_RE = re.compile(r"\[(\d+(?:\s*[,\-–]\s*\d+)+)\]")
@@ -447,14 +462,6 @@ def html_to_segments(html: str) -> list[tuple[str, dict]]:
     return segments or [(unescape(html or ""), {})]
 
 
-def _author_year(entry: dict) -> tuple:
-    """「同作者 + 同年」的分组键：作者（姓）序列与年份。"""
-    people = entry.get("author") or entry.get("editor") or []
-    names = tuple(p.get("family") or p.get("literal", "") for p in people)
-    issued = (entry.get("issued") or {}).get("date-parts", [[None]])
-    return (names, issued[0][0] if issued and issued[0] else None)
-
-
 def _suffix_label(index: int) -> str:
     """0 → a，25 → z，26 → aa（CSL 的年份后缀序列）。"""
     label = ""
@@ -510,26 +517,109 @@ def _join_dates(dates: list[str], ranged: bool) -> str:
     return ", ".join(parts)
 
 
-def _declares_sort(csl_path: str) -> bool:
-    try:
-        import re as _re
+def _declared_sort_keys(style_text: str) -> tuple[tuple[str, bool], ...]:
+    """`<bibliography><sort>` 里声明了哪几条排序键、各自升序还是降序。
 
-        content = Path(csl_path).read_text(encoding="utf-8")
-    except OSError:
+    CSL 把排序写成一串 `<key>`，每条指向一个宏或变量，还能带 `sort="descending"`。
+    完整求值宏是不必的——我们只认得出「作者 / 年份 / 题名 / 状态」四类，其余（卷号、
+    来源、事件日期这类）直接跳过：跳过的键只在前面几条全打平时才起作用。
+    """
+    bibliography = re.search(r"<bibliography\b.*?</bibliography>", style_text, re.S)
+    sort = re.search(r"<sort>(.*?)</sort>", bibliography.group(0), re.S) if bibliography else None
+    if sort is None:
+        return ()
+
+    keys: list[tuple[str, bool]] = []
+    for attrs in re.findall(r"<key\b([^>]*)>", sort.group(1)):
+        target = re.search(r'(?:macro|variable)="([^"]+)"', attrs)
+        kind = _sort_kind(target.group(1)) if target else ""
+        # 连着几条同类的键（APA 的 date-sort-group + date-sort）合成一条
+        if not kind or (keys and keys[-1][0] == kind):
+            continue
+        keys.append((kind, 'sort="descending"' in attrs))
+    return tuple(keys)
+
+
+def _sort_kind(name: str) -> str:
+    """一条 `<key>` 指向宏名或变量名，归到我们排序时认的四类之一；认不出返回空串。"""
+    lowered = name.lower()
+    if lowered.startswith(("author", "editor", "contributor", "composer")):
+        return "names"
+    if lowered in ("issued", "year") or lowered.startswith(("date", "year")):
+        return "year"
+    if lowered.startswith("title"):
+        return "title"
+    return "status" if lowered == "status" else ""
+
+
+def _sort_value(kind: str, entry: dict, by_initials: bool = True):
+    """条目在某一类排序键上的取值。
+
+    作者按 `(姓, 名)` 逐位比较，名**不能省**：只比姓的话同姓不同人撞成一个键，顺序掉到
+    年份上——`Li, C. (2023)` 会排到 `Li, M. (2021)` 后面。名的形态由样式决定
+    （见 `_sort_names_initialized`）。
+    """
+    if kind == "names":
+        people = entry.get("author") or entry.get("editor") or []
+        title = entry.get("title", "")
+        # 没有作者的条目按题名排（CSL：用 substitute 后的内容排），排在最前是错的
+        return tuple(
+            (
+                (p.get("family") or p.get("literal") or "").casefold(),
+                (
+                    initials(p.get("given") or "", "")
+                    if by_initials
+                    else " ".join((p.get("given") or "").split())
+                ).casefold(),
+            )
+            for p in people
+        ) or ((title.casefold(), ""),)
+    if kind == "year":
+        issued = (entry.get("issued") or {}).get("date-parts", [[9999]])
+        return issued[0][0] if issued and issued[0] else 9999
+    if kind == "title":
+        return entry.get("title", "").casefold()
+    return entry.get("status", "") or ""
+
+
+def _sort_names_initialized(style_text: str) -> bool:
+    """排序键里的名是按首字母还是按全名比：看排序宏里那个 `name-as-sort-order` 的 `<name>`。
+
+    APA 的 `author-sort` 一路指到 `<name name-as-sort-order="all"/>`，样式根上又写了
+    `initialize-with=". "`，于是名收成首字母；Chicago 与 MLA 在同一处写了
+    `initialize="false"`，比的是全名。两档结果不同：APA 里 `C. 2019` 排在 `C. 2023` 前
+    （首字母分不开，落到年份），Chicago 里 `Chaoyang` 排在 `Chen` 前（全名分得开）。
+    两边都以 citeproc-js 的输出为准。
+    """
+    macros = dict(re.findall(r'<macro name="([^"]+)">(.*?)</macro>', style_text, re.S))
+    bibliography = re.search(r"<bibliography\b.*?</bibliography>", style_text, re.S)
+    sort = re.search(r"<sort>.*?</sort>", bibliography.group(0), re.S) if bibliography else None
+    keys = re.findall(r'<key macro="([^"]+)"', sort.group(0)) if sort else []
+    if not keys:
+        return True
+
+    # 只跟第一条 key（作者）；后面的日期、题名 key 与名字形态无关，跟进去只会撞上
+    # 标题宏里那些编辑者名字
+    pending, seen, name_els = [keys[0]], set(), []
+    while pending:
+        macro = pending.pop()
+        if macro in seen or macro not in macros:
+            continue
+        seen.add(macro)
+        body = macros[macro]
+        name_els += [
+            element
+            for element in re.findall(r"<name\b[^>]*>", body)
+            if "name-as-sort-order" in element
+        ]
+        pending += re.findall(r'macro="([^"]+)"', body)
+
+    if any('initialize="false"' in element for element in name_els):
         return False
-    block = _re.search(r"<bibliography.*?</bibliography>", content, _re.S)
-    return bool(block and "<sort>" in block.group(0))
-
-
-def _sort_key(entry: dict) -> tuple:
-    """作者（姓）→ 年份 → 题名。够近似 CSL 里 author/date/title 那几条 key。"""
-    people = entry.get("author") or entry.get("editor") or []
-    title = entry.get("title", "")
-    # 没有作者的条目按题名排（CSL：用 substitute 后的内容排），排在最前是错的
-    names = tuple(p.get("family") or p.get("literal", "") for p in people) or (title.casefold(),)
-    issued = (entry.get("issued") or {}).get("date-parts", [[9999]])
-    year = issued[0][0] if issued and issued[0] else 9999
-    return (names, year, title)
+    # `initialize-with` 可能写在 `<name>` 上（Harvard），也可能写在样式根上（APA）
+    if any("initialize-with" in element for element in name_els):
+        return True
+    return bool(re.search(r'<style\b[^>]*initialize-with=', style_text))
 
 
 def _as_narrative(text: str) -> str:
