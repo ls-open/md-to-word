@@ -320,7 +320,7 @@ class CitationEngine:
             html = str(self._bibliography.cite(citation, lambda item: item))
         if narrative:
             html = _as_narrative(html)
-        html = _collapse_numeric_runs(html, bare=self._numeric)
+        html = _merge_duplicate_period(_collapse_numeric_runs(html, bare=self._numeric))
         segments = html_to_segments(html)
         self._rendered[cache_key] = segments
         return segments
@@ -365,7 +365,7 @@ class CitationEngine:
         `_declared_sort_keys` 与 `_sort_names_initialized`。
         """
         rendered = [
-            _with_year_suffix(str(entry), self._by_key.get(key, {}))
+            _merge_duplicate_period(_with_year_suffix(str(entry), self._by_key.get(key, {})))
             for key, entry in zip(self._order, self._bibliography.bibliography())
         ]
         if not self._sorted or len(rendered) != len(self._order):
@@ -426,6 +426,50 @@ def _collapse_numeric_runs(html: str, bare: bool = False) -> str:
 
         html = _BARE_NUMERIC_RE.sub(bare_run, html)
     return html
+
+
+_TERMINAL_PUNCT = ".!?:"
+_CLOSING_QUOTES = "”’\"'"
+# 半角句点跟在终止标点后面、且后面是空白或结尾——CSL 追加的 `suffix="."` 就是这种。
+# 引号包住的也算：`“What?”` 后面同样不再补句点。
+_SUFFIX_PERIOD_RE = re.compile(r"([.!?:][" + _CLOSING_QUOTES + r"]*)\.(?=\s|$)")
+
+
+def _merge_duplicate_period(html: str) -> str:
+    """终止标点后面不再补句点：`Automated?.` → `Automated?`、`“Automated?”.` → `“Automated?”`。
+
+    citeproc-js 有一张合并表（`?` + `.` → `?`、`!` + `.` → `!`、`:` + `.` → `:`），
+    用来吃掉样式在标题后补的那个 `suffix="."`；citeproc-py 没有，标题以问号结尾时
+    文献表就写成 `Automated?.`。只看文本、跳过标签：APA 的书名是斜体，句点落在 `</i>` 后面。
+    """
+    parts: list[str] = []
+    tail = ""
+    pos = 0
+    for match in _TAG_RE.finditer(html or ""):
+        text, tail = _merge_text(html[pos : match.start()], tail)
+        parts.append(text)
+        parts.append(match.group(0))
+        pos = match.end()
+    text, tail = _merge_text((html or "")[pos:], tail)
+    parts.append(text)
+    return "".join(parts)
+
+
+def _merge_text(text: str, tail: str) -> tuple[str, str]:
+    """(合并后的文本, 这段最后几个非空白字符)——跨标签时上一段的结果要传过来。"""
+    if not text:
+        return text, tail
+    while text.startswith(".") and _absorbs_period(tail):
+        text = text[1:]
+    text = _SUFFIX_PERIOD_RE.sub(r"\1", text)
+    visible = text.rstrip()
+    return text, ((tail + visible)[-4:] if visible else tail)
+
+
+def _absorbs_period(tail: str) -> bool:
+    """句点前面是不是「已经收过句号」的终止标点；右引号不算隔断（`“What?”.` 一样不补）。"""
+    unquoted = tail.rstrip(_CLOSING_QUOTES)
+    return bool(unquoted) and unquoted[-1] in _TERMINAL_PUNCT
 
 
 _TAG_RE = re.compile(r"</?(?P<tag>i|b|sup|sub|sc|span)[^>]*>")

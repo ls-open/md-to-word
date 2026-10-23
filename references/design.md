@@ -254,6 +254,7 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 |:--|:--|
 | 文献表排序（`sort_bibliography()` 实测不生效） | `citations.py::_ordered_keys` |
 | 数字制合并 `[4,5,6]→[4–6]` | `_collapse_numeric_runs` |
+| 终止标点后不补句点（`Automated?.` → `Automated?`，引号包住的同样） | `_merge_duplicate_period` |
 | 同年份后缀 `2020a/b`（写进条目数据的 `year-suffix`） | `CitationEngine.reserve` |
 | 同姓补首字母（条目副本）、同首作者补名字（样式副本）、分不开再加后缀 | `transform/disambiguation.py` |
 

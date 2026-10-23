@@ -112,6 +112,42 @@ def test_group_authors_and_name_particles_survive() -> None:
     assert person["suffix"] == "Jr." and person["given"] == "John"
 
 
+def test_terminal_punctuation_does_not_take_a_second_period() -> None:
+    """标题以 `?`／`!`／`.`／`:` 结尾时，样式补的那个句点不再追加。
+
+    句点是 CSL 写在 `<group suffix=".">` 上的，citeproc-js 有一张合并表把它吃掉，
+    citeproc-py 没有——`What Aspects Are Automated?` 于是成了 `Automated?.`。
+    书名走斜体时句点落在 `</i>` 后面、Chicago 这类加引号的落在右引号后面，
+    合并都要看得穿。
+    """
+    bib = """
+@article{q, author={Smith, Jane}, title={What Aspects Are Automated?}, journal={J}, year={2021}}
+@article{e, author={Doe, Jane}, title={Is it done!}, journal={J}, year={2020}}
+@article{d, author={Roe, Jane}, title={A study.}, journal={J}, year={2019}}
+@book{b, author={Poe, Jane}, title={What Now?}, publisher={MIT Press}, year={2018}}
+"""
+    engine = CitationEngine(bib, CSL / "apa.csl", lang="en")
+    keys = ["q", "e", "d", "b"]
+    engine.reserve(keys)
+    for key in keys:
+        engine.cite([(key, "")])
+    texts = {
+        key: "".join(text for text, _ in segments)
+        for key, segments in engine.bibliography_entries()
+    }
+    assert texts["q"].startswith("Smith, J. (2021). What Aspects Are Automated? J")
+    assert texts["e"].startswith("Doe, J. (2020). Is it done! J")
+    assert texts["d"].startswith("Roe, J. (2019). A study. J")
+    assert texts["b"].startswith("Poe, J. (2018). What Now? MIT Press")
+
+    chicago = CitationEngine(bib, CSL / "chicago-author-date.csl", lang="en")
+    chicago.reserve(keys)
+    for key in keys:
+        chicago.cite([(key, "")])
+    quoted = dict(chicago.bibliography_entries())["q"]
+    assert "“What Aspects Are Automated?” J" in "".join(text for text, _ in quoted)
+
+
 def test_month_and_thesis_genre_reach_the_output() -> None:
     from md_to_word.transform.bibtex import parse_bibtex
 
