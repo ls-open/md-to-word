@@ -10,3 +10,6 @@ uv.lock
 .obsidian/
 
 
+
+# 并行代理的工作树（本地临时，不进仓库）
+.claude/worktrees/
