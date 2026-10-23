@@ -58,6 +58,7 @@ class Ref:
 
     def __init__(self, path: Path, lang: str = "zh"):
         self.notes: list[str] = []
+        self.path = Path(path)   # 草稿开头要写出「来源: 文件名」
         # 消息语言：草稿正文始终是本工具的中文词表写法（那是 format.txt 的合法
         # 语法），变的只是「需人工确认」清单与命令行提示。
         self.lang = lang
@@ -559,19 +560,34 @@ def main(argv=None):
     ap.add_argument('--lang', default='auto', help=t('extractor.cli.lang', 'zh'))
     args = ap.parse_args(argv)
 
-    from md_to_word.spec.constants import STYLE_MAP
-    from md_to_word.template.generator import REQUIRED_STYLES
-
     lang = args.lang if args.lang in ('zh', 'en') else _auto_lang(Path(args.docx))
     try:
         ref = Ref(Path(args.docx), lang)
     except ValueError as exc:      # 不是 .docx / 没有样式表：一句话说清楚，别甩 traceback
         print(f'❌ {exc}', file=sys.stderr)
         return 1
-    word_to_cn = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
+    text, styled, notes = _build_draft(ref, lang)
 
+    if args.output:
+        Path(args.output).write_text(text, encoding='utf-8')
+        print(t('extractor.draft_written', lang, path=args.output, styled=styled, notes=notes))
+    else:
+        print(text, end='')
+    return 0
+
+
+def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
+    """参考文件 → 草稿全文与两项计数 (已写出样式数, 需确认项数)。
+
+    CLI 与库调用共用这一份：从前各写一遍，改了一边另一边就悄悄落后——同一条门规、
+    同一份输出，没有第二个理由存在。
+    """
+    from md_to_word.spec.constants import STYLE_MAP
+    from md_to_word.template.generator import REQUIRED_STYLES
+
+    word_to_cn = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
     lines = ['# 由 md-to-word-template 从参考文件读出的草稿，**请核对**',
-             f'# 来源: {Path(args.docx).name}']
+             f'# 来源: {ref.path.name}']
     for part in (read_page(ref, body_line_multiple(ref)), read_table(ref), read_decor(ref)):
         lines += part[0]
         ref.notes += part[1]
@@ -602,14 +618,7 @@ def main(argv=None):
 
     if ref.notes:
         lines += ['', f'# ── {t("extractor.notes_header", lang)} ──'] + [f'# {n}' for n in ref.notes]
-    text = '\n'.join(lines) + '\n'
-    if args.output:
-        Path(args.output).write_text(text, encoding='utf-8')
-        print(t('extractor.draft_written', lang, path=args.output,
-                styled=len(styled), notes=len(ref.notes)))
-    else:
-        print(text, end='')
-    return 0
+    return '\n'.join(lines) + '\n', len(styled), len(ref.notes)
 
 
 def extract_spec_from_docx(
@@ -617,26 +626,7 @@ def extract_spec_from_docx(
 ) -> str:
     """从给定的 docx 模板反推单行 format.txt 草稿。``lang`` 只管消息，草稿正文用中文词表。"""
     ref = Ref(Path(docx_path), lang)
-    from md_to_word.spec.constants import STYLE_MAP
-    from md_to_word.template.generator import REQUIRED_STYLES
-    word_to_cn = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
-    lines = ['# 由 md-to-word-template 从参考文件读出的草稿，**请核对**',
-             f'# 来源: {Path(docx_path).name}']
-    for part in (read_page(ref, body_line_multiple(ref)), read_table(ref), read_decor(ref)):
-        lines += part[0]
-        ref.notes += part[1]
-    required_cn = set(REQUIRED_STYLES.values())
-    for sid_norm, cn in word_to_cn.items():
-        if sid_norm not in ref.by_id:
-            continue
-        cs, doubt, defined = clauses_for(ref, sid_norm)
-        if not defined and cn not in required_cn:
-            continue
-        lines.append(f'{cn}：' + ' '.join(cs))
-        ref.notes += [f'{cn}：{d}' for d in doubt]
-    if ref.notes:
-        lines += ['', f'# ── {t("extractor.notes_header", lang)} ──'] + [f'# {n}' for n in ref.notes]
-    text = '\n'.join(lines) + '\n'
+    text, _, _ = _build_draft(ref, lang)
     if output_path:
         Path(output_path).write_text(text, encoding='utf-8')
     return text

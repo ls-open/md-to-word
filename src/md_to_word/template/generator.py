@@ -25,6 +25,7 @@ from lxml import etree
 
 from md_to_word.config import get_base_template_path
 from md_to_word.i18n import t
+from md_to_word.spec.constants import STYLE_CN, STYLE_MAP
 from md_to_word.utils.skill_utils import (
     TOC_MARKER_RE,
     clear_color_theme_attrs,
@@ -65,56 +66,9 @@ SIZE_MAP = {
     '八号': Pt(5),
 }
 
-# ── 样式名映射（封闭集合：除 Title 兼容「文档标题 / 论文标题」外，其余每种样式只认唯一中文名）──
-STYLE_MAP = {
-    '论文标题': 'Title',
-    '文档标题': 'Title',
-    '副标题': 'Subtitle',
-    '作者': 'Author',
-    '日期': 'Date',
-    '摘要': 'Abstract',
-    '摘要标题': 'Abstract Title',
-    '关键词': 'Keywords',
-    '一级标题': 'Heading 1',
-    '二级标题': 'Heading 2',
-    '三级标题': 'Heading 3',
-    '四级标题': 'Heading 4',
-    '五级标题': 'Heading 5',
-    '六级标题': 'Heading 6',
-    '正文': 'Body Text',
-    '首段': 'First Paragraph',
-    '普通': 'Normal',
-    '表格题注': 'Table Caption',
-    '图片题注': 'Image Caption',
-    '图': 'Captioned Figure',
-    '表注': 'Table Note',
-    '参考文献': 'Bibliography',
-    '参考文献标题': 'References Title',
-    '紧凑': 'Compact',
-    '引用块': 'Block Text',
-    # 代码块（``` 围栏）的段落样式。底模已给一套等宽字体 + 无缩进的默认值，
-    # 所以「代码：」是可写可不写的那一类——写它就整行覆盖掉那套默认。
-    '代码': 'SourceCode',
-    # 脚注：写法与别的样式行一样，但它是**可写可不写**的那一类——稿件里有 `[^1]` 才用得上，
-    # 所以不进必填清单。不写时由 apply_footnote_format 从正文推一套默认补上（见那里的说明）。
-    '脚注': 'Footnote Text',
-    # 页眉/页脚是底模自带的段落样式（w:name = header / footer），
-    # 于是「页眉：宋体 小五 居中」就是一条标准样式行，复用全套段落属性。
-    # 注意：这里设的是**段落样式**，页眉/页脚的**内容**另由「页眉内容：」等行给。
-    '页眉': 'Header',
-    '页脚': 'Footer',
-    # 目录：标题与条目分属不同样式，两类都会静默建空壳（不写就字体字号全落空），故都列。
-    # 条目样式对应 Word 内置的 TOC 1–5，由目录域自己按级套用——模板里没有这几条，
-    # 生成的目录就会用 Word 内置默认（字体、缩进、间距都不是要求的那套）。
-    '目录标题': 'TOC Heading',
-    '目录一级': 'TOC 1',
-    '目录二级': 'TOC 2',
-    '目录三级': 'TOC 3',
-    '目录四级': 'TOC 4',
-    '目录五级': 'TOC 5',
-}
-
-STYLE_CN = {v: k for k, v in STYLE_MAP.items()}
+# ── 样式名映射 ──
+# 唯一真相源在 `spec/constants.py`（词表、正典中文名、反查都在那儿），这里只引入。
+# 从前这里另抄过一份 35 条的子集，add 了新样式只改一边时，两处就会对不上。
 
 # ── 页码格式（唯一写法）──
 PAGE_NUMBER_FMT = {

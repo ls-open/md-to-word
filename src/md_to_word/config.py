@@ -44,12 +44,7 @@ def get_resources_dir() -> Path:
 
 def get_csl_dir() -> Path:
     """获取 CSL 样式文件目录 resources/csl/。"""
-    res_dir = get_resources_dir()
-    csl = res_dir / "csl"
-    if csl.is_dir():
-        return csl
-    # 兼容直接平铺的情况
-    return csl
+    return get_resources_dir() / "csl"
 
 
 def get_base_template_path() -> Path:

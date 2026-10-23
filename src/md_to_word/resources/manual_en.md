@@ -16,7 +16,7 @@ One export needs two files:
 | File | What it holds |
 |:--|:--|
 | manuscript `*.md` | body text + three conventions (§2) |
-| requirements `*.txt` | one line of typography declarations per style (§3); without `-r` a `format.txt` or lone `.txt` beside the manuscript is taken over, otherwise the built-in preset |
+| requirements `*.txt` | one line of typography declarations per style (§3); without `-r` only a `format.txt` beside the manuscript is picked up, otherwise the built-in preset |
 
 ---
 
@@ -55,10 +55,11 @@ md-to-word --contract --lang en                          # same, in English (can
 md-to-word manuscript.md -o out.docx --verbose           # per-style log, for "the format had no effect"
 ```
 
-**Choosing the requirements file — one of four**: pass `-r`; otherwise a `format.txt` beside the
-manuscript is taken over by name; failing that, a single `.txt` beside it; failing both, the built-in
-preset is used, **selected by the manuscript's language**: `zh-academic` for Chinese, `en-nature` for
-every other language. The run reports which file it took over.
+**Choosing the requirements file — one of three**: pass `-r`; otherwise a file named exactly
+`format.txt` beside the manuscript is used; otherwise the built-in preset, **selected by the
+manuscript's language**: `zh-academic` for Chinese, `en-nature` for every other language. No other
+`.txt` is guessed at — if there is one, the run names it in a reminder. Which file was used is always
+reported.
 
 **Exit codes**: `0` done; `1` a manuscript, gate or dependency problem; `2` a usage error; `3` the `.docx` was written
 but `--pdf` was not rendered (non-macOS). `0` means every gate passed — **it does not mean the

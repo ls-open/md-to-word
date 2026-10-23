@@ -40,8 +40,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.input": ("输入的 Markdown 稿件 (.md)", "Input Markdown manuscript (.md)"),
     "cli.output": ("输出的 Word 文档路径 (.docx)", "Output .docx path"),
     "cli.requirements": (
-        "格式要求文件 (.txt)；未传时先取同目录 format.txt，其次唯一 .txt，都没有则用内置预设",
-        "Format requirements (.txt); without it: format.txt beside the manuscript, else the only .txt, else a preset",
+        "格式要求文件 (.txt)；未传时只认同目录的 format.txt，没有则用内置预设",
+        "Format requirements (.txt); without it, only a format.txt beside the manuscript is used, else a preset",
     ),
     "cli.preset": (
         "内置格式预设：zh-academic（中文学术默认）或 en-nature（英文国际期刊）",
@@ -126,23 +126,18 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "pipeline.requirements_missing": ("指定的格式要求文件不存在: {path}", "Requirements file not found: {path}"),
     "pipeline.preset_missing": ("未找到预设: {name}", "Preset not found: {name}"),
-    "pipeline.many_txt": (
-        "{dir} 下存在多个 .txt 文件，无法判定哪一份是格式要求。\n"
-        "  请用 -r 指定其中一份，或改用 --preset zh-academic/en-nature。",
-        "Several .txt files in {dir}; cannot tell which one is the requirements.\n"
-        "  Pass -r to select one, or use --preset zh-academic/en-nature.",
-    ),
     "pipeline.preset_auto": (
         "未指定格式要求，按稿件语种使用内置预设 {name}（要换就用 -r 或 --preset）。",
         "No requirements given; using the {name} preset for this manuscript's language (pass -r or --preset to override).",
     ),
-    "pipeline.txt_auto": (
-        "未指定格式要求，自动使用同目录唯一的 {path}（要换一份就加 -r）。",
-        "No requirements given; using the only .txt beside the manuscript: {path} (pass -r to choose another).",
-    ),
     "pipeline.txt_named": (
         "未指定格式要求，取同目录的 format.txt（要换一份就加 -r）。",
-        "no format file given; using the format.txt beside the manuscript (pass -r to use another)",
+        "No format file given; using the format.txt beside the manuscript (pass -r to use another).",
+    ),
+    "pipeline.txt_ignored": (
+        "同目录有 {names}，但本工具只认 format.txt，未采用（要用其中一份请加 -r）。",
+        "The manuscript's directory has {names}, but only a file named format.txt is picked up; "
+        "pass -r to use one of them.",
     ),
     "pipeline.template_missing": ("指定的模板文件不存在: {path}", "Template file not found: {path}"),
     "pipeline.template_unreadable": (

@@ -7,19 +7,14 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from md_to_word.config import WORKSPACE_DIR
-
 
 def _render_script() -> Path:
-    """渲染脚本的位置：**包内资源优先**。
+    """渲染脚本的位置：**包内资源**。
 
-    它必须随 wheel 发布——pip 装的人也要能 `--pdf`。仓库根 `scripts/` 下那份只是转发，
-    开发时的老用法照样能用。
+    它必须随 wheel 发布——pip 装的人也要能 `--pdf`。仓库 `scripts/` 下那份只是转发壳，
+    供人工执行，不是这条路径的来源。
     """
-    packaged = Path(__file__).resolve().parents[1] / "resources" / "render_via_word.sh"
-    if packaged.is_file():
-        return packaged
-    return WORKSPACE_DIR / "scripts" / "render_via_word.sh"
+    return Path(__file__).resolve().parents[1] / "resources" / "render_via_word.sh"
 
 
 def can_render_word_pdf() -> tuple[bool, str]:

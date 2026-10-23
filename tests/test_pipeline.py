@@ -275,10 +275,47 @@ def test_template_reader_rejects_non_docx(tmp_path: Path) -> None:
     assert extract_main([str(not_docx)]) == 1
 
 
-def test_auto_picked_requirements_are_announced(tmp_path: Path) -> None:
-    """没传 -r 时，同目录唯一的 .txt 会被当成格式要求——必须说出用了哪一份。
+def test_library_and_cli_reverse_engineer_identically(tmp_path: Path, capsys) -> None:
+    """反推要求文件只有一份实现：库调用与命令行必须给出同一份草稿。
 
-    不说的话，那份文件写错时的报错会像凭空冒出来的：用户不记得目录里还有这么一份。
+    从前 `main()` 与 `extract_spec_from_docx()` 各写了一遍，改一边另一边就悄悄落后；
+    这条把它们钉在同一份输出上。
+    """
+    import io
+    from contextlib import redirect_stdout
+
+    from md_to_word.template import extract_spec_from_docx
+    from md_to_word.template.extractor import main as extract_main
+
+    source = tmp_path / "seed.docx"
+    assert run_export_pipeline(
+        ExportOptions(
+            input_path=_write_manuscript(tmp_path),
+            output_path=source,
+            preset="zh-academic",
+        )
+    ).returncode == 0
+
+    from_library = extract_spec_from_docx(source)
+    buffer = io.StringIO()
+    with redirect_stdout(buffer):
+        assert extract_main([str(source)]) == 0
+    from_cli = buffer.getvalue()
+
+    assert from_cli == from_library
+
+
+def _write_manuscript(tmp_path: Path) -> Path:
+    manuscript = tmp_path / "seed.md"
+    manuscript.write_text("%% 文档标题 题目\n\n# 一\n\n正文。\n", encoding="utf-8")
+    return manuscript
+
+
+def test_unpicked_txt_files_are_named(tmp_path: Path) -> None:
+    """没传 -r 时只认 `format.txt`；旁边的 .txt 一概不猜，但要在提醒里点名。
+
+    猜「唯一那个 .txt 大概是要求文件」看着贴心，实则是把笔记当格式用——静默用错格式，
+    比直接不认它难查得多。不猜，但也不能装作没看见：用户以为它生效了才是真问题。
     """
     (tmp_path / "doc.md").write_text("# 引言\n\n正文。\n", encoding="utf-8")
     (tmp_path / "随手记.txt").write_text("这是笔记\n", encoding="utf-8")
@@ -287,8 +324,9 @@ def test_auto_picked_requirements_are_announced(tmp_path: Path) -> None:
         ExportOptions(input_path=tmp_path / "doc.md", output_path=tmp_path / "doc.docx")
     )
 
-    assert result.returncode == 1
-    assert any("随手记.txt" in msg for msg in result.messages)
+    assert result.returncode == 0, result.errors
+    assert any("随手记.txt" in msg for msg in result.messages), result.messages
+    assert any("格式要求" in msg for msg in result.messages), result.messages
 
 
 def test_contract_cheatsheet_needs_no_manuscript(capsys) -> None:

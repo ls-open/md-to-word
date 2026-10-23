@@ -105,8 +105,8 @@ it is the Python dependency list.
 Citation style comes from `csl:` with a bundled name (manual §7) or a path to the user's own CSL.
 Without `csl:`, Chinese manuscripts get GB/T 7714 numeric and everything else APA 7th.
 
-Without `-r` the engine takes a file named exactly `format.txt` beside the manuscript; failing that,
-a **lone `.txt`** (several of them and no `format.txt` → exit 1); otherwise the preset follows the
+Without `-r` the only file picked up is one named exactly `format.txt` beside the manuscript;
+anything else there is ignored and named in a reminder. With no `format.txt`, the preset follows the
 **manuscript's language**. Report which one was used.
 
 ## 4. Export, then the gates

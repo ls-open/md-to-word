@@ -134,7 +134,17 @@ STYLE_MAP: dict[str, str] = {
     "TOC 5": "TOC 5",
 }
 
-STYLE_CN: dict[str, str] = {v: k for k, v in STYLE_MAP.items() if re.search(r"[\u4e00-\u9fff]", k)}
+# 三种样式有多个中文写法，反查时取哪个由这张表定死，**不靠字典插入顺序**：
+# 顺序一变，模板生成与报错里的名字就跟着变，而且没人看得出为什么变了。
+_CANONICAL_CN = {
+    "Title": "文档标题",       # 与文档、`init` 样例、README 一致；`论文标题` 是同一个样式的另一写法
+    "Table Caption": "表题",
+    "Image Caption": "图片题注",
+}
+
+STYLE_CN: dict[str, str] = {
+    v: k for k, v in STYLE_MAP.items() if re.search(r"[\u4e00-\u9fff]", k)
+} | _CANONICAL_CN
 # 英文原名：报错时按用户书写语言回显，避免英文稿里出现「正文」这种中文标签
 STYLE_EN: dict[str, str] = {v: k for k, v in STYLE_MAP.items() if not re.search(r"[\u4e00-\u9fff]", k)}
 

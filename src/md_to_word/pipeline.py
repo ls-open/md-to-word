@@ -169,25 +169,19 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         req_file = p_pre
         req_content = p_pre.read_text(encoding="utf-8")
     else:
-        # 寻找同目录唯一 .txt；`format.txt` 是本工具的固定名，它单独在场时直接认它，
-        # 不再因为旁边多了个笔记文件就判「无法判定」。
-        txt_candidates = list(in_p.parent.glob("*.txt"))
+        # 不带 `-r` 时只认一个固定名：稿件同目录的 `format.txt`。不去猜「旁边那个 .txt
+        # 也许是要求文件」——猜错是静默用错格式，猜对了也换不来多少方便。旁边确实另有
+        # .txt 却没用上时提醒一句，免得用户以为它生效了。
         named = in_p.parent / "format.txt"
-        by_name = named.is_file()
-        if by_name:
-            txt_candidates = [named]
-        if len(txt_candidates) == 1 and txt_candidates[0].is_file():
-            req_file = txt_candidates[0]
-            req_content = req_file.read_text(encoding="utf-8")
-            # 接管了哪一份必须报出来：同目录的 .txt 可能是笔记、也可能是格式要求，
-            # 不说是哪一份时，后面的报错看着就像凭空冒出来的。
-            key = "pipeline.txt_named" if by_name else "pipeline.txt_auto"
-            res.messages.append(t(key, res.lang, path=req_file.name))
-        elif len(txt_candidates) > 1 and not options.template_path:
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.many_txt", res.lang, dir=in_p.parent))
-            return res
-        elif not options.template_path:
+        if named.is_file():
+            req_file = named
+            req_content = named.read_text(encoding="utf-8")
+            res.messages.append(t("pipeline.txt_named", res.lang, path=named.name))
+        else:
+            others = sorted(p.name for p in in_p.parent.glob("*.txt") if p.is_file())
+            if others:
+                shown = "、".join(others[:3]) + ("…" if len(others) > 3 else "")
+                res.messages.append(t("pipeline.txt_ignored", res.lang, names=shown))
             # 默认预设跟着稿件语种走：英文稿拿中文学位论文的格式（首行缩进两字符、
             # 宋体 fallback）是错的。判据与默认 CSL 用的是同一个 `looks_chinese`。
             preset_name = "zh-academic" if res.lang == "zh" else "en-nature"
