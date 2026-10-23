@@ -199,7 +199,11 @@ def test_underline_span_is_still_supported(workdir: Path, capsys) -> None:
 
 def test_aligned_environment_renders_as_a_real_table(workdir: Path, capsys) -> None:
     """`\\\\begin{aligned}` 是 AI 最常写的多行公式。转换器会漏出一个裸 `&`，产出非法 XML；
-    这里断言它被转成 `split`（真正的 mtable），而不是崩掉或者只剩一行。"""
+    这里断言它被转成 `split`（真正的 mtable），而不是崩掉或者只剩一行。
+
+    产物断言的是 `m:eqArr` + 两行 `m:e`：对齐环境在 OOXML 里是 eqArr（ECMA-376），
+    旧断言的 `m:m`/`m:mr` 是把它当普通矩阵——那样 `&` 只剩一列空格子，行间不真对齐。
+    """
     import zipfile
 
     (workdir / "eq.md").write_text(
@@ -211,7 +215,8 @@ def test_aligned_environment_renders_as_a_real_table(workdir: Path, capsys) -> N
 
     assert code == EXIT_OK, output
     xml = zipfile.ZipFile(workdir / "eq.docx").read("word/document.xml").decode("utf-8")
-    assert "<m:m>" in xml and xml.count("<m:mr>") == 2, "多行公式没落成两行矩阵"
+    assert "<m:eqArr>" in xml and xml.count("<m:e>") == 2, "多行公式没落成两行 eqArr"
+    assert xml.count("<m:aln />") == 2 or xml.count("<m:aln/>") == 2, "`&` 没落成对齐点"
 
 
 def test_unbalanced_equation_braces_are_blocked(workdir: Path, capsys) -> None:
