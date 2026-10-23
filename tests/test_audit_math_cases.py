@@ -152,3 +152,11 @@ def test_no_empty_math_run(latex: str) -> None:
     for run in runs:
         text = "".join(run.itertext())
         assert text.strip(), etree.tostring(run, encoding="unicode")
+
+
+def test_multiline_display_math_is_not_reported_as_wrapped_prose() -> None:
+    """`$$…$$` 里每行都是公式；多行公式以前会被「折行段落」提醒刷屏。"""
+    from md_to_word.utils.skill_utils import soft_wrap_issues
+
+    text = "# 一\n\n$$\n\\begin{cases}\na, & x>0 \\\\\nb, & x\\le 0\n\\end{cases}\n$$\n"
+    assert soft_wrap_issues(text) == []

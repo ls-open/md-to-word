@@ -591,8 +591,23 @@ def soft_wrap_issues(text: str) -> list:
     _, body = split_frontmatter(text)
     offset = text.count("\n") - body.count("\n")  # 前置区也占行号，报错要对得上原稿
     lines = mask_code_fences(body).split("\n")
+    # `$$` 块里的每一行都是公式，不是折行的正文：多行公式会被误报成「折行段落」
+    in_math: set[int] = set()
+    open_at = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("$$") and stripped.count("$$") == 1:
+            if open_at is None:
+                open_at = index
+            else:
+                in_math.update(range(open_at, index + 1))
+                open_at = None
+        elif open_at is not None:
+            in_math.add(index)
     issues: list[tuple[int, str]] = []
     for i in range(len(lines) - 1):
+        if i in in_math or i + 1 in in_math:
+            continue
         here, nxt = lines[i], lines[i + 1]
         if not (_is_prose_line(here) and _is_prose_line(nxt)):
             continue
