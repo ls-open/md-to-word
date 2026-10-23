@@ -1019,11 +1019,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "one figure per file",
     ),
     "gate.image_width.over": (
-        "图片声明宽 {width:g}cm，超过版心 {content:.2f}cm——导出时会被**静默钳成版心宽**"
-        "（不报错、也没有警告），实际拿到的不是 {width:g}cm。改成 {content:.2f}cm 以内，或调小页边距",
-        "The image is declared {width:g}cm wide, beyond the {content:.2f}cm text block — it is **silently "
-        "clamped to the text block width** (no error, no warning), so you do not get {width:g}cm. "
-        "Use {content:.2f}cm or less, or narrow the page margins",
+        "图片声明宽 {width:g}cm，超过版心 {content:.2f}cm——导出时会被钳成版心宽，"
+        "画面上仍是一张满宽的图，但拿到的不是 {width:g}cm。改成 {content:.2f}cm 以内，或调小页边距",
+        "The image is declared {width:g}cm wide, beyond the {content:.2f}cm text block — the export "
+        "clamps it to the text block width, so the picture still fills the column but is not "
+        "{width:g}cm. Use {content:.2f}cm or less, or narrow the page margins",
     ),
     "gate.image_width.no_margins": (
         "要求文件没写页边距，算不出版心，图片宽度未校验",

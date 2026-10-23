@@ -166,6 +166,29 @@ def test_equations_become_omml_with_numbers(template: Path, tmp_path: Path) -> N
     assert "式（1）" in xml, "交叉引用与公式旁的编号用同一份格式"
 
 
+def test_unnumbered_equation_stands_alone_in_its_paragraph(template: Path, tmp_path: Path) -> None:
+    """没有编号时段落里只放公式。
+
+    Word 靠「段落里除公式外还有没有东西」决定按显示公式还是行内公式排：夹了制表位，
+    求和上限会挪到右边、分式缩成小号——这是实测出来的分界，不是排版偏好。
+    """
+    model = read_markdown("$$E = mc^2$$\n")
+    out = write_docx(model, template, tmp_path / "eq.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+
+    paragraph = xml[xml.index("<w:p>") : xml.index("</w:p>") + 6]
+    assert "<m:oMath" in paragraph and "<w:tab/>" not in paragraph
+    assert 'w:val="center"' in paragraph
+
+
+def test_adjacent_tables_get_a_separator(template: Path, tmp_path: Path) -> None:
+    """两张表紧挨着会被 Word 并成一张：第二张的表头与编号全跟着错位，而且不报错。"""
+    model = read_markdown("| 甲 |\n|:--|\n| 1 |\n\n| 乙 |\n|:--|\n| 2 |\n")
+    out = write_docx(model, template, tmp_path / "t.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    assert "</w:tbl><w:tbl>" not in xml, "相邻的两张表之间要有段落隔开"
+
+
 def test_equation_numbering_follows_chapters(template: Path, tmp_path: Path) -> None:
     model = read_markdown(
         '---\ntitle: "t"\ncrossref:\n  chapters: true\n---\n\n'

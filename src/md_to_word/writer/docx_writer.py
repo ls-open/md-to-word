@@ -308,7 +308,12 @@ class _Writer:
         self._insert_before_sectpr(parse_xml(xml))
 
     def _equation(self, block: Equation) -> None:
-        """独立公式：居中，编号靠右。编号用中心制表位 + 右制表位实现，是 Word 里的常规写法。"""
+        """独立公式：居中，编号靠右。编号用中心制表位 + 右制表位实现，是 Word 里的常规写法。
+
+        没有编号时段落里**只放公式**：Word 按「段落里除公式外还有没有别的东西」决定
+        按显示公式还是行内公式排。带编号的公式与制表位同段，只能按行内排出（分式缩小、
+        求和的上下限挪到右侧）——这是 Word 的规矩，不是这里能绕开的。
+        """
         try:
             maths = latex_to_omml(block.latex, self.lang)
         except UnsupportedMath as exc:
@@ -317,6 +322,12 @@ class _Writer:
                                        snippet=snippet, err=exc)) from exc
 
         paragraph = self.docx.add_paragraph(style="Body Text")
+        number = self._eq_numbers.get(block.label or "")
+        if number is None:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            paragraph._p.append(self._omath(maths))
+            return
+
         width = self._content_width_twips()
         pPr = paragraph._p.get_or_add_pPr()
         # 中心制表位永远要有（公式居中）；右制表位只在编号靠右时才需要
@@ -334,14 +345,12 @@ class _Writer:
         math_el = self._omath(maths)
         paragraph._p.append(math_el)
 
-        number = self._eq_numbers.get(block.label or "")
-        if number is not None:
-            text = self._render_eq_number(*number)
-            if self.equation_number_placement == "inline":
-                paragraph.add_run(text)
-            else:
-                paragraph.add_run().add_tab()
-                paragraph.add_run(text)
+        text = self._render_eq_number(*number)
+        if self.equation_number_placement == "inline":
+            paragraph.add_run(text)
+        else:
+            paragraph.add_run().add_tab()
+            paragraph.add_run(text)
 
     @staticmethod
     def _omath(nodes):
@@ -509,6 +518,7 @@ class _Writer:
         cols = len(block.header) if block.header else (len(block.rows[0]) if block.rows else 0)
         if not rows or not cols:
             return
+        self._separate_from_previous_table()
         table = self.docx.add_table(rows=rows, cols=cols)
         table.style = self.docx.styles["Table"]
         table.autofit = block.widths is None
@@ -535,6 +545,26 @@ class _Writer:
             self._mark_header_row(table)
         if block.widths:
             self._apply_column_widths(table, block.widths)
+
+    def _separate_from_previous_table(self) -> None:
+        """两张表紧挨着时垫一个空段落。
+
+        OOXML 没有「两张相邻的表」：`</w:tbl><w:tbl>` 在 Word 里会被并成一张——第二张的
+        表头、题注、独立编号全部跟着错位，而且不报错。中间隔一个 1 磅的空段落就分得开，
+        高度可以忽略。
+        """
+        last = None
+        for child in self.docx.element.body.iterchildren():
+            if child.tag != qn("w:sectPr"):
+                last = child
+        if last is None or last.tag != qn("w:tbl"):
+            return
+        self._insert_before_sectpr(
+            parse_xml(
+                f'<w:p {nsdecls("w")}><w:pPr><w:spacing w:before="0" w:after="0" '
+                f'w:line="240" w:lineRule="auto"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>'
+            )
+        )
 
     def _apply_column_widths(self, table, widths: list[float]) -> None:
         """分隔行短横线长短 → 列宽比例，按版心铺开。
