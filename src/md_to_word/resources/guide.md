@@ -162,8 +162,8 @@ skipped. Messages follow the manuscript's language.
   only in display math). Content and symbols are correct; only the arrangement differs.
 - TOC page numbers and chapter headers are Word fields; Word asks once whether to update them.
 - Runtime: Python 3.10+ and nothing else (3.9 is end-of-life and the math library no longer supports it). From a source checkout, `pip install -r requirements.txt`;
-  where only the documentation is present, `pip install -U md-to-word-docx`. No Quarto, no Pandoc,
-  no external binary.
+  where only the documentation is present, `pip install -U md-to-word-docx`. Export starts no
+  external program: the whole chain runs inside the Python process.
 
 Full statements: manual §6 (limits) and §8 (symptom → fix).
 

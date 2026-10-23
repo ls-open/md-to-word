@@ -101,7 +101,7 @@ md-to-word 稿件.md -r format.txt -o 稿件.docx
 - **行内**：加粗、斜体、删除线、下划线、上下标、行内代码、行内公式、链接、脚注
 - **列表**：有序、无序、三级嵌套、引用块内的列表
 - **质量门禁**：导前预检（契约、样式、引文）、导后防丢数、逐条样式对账
-- **无外部程序**：不调用 Pandoc、Quarto 或 Word，导出不依赖任何外部二进制
+- **纯 Python 导出**：整条链路在 Python 进程内完成，不启动任何外部程序
 
 做不到什么、为什么，以及完整词表见[使用手册](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual.md)——
 `md-to-word --contract` 会打印它的路径（中英各一份）；实现取舍见
@@ -161,7 +161,7 @@ md-to-word 稿件.md -o 稿件.docx --json
 ## 环境
 
 - **依赖**：`python-docx`、`lxml`、`PyYAML`、`latex2mathml`、`citeproc-py` 五个包；除 `lxml`（C 扩展，各平台都有现成轮子）外都是纯 Python
-- **导出不需要任何外部二进制**：没有 Pandoc，没有 Quarto，不调用 Word
+- **导出不启动外部程序**：整条链路在 Python 进程内完成
 - **`--pdf` 核对版**才用到本机 Word（仅 macOS；不可用时自动跳过，不影响 `.docx`）
 - **中英双语**：运行时消息、门禁报错、使用手册各有两份，语言跟着**稿件语种**走——
   英文稿拿到英文报错与英文样式名举例，中文稿一字不变

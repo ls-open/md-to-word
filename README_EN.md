@@ -117,7 +117,7 @@ exported PDFs, not mock-ups.
 - **Inline text**: bold, italic, strikethrough, underline, super/subscript, inline code, inline maths, links, footnotes
 - **Lists**: ordered, unordered, three nesting levels, lists inside block quotes
 - **Gates**: pre-flight contract/style/citation check, post-export number audit, element-by-element style reconciliation
-- **No external binary**: no Pandoc, no Quarto, no Word
+- **Pure Python export**: the whole chain runs inside the Python process, starting no external program
 
 What it cannot do, and why, is in the manual
 ([`manual_en.md`](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md)
@@ -181,7 +181,7 @@ wording.
 ## Environment
 
 - **Dependencies**: `python-docx`, `lxml`, `PyYAML`, `latex2mathml`, `citeproc-py` — five packages, all pure Python except `lxml` (a C extension, wheels available for every platform)
-- **Export needs no external binary**: no Pandoc, no Quarto, no Word
+- **Export starts no external program**: the whole chain runs inside the Python process
 - **Only the optional `--pdf` proof** uses the local Word installation (macOS; skipped elsewhere, `.docx` unaffected)
 - **Chinese and English**: runtime messages, gate diagnostics and the manual each exist in both
   languages, chosen by the **manuscript's language** — an English manuscript gets English errors with

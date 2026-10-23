@@ -1,6 +1,6 @@
 ---
 name: md-to-word
-description: "Compile a Markdown document into Word (.docx) that matches a declared format: typography, headings, native OMML equations, three-line tables, captions, cross-references, TOC field, per-section page numbers, CSL bibliographies, and pre/post-export quality gates — no Pandoc, no Quarto. 把 Markdown 导出为符合规范的 Word：学位论文、期刊论文、技术报告、公文、说明书都适用；格式写在一份随稿件进 Git 的要求文件里。Use when the user wants a .docx — a submission, a report, an official document, or just a readable copy — including 导出Word、文档转Word、转成Word、论文排版、公文排版、报告排版、prepare submission docx. Not for PDF, HTML or LaTeX output."
+description: "Compile a Markdown document into Word (.docx) that matches a declared format: typography, headings, native OMML equations, three-line tables, captions, cross-references, TOC field, per-section page numbers, CSL bibliographies, and pre/post-export quality gates. 把 Markdown 导出为符合规范的 Word：学位论文、期刊论文、技术报告、公文、说明书都适用；格式写在一份随稿件进 Git 的要求文件里。Use when the user wants a .docx — a submission, a report, an official document, or just a readable copy — including 导出Word、文档转Word、转成Word、论文排版、公文排版、报告排版、prepare submission docx. Not for PDF, HTML or LaTeX output."
 license: MIT
 ---
 
@@ -168,8 +168,8 @@ skipped. Messages follow the manuscript's language.
   only in display math). Content and symbols are correct; only the arrangement differs.
 - TOC page numbers and chapter headers are Word fields; Word asks once whether to update them.
 - Runtime: Python 3.10+ and nothing else (3.9 is end-of-life and the math library no longer supports it). From a source checkout, `pip install -r requirements.txt`;
-  where only the documentation is present, `pip install -U md-to-word-docx`. No Quarto, no Pandoc,
-  no external binary.
+  where only the documentation is present, `pip install -U md-to-word-docx`. Export starts no
+  external program: the whole chain runs inside the Python process.
 
 Full statements: manual §6 (limits) and §8 (symptom → fix).
 
