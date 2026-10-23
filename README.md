@@ -33,7 +33,7 @@ pip install md-to-word-docx
 
 ## 30 秒
 
-**先跑一条命令**：`md-to-word init` 在当前目录放好 `format.txt` 与 `hello.md`，`hello.md` 能直接导出——
+**先运行一条命令**：`md-to-word init` 在当前目录生成 `format.txt` 与 `hello.md`，后者可直接导出——
 先看到成品，再改内容与格式。
 
 ```bash
@@ -109,7 +109,7 @@ md-to-word 稿件.md -r format.txt -o 稿件.docx
 
 ## 常用写法
 
-| 你要写的 | 写成 |
+| 要写的内容 | 写法 |
 |:--|:--|
 | 章节标题 | `# 引言`、`## 2.1 方法`；一个 `#` 一级，不跳级 |
 | 给某一段指定样式 | 行首写 `%% 摘要 本文提出……`（一行即一段，无闭合符号） |

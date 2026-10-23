@@ -106,7 +106,7 @@ Without `csl:`, Chinese manuscripts get GB/T 7714 numeric and everything else AP
 
 Without `-r` the only file picked up is one named exactly `format.txt` beside the manuscript;
 anything else there is ignored and named in a reminder. With no `format.txt`, the preset follows the
-**manuscript's language**. Report which one was used.
+**manuscript's language**.
 
 ## 4. Export, then the gates
 

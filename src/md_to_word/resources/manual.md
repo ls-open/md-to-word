@@ -37,7 +37,7 @@ Markdown → 规范 Word（`.docx`）。内容与排版分离：Markdown 是源�
 | Python | `from md_to_word import export` |
 | 从参考 `.docx` 反推要求草稿 | `md-to-word-template 参考.docx -o format.txt` |
 | 入门文档 | 包内 `guide.md`：按什么顺序做、门禁怎么读、边界在哪。只装了包时先读它：`md-to-word --guide` 直接打印 |
-| 从零起步 | `md-to-word init [目录]`：放好 `format.txt` 与一份能直接导出的 `hello.md` |
+| 从零起步 | `md-to-word init [目录]`：生成 `format.txt` 与一份能直接导出的 `hello.md` |
 
 ```bash
 md-to-word 稿件.md -o 输出.docx                      # 内置中文预设 zh-academic
