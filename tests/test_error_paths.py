@@ -193,3 +193,34 @@ def test_underline_span_is_still_supported(workdir: Path, capsys) -> None:
     code, output = _run([str(workdir / "u.md"), "-o", str(workdir / "u.docx")], capsys)
 
     assert code == EXIT_OK, output
+
+
+# ── 公式：常见 LaTeX 写法与静默丢内容 ──────────────────────────────────
+
+def test_aligned_environment_renders_as_a_real_table(workdir: Path, capsys) -> None:
+    """`\\\\begin{aligned}` 是 AI 最常写的多行公式。转换器会漏出一个裸 `&`，产出非法 XML；
+    这里断言它被转成 `split`（真正的 mtable），而不是崩掉或者只剩一行。"""
+    import zipfile
+
+    (workdir / "eq.md").write_text(
+        "%% 文档标题 题目\n\n# 一\n\n$$ \\begin{aligned} y &= ax + b \\\\ z &= c \\end{aligned} $$\n",
+        encoding="utf-8",
+    )
+
+    code, output = _run([str(workdir / "eq.md"), "-o", str(workdir / "eq.docx")], capsys)
+
+    assert code == EXIT_OK, output
+    xml = zipfile.ZipFile(workdir / "eq.docx").read("word/document.xml").decode("utf-8")
+    assert "<m:m>" in xml and xml.count("<m:mr>") == 2, "多行公式没落成两行矩阵"
+
+
+def test_unbalanced_equation_braces_are_blocked(workdir: Path, capsys) -> None:
+    """花括号不配对时转换器不报错，只会静默丢内容（`\\frac{a}{b` 只剩 `ab`）。"""
+    (workdir / "bad.md").write_text(
+        "%% 文档标题 题目\n\n# 一\n\n$$ \\frac{a}{b $$\n", encoding="utf-8"
+    )
+
+    code, output = _run([str(workdir / "bad.md"), "-o", str(workdir / "bad.docx")], capsys)
+
+    assert code == EXIT_ERROR
+    assert "花括号" in output and "Traceback" not in output, output

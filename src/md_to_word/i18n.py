@@ -241,6 +241,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "公式结构不完整（{name}）：{err}",
         "the equation structure is incomplete ({name}): {err}",
     ),
+    "mathml.malformed": (
+        "公式转换失败（{err}）。多行公式请用 `cases`、`matrix` 或 `split` 环境，"
+        "也可以拆成多条公式分别编号。",
+        "equation conversion failed ({err}). For multi-line equations use the `cases`, `matrix` or "
+        "`split` environment, or split it into separate numbered equations.",
+    ),
     "citations.empty_library": ("文献库里没有可用条目", "the bibliography has no usable entries"),
     "citations.style_unparsable": (
         "CSL 样式无法解析：{path}（{err}）",
@@ -825,6 +831,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.tag.table": ("表格格式异常", "malformed table"),
     "gate.tag.caption_adjacency": ("图表题注邻近性", "caption adjacency"),
     "gate.tag.soft_wrap": ("折行段落", "wrapped paragraph"),
+    "gate.tag.equation_brace": ("公式括号不配对", "unbalanced equation braces"),
+    "gate.equation.brace": (
+        "公式里的花括号不配对（「{snippet}」）：转换器不会报错，只会静默丢掉内容"
+        "（如 `\\frac{{a}}{{b` 只剩 `ab`）。补上缺失的 `}}` 后重新导出。",
+        "the braces in this equation do not pair up (\"{snippet}\"); the converter reports nothing "
+        "and silently drops content (e.g. `\\frac{{a}}{{b` renders as `ab`). Add the missing `}}`.",
+    ),
     "gate.tag.equation_number": ("公式编号", "equation number"),
     "gate.tag.image_width": ("图片宽度超过版心", "image wider than text block"),
     "gate.tag.style_missing": ("结构样式缺失", "missing structural style"),

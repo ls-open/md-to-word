@@ -44,6 +44,7 @@ from md_to_word.utils.skill_utils import (
     resolve_manuscript_path,
     section_pagebreak_issues,
     split_frontmatter,
+    unbalanced_math_issues,
     undefined_crossref_issues,
     unknown_shortcode_issues,
 )
@@ -482,6 +483,15 @@ def validate_manuscript(
     _group_warn(report, t("gate.tag.soft_wrap", lang),
                 [(line_no, t("gate.soft_wrap", lang, snippet=snippet))
                  for line_no, snippet in soft_wrap_issues(md_text)], lang)
+
+    # 11c. 公式花括号不配对：转换器不报错，只会静默丢内容
+    for line_no, snippet in unbalanced_math_issues(md_text):
+        report.valid = False
+        report.errors.append(
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.equation_brace", lang),
+              why=t("gate.equation.brace", lang, snippet=snippet))
+        )
 
     # 12. `\tag{}` 公式编号（不认这个写法，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):

@@ -365,14 +365,27 @@ def mathml_to_omml(mathml: str | bytes, lang: str = "zh"):
 
     `lang` 决定解析失败时的报错语言：英文稿的公式出错，读到的得是英文。
     """
-    root = etree.fromstring(mathml.encode("utf-8") if isinstance(mathml, str) else mathml)
+    data = mathml.encode("utf-8") if isinstance(mathml, str) else mathml
+    try:
+        root = etree.fromstring(data)
+    except etree.XMLSyntaxError as exc:
+        # 转换器偶有产出非法 XML 的情形（`aligned` 里的 `&` 会漏成裸实体）。这类失败要
+        # 一句话说清是哪条公式，不能把 lxml 的 traceback 甩给作者。
+        raise UnsupportedMath(t("mathml.malformed", lang, err=exc)) from exc
     return _Converter(lang).convert(root)
+
+
+# `aligned` 是 latex2mathml 唯一没吃干净的写法：`&` 对齐符会被当成 `<mi>&</mi>`，产出非法
+# XML。改用 `split`——语义相同（多行、按 `&` 对齐），产出的是带 `columnalign` 的 mtable。
+_ENV_ALIASES = (("\\begin{aligned}", "\\begin{split}"), ("\\end{aligned}", "\\end{split}"))
 
 
 def latex_to_omml(latex: str, lang: str = "zh") -> list:
     """LaTeX 公式 → OMML 元素列表。"""
     from latex2mathml.converter import convert as latex_to_mathml
 
+    for old, new in _ENV_ALIASES:
+        latex = latex.replace(old, new)
     try:
         mathml = latex_to_mathml(latex)
     except Exception as exc:

@@ -143,8 +143,9 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 ```
 
 - Refer to it in the body as `@eq-model1`; the rendered prefix follows the manuscript language:
-  `Equation` for English manuscripts, 「式」 for Chinese ones. To override, write `crossref:`
-  explicitly in YAML (§2.7); YAML wins.
+  `Equation` for English manuscripts, 「式」 for Chinese ones. **The prefix is added by the engine**:
+  write `see @eq-model1`, not `see Equation @eq-model1`, which would render `see Equation Equation 1`.
+  To override the prefix, write `crossref:` explicitly in YAML (§2.7); YAML wins.
 - **Numbering by chapter** (a thesis `(2-1)` rather than `(1)`): write `crossref: chapters: true`
   in YAML. The chapter number is the ordinal of the level-1 heading the equation belongs to; a
   hand-typed number in the heading is not read.
@@ -155,8 +156,11 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   same format — never parenthesised in one place and not in another.
 - An unnumbered equation is simply `$$…$$`: it gets no number and consumes none. Writing a label
   without referring to it is allowed; the number still appears.
-- **Do not write `\tag{…}`**: the whole equation degrades into literal text in Word; the
-  pre-flight check stops it and shows how to rewrite the line.
+- **Multi-line equations** use the `cases`, `matrix` or `split` environment (`aligned` is treated as
+  `split`). Unbalanced braces are not reported by the converter — it silently drops content — so the
+  pre-flight check stops them by line.
+- **Do not write `\tag{…}`**: the whole equation degrades into literal text in Word; the pre-flight
+  check stops it and shows how to rewrite it.
 
 ### 2.4 Figures, tables and captions
 

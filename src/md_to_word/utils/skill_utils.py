@@ -393,6 +393,28 @@ def defined_labels(text: str) -> set:
     return set(_DEFINED_LABEL_RE.findall(text or ''))
 
 
+def unbalanced_math_issues(text: str) -> list[tuple[int, str]]:
+    """公式里的花括号不配对 → [(行号, 片段)]。
+
+    转换器对这种写法不会报错，它会**静默丢内容**：`\\frac{a}{b` 渲染出来只剩 `ab`，
+    分子分母的结构整个没了。所以按行检查未转义的花括号，不配对即拦下。
+    """
+    issues: list[tuple[int, str]] = []
+    in_display = False
+    for i, line in enumerate(mask_code_fences(text).split("\n"), 1):
+        stripped = line.strip()
+        if stripped == "$$":
+            in_display = not in_display
+            continue
+        segments = [line] if in_display or "$$" in line else re.findall(r"(?<!\$)\$[^$\n]+\$", line)
+        for seg in segments:
+            body = seg.replace("\\{", "").replace("\\}", "")
+            if body.count("{") != body.count("}"):
+                issues.append((i, stripped[:80]))
+                break
+    return issues
+
+
 def citation_key_issues(
     text: str, known_keys: set, line_offset: int = 0, lang: str = "zh"
 ) -> list[tuple[int, str]]:
