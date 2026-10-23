@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from citeproc import Citation, CitationItem, CitationStylesBibliography, CitationStylesStyle, formatter
+from citeproc.source import Locator
 from citeproc.source.json import CiteProcJSON
 
 from md_to_word.transform.bibtex import parse_bibtex
@@ -54,17 +55,11 @@ class CitationEngine:
         self._year_suffix = _declares_option(style_text, "disambiguate-add-year-suffix")
 
     def reserve(self, keys: Iterable[str]) -> None:
-        """渲染之前定下年份后缀（CSL 的 `disambiguate-add-year-suffix`）。
+        """定下年份后缀（CSL 的 `disambiguate-add-year-suffix`），必须在第一次 cite 之前调用。
 
-        CSL 的条件是「文内引用会完全相同的多条文献」，结果是按文献表里的先后加 a/b/c，
-        而且**文内引用和文献表两处都要带**。这里按数据近似那个条件：作者（姓）序列相同、
-        年份相同。这条近似恰好避开另外两条规则的地盘——同姓不同人、同姓不同合作者的
-        作者序列不同，不加后缀；那是「补首字母 / 补作者」管的事。
-
-        `citeproc-py` 自己不分配后缀，但 `year-suffix` 是它认识的变量：写进条目数据，
-        样式里引用它的地方就会渲染出来（实测 `2020a` / `2020b` 文内与文献表都对）。
-
-        必须在**第一次 cite 之前**调用：后缀一旦参与渲染就不能再改，缓存也按它存。
+        CSL 的条件是「文内引用会完全相同的多条文献」，结果按文献表先后加 a/b/c，文内与文献表
+        两处都要带。这里按数据近似：作者（姓）序列 + 年份相同。这条近似恰好避开另两条规则的
+        地盘——同姓不同人、同姓不同合作者的作者序列不同，不加后缀。
         """
         if not self._year_suffix:
             return
@@ -93,23 +88,36 @@ class CitationEngine:
     def has(self, key: str) -> bool:
         return key in self._known
 
-    def cite(self, keys: Sequence[tuple[str, str]], narrative: bool = False) -> list[tuple[str, dict]]:
-        """`keys` 是 (key, locator) 序列；同一组只注册一次，避免重复计入编号。
+    def cite(self, keys: Sequence[tuple], narrative: bool = False) -> list[tuple[str, dict]]:
+        """`keys` 是 (key, locator[, prefix]) 序列；同一组只注册一次，避免重复计入编号。
+
+        locator 与 prefix 是作者写进引用的东西（页码、`见`），丢了就是丢内容，
+        所以一律带到渲染里；页码按 CSL 的 page 标签走（终稿里成 `, p. 33`）。
 
         返回 (文本, 格式) 片段序列——上标/斜体这类格式由 CSL 决定，不能丢成纯文本。
         """
-        pairs = tuple(keys)
+        pairs = tuple(tuple(pair) for pair in keys)
         cache_key = (pairs, narrative)
         if cache_key in self._rendered:
             return self._rendered[cache_key]
 
-        for key, _locator in pairs:
-            if key not in self._known:
-                raise CitationError(t("citations.key_missing", self.lang, key=key))
-        for key, _locator in pairs:
-            if key not in self._order:
-                self._order.append(key)
-        items = [CitationItem(key) for key, _locator in pairs]
+        for pair in pairs:
+            if pair[0] not in self._known:
+                raise CitationError(t("citations.key_missing", self.lang, key=pair[0]))
+        for pair in pairs:
+            if pair[0] not in self._order:
+                self._order.append(pair[0])
+        items = []
+        for pair in pairs:
+            args: dict = {}
+            locator = pair[1] if len(pair) > 1 else ""
+            prefix = pair[2] if len(pair) > 2 else ""
+            if locator:
+                args["locator"] = Locator("page", locator)
+            if prefix:
+                # CSL 把 prefix 当原样文本，空格要自己带
+                args["prefix"] = prefix.strip() + " "
+            items.append(CitationItem(pair[0], **args))
         citation = Citation(items)
         self._bibliography.register(citation)
         html = str(self._bibliography.cite(citation, lambda item: item))

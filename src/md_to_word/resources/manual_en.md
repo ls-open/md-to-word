@@ -179,11 +179,10 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 - The image line describes the image itself only: the square brackets hold the accessible
   alternative text, and `{width=…}` is clamped to the text block (an over-wide value is clamped to
   the text-block width and reported as a reminder; a percentage is blocked).
-- **An image may point straight at a PDF** — the default export format of matplotlib, MATLAB,
-  Origin, Visio and TikZ. Word inline pictures hold bitmaps only, so the export renders page 1 at
-  300 dpi for the declared width; one figure per file. A multi-page PDF uses page 1 and reports a
-  reminder; an encrypted or damaged PDF is blocked in pre-flight. Other formats (`.svg`, `.webp`,
-  `.eps`) are blocked there too, with the fix — never left to fail inside the writer.
+- **An image may point straight at a PDF** — the default export of matplotlib, MATLAB, Origin,
+  Visio and TikZ. The export renders page 1 at 300 dpi for the declared width (one figure per file,
+  a multi-page PDF uses page 1 with a reminder). Encrypted or damaged PDFs, and formats Word cannot
+  hold (`.svg`, `.webp`, `.eps`), are blocked in pre-flight with the fix.
 - **Do not add a `{#fig-xxx}` label to an image line**: it would get the three-line table's rules
   and lose its centring. Type the figure number into the caption text instead.
 - Local formatting inside a caption is written directly in the text (`**Table 1**` for a bold
@@ -541,7 +540,8 @@ manuscript normalisation and configuration generation end to end.
 
   | Syntax | Rendered as |
   |:--|:--|
-  | `[@key]` | parenthetical citation; several `[@a; @b]`, with a page `[@a, p. 33]`, with a prefix `[see @a]`, year only `[-@a]` |
+  | `[@key]` | parenthetical citation; several `[@a; @b]`, with a page `[@a, p. 33]` (`[@a, 33]` is the same), with a prefix `[see @a]` |
+  | `[-@a]` | **not supported**: the engine has no year-only form; pre-flight blocks it and names the fix |
   | `@key` | narrative citation (`as @a points out`); with a page `@a [p. 33]` |
   | `user@example.com` | emitted verbatim — an `@` preceded by a letter or digit is not a citation |
 

@@ -943,6 +943,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "行 {line}: 图片文件不存在「{path}」",
         "Line {line}: image file not found: {path}",
     ),
+    "gate.citation.suppress_author": (
+        "行 {line}: `[-@key]`（只出年份）引文引擎不实现，会渲染成完整引用；"
+        "改写为 `@key` 叙述式，或把年份直接写进正文",
+        "Line {line}: `[-@key]` (year only) is not implemented by the citation engine and would "
+        "render as a full citation; write `@key` inline, or type the year into the sentence",
+    ),
     "gate.image.unsupported": (
         "行 {line}: 图片是 {ext} 格式，Word 的内联图片只接受 PNG/JPEG/GIF/BMP/TIFF，"
         "导出会在这里中断。另存为 PNG 后再引用；PDF 也可以直接引用，导出时会按 300 dpi 转成位图",

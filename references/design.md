@@ -128,17 +128,14 @@ Word 打印时会把它加到左边距之外，但**算版心的公式里没有�
 
 ### 1.6.1 PDF 图为什么在导出时栅格化
 
-Word 的内联图片只有位图这一种形态（PNG/JPEG/GIF/BMP/TIFF），PDF 里的矢量内容没有直接的
-嵌入方式。学术稿的图大多出自 matplotlib、MATLAB、Origin、Visio、TikZ，默认导出就是 PDF，
-所以转换放在导出流程里做，而不是要求作者先自己转：
+Word 的内联图片只有位图这一种形态，PDF 的矢量内容没有直接嵌入方式；学术稿的图大多默认导出
+PDF，所以转换放在导出流程里，三个决定都有具体理由：
 
 | 决定 | 为什么 |
 |:--|:--|
-| 按**声明宽度的 300 dpi** 渲染，不是按 PDF 页面尺寸 | 声明 `{width=13cm}` 时，13cm 上要有 300 dpi 的像素，印刷才够；按页面尺寸渲染再缩放，宽度越大小字越糊 |
-| 未声明宽度时按页面物理尺寸渲染，并写 PNG 的 `pHYs` | python-docx 按 PNG 里的 DPI 还原物理尺寸；缺这个块会按 72 dpi 算，图在版面上大出四倍 |
-| 只取第 1 页，多页出提醒 | 多页 PDF 多半是整本插图集，悄悄只取第一页才是真出事 |
-| 自己写 PNG 编码器（`utils/pdf_figure.py::_png_bytes`） | 只需要 zlib 一行压缩，为它拉 Pillow 是十几 MB 的依赖；顺便保证不写时间戳，同一份 PDF 每次导出字节一致 |
-| 放不下的格式在**预检**拦下 | 否则 python-docx 抛 `UnrecognizedImageError`——一屏 traceback、没有行号 |
+| 按**声明宽度的 300 dpi** 渲染 | 宽度越大、图上的小字越模糊；按页面尺寸渲染再缩放撑不住印刷 |
+| 未声明宽度时按页面物理尺寸，并写 PNG 的 `pHYs` | python-docx 按 PNG 里的 DPI 还原尺寸，缺这个块会按 72 dpi 算，图大出四倍 |
+| 自己写 PNG 编码器（`utils/pdf_figure.py`） | 只要 zlib 一行压缩，不值得为它拉 Pillow；顺带保证字节可复现 |
 
 ### 1.7 缩进单位换算技术细节
 
@@ -301,26 +298,21 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 
 ### 1.12 引文引擎：借版面，自己补处理阶段
 
-`citeproc-py` 实现的是 CSL 的**版面与变量格式化**（名字怎么排、日期怎么排、斜体上标怎么标），
-不实现 CSL 的**处理阶段**。它的源码里 `disambiguate-add-names` / `disambiguate-add-givenname` /
-`disambiguate-add-year-suffix` / `givenname-disambiguation-rule` 只出现在默认值常量里，全库没有
-一处读取（`If.render` 里还留着 `# TODO self.get('disambiguate')`）。所以下列三件事它都不会做，
-而它们做不对时，产物**看不出来错**：
+`citeproc-py` 只实现 CSL 的**版面与变量格式化**，不实现处理阶段：`disambiguate-add-names`、
+`add-givenname`、`add-year-suffix`、`givenname-disambiguation-rule` 在它的源码里只出现在默认值
+常量中，全库没有一处读取（`If.render` 还留着 `# TODO self.get('disambiguate')`）。缺的阶段
+做不对时产物**看不出来错**，所以由我们补：
 
-| 阶段 | 谁做 | 在哪 |
-|:--|:--|:--|
-| 文献表排序 | 我们（`sort_bibliography()` 实测不生效，且它的排序不认作者-年份制） | `transform/citations.py::_ordered_keys` |
-| 数字制连续编号合并 `[4,5,6]→[4–6]` | 我们 | 同上 `_collapse_numeric_runs` |
-| 同年份后缀 `2020a/b` | 我们（写进条目数据的 `year-suffix`，样式里引用该变量的地方自然渲染） | 同上 `CitationEngine.reserve` |
-| 同姓补首字母、同首作者补合作者 | **未做**（见下） | — |
+| 阶段 | 在哪 |
+|:--|:--|
+| 文献表排序（`sort_bibliography()` 实测不生效） | `citations.py::_ordered_keys` |
+| 数字制合并 `[4,5,6]→[4–6]` | `_collapse_numeric_runs` |
+| 同年份后缀 `2020a/b`（写进条目数据的 `year-suffix`） | `CitationEngine.reserve` |
+| 同姓补首字母、同首作者补合作者 | **未做**，见手册 §6 能力边界 |
 
-`reserve()` 必须在第一次渲染之前调用：后缀一旦参与渲染就不能再改，缓存也按它存。所以流水线
-先读模型，把真正引用到的 key 交回去（`cited_keys`），再开始写。
-
-后两条要按样式的 `disambiguate-*` 声明**克隆一份样式**（只改 citation 里名字的 `et-al-use-first`
-或 `form`），对歧义条目重渲染，再把结果按样式布局的分隔符合并——CSL 处理器内部也是这么做的，
-不是拿正则改渲染出来的字符串。之所以没顺手做：它要处理「一个括号里既有需要展开的、也有不需要的」
-这种混合组，牵动的面比看起来大。
+`reserve()` 必须在第一次渲染前调用（后缀进缓存），所以流水线先读模型、交出真正引用到的 key，
+再开始写。后两条要按样式的 `disambiguate-*` 声明克隆样式重渲染，难在一个括号里混着需要展开与
+不需要展开的条目，单独一轮做。
 
 ---
 

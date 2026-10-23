@@ -350,6 +350,12 @@ def validate_manuscript(
                 t("gate.csl.default", lang, name=default_csl_path(md_text).name)
             )
 
+        # 1c2. `[-@key]`（只出年份）：引擎不实现，静默当普通引用就等于改写了作者的话
+        for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
+            if re.search(r"\[-@[\w:.-]+", line):
+                report.valid = False
+                report.errors.append(t("gate.citation.suppress_author", lang, line=line_no))
+
         # 1d. 正文引用的 key 是否在 .bib 里
         if fm_data.get("bibliography"):
             bib_path, how = resolve_manuscript_path(str(fm_data["bibliography"]), md_path)

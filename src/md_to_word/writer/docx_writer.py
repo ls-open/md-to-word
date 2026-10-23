@@ -760,7 +760,7 @@ class _Writer:
         elif isinstance(node, Citation):
             if self.citations is None:
                 raise UnsupportedFeature(t("writer.citation_without_bibliography", self.lang))
-            keys = [(item.key, item.locator) for item in node.items]
+            keys = [(item.key, item.locator, item.prefix) for item in node.items]
             segments = self.citations.cite(keys, narrative=node.narrative)
             # 中文行文里「基石 [1]」应为「基石[1]」；西文保留空格
             if not node.narrative and paragraph.runs:

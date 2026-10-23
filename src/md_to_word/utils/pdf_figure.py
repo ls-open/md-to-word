@@ -1,14 +1,7 @@
-"""PDF 图 → Word 能放进内联图片的位图。
+"""PDF 图 → Word 能放进内联图片的位图（Word 只认位图，这是格式的硬限制）。
 
-Word 只有内联图片这一种插图方式，而内联图片只认位图（PNG/JPEG/GIF/BMP/TIFF）。
-PDF 里的矢量内容必须先渲染成像素才能进 Word——这是格式的硬限制，不是取舍。
-
-学术稿的图大多出自 matplotlib、MATLAB、Origin、Visio、TikZ，这些工具默认导出 PDF，
-所以这一步由导出流程自己做掉：按目标版面的 300 dpi（期刊对位图的要求线）渲染第 1 页，
-作者不必先自己转格式、也不必猜该转多大。
-
-只渲染第 1 页，多页 PDF 由门禁给出提醒——多页多半是把整份插图集存成了一个文件，
-悄悄只取第一页才是真出事。
+学术稿的图大多出自 matplotlib、MATLAB、Origin、Visio、TikZ，默认导出就是 PDF，
+所以转换在导出时做掉：按目标版面的 300 dpi 渲染第 1 页。多页 PDF 由门禁另有提醒。
 """
 
 from __future__ import annotations
@@ -48,11 +41,10 @@ def page_count(path: Path | str) -> int:
 
 
 def rasterize(path: Path | str, width_cm: float | None = None, dpi: int = DEFAULT_DPI) -> Path:
-    """渲染第 1 页到临时 PNG，返回它的路径；调用方负责删除。
+    """渲染第 1 页到临时 PNG，返回路径（调用方负责删除）。
 
-    给了 `width_cm` 就按「成品里这个宽度需要多少像素」反算缩放：渲染出来的位图
-    在声明宽度上正好是 `dpi` 像素/英寸，不多不少。没给宽度就按 PDF 页面的物理尺寸
-    渲染，并把 `dpi` 写进 PNG，让 python-docx 还原成同一尺寸。
+    给了 `width_cm` 就按「成品里这么宽需要多少像素」反算，声明宽度上正好是 `dpi`；
+    没给就按页面物理尺寸渲染，并把 `dpi` 写进 PNG，让 python-docx 还原同一尺寸。
     """
     pdf = _open(path)
     try:
@@ -95,14 +87,10 @@ def _open(path: Path | str):
 
 
 def _png_bytes(width: int, height: int, rgb, stride: int, dpi: int) -> bytes:
-    """RGB 缓冲区 → PNG。
+    """RGB 缓冲区 → PNG。借 zlib，不拉 Pillow；不写时间戳，同一份 PDF 每次字节一致。
 
-    自己写而不是拉 Pillow：这里只需要一个「无压缩以外的选项」的编码器，
-    而 Pillow 是十几 MB 的依赖，为了一行 zlib 不值得。不写时间戳，
-    同一份 PDF 每次导出的字节完全一致——确定性是这个项目的底线。
-
-    写 `pHYs` 块是给 python-docx 读的：它按 PNG 里的 DPI 还原物理尺寸，
-    缺了这个块会按 72 dpi 算，图在版面上大出四倍。
+    `pHYs` 块是给 python-docx 读的：它按 PNG 里的 DPI 还原物理尺寸，缺了会按 72 dpi 算，
+    图在版面上大出四倍。
     """
     raw = bytearray()
     data = bytes(rgb)
