@@ -191,7 +191,6 @@ def test_styled_chinese_citation_gap_trimmed(tmp_path: Path) -> None:
 
 def test_footnotes_are_numbered_and_images_keep_their_alt_text(tmp_path: Path) -> None:
     """脚注区缺 `w:footnoteRef` 会正文有号、注文无号；图片的替代文字以前读进来就丢了。"""
-    import re
     import shutil
     import zipfile
 

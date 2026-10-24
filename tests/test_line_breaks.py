@@ -11,16 +11,10 @@
 
 from __future__ import annotations
 
-import sys
-import zipfile
 from pathlib import Path
+import zipfile
 
 import pytest
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
 from md_to_word.model.reader import read_markdown
 from md_to_word.pipeline import ExportOptions, run_export_pipeline

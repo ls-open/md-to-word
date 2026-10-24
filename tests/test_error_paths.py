@@ -8,19 +8,15 @@
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
 from pathlib import Path
+import subprocess
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = REPO_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
 from md_to_word.cli import main
 from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED, EXIT_USAGE
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 MANUSCRIPT = "%% 文档标题 A title\n\n# Section\n\nBody text.\n"
 

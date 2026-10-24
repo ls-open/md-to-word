@@ -8,25 +8,21 @@ Two layers:
 
 from __future__ import annotations
 
+from pathlib import Path
 import re
 import shutil
 import subprocess
 import zipfile
-from pathlib import Path
 
-import pytest
 from docx import Document
+import pytest
+
+from md_to_word.spec.parser import parse_requirements
+from md_to_word.template.generator import generate_template
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = SKILL_DIR / "scripts"
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-
-import sys
-
-sys.path.insert(0, str(SCRIPTS_DIR))
-
-from md_to_word.spec.parser import parse_requirements  # noqa: E402
-from md_to_word.template.generator import generate_template  # noqa: E402
 
 
 @pytest.mark.parametrize("preset", ["zh-academic.txt", "en-nature.txt"])
