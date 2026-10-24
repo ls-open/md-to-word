@@ -138,6 +138,11 @@ class _Writer:
         self.equation_number_placement = equation_number_placement
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
         self._after_heading = False  # 下一段正文若是「标题后的第一段」，落 First Paragraph
+        # 样式表在写出期间不变。python-docx 每次迭代 docx.styles 都会重建 StyleFactory，
+        # 逐段按名查询占写出阶段约四成时间，故缓存名称、引用与对象。
+        self._style_names: dict[str, str] | None = None
+        self._style_refs: dict[str, str] | None = None
+        self._style_objects: dict | None = None
         self._compact_style = self._style_name("Compact")
         self._footnote_ids: dict[str, int] = {}
         self._eq_numbers: dict[str, tuple[int, int]] = {}  # 标签 → (章号, 序号)
@@ -227,7 +232,7 @@ class _Writer:
         if not entries:
             return
         for key, segments in entries:
-            paragraph = self.docx.add_paragraph(style=self._style_ref("Bibliography"))
+            paragraph = self._new_paragraph(self._style_ref("Bibliography"))
             self._bookmark(paragraph, f"_Ref_{key}", segments)
 
     _bookmark_seq = 100
@@ -272,7 +277,11 @@ class _Writer:
             return 8306
 
     def _body_sectpr(self):
-        return self.docx.element.body.find(qn("w:sectPr"))
+        body = self.docx.element.body
+        # body 的 sectPr 固定在末尾，先看末位可免遍历
+        if len(body) and body[-1].tag == qn("w:sectPr"):
+            return body[-1]
+        return body.find(qn("w:sectPr"))
 
     def _insert_before_sectpr(self, element) -> None:
         """插到文末 sectPr 之前：body 的 sectPr 必须是最后一个子元素。"""
@@ -321,7 +330,7 @@ class _Writer:
             raise UnsupportedFeature(t("writer.equation_failed", self.lang,
                                        snippet=snippet, err=exc)) from exc
 
-        paragraph = self.docx.add_paragraph(style="Body Text")
+        paragraph = self._new_paragraph("Body Text")
         number = self._eq_numbers.get(block.label or "")
         if number is None:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -362,7 +371,7 @@ class _Writer:
         return math_el
 
     def _heading(self, block: Heading) -> None:
-        paragraph = self.docx.add_paragraph(style=f"Heading {block.level}")
+        paragraph = self._new_paragraph(f"Heading {block.level}")
         self.inlines(paragraph, block.inlines)
         self._after_heading = True
         clean_title = re.sub(
@@ -380,14 +389,14 @@ class _Writer:
         self._after_heading = False
         # 样式在模板里不存在时退回 Normal：预检本该拦住，走到这里说明门禁被关掉了，
         # 此时宁可降级排版，也不要 KeyError 中断整份稿件的导出。
-        paragraph = self.docx.add_paragraph(style=self._style_name(style) or "Normal")
+        paragraph = self._new_paragraph(self._style_name(style) or "Normal")
         self._last_paragraph = paragraph
         self.inlines(paragraph, block.inlines)
         if block.style == "References Title":
             self._write_bibliography()
 
     def _code(self, block: CodeBlock) -> None:
-        paragraph = self.docx.add_paragraph(style=self._style_ref("SourceCode"))
+        paragraph = self._new_paragraph(self._style_ref("SourceCode"))
         lines = block.value.split("\n")
         for i, line in enumerate(lines):
             if i:
@@ -397,7 +406,7 @@ class _Writer:
     def _quote(self, block: Quote) -> None:
         for inner in block.blocks:
             if isinstance(inner, Paragraph):
-                paragraph = self.docx.add_paragraph(style=inner.style or "Block Text")
+                paragraph = self._new_paragraph(inner.style or "Block Text")
                 self.inlines(paragraph, inner.inlines)
             elif isinstance(inner, ListBlock):
                 # 引用里的列表整体再缩进一个层级，免得和引用里的正文左对齐、分不出从属关系
@@ -431,7 +440,7 @@ class _Writer:
                 # 列表项是正文，不是表格单元格：套 Body Text 而不是 Compact。
                 # Compact 常被设成「居中 + 不缩进」（表格里就该这样），列表项跟着它
                 # 会被逐行居中，看着像手打的「• 一句话」——排版对不上，内容却没错。
-                paragraph = self.docx.add_paragraph(style=body_style)
+                paragraph = self._new_paragraph(body_style)
                 self._apply_numbering(paragraph, num_id, item.level)
                 # 缩进写在段落上：左缩进按层递增、悬挂 0.25 英寸，与编号定义一致；
                 # 同时清掉正文样式继承来的首行缩进（含字符单位的 firstLineChars），
@@ -520,7 +529,7 @@ class _Writer:
             return
         self._separate_from_previous_table()
         table = self.docx.add_table(rows=rows, cols=cols)
-        table.style = self.docx.styles["Table"]
+        table.style = self._style_object("Table")
         table.autofit = block.widths is None
 
         cell_style = self._style_name("Compact")
@@ -532,7 +541,7 @@ class _Writer:
                 cell = table.cell(r, c)
                 paragraph = cell.paragraphs[0]
                 if cell_style:
-                    paragraph.style = cell_style
+                    paragraph.style = self._style_object(cell_style)
                 if block.alignments and c < len(block.alignments):
                     paragraph.alignment = _ALIGN.get(block.alignments[c], WD_ALIGN_PARAGRAPH.LEFT)
                 self.inlines(paragraph, cell_inlines)
@@ -553,10 +562,10 @@ class _Writer:
         表头、题注、独立编号全部跟着错位，而且不报错。中间隔一个 1 磅的空段落就分得开，
         高度可以忽略。
         """
-        last = None
-        for child in self.docx.element.body.iterchildren():
-            if child.tag != qn("w:sectPr"):
-                last = child
+        body = self.docx.element.body
+        sectpr = self._body_sectpr()
+        # 只看 sectPr 的前一个元素；遍历整个 body 的代价是「表数 × 段落数」
+        last = sectpr.getprevious() if sectpr is not None else (body[-1] if len(body) else None)
         if last is None or last.tag != qn("w:tbl"):
             return
         self._insert_before_sectpr(
@@ -630,7 +639,7 @@ class _Writer:
             ppr.append(parse_xml(f'<w:keepNext {nsdecls("w")}/>'))
 
     def _figure(self, block: Figure) -> None:
-        paragraph = self.docx.add_paragraph(style="Captioned Figure")
+        paragraph = self._new_paragraph("Captioned Figure")
         self._last_paragraph = paragraph
         # 稿里的路径相对稿件目录，不按进程 cwd 猜
         path = Path(block.path)
@@ -800,9 +809,26 @@ class _Writer:
             raise UnsupportedFeature(t("writer.crossref_missing", self.lang, target=target))
         return f"{prefix}{self._render_eq_number(*parts)}"
 
+    def _new_paragraph(self, style: str | None = None):
+        """按样式名新建段落；赋样式对象可省去 python-docx 的按名查表。"""
+        paragraph = self.docx.add_paragraph()
+        if style:
+            obj = self._style_object(style) or self._style_object("Normal")
+            if obj is not None:
+                paragraph.style = obj
+        return paragraph
+
+    def _style_object(self, name: str):
+        """样式名 → 样式对象；比对不分大小写（Word 内置样式名存为小写 `heading 1`）。"""
+        if self._style_objects is None:
+            self._style_objects = {style.name.casefold(): style for style in self.docx.styles}
+        return self._style_objects.get(name.casefold())
+
     def _style_name(self, name: str) -> str | None:
         """按名称取样式名（没有就返回 None，不静默套用别的样式）。"""
-        return name if name in {s.name for s in self.docx.styles} else None
+        if self._style_names is None:
+            self._style_names = {style.name.casefold(): style.name for style in self.docx.styles}
+        return self._style_names.get(name.casefold())
 
     def _style_ref(self, name: str) -> str:
         """样式名或 styleId → 该样式在本 docx 里的**名字**。
@@ -810,10 +836,12 @@ class _Writer:
         `add_paragraph(style=…)` 按名字查；传 styleId（如 `SourceCode`）时 python-docx
         会退回按 id 查并发一条弃用警告。这里先换成名字，调用处不刷警告。
         """
-        for style in self.docx.styles:
-            if style.name == name or style.style_id == name:
-                return style.name
-        return name
+        if self._style_refs is None:
+            self._style_refs = {}
+            for style in self.docx.styles:
+                self._style_refs.setdefault(style.name.casefold(), style.name)
+                self._style_refs.setdefault(style.style_id.casefold(), style.name)
+        return self._style_refs.get(name.casefold(), name)
 
     def inline(self, paragraph, node: Inline) -> None:
         if isinstance(node, Code):
@@ -1019,7 +1047,7 @@ def write_docx(
     `equation_number_format`：编号外观模板（`（{c}-{n}）`）；空串按语种给默认。
     """
     docx = open_docx(str(template))
-    _Writer(
+    writer = _Writer(
         model,
         docx,
         citations=citations,
@@ -1029,7 +1057,8 @@ def write_docx(
         no_row_split=no_row_split,
         repeat_header=repeat_header,
         lang=lang,
-    ).write()
+    )
+    writer.write()
     out = Path(output)
     docx.save(str(out))
     # 时间戳钉死：同一份稿件重复导出要逐字节一致，否则 Git 里每次都是「内容没改却变了」
