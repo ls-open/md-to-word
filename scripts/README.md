@@ -12,6 +12,7 @@
 | `generate_template.py` | 只按要求文件生成样式模板，用来看产物长什么样 | —（导出时会临时生成） |
 | `check_md.py` | 单独跑导前预检 | —（每次导出都会跑） |
 | `normalize_csl.py` | 规范化 CSL（剥掉 `<bibliography>` 上的直接格式属性） | —（用户自带 CSL 时自动执行） |
+| `docx_diff.py` | 语义级比对两份 docx：剥掉 `rsid`/`paraId` 这类随机 ID 后逐行 diff | —（排错专用） |
 | `render_via_word.sh` | 转发到包内的同脚本（渲染要随 wheel 发布，pip 装的人也得能 `--pdf`） | `md-to-word … --pdf` |
 | `create_pure_modern_base.py` | 重新生成 `resources/pure_modern_base.docx` | —（底模已随包发布） |
 
