@@ -437,3 +437,16 @@ def test_two_exports_are_byte_identical(template: Path, tmp_path: Path) -> None:
     first = write_docx(model, template, tmp_path / "a.docx")
     second = write_docx(model, template, tmp_path / "b.docx")
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_canonical_opc_packaging_order_and_permissions(template: Path, tmp_path: Path) -> None:
+    """压缩包的条目顺序、时间戳与权限都是钉死的值——包长什么样只取决于内容。"""
+    model = read_markdown("# 一 引言\n\n正文。\n")
+    doc_path = write_docx(model, template, tmp_path / "opc_test.docx")
+    with zipfile.ZipFile(doc_path) as z:
+        names = [item.filename for item in z.infolist()]
+        assert names[0] == "[Content_Types].xml", "[Content_Types].xml 必须是第一个 entry"
+        assert names[1] == "_rels/.rels", "_rels/.rels 必须紧随其后"
+        for item in z.infolist():
+            assert item.date_time == (1980, 1, 1, 0, 0, 0)
+            assert item.external_attr == 0o100644 << 16
