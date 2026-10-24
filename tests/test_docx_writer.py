@@ -437,3 +437,4 @@ def test_two_exports_are_byte_identical(template: Path, tmp_path: Path) -> None:
     first = write_docx(model, template, tmp_path / "a.docx")
     second = write_docx(model, template, tmp_path / "b.docx")
     assert first.read_bytes() == second.read_bytes()
+

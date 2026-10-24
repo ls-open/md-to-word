@@ -26,13 +26,11 @@ def main() -> int:
         description="导出前预检：拦下会造成静默失败的稿件写法",
     )
     parser.add_argument("md", help="待检查的 Markdown 稿件")
-    parser.add_argument("-t", "--template", help="（可选）现成模板 .docx，用于校验 custom-style 是否存在")
     parser.add_argument("-r", "--requirements", help="（可选）格式要求文件，用于校验稿件结构是否有对应样式")
     args = parser.parse_args()
 
     report = validate_manuscript(
         args.md,
-        template_docx=args.template,
         spec_path=args.requirements,
     )
 

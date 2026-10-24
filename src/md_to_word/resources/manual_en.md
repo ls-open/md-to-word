@@ -557,8 +557,19 @@ pre-flight check → build the style template → read into the document model �
 → numeric-integrity check → audit the product against the requirements line by line
 ```
 
-The template is generated fresh on every export and never cached; `-t` can point at a `.docx` base
-(single-section templates only).
+The template is generated fresh on every export and never cached; it is built entirely from the
+requirements file, and no existing `.docx` is accepted as a base.
+
+A `.docx` received from a university or a journal is first read into a requirements file:
+
+```
+md-to-word-template template.docx -o format.txt   # reverse-engineered draft; check it item by item
+md-to-word paper.md -r format.txt -o paper.docx
+```
+
+Only format data is read (paper size, margins, header/footer text and page numbers, fonts, sizes and
+spacing of each style); the export still builds its own template. Multi-section templates (cover, TOC,
+body) work the same way — section breaks are marked in the manuscript with `{{< section >}}`.
 
 ### 5.2 Two pre-flight levels; the criterion is "would the mistake be visible?"
 
@@ -688,5 +699,5 @@ examples. The tag is a stable category identifier; the text after it says which 
 | References were not generated | YAML is missing `bibliography:`, the body has no `[@key]`, or the references section title line is missing |
 | TOC entry font is wrong | The TOC entry styles were not written as Word's built-in styles (`TOC 1/2/3`), or `dot-leader-tab` was written on them (no effect) |
 | Header shows "Error! Reference source not found" | X in `{style-title:X}` is not a Word style name (write `Heading 1`) |
-| The font looks right but is wrong in Word | A third-party template's theme attributes override the explicit font; when passed via `-t`, `asciiTheme` / `eastAsiaTheme` / `themeColor` are stripped automatically |
+| The font looks right but is wrong in Word | The reference template's theme attributes override the explicit font; the generator strips `asciiTheme` / `eastAsiaTheme` / `themeColor` / `themeFill` and the rest |
 | Two exports of the same manuscript differ | This should not happen: the output is byte-for-byte reproducible; if it happens, report a defect |

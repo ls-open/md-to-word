@@ -104,21 +104,6 @@ def test_preflight_verdict(name: str, tmp_path: Path) -> None:
     )
 
 
-def test_custom_style_must_exist_in_template(tmp_path: Path) -> None:
-    """模板里没有该样式，段落只能退回普通段落，格式不生效；不认识的样式名预检直接拦。"""
-    template = tmp_path / "template.docx"
-    build_template(PRESET.read_text(encoding="utf-8"), template)
-
-    manuscript = tmp_path / "manuscript.md"
-    manuscript.write_text(
-        BASE_YAML + "\n%% 不存在的样式 正文。\n", encoding="utf-8"
-    )
-
-    report = validate_manuscript(manuscript, template_docx=template)
-    assert not report.valid
-    assert any("不存在的样式" in error for error in report.errors)
-
-
 def test_visible_issues_warn_instead_of_blocking(tmp_path: Path) -> None:
     """看得见的问题只提醒：多一页、宽度被钳、题注离得远，作者可以自行收尾。"""
     (tmp_path / "figures").mkdir()
@@ -505,24 +490,23 @@ def test_audit_items_follow_the_language(mismatched_audit_pair) -> None:
     assert not CJK_RE.search(english), [x for x in problems_en if CJK_RE.search(str(x))]
 
 
-def test_pipeline_prints_audit_items_in_the_manuscript_language(tmp_path: Path) -> None:
-    """端到端：英文稿 + 不匹配的模板，让对账红掉，明细也必须是英文。"""
+def test_audit_items_are_printed_in_the_requested_language(tmp_path: Path) -> None:
+    """对账明细跟随 `--lang`：英文口径下不能夹中文。"""
+    from md_to_word.audit.inspector import audit_docx_against_spec
     from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
-    template = tmp_path / "zh_tpl.docx"
-    build_template(PRESET.read_text(encoding="utf-8"), template)
     manuscript = tmp_path / "paper.md"
     manuscript.write_text("---\n---\n\n# 1 Introduction\n\nBody.\n", encoding="utf-8")
-
     result = run_export_pipeline(
-        ExportOptions(
-            input_path=manuscript, output_path=tmp_path / "o.docx",
-            requirements_path=REPO_ROOT / "presets" / "en-nature.txt",
-            template_path=template,
-        )
+        ExportOptions(input_path=manuscript, output_path=tmp_path / "o.docx", lang="zh")
     )
-    assert result.returncode == 1, result.errors
-    joined = "\n".join(result.errors)
-    assert "Post-export audit failed" in joined, joined
+    assert result.returncode == 0, result.errors
+
+    # 产物按中文预设生成，改用英文要求文件对账，必然逐条不符
+    matched, problems = audit_docx_against_spec(
+        tmp_path / "o.docx", REPO_ROOT / "presets" / "en-nature.txt", "en"
+    )
+    assert not matched
+    joined = "\n".join(f"[{cat}] {msg}" for cat, msg in problems)
     assert "but the output" in joined, joined
-    assert not CJK_RE.search(joined), result.errors
+    assert not CJK_RE.search(joined), joined
