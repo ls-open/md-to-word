@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import struct
 import tempfile
@@ -21,6 +22,20 @@ RASTER_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".
 PDF_SUFFIX = ".pdf"
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+# 缓存是进程级的：一份稿里同一张图常被引用多次，光栅化却只该做一次。两道闸都要有——
+# 只限条目数的话，满页 300 dpi 的图一张就好几 MB，128 条能吃到几百 MB。
+_CACHE_MAX_ENTRIES = 128
+_CACHE_MAX_BYTES = 64 * 1024 * 1024
+_png_cache: dict[tuple[str, float | None, int], bytes] = {}
+_CACHE_BYTES = 0
+
+
+def clear_cache() -> None:
+    """清空位图渲染内存缓存（供测试或资源回收使用）。"""
+    global _CACHE_BYTES
+    _png_cache.clear()
+    _CACHE_BYTES = 0
 
 
 class PdfFigureError(Exception):
@@ -45,27 +60,50 @@ def rasterize(path: Path | str, width_cm: float | None = None, dpi: int = DEFAUL
 
     给了 `width_cm` 就按「成品里这么宽需要多少像素」反算，声明宽度上正好是 `dpi`；
     没给就按页面物理尺寸渲染，并把 `dpi` 写进 PNG，让 python-docx 还原同一尺寸。
+
+    按「文件内容 + 宽度 + dpi」做内存缓存：命中时省掉的是光栅化，读文件与算哈希照付；
+    换的是不必猜文件有没有改过。
     """
-    pdf = _open(path)
+    path_obj = Path(path)
     try:
-        if len(pdf) == 0:
-            raise PdfFigureError("the document has no pages")
-        page = pdf[0]
-        width_pt, _ = page.get_size()
-        if width_pt <= 0:
-            raise PdfFigureError("page width is zero")
-        if width_cm and width_cm > 0:
-            target_px = max(1, round(width_cm / 2.54 * dpi))
-            scale = target_px / width_pt
-        else:
-            scale = dpi / 72.0
+        content = path_obj.read_bytes()
+    except OSError as exc:
+        raise PdfFigureError(str(exc)) from exc
+    cache_key = (hashlib.sha256(content).hexdigest(), width_cm, dpi)
+
+    if cache_key in _png_cache:
+        png = _png_cache[cache_key]
+    else:
+        pdf = _open(path_obj)
         try:
-            bitmap = page.render(scale=scale, rev_byteorder=True)
-        except Exception as exc:  # PDFium 的异常类型随版本变，统一折成一句可读原因
-            raise PdfFigureError(str(exc) or type(exc).__name__) from exc
-        png = _png_bytes(bitmap.width, bitmap.height, bitmap.buffer, bitmap.stride, dpi)
-    finally:
-        pdf.close()
+            if len(pdf) == 0:
+                raise PdfFigureError("the document has no pages")
+            page = pdf[0]
+            width_pt, _ = page.get_size()
+            if width_pt <= 0:
+                raise PdfFigureError("page width is zero")
+            if width_cm and width_cm > 0:
+                target_px = max(1, round(width_cm / 2.54 * dpi))
+                scale = target_px / width_pt
+            else:
+                scale = dpi / 72.0
+            try:
+                bitmap = page.render(scale=scale, rev_byteorder=True)
+            except Exception as exc:  # PDFium 的异常类型随版本变，统一折成一句可读原因
+                raise PdfFigureError(str(exc) or type(exc).__name__) from exc
+            png = _png_bytes(bitmap.width, bitmap.height, bitmap.buffer, bitmap.stride, dpi)
+        finally:
+            pdf.close()
+
+        global _CACHE_BYTES
+        while _png_cache and (
+            len(_png_cache) >= _CACHE_MAX_ENTRIES
+            or _CACHE_BYTES + len(png) > _CACHE_MAX_BYTES
+        ):
+            oldest = next(iter(_png_cache))
+            _CACHE_BYTES -= len(_png_cache.pop(oldest))
+        _png_cache[cache_key] = png
+        _CACHE_BYTES += len(png)
 
     fd, name = tempfile.mkstemp(prefix="md-to-word-fig-", suffix=".png")
     try:

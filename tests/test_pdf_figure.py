@@ -162,3 +162,46 @@ def test_gate_passes_a_single_page_pdf(tmp_path: Path) -> None:
     report = validate_manuscript(tmp_path / "m.md")
     assert report.valid, report.errors
     assert not report.warnings
+
+
+def test_rasterize_cache_hit_and_consistency(tmp_path: Path) -> None:
+    """同一张 PDF 图重复导出时命中内存缓存，且内容逐字节一致。"""
+    from md_to_word.utils.pdf_figure import _png_cache, clear_cache
+
+    clear_cache()
+    pdf = _make_pdf(tmp_path / "cached.pdf", width=150, height=80)
+    assert len(_png_cache) == 0
+
+    out1 = rasterize(pdf, width_cm=5.0)
+    try:
+        assert len(_png_cache) == 1
+        bytes1 = out1.read_bytes()
+    finally:
+        out1.unlink(missing_ok=True)
+
+    # 再次调用命中缓存
+    out2 = rasterize(pdf, width_cm=5.0)
+    try:
+        assert len(_png_cache) == 1
+        bytes2 = out2.read_bytes()
+        assert bytes1 == bytes2
+    finally:
+        out2.unlink(missing_ok=True)
+
+
+def test_rasterize_cache_is_capped_by_bytes(tmp_path: Path, monkeypatch) -> None:
+    """缓存除了条目数还有字节上限：满页图一张几 MB，只限条数会吃出几百 MB。"""
+    from md_to_word.utils import pdf_figure
+
+    pdf_figure.clear_cache()
+    monkeypatch.setattr(pdf_figure, "_CACHE_MAX_BYTES", 1)
+
+    first = _make_pdf(tmp_path / "a.pdf", width=150, height=80)
+    second = _make_pdf(tmp_path / "b.pdf", width=150, height=40)
+
+    for pdf in (first, second):
+        out = pdf_figure.rasterize(pdf, width_cm=5.0)
+        out.unlink(missing_ok=True)
+
+    assert len(pdf_figure._png_cache) == 1, "超过字节上限时最旧的一条要被换出去"
+    assert pdf_figure._CACHE_BYTES == len(next(iter(pdf_figure._png_cache.values())))
