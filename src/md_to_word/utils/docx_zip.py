@@ -21,9 +21,8 @@ FIXED_PERMS = 0o100644 << 16  # 标准常规文件权限 -rw-r--r--，消除跨�
 def _opc_sort_key(filename: str) -> tuple[int, str]:
     """条目写入顺序：`[Content_Types].xml`、`_rels/.rels`、其余按路径升序。
 
-    这是 OPC 的通行惯例（ZIP 实现通常把它写在最前，便于流式读取时先拿到类型表），
-    不是规范强制——读取器走中央目录，顺序不影响能否打开，Word 实测无差别。
-    固定顺序换的是「包长什么样只取决于内容」，跨环境逐字节可比。
+    OPC 未规定 ZIP 条目顺序，读取器通过中央目录定位，顺序不影响 Word 打开（已实测）。
+    固定顺序的作用是让包的布局只取决于内容，与写入环境无关。
     """
     if filename == "[Content_Types].xml":
         return (0, "")

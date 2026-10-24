@@ -23,8 +23,8 @@ PDF_SUFFIX = ".pdf"
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
-# 缓存是进程级的：一份稿里同一张图常被引用多次，光栅化却只该做一次。两道闸都要有——
-# 只限条目数的话，满页 300 dpi 的图一张就好几 MB，128 条能吃到几百 MB。
+# 进程级缓存：同一张图在一份稿里常被多次引用，光栅化只做一次。
+# 条目数与总字节双重上限——满页 300 dpi 的图单张可达数 MB。
 _CACHE_MAX_ENTRIES = 128
 _CACHE_MAX_BYTES = 64 * 1024 * 1024
 _png_cache: dict[tuple[str, float | None, int], bytes] = {}
@@ -61,8 +61,7 @@ def rasterize(path: Path | str, width_cm: float | None = None, dpi: int = DEFAUL
     给了 `width_cm` 就按「成品里这么宽需要多少像素」反算，声明宽度上正好是 `dpi`；
     没给就按页面物理尺寸渲染，并把 `dpi` 写进 PNG，让 python-docx 还原同一尺寸。
 
-    按「文件内容 + 宽度 + dpi」做内存缓存：命中时省掉的是光栅化，读文件与算哈希照付；
-    换的是不必猜文件有没有改过。
+    按「文件内容 + 宽度 + dpi」缓存渲染结果；命中时仍读取文件并计算哈希。
     """
     path_obj = Path(path)
     try:

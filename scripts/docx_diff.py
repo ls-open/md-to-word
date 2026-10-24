@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-"""scripts/docx_diff.py — OOXML 语义级对账与对比工具。
+"""scripts/docx_diff.py — 两个 .docx 的 XML 语义比对。
 
-直接对比两个 .docx（如 git diff）只会得到 "Binary files differ"；
-直接解压对比 XML 会被 Word 随机生成的 `w:rsid*`、`w14:paraId` 和单行压缩格式刷屏。
-
-本脚本：
-1. 解压两份 .docx 的目标 XML 部件（默认 word/document.xml，也可选 styles.xml 等）；
-2. 递归剥离与排版语义无关的追踪 ID（w:rsid*, w14:paraId, w14:textId 等）；
-3. 执行 XML 规范化格式重排（pretty-print）；
-4. 输出高可读性的统一差异（Unified Diff）或差异摘要。
+`.docx` 是二进制包，直接 diff 无输出；解压后比对 XML 又会被 `w:rsid*`、`w14:paraId`
+等随机追踪属性与单行压缩格式干扰。本脚本比对指定部件的 XML：剥离无排版语义的追踪属性，
+规范化缩进，输出统一差异或差异摘要。
 
 用法：
   python3 scripts/docx_diff.py doc1.docx doc2.docx

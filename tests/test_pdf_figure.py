@@ -190,7 +190,7 @@ def test_rasterize_cache_hit_and_consistency(tmp_path: Path) -> None:
 
 
 def test_rasterize_cache_is_capped_by_bytes(tmp_path: Path, monkeypatch) -> None:
-    """缓存除了条目数还有字节上限：满页图一张几 MB，只限条数会吃出几百 MB。"""
+    """条目数与总字节双上限：超出后淘汰最早写入的条目。"""
     from md_to_word.utils import pdf_figure
 
     pdf_figure.clear_cache()

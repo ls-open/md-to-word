@@ -440,7 +440,7 @@ def test_two_exports_are_byte_identical(template: Path, tmp_path: Path) -> None:
 
 
 def test_canonical_opc_packaging_order_and_permissions(template: Path, tmp_path: Path) -> None:
-    """压缩包的条目顺序、时间戳与权限都是钉死的值——包长什么样只取决于内容。"""
+    """条目顺序、时间戳与权限均为固定值：包的布局只取决于内容。"""
     model = read_markdown("# 一 引言\n\n正文。\n")
     doc_path = write_docx(model, template, tmp_path / "opc_test.docx")
     with zipfile.ZipFile(doc_path) as z:
