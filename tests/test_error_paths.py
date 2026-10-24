@@ -33,16 +33,6 @@ def _run(argv: list[str], capsys) -> tuple[int, str]:
     return code, captured.out + captured.err
 
 
-def test_bad_template_is_a_sentence_not_a_traceback(workdir: Path, capsys) -> None:
-    (workdir / "fake.docx").write_text("not a zip", encoding="utf-8")
-
-    code, output = _run([str(workdir / "ok.md"), "-t", str(workdir / "fake.docx")], capsys)
-
-    assert code == EXIT_ERROR
-    assert "Traceback" not in output
-    assert "fake.docx" in output
-
-
 def test_output_pointing_at_a_directory_is_reported(workdir: Path, capsys) -> None:
     (workdir / "outdir").mkdir()
 

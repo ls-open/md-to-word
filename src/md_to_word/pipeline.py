@@ -15,7 +15,9 @@ from typing import Optional
 
 from md_to_word.audit.inspector import audit_docx_against_spec
 from md_to_word.audit.postflight import verify_numeric_integrity
-from md_to_word.config import default_csl_path, get_csl_dir, resolve_preset_path
+from md_to_word.config import (
+    DEFAULT_PRESET_EN, DEFAULT_PRESET_ZH, default_csl_path, get_csl_dir, resolve_preset_path,
+)
 from md_to_word.i18n import resolve_lang, t
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.spec.parser import parse_requirements
@@ -37,7 +39,6 @@ class ExportOptions:
     output_path: Optional[Path | str] = None
     requirements_path: Optional[Path | str] = None
     preset: Optional[str] = None
-    template_path: Optional[Path | str] = None
     check_md: bool = True
     postflight: bool = True
     audit: bool = True
@@ -82,37 +83,6 @@ def _normalized_csl(path: Path, temp_dir: Path, res: ExportResult) -> Path:
         t("pipeline.csl_normalized", res.lang, name=path.name, attrs=", ".join(removed))
     )
     return target
-
-
-def _prepare_custom_template(src: Path, dst: Path, lang: str = "zh") -> Path:
-    """第三方模板入场前的清理：剥主题属性，并确认它只有一节。
-
-    主题字体与主题色的优先级高于显式字体，外来的 `.docx`（期刊/学校下发）几乎都带着
-    它们，不剥就会出现「要求文件写了字体，产物却没变」。多节模板则更直接：本工具只在
-    正文那一节上写页眉页脚，多出来的节会全部走样，这里当场拒绝而不是产出一份错位的文档。
-    """
-    import zipfile
-
-    from docx import Document
-
-    from md_to_word.utils.skill_utils import strip_theme_attrs_from_xml
-
-    # 不是 zip、zip 里缺 word/、磁盘上读不了：都在这里收成一句人话。
-    # 一路漏到调用方就是 BadZipFile 的 traceback（`-t 一份 PDF` 会这么炸）。
-    try:
-        with zipfile.ZipFile(src) as zin, zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
-            for item in zin.infolist():
-                data = zin.read(item.filename)
-                if item.filename in ("word/styles.xml", "word/stylesWithEffects.xml"):
-                    data = strip_theme_attrs_from_xml(data)
-                zout.writestr(item, data)
-        sections = len(Document(str(dst)).sections)
-    except (zipfile.BadZipFile, KeyError, OSError, ValueError) as exc:
-        raise TemplateError(t("pipeline.template_unreadable", lang, path=src, err=exc)) from exc
-
-    if sections != 1:
-        raise TemplateError(t("pipeline.template_multiple_sections", lang, count=sections))
-    return dst
 
 
 def run_export_pipeline(options: ExportOptions) -> ExportResult:
@@ -184,22 +154,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 res.messages.append(t("pipeline.txt_ignored", res.lang, names=shown))
             # 默认预设跟着稿件语种走：英文稿拿中文学位论文的格式（首行缩进两字符、
             # 宋体 fallback）是错的。判据与默认 CSL 用的是同一个 `looks_chinese`。
-            preset_name = "zh-academic" if res.lang == "zh" else "en-nature"
+            preset_name = DEFAULT_PRESET_ZH if res.lang == "zh" else DEFAULT_PRESET_EN
             p_default = resolve_preset_path(preset_name)
             if p_default and p_default.is_file():
                 req_file = p_default
                 req_content = p_default.read_text(encoding="utf-8")
                 res.messages.append(t("pipeline.preset_auto", res.lang, name=preset_name))
-
-    # 3. 模板解析
-    custom_template: Optional[Path] = None
-    if options.template_path:
-        p_tpl = Path(options.template_path).resolve()
-        if not p_tpl.is_file():
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.template_missing", res.lang, path=p_tpl))
-            return res
-        custom_template = p_tpl
 
     # 要求文件写错时预检会给出带行号的原因；这里只取公式编号这一项，读不出就用默认
     try:
@@ -211,7 +171,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     if options.check_md:
         logger.info("🔍 " + t("pipeline.precheck", res.lang))
         v_report = validate_manuscript(
-            in_p, template_docx=custom_template, spec_path=req_file, lang=res.lang
+            in_p, spec_path=req_file, lang=res.lang
         )
         if not v_report.valid:
             res.returncode = EXIT_ERROR
@@ -258,31 +218,20 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             builtin_csl = default_csl_path(contract_text)
 
         # 临时模板生成
-        tpl_for_render = custom_template
-        if tpl_for_render:
-            try:
-                tpl_for_render = _prepare_custom_template(
-                    tpl_for_render, Path(temp_dir) / "template.docx", res.lang
-                )
-            except TemplateError as exc:
-                res.returncode = EXIT_ERROR
-                res.errors.append(str(exc))
-                return res
-        if not tpl_for_render:
-            if not req_content:
-                res.returncode = EXIT_ERROR
-                res.errors.append(t("pipeline.no_spec", res.lang))
-                return res
-            temp_tpl_path = Path(temp_dir) / "template.docx"
-            try:
-                build_template(req_content, temp_tpl_path, lang=res.lang)
-            except TemplateError as exc:
-                res.returncode = EXIT_ERROR
-                res.errors.append(
-                    t("pipeline.requirements_template_failed", res.lang, reason=exc)
-                )
-                return res
-            tpl_for_render = temp_tpl_path
+        if not req_content:
+            res.returncode = EXIT_ERROR
+            res.errors.append(t("pipeline.no_spec", res.lang))
+            return res
+        temp_tpl_path = Path(temp_dir) / "template.docx"
+        try:
+            build_template(req_content, temp_tpl_path, lang=res.lang)
+        except TemplateError as exc:
+            res.returncode = EXIT_ERROR
+            res.errors.append(
+                t("pipeline.requirements_template_failed", res.lang, reason=exc)
+            )
+            return res
+        tpl_for_render = temp_tpl_path
 
         # 6. 契约文本 → 文档模型 → OOXML
         from md_to_word.model.reader import read_markdown

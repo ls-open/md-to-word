@@ -47,10 +47,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "内置格式预设：zh-academic（中文学术默认）或 en-nature（英文国际期刊）",
         "Built-in preset: zh-academic (Chinese thesis) or en-nature (international journal)",
     ),
-    "cli.template": (
-        "可选：指定现成 Word 样式模板 (.docx)，仅支持单节模板",
-        "Optional: an existing .docx to take styles from (single section only)",
-    ),
     "cli.lang": ("消息语言：auto=按稿件语种 / zh / en", "Message language: auto / zh / en"),
     "cli.no_check": ("跳过导前语法与排版契约预检（不推荐）", "Skip the pre-flight check (not recommended)"),
     "cli.no_postflight": ("跳过产物数值防丢检查（不推荐）", "Skip the numeric-integrity check (not recommended)"),
@@ -139,24 +135,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "The manuscript's directory has {names}, but only a file named format.txt is picked up; "
         "pass -r to use one of them.",
     ),
-    "pipeline.template_missing": ("指定的模板文件不存在: {path}", "Template file not found: {path}"),
-    "pipeline.template_unreadable": (
-        "底模读取失败（{path}）：{err}\n  底模必须是能正常打开的 .docx。",
-        "Could not read the template ({path}): {err}\n  The base template must be a .docx that opens normally.",
-    ),
     "pipeline.no_spec": ("未提供格式要求或模板，无法生成样式文档。", "No requirements or template: cannot build the style template."),
     "pipeline.csl_error": ("文献库或 CSL 样式无法使用：{reason}", "Bibliography or CSL style unusable: {reason}"),
     "pipeline.requirements_template_failed": (
         "格式要求无法生成样式模板：{reason}",
         "Could not build a style template from the requirements: {reason}",
-    ),
-    "pipeline.template_multiple_sections": (
-        "模板必须是单节（当前 {count} 节）。多节模板的页面几何与页眉页脚无法逐节沿用，"
-        "导出后会错位。请在 Word 里把模板合并成一节，或改用生成的模板（不传 -t）。",
-        "The template must have a single section (this one has {count}). Page geometry and "
-        "headers/footers cannot be carried over section by section, so the export would be "
-        "misaligned. Merge the template into one section in Word, or drop -t and let the tool "
-        "generate one.",
     ),
     "pipeline.csl_normalized": (
         "引文样式 {name} 里的 {attrs} 已忽略：段落格式（悬挂缩进、行距）由要求文件的「参考文献」样式决定，"
@@ -1120,17 +1103,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "{feat}，要求文件缺少「{cn}」（{en}）定义，将静默回退默认样式",
         "{feat}, but the requirements file is missing the `{en}` style definition; it will silently fall "
         "back to the default style",
-    ),
-    "gate.template.missing": ("模板不存在: {path}", "Template not found: {path}"),
-    "gate.template.unreadable": (
-        "模板存在但读不出样式表（{err}）: {path}",
-        "The template exists but its styles part cannot be read ({err}): {path}",
-    ),
-    "gate.template.style_absent": (
-        "行 {line} 样式「{name}」在模板中不存在，格式不会生效；"
-        "请在格式要求文件里补上这一条，或核对写法",
-        "Line {line}: style \"{name}\" does not exist in the template, so the formatting will not take "
-        "effect; add that row to the requirements file or check how it is written",
     ),
     # ── 题注 ──
     "gate.caption.table_far": (

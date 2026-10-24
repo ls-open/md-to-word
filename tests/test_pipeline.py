@@ -160,25 +160,6 @@ def test_bad_requirements_return_error_instead_of_exiting(tmp_path: Path) -> Non
     assert any("格式要求" in e for e in result.errors), result.errors
 
 
-def test_custom_template_must_be_single_section(tmp_path: Path) -> None:
-    """第三方模板只取正文那一节的页面几何与页眉页脚；多节模板会整体错位，必须当场拒绝。"""
-    from docx import Document
-
-    multi = tmp_path / "multi.docx"
-    doc = Document()
-    doc.add_paragraph("第一节")
-    doc.add_section()
-    doc.add_paragraph("第二节")
-    doc.save(str(multi))
-
-    (tmp_path / "m.md").write_text("# 一\n\n正文。\n", encoding="utf-8")
-    result = run_export_pipeline(
-        ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx", template_path=multi)
-    )
-    assert result.returncode == 1
-    assert any("单节" in e for e in result.errors), result.errors
-
-
 def test_user_csl_direct_formatting_is_stripped(tmp_path: Path) -> None:
     """用户自带的 CSL 里若有 hanging-indent 之类的直接格式，导出时要忽略它。
 
@@ -423,3 +404,20 @@ def test_init_unknown_preset_is_reported(tmp_path: Path, capsys) -> None:
 
     assert main(["init", str(tmp_path), "--preset", "nope"]) == 1
     assert "nope" in capsys.readouterr().out
+
+
+def test_theme_attrs_are_stripped_for_fonts_colors_and_fills() -> None:
+    """字体、颜色、底纹三类主题属性都要剥：`w:shd` 同时有 fill 与 themeFill 时以主题色为准。"""
+    from md_to_word.utils.skill_utils import strip_theme_attrs_from_xml
+
+    xml = (
+        b'<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        b'<w:style w:styleId="a"><w:rPr><w:rFonts w:ascii="Times New Roman" w:asciiTheme="majorHAnsi"/>'
+        b'<w:color w:val="000000" w:themeColor="text1" w:themeTint="99"/>'
+        b'<w:shd w:fill="FFFFFF" w:themeFill="background1" w:themeFillTint="33"/></w:rPr></w:style>'
+        b"</w:styles>"
+    )
+    cleaned = strip_theme_attrs_from_xml(xml).decode("utf-8")
+    for attr in ("asciiTheme", "themeColor", "themeTint", "themeFill", "themeFillTint"):
+        assert f"w:{attr}=" not in cleaned, cleaned
+    assert 'w:ascii="Times New Roman"' in cleaned and 'w:fill="FFFFFF"' in cleaned

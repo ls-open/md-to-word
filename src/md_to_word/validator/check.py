@@ -210,47 +210,9 @@ def required_style_issues(
     return issues
 
 
-def template_style_issues(
-    styles_used: dict[str, list[int]], template_path: Path | str, lang: str = "zh"
-) -> tuple[list[str], list[str]]:
-    """稿件用到的段落样式是否真的存在于模板 → (errors, warnings)。
-
-    模板里没有该样式时，写出器只能退成普通段落，格式**静默不生效**。
-    """
-    template = Path(template_path)
-    if not template.is_file():
-        return [t("gate.template.missing", lang, path=template)], []
-    try:
-        with zipfile.ZipFile(template) as archive:
-            root = etree.fromstring(archive.read("word/styles.xml"))
-    except (KeyError, zipfile.BadZipFile, etree.XMLSyntaxError) as exc:
-        return [t("gate.template.unreadable", lang, err=exc, path=template)], []
-
-    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-    names: set[str] = set()
-    ids: set[str] = set()
-    for style in root.findall(f"{ns}style"):
-        style_id = style.get(f"{ns}styleId")
-        if style_id:
-            ids.add(style_id.casefold())
-        name = style.find(f"{ns}name")
-        if name is not None and name.get(f"{ns}val"):
-            names.add(name.get(f"{ns}val").casefold())
-
-    errors: list[str] = []
-    for style_name, lines in sorted(styles_used.items()):
-        if style_name.casefold() in names or style_name.casefold() in ids:
-            continue
-        errors.append(
-            t("gate.template.style_absent", lang, line=lines[0], name=style_name)
-        )
-    return errors, []
-
-
 def validate_manuscript(
     md_path: Path | str,
     *,
-    template_docx: Optional[Path | str] = None,
     spec: Optional[TemplateSpec] = None,
     spec_path: Optional[Path | str] = None,
     csl_dir: Optional[Path] = None,
@@ -672,17 +634,5 @@ def validate_manuscript(
             t("gate.line", lang, line=line_no,
               tag=t("gate.tag.style_line", lang), why=why)
         )
-
-    # 16. custom-style 是否真的存在于模板（没给模板就跳过，由对账阶段兜底）
-    styles_used: dict[str, list[int]] = {}
-    for line_no, resolved in style_line_names(md_text):
-        if resolved:
-            styles_used.setdefault(resolved, []).append(line_no)
-    if styles_used and template_docx is not None:
-        errors, warnings = template_style_issues(styles_used, template_docx, lang)
-        if errors:
-            report.valid = False
-            report.errors.extend(f"[custom-style] {e}" for e in errors)
-        report.warnings.extend(warnings)
 
     return report

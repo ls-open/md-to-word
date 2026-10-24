@@ -58,8 +58,10 @@ NS_W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
 FONT_THEME_ATTRS = ('asciiTheme', 'hAnsiTheme', 'eastAsiaTheme', 'cstheme', 'csTheme')
 # color 上的主题颜色属性
 COLOR_THEME_ATTRS = ('themeColor', 'themeTint', 'themeShade')
+# 底纹上的主题填充属性：`w:shd` 同时写了 fill 与 themeFill 时以主题色为准，同样是「设了不生效」
+FILL_THEME_ATTRS = ('themeFill', 'themeFillTint', 'themeFillShade')
 # 全树通杀用（主题属性不只挂在 rFonts/color 上，如 rPrChange 里的旧属性）
-THEME_ATTRS = FONT_THEME_ATTRS + COLOR_THEME_ATTRS
+THEME_ATTRS = FONT_THEME_ATTRS + COLOR_THEME_ATTRS + FILL_THEME_ATTRS
 
 
 def _drop_theme_attrs(el, attrs) -> bool:
