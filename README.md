@@ -1,7 +1,8 @@
 # md-to-word
 
-[![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
+[![Official Skill: Nature Skills](https://img.shields.io/badge/Official%20Skill-Nature%20Skills%20(51k+%E2%98%85)-d9381e?logo=github&logoColor=white)](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
 [![Ecosystem: Academic Research Skills](https://img.shields.io/badge/Ecosystem-Academic%20Research%20Skills%20(51k+%E2%98%85)-0969da?logo=github&logoColor=white)](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects)
+[![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
 [![Release](https://img.shields.io/github/v/release/ls-open/md-to-word)](https://github.com/ls-open/md-to-word/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
@@ -146,8 +147,7 @@ if not result.ok:
     raise SystemExit("\n".join(result.errors))
 ```
 
-**当作 Agent 技能**——把活交给 AI 时，克隆本仓库，让 Agent 读根目录的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md)，
-它依次完成：整理稿件 → 写 `format.txt` → 导出 → 读门禁、按行号改稿。
+**当作 Agent 技能**——把排版交给 AI 时：在已安装 Nature Skills 的环境中，可直接唤起 `$nature-paper2word`；在独立 Agent 环境中，让 Agent 读取根目录的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md)，它依次完成：整理稿件 → 写 `format.txt` → 导出 → 读门禁、按行号改稿。
 
 **给脚本与 Agent**——加 `--json`，结果是一行 JSON：用了哪份格式要求、每条提醒、结尾的核对提示都在 `messages` 里，失败原因在 `errors` 里；进度日志与报错文字走 stderr：
 
@@ -178,16 +178,17 @@ md-to-word-template 学校模板.docx -o 论文_format.txt
 对齐、行距（区分倍数/固定值/最小值）、段前段后、缩进（含字符单位）、段落下边框、表格边框与
 表头行、页眉页脚内容与域。**读不出的项列成待确认清单**，不假装读到了。
 
-## 推荐上游生态
+## 协同与推荐生态
 
-本项目专注下游的确定性排版与格式交付，写稿、找文献的部分推荐配合这两个学术 Agent 框架使用：
+本项目专注下游的确定性排版与格式交付，写稿、找文献与课题论证推荐配合以下学术 Agent 框架使用：
 
-- [Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)：五阶段学术研究与写作
-  全流程框架。Stage 5（FINALIZE）产出 Markdown 草稿与参考文献后，可直接接到本工具出规范 `.docx`。
-- [Nature Skills](https://github.com/Yuan1z0825/nature-skills)：学术论文写作的 Agent 技能集，覆盖文献综述、
-  实验论证与草稿生成。
-
-（本项目目前被 Academic Research Skills 列在第三方项目清单中。）
+- **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)（51k+ ★）**：顶流科研论文写作 Agent 技能集。
+  本项目已作为官方内置独立技能 [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
+  正式合并入官方仓库，负责该生态科研全流程写作最后的“规范 Word 编译交付”。在 Nature Skills 环境中可直接使用 `$nature-paper2word` 触发。
+- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)（51k+ ★）**：五阶段学术研究与写作
+  全流程框架。本项目被收录在官方第三方项目列表中，在 Stage 5（FINALIZE）产出 Markdown 草稿与参考文献后，直接承接出规范 `.docx`。
+- **[中文独立开发者](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)**：
+  收录于程序员专刊精选独立项目。
 
 ## 许可
 

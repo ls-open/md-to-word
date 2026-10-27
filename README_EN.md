@@ -1,7 +1,8 @@
 # md-to-word
 
-[![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
+[![Official Skill: Nature Skills](https://img.shields.io/badge/Official%20Skill-Nature%20Skills%20(51k+%E2%98%85)-d9381e?logo=github&logoColor=white)](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
 [![Ecosystem: Academic Research Skills](https://img.shields.io/badge/Ecosystem-Academic%20Research%20Skills%20(51k+%E2%98%85)-0969da?logo=github&logoColor=white)](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects)
+[![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
 [![Release](https://img.shields.io/github/v/release/ls-open/md-to-word)](https://github.com/ls-open/md-to-word/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
@@ -164,9 +165,7 @@ if not result.ok:
     raise SystemExit("\n".join(result.errors))
 ```
 
-**As an agent skill** — when the job goes to an agent: clone this repository and point the agent at
-[`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) in the root. It normalizes the
-manuscript → writes `format.txt` → exports → reads the gates and fixes the reported lines.
+**As an agent skill** — when handing typesetting to AI: in environments with Nature Skills installed, trigger directly via `$nature-paper2word`; in standalone agent environments, point the agent at [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) in the root. It normalizes the manuscript → writes `format.txt` → exports → reads the gates and fixes the reported lines.
 
 **From a script or an agent** — add `--json` for one JSON object on stdout: which format file was used, every reminder and the closing check prompt are in `messages`; failures are in `errors`. Progress logs and error text stay on stderr.
 
@@ -202,18 +201,17 @@ space before and after, indents (including character units), paragraph bottom bo
 and header rows, and header/footer content with fields. **Anything it cannot read is listed as a
 to-confirm item** — it does not pretend to have read it.
 
-## Recommended upstream
+## Ecosystem & Related Tools
 
-This project covers the last mile — deterministic typesetting and delivery. For drafting and
-reference work, two academic agent frameworks are worth pairing with it:
+This project covers the last mile — deterministic typesetting and delivery. For drafting, literature search and experimental arguments, it pairs naturally with these academic agent frameworks:
 
-- [Academic Research Skills](https://github.com/Imbad0202/academic-research-skills): a five-stage
-  research and writing framework. After Stage 5 (FINALIZE) produces a Markdown draft and its
-  bibliography, this tool turns it into a compliant `.docx`.
-- [Nature Skills](https://github.com/Yuan1z0825/nature-skills): an agent skill set for academic
-  writing — literature review, experimental argument and draft generation.
-
-(This project is currently listed among the third-party entries of Academic Research Skills.)
+- **[Nature Skills](https://github.com/Yuan1z0825/nature-skills) (51k+ ★)**: An established academic writing agent skill set.
+  This project has been officially merged as a built-in skill [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word),
+  delivering publication-grade Word compilation at the end of the writing pipeline. Triggerable via `$nature-paper2word`.
+- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills) (51k+ ★)**: A five-stage
+  research and writing framework. This project is featured in its official third-party catalog, compiling Markdown drafts into compliant `.docx` at Stage 5 (FINALIZE).
+- **[Chinese Independent Developer](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)**:
+  Featured in the Programmer Edition showcase.
 
 ## License
 
