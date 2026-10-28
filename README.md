@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-[English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | 简体中文
+[English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | 简体中文 | [🌐 在线演示站 (Playground 免安装体验)](http://124.220.135.226)
 
 把 Markdown 编译成符合规范的 Word（`.docx`）。专为学术论文、学位论文、技术报告、公文打造，**也是面向 AI Agent 设计的确定性 Word 编译底座**。
 

@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-English | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md)
+English | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md) | [🌐 Web Playground (No-Install Demo)](http://124.220.135.226)
 
 Compile Markdown into a Word (`.docx`) document that matches a declared format. Designed for academic papers, theses, technical reports, and official documents — **and built as a deterministic Word compilation engine for AI Agents**.
 
