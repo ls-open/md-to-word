@@ -10,6 +10,10 @@ Turns a Markdown manuscript into a `.docx` whose typography comes from a declare
 engine is deterministic — the same manuscript and the same declarations produce a byte-identical
 file on every run — so do not substitute a hand-written python-docx script; run this pipeline.
 
+**Before the first export in a session, confirm the engine is available**: `md-to-word --version`
+must print a version. This skill ships documentation; if the command is missing, install it with
+`pip install md-to-word-docx`, then run the check again.
+
 **Read this before the first run.** The flags are not enough to drive it: the manuscript has a
 contract (§2) and the format file has a closed vocabulary (§3), and neither can be guessed from
 `--help`. Work through §1 once, then the commands are enough for everything after. An identical
