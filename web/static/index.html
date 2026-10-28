@@ -434,6 +434,11 @@
     let allTemplates = {};
     let latestPdfBlobUrl = null;
 
+    // 自动判断 API 端点（支持独立域名、GitHub Pages、本地多环境跨域）
+    const API_BASE = (window.location.hostname === '124.220.135.226' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? '' 
+      : 'https://124.220.135.226';
+
     // 自适应调整高度，彻底消灭 textarea 内部滚动条
     function autoResizeTextarea(el) {
       if (!el) return;
@@ -512,7 +517,7 @@
     // 获取所有模板
     async function fetchTemplates() {
       try {
-        const res = await fetch('/api/templates');
+        const res = await fetch(`${API_BASE}/api/templates`);
         if (res.ok) {
           allTemplates = await res.json();
           renderTemplateCards();
@@ -655,7 +660,7 @@
       formData.append('references', document.getElementById('inpReferences').value);
 
       try {
-        const res = await fetch('/api/preview', {
+        const res = await fetch(`${API_BASE}/api/preview`, {
           method: 'POST',
           body: formData,
         });
@@ -719,7 +724,7 @@
       formData.append('references', document.getElementById('inpReferences').value);
 
       try {
-        const res = await fetch('/api/export', {
+        const res = await fetch(`${API_BASE}/api/export`, {
           method: 'POST',
           body: formData,
         });

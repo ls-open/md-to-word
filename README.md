@@ -7,11 +7,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-[English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | **简体中文** | [在线演示站 (Playground)](http://124.220.135.226)
+[English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | **简体中文** | [在线演示站 (Playground)](https://124.220.135.226)
 
 把 Markdown 确定性编译为出版级规范 Word（`.docx`）。专为学术期刊、技术报告、学位论文、公文打造，**也是面向 AI Agent 设计的确定性排版与出版交付底座**。
 
-> 🌐 **零门槛免安装试玩**：[点击访问在线体验站 (Web Playground)](http://124.220.135.226)，实时编辑内容，在线验证公式、三线表、页眉与出版规范，秒级下载成品 `.docx`。
+> 🌐 **零门槛免安装试玩**：[点击访问在线体验站 (Web Playground)](https://124.220.135.226)，实时编辑内容，在线验证公式、三线表、页眉与出版规范，秒级下载成品 `.docx`。
 
 ---
 
