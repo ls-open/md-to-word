@@ -7,11 +7,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-**English** | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md) | [Web Playground](https://124.220.135.226)
+**English** | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md) | [Web Playground](https://ls-open.github.io/md-to-word/)
 
 Compile Markdown into publication-grade Word (`.docx`) documents matching strict formatting specifications. Designed for academic papers, theses, technical reports, and official publications — **and built as a deterministic Word compilation engine for AI Agents**.
 
-> 🌐 **Try it Online (No Installation Needed)**: [Launch the Web Playground](https://124.220.135.226) to edit live manuscripts, inspect native formulas, three-line tables, running headers, and download publication `.docx` outputs in seconds.
+> 🌐 **Try it Online (No Installation Needed)**: [Launch the Official Web Playground](https://ls-open.github.io/md-to-word/) to edit live manuscripts, inspect native formulas, three-line tables, running headers, and download publication `.docx` outputs in seconds.
 
 ---
 
