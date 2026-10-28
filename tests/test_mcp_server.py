@@ -5,6 +5,8 @@ from pathlib import Path
 import tempfile
 import asyncio
 
+pytest.importorskip("mcp")
+
 from md_to_word.mcp.server import create_mcp_server, _resolve_markdown_source, _resolve_format_txt
 
 

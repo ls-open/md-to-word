@@ -1,0 +1,19 @@
+# Smithery configuration for md-to-word MCP Server
+# https://smithery.ai/docs/config
+
+startCommand:
+  type: stdio
+
+configSchema:
+  type: object
+  description: "Deterministic Markdown-to-Word (.docx) compiler and quality gate server."
+  properties: {}
+
+commandFunction: |-
+  (config) => ({
+    command: 'uvx',
+    args: ['--from', 'md-to-word-docx[mcp]', 'md-to-word-mcp'],
+    env: {}
+  })
+
+exampleConfig: {}
