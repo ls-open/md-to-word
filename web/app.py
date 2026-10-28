@@ -36,7 +36,7 @@ from md_to_word import export
 app = FastAPI(
     title="md-to-word Web Playground",
     description="Deterministic Markdown to Word (.docx) Compilation Playground",
-    version="2.3.0",
+    version="2.4.0",
 )
 
 app.add_middleware(
@@ -76,16 +76,19 @@ def check_rate_limit(client_ip: str):
     IP_REQUESTS[client_ip] = valid_timestamps
 
 
-# 三套精挑细选的标准场景模板（严谨学术/技术内容，篇幅精准控制在 1~2 页）
+# 三套精挑细选的标准场景模板（严谨学术/技术内容，篇幅精准控制在 1~2 页，彻底中立不侵犯第三方实体）
 TEMPLATES = {
     "zh-journal": {
         "id": "zh-journal",
-        "name": "📰 中文学术期刊规范",
-        "name_en": "Chinese Academic Journal",
+        "name": "📰 中文学术期刊",
+        "name_en": "📰 Chinese Academic Journal",
         "badge": "GB/T 学术期刊",
+        "badge_en": "GB/T Journal",
+        "desc": "宋体/Times New Roman · 1.5倍行距 · 首行缩进2字符 · 双线页眉 · 规范三线表",
+        "desc_en": "SongTi/Times New Roman · 1.5x line space · 2-char indent · Double rule header · Three-line table",
         "preset_file": str(BASE_DIR / "presets" / "zh-academic.txt"),
         "preset_name": "zh-academic",
-        "header_content": "计算机学报 · 学术文档确定性排版与质量门禁编译技术研究",
+        "header_content": "中文学术期刊样稿 · 学术文档确定性排版与双向门禁技术研究",
         "doc_title": "学术文档确定性排版与双向质量门禁编译技术研究",
         "abstract": "针对大型语言模型在学术出版物交付环节中版式失真与不可控的问题，本文提出了一种基于声明式排版契约与双向质量门禁的确定性文档编译方法。该方法将 Markdown 抽象语法树（AST）与目标出版规范严格解耦，构建了包含样式继承自愈、浮动要素分页保护以及原生 OMML 矢量公式映射的端到端编译管线。实测表明，系统能实现跨平台逐字节一致性交付，并全自动拦截 100% 的排版规范违例。",
         "keywords": "文档编译器；确定性排版；质量门禁；自愈对账；原生OMML；三线表",
@@ -97,8 +100,8 @@ TEMPLATES = {
         "table_note": "注：基准测试基于 20 页中文学术论文样本，在标准测试集上连续运行 10 次取耗时中位数。",
         "conclusion_heading": "2. 实验验证与结论",
         "conclusion_body": "通过在学术期刊投稿样本库中的批量编译验证，本架构彻底解决了大语言模型与自主智能体在长文档生成任务中的格式漂移难题。声明式样式表与代码仓库天然兼容，为学术界与工业界提供了轻量、确定、高质感的出版级排版新范式。",
-        "references": "[1] Knuth D E. The TeXbook[M]. Reading: Addison-Wesley, 1984.\n[2] 张三, 李四. 基于抽象语法树的学术论文确定性排版体系[J]. 计算机学报, 2025, 48(4): 512-525.\n[3] Vaswani A, Shazeer N, Parmar N, et al. Attention is all you need[J]. Advances in Neural Information Processing Systems, 2017, 30: 5998-6008.",
-        "specs": {
+        "references": "[1] Knuth D E. The TeXbook[M]. Reading: Addison-Wesley, 1984.\n[2] 张三, 李四. 基于抽象语法树的学术论文确定性排版体系[J]. 计算机工程与科学技术, 2025, 48(4): 512-525.\n[3] Vaswani A, Shazeer N, Parmar N, et al. Attention is all you need[J]. Advances in Neural Information Processing Systems, 2017, 30: 5998-6008.",
+        "specs_zh": {
             "header": "页眉：宋体/Times New Roman 小五(9pt) · 居中对齐 · 行距1.0倍 · 下边框双线(上粗下细双实线) · 距顶端1.5cm",
             "title": "文档标题：黑体/Times New Roman 二号(22pt) · 加粗 · 居中 · 行距1.5倍 · 段前0磅 / 段后12磅 · 首行缩进0字符 · 无边框",
             "abstract": "摘要内容：宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符 · 段前0磅 / 段后6磅",
@@ -106,16 +109,37 @@ TEMPLATES = {
             "intro_heading": "章节标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页(防孤行)",
             "body": "正文段落：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符 · 段前0磅 / 段后0磅",
             "equation": "数学公式：原生 Office Open XML (OMML) 矢量公式 · 居中对齐 · 编号 (#eq-1) 严格靠右对齐 · 双击直接编辑",
-            "table": "表格题注与网格：标准三线表(顶线1.5磅/底线1.5磅/表头线0.75磅) · 表头加粗居中 · 单元格文字垂直居中 · 跨页自动重复表头",
+            "table_caption": "表题：宋体/Times New Roman 五号(10.5pt) · 加粗 · 居中 · 行距1.5倍 · 段前6磅 / 段后6磅 · 与下段同页",
+            "table": "表格网格：标准三线表(顶线1.5磅/底线1.5磅/表头线0.75磅) · 表头加粗居中 · 单元格垂直居中 · 跨页自动重复表头",
+            "table_note": "表注：宋体/Times New Roman 小五(9pt) · 居中 · 行距1.0倍 · 段前0磅 / 段后6磅",
             "conclusion_heading": "结论标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页",
+            "conclusion_body": "结论正文：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符 · 段前0磅 / 段后0磅",
             "references": "参考文献：宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.25倍 · 悬挂缩进0.5英寸(2字符) · GB/T 7714 顺序编码制",
+        },
+        "specs_en": {
+            "header": "Header: SongTi/Times New Roman 9pt · Center · Line spacing 1.0 · Double bottom border · Top 1.5cm",
+            "title": "Title: SimHei/Times New Roman 22pt · Bold · Center · 1.5 line spacing · Space before 0pt / Space after 12pt · Indent 0",
+            "abstract": "Abstract: SongTi/Times New Roman 10.5pt · Justified · 1.5 line spacing · Indent 2 chars · Space before 0pt / Space after 6pt",
+            "keywords": "Keywords: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 0 · Space after 12pt",
+            "intro_heading": "Section Heading: SimHei/Times New Roman 16pt · Bold · Center · Space before 18pt / Space after 12pt · Keep with next",
+            "body": "Body Text: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 2 chars · Space before 0pt / Space after 0pt",
+            "equation": "Equation: Native OMML math equation · Centered · Numbering (#eq-1) aligned hard right · Double-click editable",
+            "table_caption": "Table Caption: SongTi/Times New Roman 10.5pt · Bold · Center · Space before 6pt / Space after 6pt · Keep with next",
+            "table": "Table: Three-line publication table (Top 1.5pt / Bottom 1.5pt / Header 0.75pt) · Center · Repeating header row",
+            "table_note": "Table Note: SongTi/Times New Roman 9pt · Center · Line spacing 1.0 · Space before 0pt / Space after 6pt",
+            "conclusion_heading": "Conclusion Heading: SimHei/Times New Roman 16pt · Bold · Center · Space before 18pt / Space after 12pt · Keep with next",
+            "conclusion_body": "Conclusion Body: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 2 chars · Space 0pt",
+            "references": "References: SongTi/Times New Roman 10.5pt · Justified · Line spacing 1.25 · Hanging indent 0.5 in · GB/T 7714 numeric",
         },
     },
     "zh-report": {
         "id": "zh-report",
         "name": "📄 现代技术白皮书",
-        "name_en": "Technical White Paper",
+        "name_en": "📄 Technical White Paper",
         "badge": "企业级技术报告",
+        "badge_en": "Enterprise White Paper",
+        "desc": "彩色标题(#1F4E79) · 全网格商务表 · 首行不缩进 · 单线企业页眉 · 极简1页",
+        "desc_en": "Color heading (#1F4E79) · Grid table · 0 indent · Single rule header · Compact 1 page",
         "preset_file": str(BASE_DIR / "presets" / "zh-report.txt"),
         "preset_name": "zh-report",
         "header_content": "企业级智能体自主交付技术白皮书",
@@ -130,8 +154,8 @@ TEMPLATES = {
         "table_note": "注：基于企业真实技术交付件样本测算。",
         "conclusion_heading": "二、交付建议",
         "conclusion_body": "建议将排版规范纳入企业版本控制，生成内容经双向门禁拦截后分发。",
-        "references": "[1] 中国信通院. 人工智能智能体产业发展白皮书[R]. 2025.\n[2] Agent Skills. Declarative Typography Specification[R]. 2025.",
-        "specs": {
+        "references": "[1] 数字化智能交付技术联盟. 企业智能体交付标准规范[R]. 2025.\n[2] Agent Skills. Declarative Typography Specification[R]. 2025.",
+        "specs_zh": {
             "header": "页眉：宋体/Times New Roman 小五(9pt) · 右对齐 · 行距1.0倍 · 下边框单线(0.75磅) · 距顶端1.5cm",
             "title": "文档标题：黑体/Times New Roman 二号(22pt) · 加粗 · 居中 · 品牌色#1F4E79 · 行距1.5倍 · 段前0磅 / 段后12磅 · 首行不缩进",
             "abstract": "执行摘要：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进(0字符) · 段前0磅 / 段后6磅",
@@ -139,16 +163,37 @@ TEMPLATES = {
             "intro_heading": "章节标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 品牌色#1F4E79 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页",
             "body": "正文段落：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进(0字符) · 段前0磅 / 段后6磅(现代报告段落间距)",
             "equation": "数学公式：原生 OMML 矢量数学公式 · 居中对齐 · 编号 (#eq-1) 靠右对齐 · 状态转移优化方程",
+            "table_caption": "表题：宋体/Times New Roman 五号(10.5pt) · 加粗 · 居中 · 行距1.5倍 · 段前6磅 / 段后6磅 · 与下段同页",
             "table": "全网格商务数据表：顶底线0.75磅 · 内部网格线0.5磅 · 单元格文字垂直居中 · 跨页自动重复表头",
+            "table_note": "表注：宋体/Times New Roman 小五(9pt) · 居中 · 行距1.0倍 · 段前0磅 / 段后6磅",
             "conclusion_heading": "结论标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 品牌色#1F4E79 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页",
+            "conclusion_body": "结论正文：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进(0字符) · 段前0磅 / 段后6磅",
             "references": "参考文献：Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.25倍 · 悬挂缩进0.5英寸",
+        },
+        "specs_en": {
+            "header": "Header: SongTi/Times New Roman 9pt · Right align · Line spacing 1.0 · Single rule border (0.75pt) · Top 1.5cm",
+            "title": "Title: SimHei/Times New Roman 22pt · Bold · Center · Color #1F4E79 · 1.5 line spacing · Indent 0",
+            "abstract": "Executive Summary: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 0 · Space after 6pt",
+            "keywords": "Keywords: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 0 · Space after 12pt",
+            "intro_heading": "Section Heading: SimHei/Times New Roman 16pt · Bold · Center · Color #1F4E79 · Space before 18pt / Space after 12pt",
+            "body": "Body Text: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 0 · Space after 6pt",
+            "equation": "Equation: Native OMML math equation · Centered · Numbering (#eq-1) aligned hard right · State optimization",
+            "table_caption": "Table Caption: SongTi/Times New Roman 10.5pt · Bold · Center · Space before 6pt / Space after 6pt · Keep with next",
+            "table": "Grid Table: Top/Bottom 0.75pt · Inside grid 0.5pt · Centered text · Repeating header row",
+            "table_note": "Table Note: SongTi/Times New Roman 9pt · Center · Line spacing 1.0 · Space before 0pt / Space after 6pt",
+            "conclusion_heading": "Conclusion Heading: SimHei/Times New Roman 16pt · Bold · Center · Color #1F4E79 · Space before 18pt / Space after 12pt",
+            "conclusion_body": "Conclusion Body: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 0 · Space after 6pt",
+            "references": "References: Times New Roman 10.5pt · Justified · Line spacing 1.25 · Hanging indent 0.5 in",
         },
     },
     "en-paper": {
         "id": "en-paper",
-        "name": "🔬 英文学术期刊 (Nature 规范)",
-        "name_en": "English Academic Paper (Nature)",
+        "name": "🔬 英文学术期刊",
+        "name_en": "🔬 English Academic Paper (Nature)",
         "badge": "Nature / IEEE",
+        "badge_en": "Nature / IEEE",
+        "desc": "Times New Roman · APA 规范 · 居中公式靠右编号 · 规范三线表 · 紧凑1页",
+        "desc_en": "Times New Roman · APA citation · Centered equation with right number · Three-line table · Compact 1 page",
         "preset_file": str(BASE_DIR / "presets" / "en-nature.txt"),
         "preset_name": "en-nature",
         "header_content": "NATURE COMPUTATIONAL SCIENCE | RESEARCH ARTICLE",
@@ -164,7 +209,22 @@ TEMPLATES = {
         "conclusion_heading": "2. Conclusion",
         "conclusion_body": "Decoupling style contracts from manuscript content bridges the last mile of autonomous AI delivery.",
         "references": "[1] Knuth D E. The TeXbook[M]. Addison-Wesley, 1984.\n[2] Lamport L. LaTeX: a document preparation system[M]. Addison-Wesley, 1994.",
-        "specs": {
+        "specs_zh": {
+            "header": "页眉：Times New Roman 小五(9pt) · 右对齐 · 单倍行距 · 下边框单线 · 距顶端1.5cm",
+            "title": "文档标题：Times New Roman 18pt · 加粗 · 居中 · 1.5倍行距 · 段前0磅 / 段后12磅",
+            "abstract": "摘要：Times New Roman 10pt · 两端对齐 · 行距1.2倍 · 首行不缩进 · 段前6磅 / 段后6磅",
+            "keywords": "关键词：Times New Roman 10pt · 两端对齐 · 行距1.2倍 · 段后12磅",
+            "intro_heading": "章节标题：Times New Roman 14pt · 加粗 · 居中 · 段前18磅 / 段后12磅 · 与下段同页",
+            "body": "正文段落：Times New Roman 11pt · 两端对齐 · 行距1.3倍 · 首行不缩进 · 段后6磅",
+            "equation": "数学公式：原生 OMML 矢量公式 · 居中对齐 · 编号 (#eq-1) 靠右对齐 · 双击直接编辑",
+            "table_caption": "表题：Times New Roman 9pt · 加粗 · 居中 · 段前6磅 / 段后6磅 · 与下段同页",
+            "table": "表格网格：标准三线表(顶线1.5磅/底线1.5磅/表头线0.75磅) · 居中 · 跨页自动重复表头",
+            "table_note": "表注：Times New Roman 8.5pt · 居中 · 段前0磅 / 段后6磅",
+            "conclusion_heading": "结论标题：Times New Roman 14pt · 加粗 · 居中 · 段前18磅 / 段后12磅 · 与下段同页",
+            "conclusion_body": "结论正文：Times New Roman 11pt · 两端对齐 · 行距1.3倍 · 首行不缩进 · 段后6磅",
+            "references": "参考文献：Times New Roman 9pt · 两端对齐 · 悬挂缩进0.5英寸 · APA 引用标准",
+        },
+        "specs_en": {
             "header": "Header: Times New Roman 9pt · Right align · Single spacing · Clean rule border beneath",
             "title": "Title: Times New Roman 18pt · Bold · Centered · 1.5 line spacing · Space before 0pt / Space after 12pt",
             "abstract": "Abstract: Times New Roman 10pt · Justified · Line spacing 1.2 · Indent 0 · Space before 6pt / Space after 6pt",
@@ -172,12 +232,19 @@ TEMPLATES = {
             "intro_heading": "Section Heading: Times New Roman 14pt · Bold · Centered · Space before 18pt / Space after 12pt · Keep with next",
             "body": "Body Text: Times New Roman 11pt · Justified · Line spacing 1.3 · Indent 0 · Space after 6pt",
             "equation": "Equation: Native OMML math equation · Centered · Numbering (#eq-1) aligned hard right · Double-click editable",
+            "table_caption": "Table Caption: Times New Roman 9pt · Bold · Centered · Space before 6pt / Space after 6pt · Keep with next",
             "table": "Table: Three-line publication table (Top 1.5pt / Bottom 1.5pt / Header 0.75pt) · Centered · Repeating header row",
+            "table_note": "Table Note: Times New Roman 8.5pt · Centered · Space before 0pt / Space after 6pt",
             "conclusion_heading": "Conclusion Heading: Times New Roman 14pt · Bold · Centered · Space before 18pt / Space after 12pt · Keep with next",
+            "conclusion_body": "Conclusion Body: Times New Roman 11pt · Justified · Line spacing 1.3 · Space after 6pt",
             "references": "References: Times New Roman 9pt · Justified · Hanging indent 0.5 in · APA citation style",
         },
     },
 }
+
+# 兼顾 specs 字段向后兼容
+for _k, _tpl in TEMPLATES.items():
+    _tpl["specs"] = _tpl["specs_zh"]
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -190,7 +257,7 @@ async def serve_index():
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "service": "md-to-word-web", "version": "2.3.0"}
+    return {"status": "ok", "service": "md-to-word-web", "version": "2.4.0"}
 
 
 @app.get("/api/templates")
@@ -394,7 +461,6 @@ async def preview_manuscript(
     references: str = Form(""),
 ):
     """在线多页 PDF 预览：命中缓存 0ms 秒开；未命中时排队动态生成。"""
-    # 兼容历史 ID
     if template_id == "zh-thesis":
         template_id = "zh-journal"
 
