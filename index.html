@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>md-to-word | 确定性 Markdown 转出版级 Word 在线体验站</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              900: '#0f172a',
+            }
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"PingFang SC"', '"Hiragino Sans GB"', '"Microsoft YaHei"', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 容器轻量滚动条 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    iframe {
+      border: none;
+      background: #525659;
+    }
+    /* 自适应高度多行文本框：彻底杜绝内层滚动条 */
+    textarea.auto-grow {
+      resize: none;
+      overflow-y: hidden;
+      min-height: 40px;
+      transition: height 0.08s ease;
+    }
+  </style>
+</head>
+<body class="bg-[#f8fafc] text-slate-800 antialiased min-h-screen flex flex-col font-sans selection:bg-slate-200">
+
+  <!-- 顶部导航条 -->
+  <header class="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-slate-200/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Logo 与定位 -->
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center text-white shadow-sm font-semibold text-lg">
+          M
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-slate-900 tracking-tight text-lg">md-to-word</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-mono">Playground</span>
+          </div>
+          <p class="text-xs text-slate-500 hidden sm:block" id="subHeaderDesc">确定性 Word 编译引擎 · 真实 1 页出版级排版展示</p>
+        </div>
+      </div>
+
+      <!-- 右侧控制区：双语切换 + GitHub 链接 -->
+      <div class="flex items-center space-x-3">
+        <!-- 中英文双语切换 -->
+        <button id="langToggleBtn" onclick="toggleLanguage()" class="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs">
+          中 / EN
+        </button>
+
+        <!-- GitHub Star 胶囊按钮 -->
+        <a href="https://github.com/ls-open/md-to-word" target="_blank" rel="noopener noreferrer" class="inline-flex items-center space-x-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]">
+          <i data-lucide="github" class="w-3.5 h-3.5"></i>
+          <span>Star on GitHub</span>
+          <span class="text-[10px] bg-slate-700/80 px-1.5 py-0.5 rounded-full text-slate-300 ml-1">15+</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主体工作台 -->
+  <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 flex flex-col gap-6">
+    
+    <!-- 模板选择单选卡片 -->
+    <section class="bg-white rounded-xl border border-slate-200/80 p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-xs font-semibold text-slate-900 flex items-center space-x-1.5">
+          <i data-lucide="layout-template" class="w-4 h-4 text-slate-500"></i>
+          <span id="txtPresetTitle">1. 选择官方出版标准格式规范</span>
+        </h2>
+        <span class="text-[11px] text-slate-400" id="txtPresetHint">所有样式统一精准控制在整整 1 页，无跨页冗余</span>
+      </div>
+
+      <!-- 3 个经典模板卡片 -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="templateCards">
+        <!-- 模板 1：中文学术期刊 -->
+        <div onclick="selectTemplate('zh-journal')" id="card-zh-journal" class="tpl-card active cursor-pointer p-3.5 rounded-lg border-2 border-slate-900 bg-slate-50/70 hover:bg-slate-50 transition-all flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold text-slate-900" id="cardTitle-zh-journal">📰 中文学术期刊</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 font-medium" id="cardBadge-zh-journal">GB/T 学术期刊</span>
+          </div>
+          <p class="text-[11px] text-slate-500 leading-relaxed" id="cardDesc-zh-journal">
+            宋体/Times New Roman · 1.5倍行距 · 首行缩进2字符 · 双线页眉 · 规范三线表
+          </p>
+        </div>
+
+        <!-- 模板 2：现代技术白皮书 -->
+        <div onclick="selectTemplate('zh-report')" id="card-zh-report" class="tpl-card cursor-pointer p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold text-slate-900" id="cardTitle-zh-report">📄 现代技术白皮书</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium" id="cardBadge-zh-report">企业级技术报告</span>
+          </div>
+          <p class="text-[11px] text-slate-500 leading-relaxed" id="cardDesc-zh-report">
+            彩色标题(#1F4E79) · 全网格商务表 · 首行不缩进 · 单线企业页眉 · 极简1页
+          </p>
+        </div>
+
+        <!-- 模板 3：英文学术期刊 -->
+        <div onclick="selectTemplate('en-paper')" id="card-en-paper" class="tpl-card cursor-pointer p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold text-slate-900" id="cardTitle-en-paper">🔬 英文学术期刊</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium" id="cardBadge-en-paper">Nature / IEEE</span>
+          </div>
+          <p class="text-[11px] text-slate-500 leading-relaxed" id="cardDesc-en-paper">
+            Times New Roman · APA 规范 · 居中公式靠右编号 · 规范三线表 · 紧凑1页
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 主体双栏：左侧清爽结构化卡片 + 右侧真实单页 PDF 渲染 -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      
+      <!-- 左栏：结构化内容表单 (5列，优雅分层解耦) -->
+      <section class="lg:col-span-5 bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 flex flex-col h-[860px] overflow-hidden">
+        
+        <!-- 头部：标题与模式切换 (编辑 vs 规范清单) -->
+        <div class="flex items-center justify-between pb-3 mb-2 border-b border-slate-100">
+          <div>
+            <h3 class="text-xs font-semibold text-slate-900 flex items-center space-x-1.5">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5 text-blue-600"></i>
+              <span id="txtFormTitle">2. 自定义文稿内容</span>
+            </h3>
+            <p class="text-[11px] text-slate-400 mt-0.5" id="txtFormHint">修改内容实时编译，右侧角标轻量提示底层排版规则</p>
+          </div>
+
+          <!-- 右侧模式切换与重置 -->
+          <div class="flex items-center space-x-2">
+            <!-- 胶囊切换：编辑模式 vs 规范对账单 -->
+            <div class="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[11px]">
+              <button id="btnTabEdit" onclick="switchLeftTab('edit')" class="px-2 py-0.5 rounded-md font-medium text-slate-900 bg-white shadow-2xs transition-all">
+                <span id="txtTabEdit">编辑</span>
+              </button>
+              <button id="btnTabSpecs" onclick="switchLeftTab('specs')" class="px-2 py-0.5 rounded-md font-medium text-slate-500 hover:text-slate-900 transition-all">
+                <span id="txtTabSpecs">规范清单</span>
+              </button>
+            </div>
+            <button onclick="resetToTemplateDefaults()" class="text-[11px] text-slate-400 hover:text-slate-700 underline" id="btnReset">
+              重置
+            </button>
+          </div>
+        </div>
+
+        <!-- 模式 A：清爽结构化编辑表单区（5 个逻辑卡片，信息层次极其分明） -->
+        <div id="leftTabEditView" class="flex-1 overflow-y-auto space-y-3.5 pr-1.5 text-xs">
+          
+          <!-- 卡片 1：📑 标题与页眉 -->
+          <div class="p-3 rounded-lg border border-slate-200/80 bg-slate-50/50 space-y-2.5">
+            <div class="flex items-center justify-between text-slate-900 font-bold">
+              <span class="flex items-center space-x-1">
+                <span>📑</span>
+                <span id="grpTitleHeader">标题与页眉</span>
+              </span>
+            </div>
+
+            <!-- 文档大标题 -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-700" id="labelTitle">文档大标题:</span>
+                <span id="badgeTitle" class="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">二号黑体 · 居中</span>
+              </div>
+              <input type="text" id="inpDocTitle" class="w-full p-2 bg-white border border-slate-300 rounded font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs">
+            </div>
+
+            <!-- 页眉文字 -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-700" id="labelHeader">页眉文字 (Header):</span>
+                <span id="badgeHeader" class="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">小五 · 双线页眉</span>
+              </div>
+              <input type="text" id="inpHeaderContent" class="w-full p-2 bg-white border border-slate-300 rounded text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs">
+            </div>
+          </div>
+
+          <!-- 卡片 2：📝 摘要与关键词 -->
+          <div class="p-3 rounded-lg border border-slate-200/80 bg-slate-50/50 space-y-2.5">
+            <div class="flex items-center justify-between text-slate-900 font-bold">
+              <span class="flex items-center space-x-1">
+                <span>📝</span>
+                <span id="grpAbstractKeywords">摘要与关键词</span>
+              </span>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-700" id="labelAbstract">摘要内容:</span>
+                <span id="badgeAbstract" class="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">五号宋体 · 缩进2字符</span>
+              </div>
+              <textarea id="inpAbstract" class="auto-grow w-full p-2 bg-white border border-slate-300 rounded text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs leading-relaxed"></textarea>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-700" id="labelKeywords">关键词:</span>
+                <span id="badgeKeywords" class="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">小四 · 两端对齐</span>
+              </div>
+              <input type="text" id="inpKeywords" class="w-full p-1.5 bg-white border border-slate-300 rounded text-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+            </div>
+          </div>
+
+          <!-- 卡片 3：📖 章节正文与公式 -->
+          <div class="p-3 rounded-lg border border-slate-200/80 bg-slate-50/50 space-y-2.5">
+            <div class="flex items-center justify-between text-slate-900 font-bold">
+              <span class="flex items-center space-x-1">
+                <span>📖</span>
+                <span id="grpBodyEquation">章节正文与原生数学公式</span>
+              </span>
+            </div>
+
+            <!-- 章节标题 -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-700" id="labelIntroHeading">章节标题:</span>
+                <span id="badgeIntroHeading" class="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">三号加粗 · 与下段同页</span>
+              </div>
+              <input type="text" id="inpIntroHeading" class="w-full p-1.5 bg-white border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+            </div>
+
+            <!-- 正文段落 -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-700" id="labelIntroBody">正文段落:</span>
+                <span id="badgeBody" class="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">小四宋体 · 1.5倍行距</span>
+              </div>
+              <textarea id="inpIntroBody" class="auto-grow w-full p-2 bg-white border border-slate-300 rounded text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs leading-relaxed"></textarea>
+            </div>
+
+            <!-- 原生数学公式 (LaTeX) -->
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-700" id="labelEquation">原生数学公式 (LaTeX 自动转 OMML):</span>
+                <span id="badgeEquation" class="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">原生矢量 · 靠右编号</span>
+              </div>
+              <textarea id="inpEquation" class="auto-grow w-full p-2 bg-white border border-slate-300 rounded font-mono text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 leading-relaxed"></textarea>
+            </div>
+          </div>
+
+          <!-- 卡片 4：📊 数据表格 -->
+          <div class="p-3 rounded-lg border border-slate-200/80 bg-slate-50/50 space-y-2.5">
+            <div class="flex items-center justify-between text-slate-900 font-bold">
+              <span class="flex items-center space-x-1">
+                <span>📊</span>
+                <span id="grpTable">数据表格与题注</span>
+              </span>
+              <span id="badgeTable" class="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">标准三线表</span>
+            </div>
+
+            <!-- 表题 -->
+            <div class="space-y-1">
+              <span class="text-[11px] font-semibold text-slate-700" id="labelTableCaption">表格题注:</span>
+              <input type="text" id="inpTableCaption" class="w-full p-1.5 bg-white border border-slate-300 rounded text-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+            </div>
+
+            <!-- 表格 Markdown 数据 -->
+            <div class="space-y-1">
+              <span class="text-[11px] font-semibold text-slate-700" id="labelTableContent">表格 Markdown 数据:</span>
+              <textarea id="inpTableContent" class="auto-grow w-full p-2 bg-white border border-slate-300 rounded font-mono text-slate-700 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 leading-relaxed"></textarea>
+            </div>
+
+            <!-- 表注 -->
+            <div class="space-y-1">
+              <span class="text-[11px] font-semibold text-slate-700" id="labelTableNote">表注 (Note):</span>
+              <input type="text" id="inpTableNote" class="w-full p-1.5 bg-white border border-slate-300 rounded text-slate-600 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+            </div>
+          </div>
+
+          <!-- 卡片 5：🎯 结论与参考文献 -->
+          <div class="p-3 rounded-lg border border-slate-200/80 bg-slate-50/50 space-y-2.5">
+            <div class="flex items-center justify-between text-slate-900 font-bold">
+              <span class="flex items-center space-x-1">
+                <span>🎯</span>
+                <span id="grpConclusionReferences">结论与参考文献</span>
+              </span>
+            </div>
+
+            <!-- 结论标题与正文 -->
+            <div class="space-y-1.5">
+              <div class="flex items-center space-x-2">
+                <span class="text-[11px] font-semibold text-slate-700 shrink-0" id="labelConclusionHeading">结论标题:</span>
+                <input type="text" id="inpConclusionHeading" class="flex-1 p-1 bg-white border border-slate-300 rounded text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+              </div>
+              <textarea id="inpConclusionBody" class="auto-grow w-full p-2 bg-white border border-slate-300 rounded text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs leading-relaxed"></textarea>
+            </div>
+
+            <!-- 参考文献 -->
+            <div class="space-y-1 pt-1 border-t border-slate-200/60">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-700" id="labelReferences">参考文献列表:</span>
+                <span id="badgeReferences" class="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">五号 · 悬挂缩进</span>
+              </div>
+              <textarea id="inpReferences" class="auto-grow w-full p-2 bg-white border border-slate-300 rounded text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs leading-relaxed font-mono"></textarea>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 模式 B：13 项出版排版契约参数总览（专门为看规范的用户提供，清晰整洁） -->
+        <div id="leftTabSpecsView" class="hidden flex-1 overflow-y-auto pr-1 text-xs space-y-2">
+          <div class="p-3 bg-slate-50 rounded-lg border border-slate-200/80 mb-2">
+            <span class="font-bold text-slate-900 block mb-0.5" id="txtSpecsIntroTitle">📋 当前模板出版排版契约</span>
+            <span class="text-[11px] text-slate-500" id="txtSpecsIntroDesc">由底模与规则文件严格把关，导出前执行双向门禁对账：</span>
+          </div>
+
+          <div class="space-y-2" id="specsListContainer">
+            <!-- 动态渲染 13 项规格 -->
+          </div>
+        </div>
+
+        <!-- 底部触发编译按钮 -->
+        <div class="pt-3 border-t border-slate-100">
+          <button id="btnCompile" onclick="triggerCompileAndRender()" class="w-full py-2.5 px-4 rounded-lg bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white font-semibold text-xs shadow-sm transition-all flex items-center justify-center space-x-2 cursor-pointer">
+            <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-400 fill-amber-400"></i>
+            <span id="txtBtnCompile">⚡️ 实时排版并刷新右侧预览</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- 右栏：真实 Word/PDF 仿真渲染器 (7列) -->
+      <section class="lg:col-span-7 bg-white rounded-xl border border-slate-200/80 shadow-sm flex flex-col h-[860px] overflow-hidden">
+        
+        <!-- 预览器控制工具栏 -->
+        <div class="px-4 py-2.5 bg-slate-50/80 border-b border-slate-200/80 flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-xs font-semibold text-slate-800 flex items-center space-x-1.5">
+              <i data-lucide="file-check-2" class="w-3.5 h-3.5 text-slate-500"></i>
+              <span id="txtViewerTitle">3. 真实出版级高保真排版视图 (整整 1 页)</span>
+            </span>
+            <span id="compileStatusBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
+              ⚡️ 秒级就绪 (缓存命中)
+            </span>
+          </div>
+
+          <!-- 右侧操作：新窗口打开 + 下载真实 Word -->
+          <div class="flex items-center space-x-2">
+            <button onclick="openPdfInNewWindow()" title="在新窗口中全屏查看 PDF 细节" class="inline-flex items-center space-x-1 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-2xs transition-all cursor-pointer">
+              <i data-lucide="external-link" class="w-3 h-3 text-slate-500"></i>
+              <span class="hidden sm:inline" id="btnFullscreen">全屏查看</span>
+            </button>
+            <button onclick="downloadCurrentDocx()" id="btnDownload" class="inline-flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-sm transition-all cursor-pointer hover:shadow">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span id="txtBtnDownload">下载此 Word (.docx)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 真实 PDF 原生渲染容器 -->
+        <div class="flex-1 bg-[#525659] relative overflow-hidden flex flex-col">
+          <!-- 加载中遮罩 -->
+          <div id="viewerLoadingState" class="absolute inset-0 bg-white/90 backdrop-blur-xs flex flex-col items-center justify-center text-slate-500 space-y-2 z-10 transition-opacity">
+            <div class="w-7 h-7 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div>
+            <span class="text-xs font-medium" id="txtLoadingText">正在调用底层引擎编译并生成真实排版……</span>
+          </div>
+          <!-- 嵌入浏览器原生多页 PDF 查看器，采用 Fit Width 宽度铺满保证清晰度 -->
+          <iframe id="pdfPreviewFrame" class="w-full h-full flex-1" src="about:blank"></iframe>
+        </div>
+
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- 底部开源与引导横幅 -->
+  <footer class="bg-white border-t border-slate-200 py-6 mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-2">
+      <p class="text-xs text-slate-600" id="txtFooter1">
+        本项目 100% 开源免费遵循 MIT 协议 · 由 <strong class="text-slate-900 font-mono">md-to-word</strong> 确定性编译引擎驱动
+      </p>
+      <p class="text-xs text-slate-400" id="txtFooter2">
+        不仅支持在线演示，更推荐在 AI Agent（Claude Code, Cursor, Nature Skills）中作为技能直接自动化调用。
+      </p>
+      <div class="pt-2 flex justify-center space-x-4 text-xs font-medium text-slate-600">
+        <a href="https://github.com/ls-open/md-to-word" target="_blank" class="hover:text-slate-900 underline flex items-center space-x-1">
+          <i data-lucide="star" class="w-3.5 h-3.5 text-amber-500 fill-amber-500"></i>
+          <span id="txtFooterStar">去 GitHub 给我们点个 Star 支持</span>
+        </a>
+        <span>·</span>
+        <a href="https://github.com/ls-open/md-to-word/blob/main/SKILL.md" target="_blank" class="hover:text-slate-900 underline" id="txtFooterSkill">
+          查看 Agent 技能规范 (SKILL.md)
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 交互驱动脚本 -->
+  <script>
+    let currentLang = 'zh';
+    let currentTemplateId = 'zh-journal';
+    let currentLeftTab = 'edit'; // 'edit' | 'specs'
+    let allTemplates = {};
+    let latestPdfBlobUrl = null;
+
+    // 自动判断 API 端点（支持独立域名、GitHub Pages、本地多环境跨域）
+    const API_BASE = (window.location.hostname === '124.220.135.226' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      ? '' 
+      : 'https://124.220.135.226';
+
+    // 自适应调整高度，彻底消灭 textarea 内部滚动条
+    function autoResizeTextarea(el) {
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = (el.scrollHeight + 4) + 'px';
+    }
+
+    function resizeAllTextareas() {
+      document.querySelectorAll('textarea.auto-grow').forEach(el => {
+        autoResizeTextarea(el);
+      });
+    }
+
+    // 切换左栏 Tab：编辑模式 vs 规范清单
+    function switchLeftTab(tab) {
+      currentLeftTab = tab;
+      const btnEdit = document.getElementById('btnTabEdit');
+      const btnSpecs = document.getElementById('btnTabSpecs');
+      const viewEdit = document.getElementById('leftTabEditView');
+      const viewSpecs = document.getElementById('leftTabSpecsView');
+
+      if (tab === 'edit') {
+        btnEdit.className = 'px-2 py-0.5 rounded-md font-medium text-slate-900 bg-white shadow-2xs transition-all';
+        btnSpecs.className = 'px-2 py-0.5 rounded-md font-medium text-slate-500 hover:text-slate-900 transition-all';
+        viewEdit.classList.remove('hidden');
+        viewSpecs.classList.add('hidden');
+        setTimeout(resizeAllTextareas, 20);
+      } else {
+        btnSpecs.className = 'px-2 py-0.5 rounded-md font-medium text-slate-900 bg-white shadow-2xs transition-all';
+        btnEdit.className = 'px-2 py-0.5 rounded-md font-medium text-slate-500 hover:text-slate-900 transition-all';
+        viewSpecs.classList.remove('hidden');
+        viewEdit.classList.add('hidden');
+        renderSpecsList();
+      }
+    }
+
+    // 渲染排版规范清单
+    function renderSpecsList() {
+      const container = document.getElementById('specsListContainer');
+      const tpl = allTemplates[currentTemplateId];
+      if (!tpl || !container) return;
+
+      const isEn = currentLang === 'en';
+      const specs = (isEn ? tpl.specs_en : tpl.specs_zh) || tpl.specs || {};
+
+      let html = '';
+      for (const [key, rule] of Object.entries(specs)) {
+        html += `
+          <div class="p-2.5 rounded-lg border border-slate-200 bg-white shadow-2xs">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-[11px] text-slate-800 font-mono">${key}</span>
+              <span class="text-[9px] font-sans px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">🔒 ${isEn ? 'Locked' : '规范锁定'}</span>
+            </div>
+            <p class="text-[11px] text-slate-600 font-mono leading-relaxed">${rule}</p>
+          </div>
+        `;
+      }
+      container.innerHTML = html;
+    }
+
+    // 初始化
+    window.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+
+      // 绑定所有自适应 textarea 的 input 事件
+      document.querySelectorAll('textarea.auto-grow').forEach(el => {
+        el.addEventListener('input', () => autoResizeTextarea(el));
+      });
+
+      await fetchTemplates();
+      populateFormWithTemplate(currentTemplateId);
+      // 首次加载自动渲染预览
+      await triggerCompileAndRender();
+    });
+
+    // 获取所有模板
+    async function fetchTemplates() {
+      try {
+        const res = await fetch(`${API_BASE}/api/templates`);
+        if (res.ok) {
+          allTemplates = await res.json();
+          renderTemplateCards();
+        }
+      } catch (e) {
+        console.warn('获取模板失败:', e);
+      }
+    }
+
+    // 渲染或更新顶部模板卡片的文本
+    function renderTemplateCards() {
+      const isEn = currentLang === 'en';
+      for (const [tplId, tpl] of Object.entries(allTemplates)) {
+        const titleEl = document.getElementById(`cardTitle-${tplId}`);
+        const badgeEl = document.getElementById(`cardBadge-${tplId}`);
+        const descEl = document.getElementById(`cardDesc-${tplId}`);
+        if (titleEl) titleEl.textContent = isEn ? (tpl.name_en || tpl.name) : tpl.name;
+        if (badgeEl) badgeEl.textContent = isEn ? (tpl.badge_en || tpl.badge) : tpl.badge;
+        if (descEl) descEl.textContent = isEn ? (tpl.desc_en || tpl.desc) : tpl.desc;
+      }
+    }
+
+    // 填充表单与轻量角标
+    function populateFormWithTemplate(tplId) {
+      const tpl = allTemplates[tplId];
+      if (!tpl) return;
+
+      document.getElementById('inpHeaderContent').value = tpl.header_content || '';
+      document.getElementById('inpDocTitle').value = tpl.doc_title || '';
+      document.getElementById('inpAbstract').value = tpl.abstract || '';
+      document.getElementById('inpKeywords').value = tpl.keywords || '';
+      document.getElementById('inpIntroHeading').value = tpl.intro_heading || '';
+      document.getElementById('inpIntroBody').value = tpl.intro_body || '';
+      document.getElementById('inpEquation').value = tpl.equation || '';
+      document.getElementById('inpTableCaption').value = tpl.table_caption || '';
+      document.getElementById('inpTableContent').value = tpl.table_content || '';
+      document.getElementById('inpTableNote').value = tpl.table_note || '';
+      document.getElementById('inpConclusionHeading').value = tpl.conclusion_heading || '';
+      document.getElementById('inpConclusionBody').value = tpl.conclusion_body || '';
+      document.getElementById('inpReferences').value = tpl.references || '';
+
+      // 更新输入框右上角的轻量规格微标（清晰简明，不抢视线）
+      const isEn = currentLang === 'en';
+      if (tplId === 'zh-journal') {
+        document.getElementById('badgeTitle').textContent = isEn ? '22pt Bold · Center' : '二号黑体 · 居中';
+        document.getElementById('badgeHeader').textContent = isEn ? '9pt · Double Rule' : '小五 · 双线页眉';
+        document.getElementById('badgeAbstract').textContent = isEn ? '10.5pt · Indent 2 chars' : '五号宋体 · 缩进2字符';
+        document.getElementById('badgeKeywords').textContent = isEn ? '12pt · Justified' : '小四 · 两端对齐';
+        document.getElementById('badgeIntroHeading').textContent = isEn ? '16pt Bold · Keep next' : '三号加粗 · 与下段同页';
+        document.getElementById('badgeBody').textContent = isEn ? '12pt · 1.5x Spacing' : '小四宋体 · 1.5倍行距';
+        document.getElementById('badgeEquation').textContent = isEn ? 'OMML Vector · Hard Right #' : '原生矢量 · 靠右编号';
+        document.getElementById('badgeTable').textContent = isEn ? 'Three-line Table' : '标准三线表';
+        document.getElementById('badgeReferences').textContent = isEn ? '10.5pt · Hanging 0.5"' : '五号 · 悬挂缩进';
+      } else if (tplId === 'zh-report') {
+        document.getElementById('badgeTitle').textContent = isEn ? '22pt · #1F4E79' : '二号黑体 · 品牌蓝';
+        document.getElementById('badgeHeader').textContent = isEn ? '9pt · Single Rule' : '小五 · 单线页眉';
+        document.getElementById('badgeAbstract').textContent = isEn ? '12pt · 0 Indent' : '小四宋体 · 首行不缩进';
+        document.getElementById('badgeKeywords').textContent = isEn ? '12pt · Justified' : '小四 · 两端对齐';
+        document.getElementById('badgeIntroHeading').textContent = isEn ? '16pt · #1F4E79' : '三号加粗 · 品牌蓝';
+        document.getElementById('badgeBody').textContent = isEn ? '12pt · Space 6pt' : '小四宋体 · 段后6磅';
+        document.getElementById('badgeEquation').textContent = isEn ? 'OMML Vector · Hard Right #' : '原生矢量 · 靠右编号';
+        document.getElementById('badgeTable').textContent = isEn ? 'Full Grid Table' : '全网格商务表';
+        document.getElementById('badgeReferences').textContent = isEn ? '10.5pt · Hanging 0.5"' : '五号 · 悬挂缩进';
+      } else {
+        document.getElementById('badgeTitle').textContent = isEn ? '18pt Bold · Center' : '18pt 加粗 · 居中';
+        document.getElementById('badgeHeader').textContent = isEn ? '9pt · Clean Rule' : '9pt · 英文页眉';
+        document.getElementById('badgeAbstract').textContent = isEn ? '10pt · Justified' : '10pt · 两端对齐';
+        document.getElementById('badgeKeywords').textContent = isEn ? '10pt · Justified' : '10pt · 两端对齐';
+        document.getElementById('badgeIntroHeading').textContent = isEn ? '14pt Bold · Center' : '14pt 加粗 · 居中';
+        document.getElementById('badgeBody').textContent = isEn ? '11pt · 1.3x Spacing' : '11pt · 1.3倍行距';
+        document.getElementById('badgeEquation').textContent = isEn ? 'OMML Vector · Hard Right #' : '原生矢量 · 靠右编号';
+        document.getElementById('badgeTable').textContent = isEn ? 'Three-line Table' : '标准三线表';
+        document.getElementById('badgeReferences').textContent = isEn ? '9pt · APA Style' : '9pt · APA 引用标准';
+      }
+
+      if (currentLeftTab === 'specs') {
+        renderSpecsList();
+      }
+
+      // 自动撑开所有文本域高度
+      setTimeout(resizeAllTextareas, 20);
+    }
+
+    // 切换模板
+    async function selectTemplate(tplId) {
+      currentTemplateId = tplId;
+      document.querySelectorAll('.tpl-card').forEach(c => {
+        c.classList.remove('border-2', 'border-slate-900', 'bg-slate-50/70');
+        c.classList.add('border-slate-200');
+      });
+      const activeCard = document.getElementById(`card-${tplId}`);
+      if (activeCard) {
+        activeCard.classList.remove('border-slate-200');
+        activeCard.classList.add('border-2', 'border-slate-900', 'bg-slate-50/70');
+      }
+
+      populateFormWithTemplate(tplId);
+      await triggerCompileAndRender();
+    }
+
+    // 恢复默认内容
+    function resetToTemplateDefaults() {
+      populateFormWithTemplate(currentTemplateId);
+      triggerCompileAndRender();
+    }
+
+    function openPdfInNewWindow() {
+      if (latestPdfBlobUrl) {
+        window.open(latestPdfBlobUrl, '_blank');
+      } else {
+        alert(currentLang === 'en' ? 'Generating preview, please wait...' : '正在生成预览中，请稍候……');
+      }
+    }
+
+    // 触发编译并在右侧通过 PDF iframe 原生高保真渲染
+    async function triggerCompileAndRender() {
+      const btn = document.getElementById('btnCompile');
+      const loading = document.getElementById('viewerLoadingState');
+      const frame = document.getElementById('pdfPreviewFrame');
+      const statusBadge = document.getElementById('compileStatusBadge');
+
+      btn.disabled = true;
+      btn.classList.add('opacity-70');
+      loading.classList.remove('hidden');
+
+      const formData = new FormData();
+      formData.append('template_id', currentTemplateId);
+      formData.append('header_content', document.getElementById('inpHeaderContent').value);
+      formData.append('doc_title', document.getElementById('inpDocTitle').value);
+      formData.append('abstract', document.getElementById('inpAbstract').value);
+      formData.append('keywords', document.getElementById('inpKeywords').value);
+      formData.append('intro_heading', document.getElementById('inpIntroHeading').value);
+      formData.append('intro_body', document.getElementById('inpIntroBody').value);
+      formData.append('equation', document.getElementById('inpEquation').value);
+      formData.append('table_caption', document.getElementById('inpTableCaption').value);
+      formData.append('table_content', document.getElementById('inpTableContent').value);
+      formData.append('table_note', document.getElementById('inpTableNote').value);
+      formData.append('conclusion_heading', document.getElementById('inpConclusionHeading').value);
+      formData.append('conclusion_body', document.getElementById('inpConclusionBody').value);
+      formData.append('references', document.getElementById('inpReferences').value);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/preview`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (res.ok) {
+          const blob = await res.blob();
+          if (latestPdfBlobUrl) {
+            window.URL.revokeObjectURL(latestPdfBlobUrl);
+          }
+          latestPdfBlobUrl = window.URL.createObjectURL(blob);
+
+          const isCache = res.headers.get('X-Compile-Cache') === 'hit';
+          const elapsedMs = res.headers.get('X-Compile-Elapsed-Ms') || '0';
+          const isEn = currentLang === 'en';
+
+          if (isCache) {
+            statusBadge.textContent = isEn ? '⚡️ Ready (Static Cache Hit)' : '⚡️ 编译就绪 (缓存秒开 · 门禁通过)';
+          } else {
+            statusBadge.textContent = isEn ? `⚡️ Compiled (${elapsedMs}ms)` : `⚡️ 编译完成 (${elapsedMs}ms · 门禁通过)`;
+          }
+          statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium';
+
+          // 使用 #view=FitH 保持适宜宽度，保证整页版式饱满清晰
+          frame.src = latestPdfBlobUrl + '#view=FitH&toolbar=0&navpanes=0';
+        } else {
+          statusBadge.textContent = currentLang === 'en' ? '❌ Compile Error' : '❌ 编译格式不合规或异常';
+          statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-medium';
+          const errData = await res.json().catch(() => ({}));
+          alert((currentLang === 'en' ? 'Compilation Failed: ' : '编译未能成功生成: ') + (errData.detail || (errData.errors || []).join('\n') || '未知原因'));
+        }
+      } catch (e) {
+        alert((currentLang === 'en' ? 'Network error: ' : '编译渲染网络异常: ') + e.message);
+      } finally {
+        loading.classList.add('hidden');
+        btn.disabled = false;
+        btn.classList.remove('opacity-70');
+        lucide.createIcons();
+      }
+    }
+
+    // 下载当前生成的 Word (.docx)
+    async function downloadCurrentDocx() {
+      const btn = document.getElementById('btnDownload');
+      btn.disabled = true;
+      btn.classList.add('opacity-75');
+
+      const formData = new FormData();
+      formData.append('template_id', currentTemplateId);
+      formData.append('header_content', document.getElementById('inpHeaderContent').value);
+      formData.append('doc_title', document.getElementById('inpDocTitle').value);
+      formData.append('abstract', document.getElementById('inpAbstract').value);
+      formData.append('keywords', document.getElementById('inpKeywords').value);
+      formData.append('intro_heading', document.getElementById('inpIntroHeading').value);
+      formData.append('intro_body', document.getElementById('inpIntroBody').value);
+      formData.append('equation', document.getElementById('inpEquation').value);
+      formData.append('table_caption', document.getElementById('inpTableCaption').value);
+      formData.append('table_content', document.getElementById('inpTableContent').value);
+      formData.append('table_note', document.getElementById('inpTableNote').value);
+      formData.append('conclusion_heading', document.getElementById('inpConclusionHeading').value);
+      formData.append('conclusion_body', document.getElementById('inpConclusionBody').value);
+      formData.append('references', document.getElementById('inpReferences').value);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/export`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (res.ok) {
+          const blob = await res.blob();
+          const downloadUrl = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          
+          let filename = 'document.docx';
+          const disposition = res.headers.get('Content-Disposition');
+          if (disposition && disposition.indexOf('filename*=UTF-8\'\'') !== -1) {
+            filename = decodeURIComponent(disposition.split('filename*=UTF-8\'\'')[1]);
+          }
+          
+          a.href = downloadUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(downloadUrl);
+        } else {
+          alert(currentLang === 'en' ? 'Download failed. Please try again later.' : '下载失败，请稍候再试。');
+        }
+      } catch (e) {
+        alert((currentLang === 'en' ? 'Download error: ' : '下载异常: ') + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('opacity-75');
+      }
+    }
+
+    // 双语界面彻底切换
+    async function toggleLanguage() {
+      currentLang = currentLang === 'zh' ? 'en' : 'zh';
+      const isEn = currentLang === 'en';
+
+      document.getElementById('langToggleBtn').textContent = isEn ? 'EN / 中' : '中 / EN';
+      document.getElementById('subHeaderDesc').textContent = isEn ? 'Deterministic Word Compiler · Multi-page Publication Preview' : '确定性 Word 编译引擎 · 真实 1 页出版级排版展示';
+      document.getElementById('txtPresetTitle').textContent = isEn ? '1. Select Publication Preset Specification' : '1. 选择官方出版标准格式规范';
+      document.getElementById('txtPresetHint').textContent = isEn ? 'All presets are strictly budgeted to a neat 1-page layout' : '所有样式统一精准控制在整整 1 页，无跨页冗余';
+      document.getElementById('txtFormTitle').textContent = isEn ? '2. Customize Manuscript Content' : '2. 自定义文稿内容';
+      document.getElementById('txtFormHint').textContent = isEn ? 'Edit content in real-time; badges indicate typographic specs' : '修改内容实时编译，右侧角标轻量提示底层排版规则';
+      document.getElementById('txtTabEdit').textContent = isEn ? 'Editor' : '编辑';
+      document.getElementById('txtTabSpecs').textContent = isEn ? 'Specs' : '规范清单';
+      document.getElementById('btnReset').textContent = isEn ? 'Reset' : '重置';
+      document.getElementById('txtBtnCompile').textContent = isEn ? '⚡️ Compile & Refresh Preview' : '⚡️ 实时排版并刷新右侧预览';
+      document.getElementById('txtViewerTitle').textContent = isEn ? '3. Publication Document View (1 Page)' : '3. 真实出版级高保真排版视图 (整整 1 页)';
+      document.getElementById('btnFullscreen').textContent = isEn ? 'Fullscreen' : '全屏查看';
+      document.getElementById('txtBtnDownload').textContent = isEn ? 'Download Word (.docx)' : '下载此 Word (.docx)';
+      document.getElementById('txtLoadingText').textContent = isEn ? 'Compiling manuscript into publication-grade document...' : '正在调用底层引擎编译并生成真实排版……';
+
+      // 卡片分组标签
+      document.getElementById('grpTitleHeader').textContent = isEn ? 'Title & Running Header' : '标题与页眉';
+      document.getElementById('grpAbstractKeywords').textContent = isEn ? 'Abstract & Keywords' : '摘要与关键词';
+      document.getElementById('grpBodyEquation').textContent = isEn ? 'Section Body & Native Math' : '章节正文与原生数学公式';
+      document.getElementById('grpTable').textContent = isEn ? 'Data Table & Caption' : '数据表格与题注';
+      document.getElementById('grpConclusionReferences').textContent = isEn ? 'Conclusion & References' : '结论与参考文献';
+
+      // 字段标签国际化
+      document.getElementById('labelTitle').textContent = isEn ? 'Document Title:' : '文档大标题:';
+      document.getElementById('labelHeader').textContent = isEn ? 'Running Header:' : '页眉文字 (Header):';
+      document.getElementById('labelAbstract').textContent = isEn ? 'Abstract Body:' : '摘要内容:';
+      document.getElementById('labelKeywords').textContent = isEn ? 'Keywords:' : '关键词:';
+      document.getElementById('labelIntroHeading').textContent = isEn ? 'Section Heading:' : '章节标题:';
+      document.getElementById('labelIntroBody').textContent = isEn ? 'Body Paragraphs:' : '正文段落:';
+      document.getElementById('labelEquation').textContent = isEn ? 'Native Math (LaTeX to OMML):' : '原生数学公式 (LaTeX 自动转 OMML):';
+      document.getElementById('labelTableCaption').textContent = isEn ? 'Table Caption:' : '表格题注:';
+      document.getElementById('labelTableContent').textContent = isEn ? 'Table Markdown Data:' : '表格 Markdown 数据:';
+      document.getElementById('labelTableNote').textContent = isEn ? 'Table Note:' : '表注 (Note):';
+      document.getElementById('labelConclusionHeading').textContent = isEn ? 'Conclusion Heading:' : '结论标题:';
+      document.getElementById('labelReferences').textContent = isEn ? 'References List:' : '参考文献列表:';
+
+      document.getElementById('txtSpecsIntroTitle').textContent = isEn ? '📋 Publication Typographic Contract' : '📋 当前模板出版排版契约';
+      document.getElementById('txtSpecsIntroDesc').textContent = isEn ? 'Strictly enforced by declarative base and quality gates:' : '由底模与规则文件严格把关，导出前执行双向门禁对账：';
+
+      // 页脚国际化
+      document.getElementById('txtFooter1').innerHTML = isEn 
+        ? '100% Open-source & Free under MIT License · Powered by <strong class="text-slate-900 font-mono">md-to-word</strong> compilation engine' 
+        : '本项目 100% 开源免费遵循 MIT 协议 · 由 <strong class="text-slate-900 font-mono">md-to-word</strong> 确定性编译引擎驱动';
+      document.getElementById('txtFooter2').textContent = isEn 
+        ? 'Not only an online playground, but also designed to be called natively by AI Agents (Claude Code, Cursor, Nature Skills).'
+        : '不仅支持在线演示，更推荐在 AI Agent（Claude Code, Cursor, Nature Skills）中作为技能直接自动化调用。';
+      document.getElementById('txtFooterStar').textContent = isEn ? 'Star us on GitHub' : '去 GitHub 给我们点个 Star 支持';
+      document.getElementById('txtFooterSkill').textContent = isEn ? 'Agent Skill Specification (SKILL.md)' : '查看 Agent 技能规范 (SKILL.md)';
+
+      // 刷新顶部卡片文案
+      renderTemplateCards();
+
+      // 核心业务逻辑：若切换为英文，且当前非英文模板，自动切到英文学术期刊；反之切回中文学术期刊
+      if (isEn && currentTemplateId !== 'en-paper') {
+        await selectTemplate('en-paper');
+      } else if (!isEn && currentTemplateId === 'en-paper') {
+        await selectTemplate('zh-journal');
+      } else {
+        populateFormWithTemplate(currentTemplateId);
+      }
+    }
+  </script>
+</body>
+</html>
