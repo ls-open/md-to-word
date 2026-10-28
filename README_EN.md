@@ -28,17 +28,58 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 
 ## Core Usage Concept
 
-There are **only 2 ways to use this tool across 3 entry points**. Whether via an Agent Skill or pip installation, **the AI Agent must first read the specification document before compiling**:
-- **Via Skill**: The AI automatically activates and uses the skill when it recognizes a formatting intent.
-- **Via pip**: You explicitly prompt the AI to read the specification before invoking the command.
+`md-to-word` provides **3 usage methods across 4 entry points**:
+- **As an MCP Server**: Connects natively to AI desktop and IDE environments (Claude Desktop, Cursor, Windsurf, LibreChat). The AI calls compilation and validation tools directly.
+- **As an Agent Skill**: Automatically discovered and activated by agents upon detecting document formatting requests.
+- **Via pip Installation**: For terminal CLI scripts, CI/CD automation, or manual command invocation.
 
 ---
 
-## How to Use: 2 Methods, 3 Entry Points
+## How to Use: 3 Methods, 4 Entry Points
 
-### Method 1: Use as an Agent Skill (Recommended · Autonomous AI Routing)
+### Method 1: Use as an MCP Server (Recommended · Native AI Tool Integration)
 
-#### Entry 1: Install the Skill into Any Agent Supporting the Skills Standard
+Seamlessly attach `md-to-word` to Claude Desktop, Claude Code, Cursor, or any client supporting Anthropic's **Model Context Protocol (MCP)**.
+
+#### Entry 1: Claude Desktop / Cursor (One-Click Setup)
+
+Add the following to your Claude Desktop configuration (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "md-to-word": {
+      "command": "uvx",
+      "args": ["md-to-word-docx[mcp]"]
+    }
+  }
+}
+```
+
+Or run via your local Python environment:
+
+```json
+{
+  "mcpServers": {
+    "md-to-word": {
+      "command": "python3",
+      "args": ["-m", "md_to_word.mcp"]
+    }
+  }
+}
+```
+
+**Capabilities Granted to Your AI**:
+- `compile_markdown`: Compiles raw Markdown strings or local `.md` files directly into `.docx` documents;
+- `validate_manuscript`: Runs preflight validation gates (unclosed math formulas, broken table lines, unresolved CSL citations);
+- `list_presets`: Explores built-in templates (Chinese Academic Journal, Technical Report/Whitepaper, Nature English Paper);
+- `inspect_preset`: Inspects typography specifications (`format.txt`) with complete transparency.
+
+---
+
+### Method 2: Use as an Agent Skill (Autonomous AI Routing)
+
+#### Entry 2: Install the Skill into Any Agent Supporting the Skills Standard
 Works with Claude Code, Codex, Cursor, Windsurf, OpenCode, and general AI agents.
 
 - **Automated CLI Installation (Recommended)**:
@@ -56,7 +97,7 @@ Works with Claude Code, Codex, Cursor, Windsurf, OpenCode, and general AI agents
   > *"Format my manuscript draft (paper.md) into a compliant Word document following IEEE journal standards."*  
   > *"Here are our university thesis formatting requirements (or attached template.docx). Export the draft accordingly."*
 
-#### Entry 2: Direct Use in the Nature Skills Ecosystem
+#### Entry 3: Direct Use in the Nature Skills Ecosystem
 This project is officially integrated as the independent skill [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word) within **Nature Skills (51k+ ★)**.
 
 - **How to Use**:  
@@ -64,9 +105,9 @@ This project is officially integrated as the independent skill [`nature-paper2wo
 
 ---
 
-### Method 2: Use via pip Installation (Drive Your Local Agent)
+### Method 3: Use via pip Installation (Drive Your Local Agent / CLI)
 
-#### Entry 3: Local pip Installation + Prompting the Agent
+#### Entry 4: Local pip Installation + Prompting the Agent
 If you prefer direct Python CLI usage or operate in a local terminal / editor Agent environment:
 
 1. **Install the Compiler**:

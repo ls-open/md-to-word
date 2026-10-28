@@ -48,13 +48,21 @@ Repository = "https://github.com/ls-open/md-to-word"
 Issues = "https://github.com/ls-open/md-to-word/issues"
 
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.0.0",
+]
 test = [
+    "pytest>=7.0",
+]
+all = [
+    "mcp>=1.0.0",
     "pytest>=7.0",
 ]
 
 [project.scripts]
 md-to-word = "md_to_word.cli:main"
 md-to-word-template = "md_to_word.template.extractor:main"
+md-to-word-mcp = "md_to_word.mcp.server:main"
 
 [tool.setuptools.dynamic]
 version = { attr = "md_to_word.__version__" }

@@ -28,17 +28,58 @@
 
 ## 核心使用认知
 
-本项目**本质上有两种使用方法，3 个入口**。无论通过 Skill 还是 pip 安装，**本质上都是让 AI（Agent）先阅读排版规范与契约文档，再执行排版**：
-- **通过 Skill 使用**：AI 会在检测到排版意图时，**自动在后台激活并使用**该技能；
-- **通过 pip 使用**：由你**在对话中明确提醒 AI 先阅读规范再调用工具**。
+本项目提供**三种使用方法，4 个入口**：
+- **作为 MCP Server 使用**：挂载为 AI 原生工具（Claude Desktop、Cursor 等），无需手写 CLI 命令，AI 自主调用编译与校验；
+- **通过 Skill 技能使用**：AI 会在检测到排版意图时，**自动在后台激活并使用**该技能；
+- **通过 pip 安装使用**：适合终端 CLI 脚本自动化，或由你在对话中直接调用命令行。
 
 ---
 
-## 怎么使用：两种方法，3 个入口
+## 怎么使用：三种方法，4 个入口
 
-### 方法一：通过 Skill 技能使用（推荐 · AI 自主感知与调用）
+### 方法一：作为 MCP Server 使用（主流 AI 客户端一键挂载 · 原生工具调用）
 
-#### 入口 1：在支持 Skill 规范的 Agent 中引入本仓库技能
+通过标准 **Model Context Protocol (MCP)** 协议，将 `md-to-word` 直接接入你的桌面端或编辑器 AI（Claude Desktop、Claude Code、Cursor、Windsurf 等）：
+
+#### 入口 1：Claude Desktop / Cursor (一键配置)
+
+在你的 Claude Desktop 配置文件（`claude_desktop_config.json`）中添加：
+
+```json
+{
+  "mcpServers": {
+    "md-to-word": {
+      "command": "uvx",
+      "args": ["md-to-word-docx[mcp]"]
+    }
+  }
+}
+```
+
+或者使用本地 Python 环境直接启动：
+
+```json
+{
+  "mcpServers": {
+    "md-to-word": {
+      "command": "python3",
+      "args": ["-m", "md_to_word.mcp"]
+    }
+  }
+}
+```
+
+**AI 自动获得的能力**：
+- `compile_markdown`：将输入的 Markdown（文本内容或文件路径）直接编译为高质量 `.docx`；
+- `validate_manuscript`：在生成前预检语法与排版契约（公式闭合、三线表外框、未解析引文）；
+- `list_presets`：按需选择中文核心期刊、白皮书或 Nature 顶级英文规范；
+- `inspect_preset`：透明查验各预设的字体、行距与排版规则。
+
+---
+
+### 方法二：通过 Skill 技能使用（推荐 · AI 自主感知与调用）
+
+#### 入口 2：在支持 Skill 规范的 Agent 中引入本仓库技能
 适用于 Claude Code、Codex、Cursor、Windsurf、通用智能体等环境。
 
 - **CLI 自动化挂载（推荐）**：
@@ -56,7 +97,7 @@
   > “*帮我把这篇论文草稿（paper.md）按照 IEEE 期刊格式排版为规范的 Word 文档。*”  
   > “*这是我们学校的学位论文格式要求（或附件中的模板.docx），帮我把稿件排版导出。*”
 
-#### 入口 2：在 Nature Skills 生态中直接使用
+#### 入口 3：在 Nature Skills 生态中直接使用
 本项目已作为官方独立技能 [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word) 正式合并入 **Nature Skills（51k+ ★）** 官方生态中。
 
 - **使用方式**：  
@@ -64,9 +105,9 @@
 
 ---
 
-### 方法二：通过 pip 安装使用（由你主动驱动本地 Agent）
+### 方法三：通过 pip 安装使用（由你主动驱动本地 Agent / CLI）
 
-#### 入口 3：本地 pip 安装 + 提示词唤起 Agent
+#### 入口 4：本地 pip 安装 + 提示词唤起 Agent
 如果你的环境倾向于直接通过 Python 命令行调用，或者是在本地配合 Claude Code / Cursor Agent / 终端 AI 助手执行：
 
 1. **安装底层编译器**：
