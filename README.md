@@ -7,22 +7,30 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-[English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | 简体中文 | [🌐 在线演示站 (Playground 免安装体验)](http://124.220.135.226)
+[English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | **简体中文** | [在线演示站 (Playground)](http://124.220.135.226)
 
-把 Markdown 编译成符合规范的 Word（`.docx`）。专为学术论文、学位论文、技术报告、公文打造，**也是面向 AI Agent 设计的确定性 Word 编译底座**。
+把 Markdown 确定性编译为出版级规范 Word（`.docx`）。专为学术期刊、技术报告、学位论文、公文打造，**也是面向 AI Agent 设计的确定性排版与出版交付底座**。
 
-大模型直接编写 `python-docx` 脚本极易产生格式幻觉、表格跨页跑偏或样式走样；而 `md-to-word` 采用严格契约、声明式格式文件与带精确行号的导前门禁——同一份源任何时候重跑产物逐字节一致，格式没写全或语法写错在导出前直接指出第几行，让 Agent 具备真正的自愈修复与规范排版交付能力。
-
-[![最小样例的产物](https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png)](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx)
-
-*上图由 [`demo/00_quickstart`](https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/) 导出：中文首行缩进两字符、西文 Times New Roman、三线表带表题表注——没有一步是在 Word 里点的。*
+> 🌐 **零门槛免安装试玩**：[点击访问在线体验站 (Web Playground)](http://124.220.135.226)，实时编辑内容，在线验证公式、三线表、页眉与出版规范，秒级下载成品 `.docx`。
 
 ---
 
-> 💡 **核心使用认知**  
-> 本项目**本质上只有两种使用方法，3 个入口**。无论通过 Skill 还是 pip 安装，**本质上都是让 AI（Agent）先阅读排版规范与契约文档，再执行排版**：
-> - **通过 Skill 使用**：AI 会在检测到排版意图时，**自动在后台激活并使用**该技能；
-> - **通过 pip 使用**：由你**在对话中明确提醒 AI 先阅读规范再调用工具**。
+### 为什么需要 md-to-word？
+
+大模型直接编写 `python-docx` 脚本极易产生格式漂移、表格断裂或样式幻觉；而通用工具（如 Pandoc）改动细节需深入修改复杂底模与后处理过滤器。
+
+`md-to-word` 采用**声明式排版契约**与**带精确行号的双向质量门禁**：
+- **逐字节一致**：同一份源文件在任何操作系统重编译，产物二进制完全一致；
+- **自愈门禁**：格式没写全或语法错误，导出前精准指示行号并提供自愈指引，让 AI Agent 具备自主调试闭环能力；
+- **出版级排版**：原生 OMML 矢量数学公式（双击可编辑、自动居中、编号靠右）、跨页自动重复表头三线表、双线/单线页眉、中西文字体分离。
+
+---
+
+## 核心使用认知
+
+本项目**本质上有两种使用方法，3 个入口**。无论通过 Skill 还是 pip 安装，**本质上都是让 AI（Agent）先阅读排版规范与契约文档，再执行排版**：
+- **通过 Skill 使用**：AI 会在检测到排版意图时，**自动在后台激活并使用**该技能；
+- **通过 pip 使用**：由你**在对话中明确提醒 AI 先阅读规范再调用工具**。
 
 ---
 
@@ -33,26 +41,26 @@
 #### 入口 1：在支持 Skill 规范的 Agent 中引入本仓库技能
 适用于 Claude Code、Codex、Cursor、Windsurf、通用智能体等环境。
 
-- **CLI 自动化安装（推荐）**：
+- **CLI 自动化挂载（推荐）**：
   ```bash
   npx skills add ls-open/md-to-word
   ```
   *(基于通用 Agent Skills 规范，自动识别本仓库根目录的 `SKILL.md` 并完成挂载)*
 
-- **手动导入技能文件**：
+- **手动导入技能文件**：  
   将仓库根目录的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) 复制到你项目的 Agent 规则/技能目录中（如 `.claude/skills/` 或 `.cursor/rules/`）；或者在对话式 Agent 中直接把它的 Raw 链接提供给 AI：  
   `https://raw.githubusercontent.com/ls-open/md-to-word/main/SKILL.md`
 
-- **日常怎么用（自然语言对齐）**：  
-  配置完成后，无需记忆任何命令参数，直接向 AI 提出排版需求即可。AI 会自主命中该技能并处理：
+- **日常使用（自然语言对齐）**：  
+  配置完成后无需记忆任何命令参数，直接向 AI 提出排版需求即可，AI 会自主命中该技能并处理：
   > “*帮我把这篇论文草稿（paper.md）按照 IEEE 期刊格式排版为规范的 Word 文档。*”  
   > “*这是我们学校的学位论文格式要求（或附件中的模板.docx），帮我把稿件排版导出。*”
 
 #### 入口 2：在 Nature Skills 生态中直接使用
 本项目已作为官方独立技能 [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word) 正式合并入 **Nature Skills（51k+ ★）** 官方生态中。
 
-- **怎么用**：  
-  在已安装 Nature Skills 的环境中，**无需重复安装**，直接输入指令呼叫 `$nature-paper2word`，或在全流程论文写作完成后的最终交付阶段直接让 AI 编译出符合规范的 Word 文件。
+- **使用方式**：  
+  在已安装 Nature Skills 的环境中**无需重复安装**，直接输入指令呼叫 `$nature-paper2word`，或在全流程论文写作完成后的最终交付阶段直接让 AI 编译出符合规范的 Word 文件。
 
 ---
 
@@ -74,7 +82,7 @@
    > “我已经安装了 `md-to-word-docx` 命令行工具。请你先运行 `md-to-word --guide` 阅读其排版规范与契约要求，然后帮我把当前目录下的稿件按规范导出为 Word（如果手头有目标 Word 模板，请先用 `md-to-word-template` 反推格式要求）。”
 
 3. **AI 在后台的自主执行闭环**：
-   - **读规范**：运行 `md-to-word --guide`（或 `--contract`），立刻获知样式的封闭词表与 Markdown 书写契约；
+   - **读规范**：运行 `md-to-word --guide`（或 `--contract`），获知样式的封闭词表与 Markdown 书写契约；
    - **定格式**：根据需求生成或调整 `format.txt`，或从已有模板反推；
    - **调编译**：运行 `md-to-word 稿件.md -r format.txt -o 稿件.docx --json`；
    - **读门禁自愈**：如遇导前预检拦截，根据返回的精确行号自动修改稿件并重跑，直至返回码为 `0` 交付最终文档。
@@ -107,23 +115,23 @@
 
 以下样例均由真实编译流程生成，页图由生成的 PDF 真实渲染，非效果图：
 
-| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png" width="250"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/01_chinese_thesis/thesis_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/01_chinese_thesis/page-1.png" width="250"></a> |
+| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png" width="240"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/01_chinese_thesis/thesis_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/01_chinese_thesis/page-1.png" width="240"></a> |
 |:--:|:--:|
-| **最小样例** · 一页纸，从稿件到成品的最短路径 | **中文学位论文** · 目录域、分节页码、按章编号、双线章名页眉 |
-| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/02_modern_report/report_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/02_modern_report/page-1.png" width="250"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/03_english_paper/paper.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/03_english_paper/page-1.png" width="250"></a> |
-| **技术白皮书** · 全网格表、引用块、彩色一级标题 | **英文期刊投稿** · APA 作者-年份制、`Equation 1` 交叉引用 |
+| **最小起步样例** · 一页纸，从稿件到成品的最短路径 | **中文学位论文** · 目录域、分节页码、按章编号、双线章名页眉 |
+| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/02_modern_report/report_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/02_modern_report/page-1.png" width="240"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/03_english_paper/paper.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/03_english_paper/page-1.png" width="240"></a> |
+| **现代技术白皮书** · 全网格表、引用块、彩色一级标题 | **英文期刊投稿** · APA 作者-年份制、`Equation 1` 交叉引用 |
 
 ---
 
 ## 手上有现成的 Word 模板？
 
-学校、期刊或单位下发的 `.docx` 模板不必逐条手工抄写。使用包内内置的模板反推器：
+学校、期刊或单位下发的 `.docx` 模板不必逐条手工抄写。使用内置的模板反推器：
 
 ```bash
 md-to-word-template 学校模板.docx -o format.txt
 ```
 
-反推器会自动解析页面尺寸、页边距、页眉页脚距边界、页码样式与起始、各级样式的中西文字体、字号、加粗倾斜、行距（倍数/固定值）、段前段后、字符缩进、表格边框及表头行。**未能完全判定的项会自动生成待确认清单**，不假装解析成功。
+反推器会自动解析页面尺寸、页边距、页眉页脚距边界、页码样式与起始、各级样式的中西文字体、字号、加粗倾斜、行距（倍数/固定值）、段前段后、字符缩进、表格边框及表头行。**未能完全判定的项会自动生成待确认清单**，严谨可靠。
 
 ---
 
@@ -173,7 +181,7 @@ md-to-word-template 学校模板.docx -o format.txt
 
 ---
 
-## 协同生态与推荐
+## 协同生态与收录
 
 本项目专注下游的高质量确定性排版与出版交付，前期的文献调研、开题构思与论文写作推荐配合以下学术 Agent 框架：
 

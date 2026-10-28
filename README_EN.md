@@ -7,22 +7,30 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-English | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md) | [🌐 Web Playground (No-Install Demo)](http://124.220.135.226)
+**English** | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md) | [Web Playground](http://124.220.135.226)
 
-Compile Markdown into a Word (`.docx`) document that matches a declared format. Designed for academic papers, theses, technical reports, and official documents — **and built as a deterministic Word compilation engine for AI Agents**.
+Compile Markdown into publication-grade Word (`.docx`) documents matching strict formatting specifications. Designed for academic papers, theses, technical reports, and official publications — **and built as a deterministic Word compilation engine for AI Agents**.
 
-Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hallucinations, table drifts across page breaks, and styling inconsistencies. `md-to-word` uses strict contracts, declarative format files, and pre-export quality gates with exact line numbers. The same source always produces a byte-identical document on every run. Any missing formatting or invalid syntax stops the export before writing a file and reports the exact line number, enabling AI Agents to achieve true self-healing document compilation.
-
-[![Output of the English demo](https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/03_english_paper/page-1.png)](https://github.com/ls-open/md-to-word/blob/main/demo/03_english_paper/paper.docx)
-
-*Exported from [`demo/03_english_paper`](https://github.com/ls-open/md-to-word/blob/main/demo/03_english_paper/): APA author-date citations from a `.bib`, a centred equation with its number set hard right, a three-line table with note above and below the rule — nothing was clicked in Word.*
+> 🌐 **Try it Online (No Installation Needed)**: [Launch the Web Playground](http://124.220.135.226) to edit live manuscripts, inspect native formulas, three-line tables, running headers, and download publication `.docx` outputs in seconds.
 
 ---
 
-> 💡 **Core Usage Concept**  
-> In essence, there are **only 2 ways to use this tool across 3 entry points**. Whether via an Agent Skill or pip installation, **the AI Agent must first read the specification document before compiling**:
-> - **Via Skill**: The AI automatically activates and uses the skill when it recognizes a formatting intent.
-> - **Via pip**: You explicitly prompt the AI to read the specification before invoking the command.
+### Why md-to-word?
+
+Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hallucinations, table drifts across page breaks, and styling inconsistencies. Tools like Pandoc require wrestling with complex internal XML templates and brittle post-filters for fine adjustments.
+
+`md-to-word` uses a **declarative typographic contract** and **bidirectional quality gates with exact line numbers**:
+- **Byte-Identical Reproducibility**: The same Markdown source always yields identical document binaries across different machines.
+- **Autonomous Self-Healing**: Missing formats or invalid syntax are caught before writing the file with exact line numbers and guidance, enabling AI Agents to auto-debug and self-heal.
+- **Publication-Grade Typography**: Native OMML math formulas (vector, double-click editable, centered with numbering hard right), three-line tables with repeating headers across page breaks, and double/single-rule running headers.
+
+---
+
+## Core Usage Concept
+
+There are **only 2 ways to use this tool across 3 entry points**. Whether via an Agent Skill or pip installation, **the AI Agent must first read the specification document before compiling**:
+- **Via Skill**: The AI automatically activates and uses the skill when it recognizes a formatting intent.
+- **Via pip**: You explicitly prompt the AI to read the specification before invoking the command.
 
 ---
 
@@ -43,7 +51,7 @@ Works with Claude Code, Codex, Cursor, Windsurf, OpenCode, and general AI agents
   Copy [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) from the repository root into your project's rules or skills directory (e.g. `.claude/skills/` or `.cursor/rules/`), or feed its raw URL directly to conversational agents:  
   `https://raw.githubusercontent.com/ls-open/md-to-word/main/SKILL.md`
 
-- **How to Use (Natural Language)**:  
+- **Natural Language Usage**:  
   No need to memorize CLI flags. Prompt your AI directly:
   > *"Format my manuscript draft (paper.md) into a compliant Word document following IEEE journal standards."*  
   > *"Here are our university thesis formatting requirements (or attached template.docx). Export the draft accordingly."*
@@ -58,41 +66,41 @@ This project is officially integrated as the independent skill [`nature-paper2wo
 
 ### Method 2: Use via pip Installation (Drive Your Local Agent)
 
-#### Entry 3: Local pip Install + Prompting Your Local Agent
-If you prefer running via local Python tools, or are using local agentic coding assistants (Cursor Agent, Claude Code, terminal AI):
+#### Entry 3: Local pip Installation + Prompting the Agent
+If you prefer direct Python CLI usage or operate in a local terminal / editor Agent environment:
 
-1. **Install the compiler engine**:
+1. **Install the Compiler**:
    ```bash
    pip install md-to-word-docx
    ```
-   *(Note: The PyPI distribution carries a `-docx` suffix to avoid name collisions; the installed command is `md-to-word`. In isolated environments use `pipx install md-to-word-docx`; upgrade via `pip install -U md-to-word-docx`)*
+   *(Note: The PyPI package name is `md-to-word-docx`, while the installed command remains `md-to-word`. Use `pipx install md-to-word-docx` for isolated environments, and update via `pip install -U md-to-word-docx`)*
 
-2. **Core Mechanism & Prompting the AI**:  
-   The package bundles a complete guide identical to `SKILL.md`. When interacting with an Agent, **the key is to direct the AI to read the guide first**:
+2. **Core Principle & Prompting AI**:  
+   The package includes a comprehensive guide identical to `SKILL.md`. When interacting with an Agent, **prompt it to read the guide first**:
 
-   > 💬 **Standard Prompt for Agents (Copy & Paste):**  
-   > "I have installed the `md-to-word-docx` CLI tool. Please run `md-to-word --guide` first to read the typography specifications and input contracts, then export the manuscript in this directory to a compliant Word document (if an existing target `.docx` template is available, run `md-to-word-template` first to reverse-engineer the formatting rules)."
+   > 💬 **Standard Prompt Template (Ready to copy):**  
+   > "I have installed `md-to-word-docx`. Please first run `md-to-word --guide` to understand its formatting rules and contracts, then help me format the manuscript in this directory into a compliant Word document (if a template Word file is available, run `md-to-word-template` first to deduce formatting requirements)."
 
-3. **Autonomous Loop Executed by the Agent**:
-   - **Reads Specs**: Runs `md-to-word --guide` (or `--contract`) to learn the vocabulary and markdown contracts;
-   - **Defines Typography**: Generates `format.txt` or extracts rules from an existing `.docx` template;
-   - **Compiles**: Runs `md-to-word manuscript.md -r format.txt -o manuscript.docx --json`;
-   - **Self-Healing on Errors**: If quality gates block compilation, the agent inspects the exact line numbers reported, fixes the manuscript, and re-exports until exit code `0`.
+3. **Autonomous AI Execution Loop**:
+   - **Read specs**: Runs `md-to-word --guide` (or `--contract`) to understand closed vocabulary and Markdown contracts.
+   - **Define rules**: Generates or adjusts `format.txt`, or deduces from an existing `.docx` template.
+   - **Compile**: Runs `md-to-word manuscript.md -r format.txt -o manuscript.docx --json`.
+   - **Self-heal**: If intercepted by preflight gates, fixes issues automatically based on reported line numbers until exit code is `0`.
 
 ---
 
-### For Developers & Automated Pipelines (Optional)
+### For Developers and Automated Pipelines (Optional)
 
-If you need direct programmatic or script-based invocation:
+If you need to call the engine directly in scripts or CI/CD pipelines:
 
-- **Run directly via CLI**:
+- **CLI Usage**:
   ```bash
-  # Initialize minimal demo
+  # Initialize minimal sample
   md-to-word init
-  # Export with format specification
-  md-to-word manuscript.md -r format.txt -o manuscript.docx
+  # Compile with specific rule file
+  md-to-word manuscript.md -r format.txt -o output.docx
   ```
-- **Call via Python API**:
+- **Python API**:
   ```python
   from md_to_word import export
 
@@ -103,87 +111,75 @@ If you need direct programmatic or script-based invocation:
 
 ---
 
-## Samples
+## Gallery
 
-All samples below are produced by real compilation runs and rendered from exported PDFs (not mockups):
+Generated through the genuine compilation pipeline; page snapshots rendered from actual PDF exports:
 
-| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png" width="250"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/01_chinese_thesis/thesis_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/01_chinese_thesis/page-1.png" width="250"></a> |
+| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/00_quickstart/hello.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/00_quickstart/page-1.png" width="240"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/01_chinese_thesis/thesis_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/01_chinese_thesis/page-1.png" width="240"></a> |
 |:--:|:--:|
-| **Minimal Demo** · One page, shortest path from draft to final document | **Chinese University Thesis** · TOC field, per-section page numbers, chapter-numbered equations, double-line headers |
-| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/02_modern_report/report_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/02_modern_report/page-1.png" width="250"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/03_english_paper/paper.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/03_english_paper/page-1.png" width="250"></a> |
-| **White Paper / Report** · Grid tables, blockquotes, colored level-1 headings | **English Journal Paper** · APA author-date system, `Equation 1` cross-references |
+| **Minimal Quickstart** · Single page, shortest path from draft to Word | **Academic Thesis** · TOC field, sectional pagination, double-rule header |
+| <a href="https://github.com/ls-open/md-to-word/blob/main/demo/02_modern_report/report_sample.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/02_modern_report/page-1.png" width="240"></a> | <a href="https://github.com/ls-open/md-to-word/blob/main/demo/03_english_paper/paper.docx"><img src="https://raw.githubusercontent.com/ls-open/md-to-word/main/demo/03_english_paper/page-1.png" width="240"></a> |
+| **Technical White Paper** · Full grid table, blockquotes, color headings | **English Journal** · APA author-date citation, `Equation 1` cross-refs |
 
 ---
 
-## Have an Existing Word Template?
+## Reverse-Engineered from Existing Word Templates?
 
-Target `.docx` templates issued by schools or journals do not need to be manually transcribed rule-by-rule. Use the built-in extractor:
+No need to transcribe guidelines manually from `.docx` files issued by publishers or universities. Use the built-in deduction tool:
 
 ```bash
-md-to-word-template target_template.docx -o format.txt
+md-to-word-template university_template.docx -o format.txt
 ```
 
-The extractor automatically infers paper dimensions, margins, header/footer offsets, page number formatting, font families, font sizes, weights, line spacing, paragraph spacing, indents, table borders, and header repetition. **Items that cannot be determined with full confidence are listed in a "to-confirm" checklist** rather than guessed.
+It automatically extracts page dimensions, margins, header/footer spacing, pagination, fonts, sizes, line spacing, paragraph before/after spacing, indentations, and table borders into a clean `format.txt`.
 
 ---
 
-## Capabilities Overview
+## Typography Capabilities
 
-- **Page & Body Typography**: Paper size, margins, gutter, grid alignment, multi-language fonts, font sizes, line spacing, indentation, paragraph spacing, alignments, colors.
-- **Headings & Headers/Footers**: 6 heading levels, different first page, odd/even page headers, multi-sectioning, page numbering formats, `{Page}`, `{TotalPages}`, and `{StyleHeading}` fields.
-- **Tables**: Three-line tables, full grid lines, top/bottom borders, borderless tables, line weights, repeating table headers across page breaks, vertical & horizontal cell alignments, relative column widths.
-- **Equations**: Native OMML equation objects (editable in Word, never rasterized images or literal code), centered, right-aligned numbering, per-chapter numbering, `@eq-` cross-referencing.
-- **Figures & Captions**: Image widths clamped to printable page width, keep-with-next caption binding to avoid orphans, native support for vector PDF figures (automatically rasterized at 300 dpi on export).
-- **Bibliographies**: `.bib` + CSL engine, 29 built-in styles (APA, Nature, IEEE, GB/T 7714, Vancouver, etc.), support for custom CSL files.
-- **Inline Formatting**: Bold, italic, strikethrough, underline, superscript, subscript, code, inline math, links, footnotes.
-- **Structural Markers**: TOC field `{{< toc >}}`, section breaks with restarted page numbers `{{< section >}}`, page breaks `{{< pagebreak >}}`.
-- **Quality Gates**: Pre-flight verification (contract, style names, citation database existence), post-export count checks, line-by-line reconciliation.
-- **Pure Python Local Export**: Pipeline runs entirely inside Python; no background Office, WPS, or Pandoc processes required.
+- **Page & Prose**: Paper size, margins, gutters, document grid, Chinese/Western fonts, sizes, line spacing, indents, paragraph spacing, alignments, colors.
+- **Headings & Headers/Footers**: 6 heading levels, odd/even/first-page distinctions, sectional pagination, `{page}` `{numpages}` `{title}` fields.
+- **Tables**: Three-line tables, full grid, top/bottom rules, custom borders, repeating header rows, vertical/horizontal alignment, column width ratios.
+- **Equations**: Native OMML equation objects (double-click editable in Word, never bitmapped), centered, right-aligned numbering, chapter numbering, `@eq-` cross-references.
+- **Figures & Captions**: Width clamped to body margins, keep-with-next binding to avoid orphan captions, native vector PDF image support (auto-rasterized to 300 dpi on export).
+- **Citations & Bibliography**: `.bib` + CSL system with 29 built-in standard styles (GB/T 7714, APA, Nature, IEEE), custom CSL support.
+- **Inline Formatting**: Bold, italic, strikethrough, underline, sub/superscript, inline code, inline math, hyperlinks, footnotes.
+- **Structure**: Native TOC fields `{{< toc >}}`, section breaks `{{< section >}}`, page breaks `{{< pagebreak >}}`.
+- **Quality Gates**: Preflight syntactic and citation validation, post-export integrity checks, granular style accounting.
+- **Pure Python**: Fully self-contained pipeline; zero dependency on Microsoft Word, WPS, or Pandoc.
 
-See the [Manual](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md) for full vocabulary and constraints.
+Refer to the [User Manual](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md) for full boundaries and vocabulary.
 
 ---
 
-## Common Syntax Cheat Sheet
+## Syntax Cheat Sheet
 
-| Element | Syntax | Description |
+| Element | Syntax | Note |
 |:--|:--|:--|
-| **Headings** | `# Introduction`, `## 2.1 Methods` | One `#` per level; consecutive and unskipped |
-| **Paragraph Style** | `%% Abstract This study presents...` | Paragraph begins with `%% StyleName`; one line is one paragraph |
-| **Soft Break** | End line with `\` or two spaces | Line break within the same paragraph |
-| **Numbered Equation** | `$$E=mc^2$$ {#eq-mass}` | On its own line; cross-referenced with `@eq-mass` |
-| **Citations** | `[@smith2024]` or `@smith2024` | Declare `bibliography: refs.bib` in YAML |
-| **Figures & Captions** | `![](figures/arch.png){width=13cm}`<br>`%% Image Caption Figure 1 System Architecture` | Caption immediately follows image; bound to same page |
-| **Tables & Captions** | Above: `%% Table Caption **Table 1** Benchmark`<br>`\| A \| B \|`<br>Below: `%% Table Note Note: ...` | Standard markdown table; automatic rules & header repeat |
-| **TOC Field** | Standalone line `{{< toc >}}` | Emits a native Word TOC field |
-| **Section Break** | `{{< section page_number=lowerRoman start=1 >}}` | Closes previous section, begins new section with restarted page number |
-| **Page Break** | Standalone line `{{< pagebreak >}}` | Inserts a hard page break |
+| **Headings** | `# Heading 1`, `## Heading 2` | Each `#` denotes level; do not skip levels |
+| **Paragraph Style** | `%% Abstract Text here...` | Prefix line with `%% styleName`; one line per paragraph |
+| **Soft Line Break** | End line with `\` or two spaces | For addresses, poems, long titles |
+| **Numbered Equation** | `$$E=mc^2$$ {#eq-mass}` | Standalone line; referenced via `@eq-mass` |
+| **Citation** | `[@smith2024]` | Declare `bibliography: refs.bib` in YAML |
+| **Figure & Caption** | `![](figures/arch.png){width=13cm}`<br>`%% Figure Caption Fig. 1 Architecture` | Placed on consecutive lines; bound together |
+| **Table & Caption** | Before table: `%% Table Caption **Table 1** Benchmark`<br>`\| A \| B \|`<br>After: `%% Table Note Note: ...` | Standard Markdown table with automatic rule borders |
+| **TOC Field** | Standalone `{{< toc >}}` | Generates native Word TOC field |
+| **Section & Paging** | `{{< section page_number=lowerRoman start=1 >}}` | Breaks section and restarts page numbering |
+| **Page Break** | Standalone `{{< pagebreak >}}` | Inserts page break |
 
 ---
 
-## Comparison with Other Solutions
+## Ecosystem & Listed In
 
-| Dimension | Pandoc / Quarto | Typical Markdown→Word Libraries | md-to-word |
-|:--|:--|:--|:--|
-| **Rule Declaration** | CLI arguments + reference `.docx`; modifying details requires editing OOXML | Hardcoded in Python scripts, or limited to few presets | Plain-text `format.txt` alongside manuscript; tracked in Git |
-| **Equations** | Requires extra post-processing scripts for right-aligned numbers | Often converted to images or plain text | Native OMML equation objects, centered with right-aligned numbering |
-| **Sections & Headers** | Requires manual template editing and field insertion | Generally unsupported | Direct declarative syntax (e.g. Roman numerals in front matter, Arabic in body) |
-| **Error Handling** | Silent formatting bugs or broken layouts | Python exceptions or silent errors | Strict pre-flight gates reporting **exact line numbers** |
-| **AI Agent Friendliness**| Difficult to control formatting via prompts | Generates hallucinated and inconsistent scripts | **Designed for Agents**: Read Guide -> Call CLI -> Self-Heal on line errors |
+Focused on deterministic downstream compilation and publication delivery. Recommended to pair with upstream research frameworks:
 
----
-
-## Ecosystem & Recommendations
-
-This project focuses on downstream deterministic compilation and publication delivery. For upstream topic selection, literature review, and academic drafting, we recommend pairing with:
-
-- **[Nature Skills](https://github.com/Yuan1z0825/nature-skills) (51k+ ★)**: Top-tier academic writing agent skill suite. This project is officially merged as the built-in skill [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word), powering the final compliant Word compilation stage. Invoke with `$nature-paper2word` within Nature Skills.
-- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills) (51k+ ★)**: A 5-stage academic research and writing framework. Listed in the official third-party catalog to handle Stage 5 (FINALIZE) docx compilation.
-- **[Chinese Independent Developers](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)**: Featured in the programmer edition of curated independent projects.
+- **[Nature Skills](https://github.com/Yuan1z0825/nature-skills) (51k+ ★)**: Top-tier academic research and writing agent toolkit. Officially integrated as [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word) to deliver publication-compliant Word documents in the final stage.
+- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills) (51k+ ★)**: 5-stage research framework. Listed in the official ecosystem, directly compiling Stage 5 (FINALIZE) Markdown and `.bib` outputs into Word.
+- **[Chinese Independent Developer](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)**: Featured in the developer showcase.
 
 ---
 
 ## License
 
-Source code is released under the [MIT License](https://github.com/ls-open/md-to-word/blob/main/LICENSE).  
-Built-in citation styles are from [citation-style-language/styles](https://github.com/citation-style-language/styles) (CC BY-SA 3.0); base document template is generated by this project and released under MIT.
+MIT License. See [LICENSE](https://github.com/ls-open/md-to-word/blob/main/LICENSE) for details.  
+Built-in citation styles are from [citation-style-language/styles](https://github.com/citation-style-language/styles) (CC BY-SA 3.0). Built-in modern base template generated by this project under MIT.
