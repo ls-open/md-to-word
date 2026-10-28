@@ -152,3 +152,47 @@ def test_multiline_display_math_is_not_reported_as_wrapped_prose() -> None:
 
     text = "# 一\n\n$$\n\\begin{cases}\na, & x>0 \\\\\nb, & x\\le 0\n\\end{cases}\n$$\n"
     assert soft_wrap_issues(text) == []
+
+
+@pytest.mark.parametrize(
+    ("latex", "expected_beg", "expected_end"),
+    [
+        (r"\begin{pmatrix} a & b \\ c & d \end{pmatrix}", "(", ")"),
+        (r"\begin{bmatrix} 1 & 0 \\ 0 & 1 \end{bmatrix}", "[", "]"),
+        (r"\begin{Bmatrix} x & y \\ z & w \end{Bmatrix}", "{", "}"),
+        (r"\begin{vmatrix} a & b \\ c & d \end{vmatrix}", "|", "|"),
+        (r"\begin{Vmatrix} u_1 & u_2 \\ v_1 & v_2 \end{Vmatrix}", "‖", "‖"),
+        (r"\binom{n}{k}", "(", ")"),
+    ],
+)
+def test_matrix_and_binom_delimiter_growth(latex: str, expected_beg: str, expected_end: str) -> None:
+    """矩阵环境与二项式系数必须生成带有 grow 的 m:d 弹性定界符，随内容高度自适应拉伸。"""
+    delimiters = _find(latex, "d")
+    assert delimiters, f"未生成定界符对象 m:d: {latex}"
+    d_pr = delimiters[0].find(f"{{{M_NS}}}dPr")
+    assert d_pr is not None, "m:d 缺少属性配置 dPr"
+    beg_el = d_pr.find(f"{{{M_NS}}}begChr")
+    end_el = d_pr.find(f"{{{M_NS}}}endChr")
+    assert beg_el is not None and beg_el.get(f"{{{M_NS}}}val") == expected_beg
+    assert end_el is not None and end_el.get(f"{{{M_NS}}}val") == expected_end
+    assert d_pr.find(f"{{{M_NS}}}grow") is not None, "定界符缺少 grow 弹性拉伸标记"
+
+
+def test_compound_stokes_hessian_formula() -> None:
+    """综合测试：包含重积分、闭合积分、向量点乘、二阶偏导分式与 pmatrix 特征值矩阵。"""
+    latex = (
+        r"\iint_{\Omega} \left( \nabla \times \mathbf{u} \right) \cdot d\mathbf{S} = "
+        r"\oint_{\partial \Omega} \mathbf{u} \cdot d\mathbf{r} \quad \Longleftrightarrow \quad "
+        r"\det \begin{pmatrix} \frac{\partial^2 \Phi}{\partial x^2} - \lambda & "
+        r"\frac{\partial^2 \Phi}{\partial x \partial y} \\ \frac{\partial^2 \Phi}{\partial y \partial x} & "
+        r"\frac{\partial^2 \Phi}{\partial y^2} - \lambda \end{pmatrix} = 0"
+    )
+    delimiters = _find(latex, "d")
+    # 期望存在两个定界符：一个是 \left( \nabla \times \mathbf{u} \right)，另一个是 pmatrix 矩阵
+    assert len(delimiters) >= 2, f"复合公式期望识别出两个 m:d 定界符，实际得到 {len(delimiters)}"
+    # 验证矩阵对应的 m:d 包含 m:m 且包含 grow
+    matrix_ds = [d for d in delimiters if d.find(f".//{{{M_NS}}}m") is not None]
+    assert matrix_ds, "未找到包裹矩阵 m:m 的 m:d 定界符"
+    matrix_dpr = matrix_ds[0].find(f"{{{M_NS}}}dPr")
+    assert matrix_dpr.find(f"{{{M_NS}}}grow") is not None
+

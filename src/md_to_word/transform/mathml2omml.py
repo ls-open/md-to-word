@@ -118,7 +118,8 @@ class _Converter:
         return out
 
     def _delimiter(self, kids: list, start: int):
-        r"""把 `\left…\right`（含 `\middle`）和 `cases` 的左括号落成一个 `m:d`。
+        r"""把 `\left…\right`（含 `\middle`）、`cases` 以及矩阵环境（`pmatrix`/`bmatrix` 等）
+        的括号落成 ECMA-376 规范的 `m:d` 弹性定界符。
 
         为什么必须配对成 delimiter：可伸缩括号在 OOXML 里是 `m:d` + `begChr`/`endChr`/
         `grow`；字面印一个 `{` 的 `m:r` 不会随内容长高，`cases` 的两行条件会把花括号
@@ -129,19 +130,32 @@ class _Converter:
         返回 `(节点列表, 下一个待处理下标)`；遇到无主的右括号返回 `None`（按普通字符走，
         免得把后面不属于它的内容都吞进 delimiter）。
         """
-        if kids[start].get("form") == "postfix":
+        if not _is_open_fence(kids[start]):
             return None
         beg = _fence_char(kids[start])
+        expected_close = OPEN_FENCES.get(beg, beg)
         end, end_at = "", len(kids)
+        depth = 0
         for j in range(start + 1, len(kids)):
-            if _is_fence(kids[j]) and kids[j].get("form") == "postfix":
-                end, end_at = _fence_char(kids[j]), j
-                break
+            kid = kids[j]
+            char = _fence_char(kid)
+            if beg in SYMMETRIC_FENCES and char == beg:
+                if depth == 0:
+                    end, end_at = char, j
+                    break
+                depth -= 1
+            elif _is_open_fence(kid) and char == beg:
+                depth += 1
+            elif _is_close_fence(kid, expected_close):
+                if depth == 0:
+                    end, end_at = char, j
+                    break
+                depth -= 1
 
         sections: list = [[]]
         sep = None
         for kid in kids[start + 1 : end_at]:
-            if _is_fence(kid) and kid.get("form") not in ("prefix", "postfix"):
+            if _is_fence(kid) and kid.get("form") not in ("prefix", "postfix") and not _is_close_fence(kid):
                 # `\middle|` 是括号内的分隔符，OMML 里对应 m:d 的 sepChr 与多个 m:e；
                 # sepChr 只有一个字符，取第一个 \middle 的即可。
                 sep = _fence_char(kid) if sep is None else sep
@@ -275,7 +289,14 @@ class _Converter:
         return [rad]
 
     def _on_mfenced(self, element) -> list:
-        return self._children(element)
+        r"""`mfenced` → `m:d` 弹性定界符（W3C MathML 定界符容器）。"""
+        open_chr = element.get("open", "(")
+        close_chr = element.get("close", ")")
+        sep_chr = element.get("separators", ",")
+        body = [self.convert(c) for c in element]
+        if not body:
+            return [_delimiter(open_chr, close_chr, [[]])]
+        return [_delimiter(open_chr, close_chr, body, sep_chr if len(body) > 1 and sep_chr else None)]
 
     def _on_mover(self, element) -> list:
         kids = list(element)
@@ -409,10 +430,68 @@ def _is_nary(node) -> bool:
     return hasattr(node, "tag") and node.tag == _m("nary")
 
 
+OPEN_FENCES = {
+    "(": ")",
+    "[": "]",
+    "{": "}",
+    "⟨": "⟩",
+    "⌊": "⌋",
+    "⌈": "⌉",
+}
+CLOSE_FENCES = {
+    ")": "(",
+    "]": "[",
+    "}": "{",
+    "⟩": "⟨",
+    "⌋": "⌊",
+    "⌉": "⌈",
+}
+SYMMETRIC_FENCES = {"|", "‖"}
+
+
 def _is_fence(element) -> bool:
-    r"""是不是一个可伸缩括号：latex2mathml 给 `\left`/`\right`/`\middle` 和 `cases` 的
-    左花括号都写 `fence="true"`，普通 `\{`、`(` 没有这个属性。"""
-    return _local(element) == "mo" and element.get("fence") == "true"
+    r"""判断元素是否为可伸缩数学定界符（可伸缩括号/竖线/范数符号等）。
+
+    遵循 W3C MathML 规范（3.2.5 节与附录 C 算子字典）以及 ECMA-376 OMML 规范：
+    1. 若显式声明 `stretchy="false"`，则为普通单行文本字符算子（如普通 `(a+b)`、`f(x)`），不作为弹性定界符；
+    2. 若显式声明 `fence="true"`（如 `\left` / `\right` / `cases`），确认为定界符；
+    3. 若为标准定界字符（如 `pmatrix` / `bmatrix` / `vmatrix` / `binom` 等所生成的括号），且未显式关闭 stretchy，
+       按 W3C 算子字典默认视为定界符。
+    """
+    if _local(element) != "mo":
+        return False
+    if element.get("stretchy") == "false":
+        return False
+    if element.get("fence") == "true":
+        return True
+    text = (element.text or "").strip()
+    return text in OPEN_FENCES or text in CLOSE_FENCES or text in SYMMETRIC_FENCES
+
+
+def _is_open_fence(element) -> bool:
+    if not _is_fence(element):
+        return False
+    form = element.get("form")
+    if form == "prefix":
+        return True
+    if form == "postfix":
+        return False
+    text = (element.text or "").strip()
+    return text in OPEN_FENCES or text in SYMMETRIC_FENCES
+
+
+def _is_close_fence(element, expected: str | None = None) -> bool:
+    if not _is_fence(element):
+        return False
+    form = element.get("form")
+    if form == "postfix":
+        return True
+    if form == "prefix":
+        return False
+    text = (element.text or "").strip()
+    if expected is not None and text == expected:
+        return True
+    return text in CLOSE_FENCES or text in SYMMETRIC_FENCES
 
 
 def _fence_char(element) -> str:
