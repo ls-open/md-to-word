@@ -10,50 +10,54 @@ pytest.importorskip("mcp")
 from md_to_word.mcp.server import create_mcp_server, _resolve_markdown_source, _resolve_format_txt
 
 
-@pytest.mark.asyncio
-async def test_mcp_server_initialization():
-    server = create_mcp_server()
-    assert server is not None
-    assert server.name == "md-to-word"
+def test_mcp_server_initialization():
+    async def _run():
+        server = create_mcp_server()
+        assert server is not None
+        assert server.name == "md-to-word"
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_mcp_list_presets():
-    server = create_mcp_server()
-    res = await server.call_tool("list_presets", {})
-    assert not res.is_error
-    presets = res.structured_content["result"]
-    assert len(presets) >= 3
-    preset_ids = [p["id"] for p in presets]
-    assert "zh-academic" in preset_ids
-    assert "zh-report" in preset_ids
-    assert "en-nature" in preset_ids
+def test_mcp_list_presets():
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool("list_presets", {})
+        assert not res.is_error
+        presets = res.structured_content["result"]
+        assert len(presets) >= 3
+        preset_ids = [p["id"] for p in presets]
+        assert "zh-academic" in preset_ids
+        assert "zh-report" in preset_ids
+        assert "en-nature" in preset_ids
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_mcp_inspect_preset():
-    server = create_mcp_server()
-    res = await server.call_tool("inspect_preset", {"preset": "zh-academic"})
-    assert not res.is_error
-    content = res.structured_content["result"]
-    assert "宋体" in content or "SimSun" in content or "font" in content
+def test_mcp_inspect_preset():
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool("inspect_preset", {"preset": "zh-academic"})
+        assert not res.is_error
+        content = res.structured_content["result"]
+        assert "宋体" in content or "SimSun" in content or "font" in content
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_mcp_validate_manuscript():
-    server = create_mcp_server()
-    valid_md = "# 标题\n\n## 一级标题\n\n正文内容测试。\n"
-    res = await server.call_tool("validate_manuscript", {"markdown": valid_md})
-    assert not res.is_error
-    data = res.structured_content
-    assert data["valid"] is True
-    assert len(data["errors"]) == 0
+def test_mcp_validate_manuscript():
+    async def _run():
+        server = create_mcp_server()
+        valid_md = "# 标题\n\n## 一级标题\n\n正文内容测试。\n"
+        res = await server.call_tool("validate_manuscript", {"markdown": valid_md})
+        assert not res.is_error
+        data = res.structured_content
+        assert data["valid"] is True
+        assert len(data["errors"]) == 0
+    asyncio.run(_run())
 
 
-@pytest.mark.asyncio
-async def test_mcp_compile_markdown_success(tmp_path: Path):
-    server = create_mcp_server()
-    md = """# 智能体论文标题
+def test_mcp_compile_markdown_success(tmp_path: Path):
+    async def _run():
+        server = create_mcp_server()
+        md = """# 智能体论文标题
 
 ## 引言
 
@@ -63,18 +67,19 @@ async def test_mcp_compile_markdown_success(tmp_path: Path):
 | :--- | :---: | ---: |
 | 准确率 | 85.2% | 96.8% |
 """
-    out_docx = tmp_path / "compiled_output.docx"
-    res = await server.call_tool("compile_markdown", {
-        "markdown": md,
-        "output_path": str(out_docx),
-        "preset": "zh-academic"
-    })
-    assert not res.is_error
-    data = res.structured_content
-    assert data["success"] is True
-    assert data["returncode"] == 0
-    assert out_docx.is_file()
-    assert out_docx.stat().st_size > 5000
+        out_docx = tmp_path / "compiled_output.docx"
+        res = await server.call_tool("compile_markdown", {
+            "markdown": md,
+            "output_path": str(out_docx),
+            "preset": "zh-academic"
+        })
+        assert not res.is_error
+        data = res.structured_content
+        assert data["success"] is True
+        assert data["returncode"] == 0
+        assert out_docx.is_file()
+        assert out_docx.stat().st_size > 5000
+    asyncio.run(_run())
 
 
 def test_resolve_markdown_source_file(tmp_path: Path):
