@@ -37,7 +37,7 @@
     }
   </script>
   <style>
-    /* 自定义精简滚动条 */
+    /* 容器轻量滚动条 */
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -117,7 +117,7 @@
             <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-medium">GB/T 标准</span>
           </div>
           <p class="text-[11px] text-slate-500 leading-relaxed">
-            宋体/Times New Roman · 首行缩进两字符 · 1.5倍行距 · 三线表 · 双线页眉
+            宋体/Times New Roman · 首行缩进两字符 · 1.5倍行距 · 三线表 · 双线章名页眉
           </p>
         </div>
 
@@ -125,10 +125,10 @@
         <div onclick="selectTemplate('zh-report')" id="card-zh-report" class="tpl-card cursor-pointer p-3 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all flex flex-col justify-between">
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs font-bold text-slate-900">📄 现代技术白皮书</span>
-            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">企业规范</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">企业级规范</span>
           </div>
           <p class="text-[11px] text-slate-500 leading-relaxed">
-            现代无衬线风格 · 彩色多级标题 · 全网格数据表 · 极简单线页眉
+            彩色标题(#1F4E79) · 全网格表 · 首行不缩进 · 单线企业页眉
           </p>
         </div>
 
@@ -149,7 +149,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
       
       <!-- 左栏：结构化内容表单 (5列，用户可替换任何字段) -->
-      <section class="lg:col-span-5 bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 flex flex-col h-[780px] overflow-hidden">
+      <section class="lg:col-span-5 bg-white rounded-xl border border-slate-200/80 shadow-sm p-4 flex flex-col h-[820px] overflow-hidden">
         <div class="flex items-center justify-between pb-3 mb-2 border-b border-slate-100">
           <div>
             <h3 class="text-xs font-semibold text-slate-900 flex items-center space-x-1.5">
@@ -164,7 +164,7 @@
         </div>
 
         <!-- 表单滚动区：严格按文章顺序排列，零排版负担 -->
-        <div class="flex-1 overflow-y-auto space-y-3.5 pr-1 text-xs">
+        <div class="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
           
           <!-- 1. 文档大标题 -->
           <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1">
@@ -172,18 +172,23 @@
               <span class="font-bold text-slate-800 flex items-center space-x-1">
                 <span>👑 文档大标题</span>
               </span>
-              <span class="text-[10px] text-slate-400">居中 · 黑体/Times · 三号</span>
+            </div>
+            <!-- 详细排版规格条目 -->
+            <div id="specTitle" class="text-[10px] text-slate-500 font-mono bg-white/80 px-1.5 py-0.5 rounded border border-slate-200/60">
+              规格：黑体/Times New Roman 二号(22pt) · 加粗 · 居中 · 行距1.5倍 · 段前0/段后12磅
             </div>
             <input type="text" id="inpDocTitle" class="w-full p-2 bg-white border border-slate-200 rounded font-medium text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-400 text-xs">
           </div>
 
           <!-- 2. 摘要与关键词 -->
-          <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-2">
+          <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1.5">
             <div class="flex items-center justify-between text-[11px]">
               <span class="font-bold text-slate-800 flex items-center space-x-1">
                 <span>📝 摘要内容</span>
               </span>
-              <span class="text-[10px] text-slate-400">宋体五号 · 缩进两字符 · 1.5倍</span>
+            </div>
+            <div id="specAbstract" class="text-[10px] text-slate-500 font-mono bg-white/80 px-1.5 py-0.5 rounded border border-slate-200/60">
+              规格：宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符
             </div>
             <textarea id="inpAbstract" rows="3" class="w-full p-2 bg-white border border-slate-200 rounded text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400 text-xs leading-relaxed resize-none"></textarea>
             
@@ -194,16 +199,15 @@
           </div>
 
           <!-- 3. 章节与正文 -->
-          <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-2">
+          <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1.5">
             <div class="flex items-center space-x-2">
               <span class="text-[11px] font-bold text-slate-800 shrink-0">章节标题:</span>
               <input type="text" id="inpIntroHeading" class="flex-1 p-1 bg-white border border-slate-200 rounded text-slate-900 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-slate-400">
             </div>
-            <div class="flex items-center justify-between text-[11px] pt-1">
-              <span class="font-bold text-slate-800">正文段落</span>
-              <span class="text-[10px] text-slate-400">宋体小四 · 首行缩进两字符</span>
+            <div id="specBody" class="text-[10px] text-slate-500 font-mono bg-white/80 px-1.5 py-0.5 rounded border border-slate-200/60">
+              规格：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符 · 段前0/段后0
             </div>
-            <textarea id="inpIntroBody" rows="4" class="w-full p-2 bg-white border border-slate-200 rounded text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400 text-xs leading-relaxed resize-none"></textarea>
+            <textarea id="inpIntroBody" rows="3" class="w-full p-2 bg-white border border-slate-200 rounded text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400 text-xs leading-relaxed resize-none"></textarea>
           </div>
 
           <!-- 4. 原生数学公式 (可编辑) -->
@@ -212,7 +216,9 @@
               <span class="font-bold text-slate-800 flex items-center space-x-1">
                 <span>📐 原生数学公式 (LaTeX)</span>
               </span>
-              <span class="text-[10px] text-emerald-700 font-medium">居中 · 靠右编号 · 原生OMML可编辑</span>
+            </div>
+            <div id="specEquation" class="text-[10px] text-emerald-800 font-mono bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/60">
+              规格：原生 OMML 数学公式(非图片，可双击编辑) · 居中对齐 · 编号 (1) 严格靠右对齐
             </div>
             <input type="text" id="inpEquation" class="w-full p-2 bg-white border border-slate-200 rounded font-mono text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-slate-400">
           </div>
@@ -220,19 +226,33 @@
           <!-- 5. 规范三线表 -->
           <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1">
             <div class="flex items-center justify-between text-[11px]">
-              <span class="font-bold text-slate-800">📊 规范三线表</span>
-              <span class="text-[10px] text-slate-400">顶底线1.5磅 · 跨页自动重复表头</span>
+              <span class="font-bold text-slate-800">📊 数据表格与题注</span>
             </div>
-            <div id="tablePreviewHint" class="text-[11px] text-slate-500 font-mono bg-white p-2 rounded border border-slate-200 overflow-x-auto whitespace-pre">包含：表头加粗居中、跨页自动重复、表题与表注绑定</div>
+            <div id="specTable" class="text-[10px] text-slate-500 font-mono bg-white/80 px-1.5 py-0.5 rounded border border-slate-200/60">
+              规格：标准三线表 · 顶底线1.5磅 · 表头线0.75磅 · 跨页自动重复表头 · 单元格垂直居中
+            </div>
+            <div id="tablePreviewHint" class="text-[10px] text-slate-500 font-mono bg-white p-1.5 rounded border border-slate-200 overflow-x-auto whitespace-pre">包含：表头加粗居中、跨页自动重复、表题与表注绑定</div>
           </div>
 
-          <!-- 6. 参考文献 -->
+          <!-- 6. 页眉页脚规格说明 -->
+          <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1">
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="font-bold text-slate-800">📄 页眉页脚与版面</span>
+            </div>
+            <div id="specHeader" class="text-[10px] text-slate-600 font-mono bg-white/80 px-1.5 py-0.5 rounded border border-slate-200/60">
+              规格：双线章名页眉 · 上实线下细线 · 奇偶页不同 · 内容自动映射当前章名
+            </div>
+          </div>
+
+          <!-- 7. 参考文献 -->
           <div class="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-1">
             <div class="flex items-center justify-between text-[11px]">
               <span class="font-bold text-slate-800">📚 参考文献列表</span>
-              <span class="text-[10px] text-slate-400">标准悬挂缩进 0.5 英寸</span>
             </div>
-            <textarea id="inpReferences" rows="3" class="w-full p-2 bg-white border border-slate-200 rounded text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400 text-xs leading-relaxed font-mono resize-none"></textarea>
+            <div id="specReferences" class="text-[10px] text-slate-500 font-mono bg-white/80 px-1.5 py-0.5 rounded border border-slate-200/60">
+              规格：宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 悬挂缩进0.5英寸(2字符)
+            </div>
+            <textarea id="inpReferences" rows="2" class="w-full p-2 bg-white border border-slate-200 rounded text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-400 text-xs leading-relaxed font-mono resize-none"></textarea>
           </div>
 
         </div>
@@ -247,7 +267,7 @@
       </section>
 
       <!-- 右栏：真实 Word/PDF 多页仿真渲染器 (7列) -->
-      <section class="lg:col-span-7 bg-white rounded-xl border border-slate-200/80 shadow-sm flex flex-col h-[780px] overflow-hidden">
+      <section class="lg:col-span-7 bg-white rounded-xl border border-slate-200/80 shadow-sm flex flex-col h-[820px] overflow-hidden">
         
         <!-- 预览器控制工具栏 -->
         <div class="px-4 py-2.5 bg-slate-50/80 border-b border-slate-200/80 flex items-center justify-between">
@@ -257,7 +277,7 @@
               <span id="txtViewerTitle">3. 真实多页高保真排版视图 (可滚轮翻页)</span>
             </span>
             <span id="compileStatusBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
-              ⚡️ 编译完成 (0.2s)
+              ⚡️ 秒级就绪 (缓存命中)
             </span>
           </div>
 
@@ -272,8 +292,8 @@
 
         <!-- 真实多页 PDF 原生渲染容器 -->
         <div class="flex-1 bg-slate-100 relative overflow-hidden flex flex-col">
-          <!-- 加载中动画 -->
-          <div id="viewerLoadingState" class="absolute inset-0 bg-white/80 backdrop-blur-xs flex flex-col items-center justify-center text-slate-500 space-y-2 z-10">
+          <!-- 加载中遮罩 -->
+          <div id="viewerLoadingState" class="absolute inset-0 bg-white/85 backdrop-blur-xs flex flex-col items-center justify-center text-slate-500 space-y-2 z-10 transition-opacity">
             <div class="w-7 h-7 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin"></div>
             <span class="text-xs font-medium" id="txtLoadingText">正在调用底层引擎编译并生成真实多页排版……</span>
           </div>
@@ -321,7 +341,7 @@
       lucide.createIcons();
       await fetchTemplates();
       populateFormWithTemplate(currentTemplateId);
-      // 首次加载自动渲染
+      // 首次加载自动渲染预览
       await triggerCompileAndRender();
     });
 
@@ -337,7 +357,7 @@
       }
     }
 
-    // 填充表单
+    // 填充表单与详细排版规格条目
     function populateFormWithTemplate(tplId) {
       const tpl = allTemplates[tplId];
       if (!tpl) return;
@@ -352,6 +372,17 @@
       
       const tableHint = document.getElementById('tablePreviewHint');
       tableHint.textContent = `${tpl.table_caption}\n${tpl.table_header}\n${tpl.table_rows}\n${tpl.table_note}`;
+
+      // 更新详细排版规格条目
+      if (tpl.specs) {
+        document.getElementById('specTitle').textContent = `规格：${tpl.specs.title}`;
+        document.getElementById('specAbstract').textContent = `规格：${tpl.specs.abstract}`;
+        document.getElementById('specBody').textContent = `规格：${tpl.specs.body}`;
+        document.getElementById('specTable').textContent = `规格：${tpl.specs.table}`;
+        document.getElementById('specEquation').textContent = `规格：${tpl.specs.equation}`;
+        document.getElementById('specHeader').textContent = `规格：${tpl.specs.header}`;
+        document.getElementById('specReferences').textContent = `规格：${tpl.specs.references}`;
+      }
     }
 
     // 切换模板
@@ -415,8 +446,13 @@
           }
           latestPdfBlobUrl = window.URL.createObjectURL(blob);
 
-          const elapsedMs = res.headers.get('X-Compile-Elapsed-Ms') || '200';
-          statusBadge.textContent = `⚡️ 编译完成 (${elapsedMs}ms · 门禁通过)`;
+          const isCache = res.headers.get('X-Compile-Cache') === 'hit';
+          const elapsedMs = res.headers.get('X-Compile-Elapsed-Ms') || '0';
+          if (isCache) {
+            statusBadge.textContent = `⚡️ 编译完成 (缓存极速秒开 · 门禁通过)`;
+          } else {
+            statusBadge.textContent = `⚡️ 编译完成 (${elapsedMs}ms · 门禁通过)`;
+          }
           statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium';
 
           // 直接将 PDF 流赋给 iframe（浏览器自带多页滚轮浏览与翻页）
@@ -424,7 +460,8 @@
         } else {
           statusBadge.textContent = '❌ 编译异常';
           statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-medium';
-          alert('编译未能成功生成 PDF，请检查参数');
+          const errData = await res.json().catch(() => ({}));
+          alert('编译未能成功生成 PDF: ' + (errData.detail || (errData.errors || []).join('\n') || '未知原因'));
         }
       } catch (e) {
         alert('编译渲染网络异常: ' + e.message);
