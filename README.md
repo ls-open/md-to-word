@@ -26,118 +26,83 @@
 
 ---
 
-## 核心使用认知
+## 架构认知：自包含核心与多形态接入
 
-本项目提供**三种使用方法，4 个入口**：
-- **作为 MCP Server 使用**：挂载为 AI 原生工具（Claude Desktop、Cursor 等），无需手写 CLI 命令，AI 自主调用编译与校验；
-- **通过 Skill 技能使用**：AI 会在检测到排版意图时，**自动在后台激活并使用**该技能；
-- **通过 pip 安装使用**：适合终端 CLI 脚本自动化，或由你在对话中直接调用命令行。
+> 💡 **核心设计哲学**：
+> 本项目的底层是纯净、确定性的 Python 编译引擎（`md-to-word-docx`），内置了完整的排版契约规范与自检逻辑。为了解决“排版契约一旦升级、外部 Prompt/技能文档就失效不同步”的痛点，项目采用**规范内置自包含**设计（运行 `md-to-word --guide` 即可输出与最新代码 100% 同步的完整指南）。
+> 无论你是想在网页上免安装试玩、在桌面端挂载为原生 AI 工具（MCP）、在智能体中作为技能（Skill）调用，还是在终端执行 CLI 批处理，底层运行的都是同一套严格对账的编译逻辑。
+
+### 选型对比与使用全景
+
+| 使用形态 | 适用客户端 / 场景 | 本地环境依赖 | 一键接入 / 启动方式 | 核心特点与适用建议 |
+| :--- | :--- | :---: | :--- | :--- |
+| **🌐 Web 在线体验站** | 浏览器直接试玩、零门槛体验、快速排版预览 | ❌ 无需安装任何环境 | 直接访问 [官方体验站](https://ls-open.github.io/md-to-word/) | **免配置开箱即用**：在线编辑，分屏实时预览 PDF，秒级下载 `.docx` 成品。 |
+| **🤖 MCP 原生外设** *(推荐)* | **Claude Desktop**、**Cursor**、**Windsurf** 等支持 MCP 协议的 AI 桌面端 | ❌ 无需手动配 Python（`uvx` 自动拉取） | 在客户端配置中声明 `uvx` 命令（见下文） | **最原生**：AI 客户端将其识别为原生系统工具，零代码直接唤起编译与自检；环境全自动隔离。 |
+| **🧠 Agent Skill 技能** | **Claude Code**、**终端 Agent**、**Nature Skills (51k+ ★)** | ⚠️ 依赖宿主 Agent 执行环境 | `npx skills add ls-open/md-to-word` 或呼叫 `$nature-paper2word` | **最智能**：AI 具备自主感知排版需求、自动阅读规范契约、遇格式门禁拦截自主读行号自愈重跑。 |
+| **💻 本地 CLI 与 SDK** | 终端命令行批处理、CI/CD 自动化流水线、Python 脚本开发 | 需 Python >= 3.10 | `pip install md-to-word-docx` 然后运行 `md-to-word 稿.md` | **最确定**：纯本地编译，不依赖任何大模型 API，支持模板样式反推与逐字节回归测试。 |
 
 ---
 
-## 怎么使用：三种方法，4 个入口
+### 快速上手指南
 
-### 方法一：作为 MCP Server 使用（主流 AI 客户端一键挂载 · 原生工具调用）
+#### 1. 🤖 作为 MCP 原生外设使用（Claude Desktop / Cursor）
 
-通过标准 **Model Context Protocol (MCP)** 协议，将 `md-to-word` 直接接入你的桌面端或编辑器 AI（Claude Desktop、Claude Code、Cursor、Windsurf 等）：
+MCP（Model Context Protocol）是 Anthropic 开源的标准模型上下文协议。AI 客户端不需要运行在命令行中，直接通过标准协议将 `md-to-word` 当作专属排版外设调用。
 
-#### 入口 1：Claude Desktop / Cursor (一键配置)
+**为什么无需手动安装？**  
+推荐使用现代 Python 工具链 `uvx`，它会在首次调用时**自动从 PyPI 下载依赖并在隔离环境中执行**，无需污染全局系统。
 
-在你的 Claude Desktop 配置文件（`claude_desktop_config.json`）中添加：
+在你的 `claude_desktop_config.json`（或 Cursor MCP 配置）中添加：
 
 ```json
 {
   "mcpServers": {
     "md-to-word": {
       "command": "uvx",
-      "args": ["md-to-word-docx[mcp]"]
+      "args": ["--from", "md-to-word-docx[mcp]", "md-to-word-mcp"]
     }
   }
 }
 ```
 
-或者使用本地 Python 环境直接启动：
+*（注：若习惯本地全局 Python 环境，亦可运行 `pip install "md-to-word-docx[mcp]"`，并将 `command` 设为 `python3`，`args` 设为 `["-m", "md_to_word.mcp"]`）*
 
-```json
-{
-  "mcpServers": {
-    "md-to-word": {
-      "command": "python3",
-      "args": ["-m", "md_to_word.mcp"]
-    }
-  }
-}
-```
-
-**AI 自动获得的能力**：
-- `compile_markdown`：将输入的 Markdown（文本内容或文件路径）直接编译为高质量 `.docx`；
-- `validate_manuscript`：在生成前预检语法与排版契约（公式闭合、三线表外框、未解析引文）；
+**AI 自动获得的原生能力**：
+- `compile_markdown`：将输入的 Markdown（文本或文件路径）直接编译为出版级 `.docx`（并可按需转为 PDF）；
+- `validate_manuscript`：在生成前执行预检，自动检测未闭合的数学公式、缺线的表格或格式错误；
 - `list_presets`：按需选择中文核心期刊、白皮书或 Nature 顶级英文规范；
-- `inspect_preset`：透明查验各预设的字体、行距与排版规则。
+- `inspect_preset`：透明查阅任意预设的完整字体、行距与排版规则（`format.txt`）。
 
----
+#### 2. 🧠 作为 Agent Skill 技能使用（Claude Code / Nature 生态）
 
-### 方法二：通过 Skill 技能使用（推荐 · AI 自主感知与调用）
+如果你在命令行或具备 Shell 权限的 Agent（如 Claude Code、OpenCode）中使用：
 
-#### 入口 2：在支持 Skill 规范的 Agent 中引入本仓库技能
-适用于 Claude Code、Codex、Cursor、Windsurf、通用智能体等环境。
-
-- **CLI 自动化挂载（推荐）**：
+- **自动化一键挂载**：
   ```bash
   npx skills add ls-open/md-to-word
   ```
-  *(基于通用 Agent Skills 规范，自动识别本仓库根目录的 `SKILL.md` 并完成挂载)*
+- **Nature Skills 生态内置**：
+  本项目已正式合并入 **[Nature Skills (51k+ ★)](https://github.com/Yuan1z0825/nature-skills)** 官方生态中，已安装环境直接输入 `$nature-paper2word` 即可唤起。
+- **手动导入**：
+  将仓库中的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) 复制到你项目的技能目录（如 `.claude/skills/`）即可。
 
-- **手动导入技能文件**：  
-  将仓库根目录的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) 复制到你项目的 Agent 规则/技能目录中（如 `.claude/skills/` 或 `.cursor/rules/`）；或者在对话式 Agent 中直接把它的 Raw 链接提供给 AI：  
-  `https://raw.githubusercontent.com/ls-open/md-to-word/main/SKILL.md`
+#### 3. 💻 本地 pip 安装与命令行直接运行
 
-- **日常使用（自然语言对齐）**：  
-  配置完成后无需记忆任何命令参数，直接向 AI 提出排版需求即可，AI 会自主命中该技能并处理：
-  > “*帮我把这篇论文草稿（paper.md）按照 IEEE 期刊格式排版为规范的 Word 文档。*”  
-  > “*这是我们学校的学位论文格式要求（或附件中的模板.docx），帮我把稿件排版导出。*”
+如果你需要脱离大模型直接作为本地生产力工具使用：
 
-#### 入口 3：在 Nature Skills 生态中直接使用
-本项目已作为官方独立技能 [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word) 正式合并入 **Nature Skills（51k+ ★）** 官方生态中。
+```bash
+# 安装核心编译器
+pip install md-to-word-docx
 
-- **使用方式**：  
-  在已安装 Nature Skills 的环境中**无需重复安装**，直接输入指令呼叫 `$nature-paper2word`，或在全流程论文写作完成后的最终交付阶段直接让 AI 编译出符合规范的 Word 文件。
+# 初始化示例项目
+md-to-word init
 
----
+# 查看最新排版契约与编写指南（自包含内核）
+md-to-word --guide
 
-### 方法三：通过 pip 安装使用（由你主动驱动本地 Agent / CLI）
-
-#### 入口 4：本地 pip 安装 + 提示词唤起 Agent
-如果你的环境倾向于直接通过 Python 命令行调用，或者是在本地配合 Claude Code / Cursor Agent / 终端 AI 助手执行：
-
-1. **安装底层编译器**：
-   ```bash
-   pip install md-to-word-docx
-   ```
-   *（注：因 PyPI 命名规则限制，安装包名为 `md-to-word-docx`，安装后的命令行命令依然为 `md-to-word`。隔离环境可用 `pipx install md-to-word-docx`，更新用 `pip install -U md-to-word-docx`）*
-
-2. **核心原理与怎么让 AI 使用**：  
-   安装包内自带了一份与 `SKILL.md` 完全一致的完整规范指南。当你在终端或编辑器中使用 Agent 时，**核心是告诉 AI 先读指南**：
-
-   > 💬 **发给 Agent 的标准提示词（Prompt 模板，复制即可用）：**  
-   > “我已经安装了 `md-to-word-docx` 命令行工具。请你先运行 `md-to-word --guide` 阅读其排版规范与契约要求，然后帮我把当前目录下的稿件按规范导出为 Word（如果手头有目标 Word 模板，请先用 `md-to-word-template` 反推格式要求）。”
-
-3. **AI 在后台的自主执行闭环**：
-   - **读规范**：运行 `md-to-word --guide`（或 `--contract`），获知样式的封闭词表与 Markdown 书写契约；
-   - **定格式**：根据需求生成或调整 `format.txt`，或从已有模板反推；
-   - **调编译**：运行 `md-to-word 稿件.md -r format.txt -o 稿件.docx --json`；
-   - **读门禁自愈**：如遇导前预检拦截，根据返回的精确行号自动修改稿件并重跑，直至返回码为 `0` 交付最终文档。
-
----
-
-### 面向开发者与自动化脚本（可选）
-
-如果你需要在 CI/CD 流程或 Python 程序中直接调用：
-
-- **命令行直接运行**：
-  ```bash
-  # 最小样例初始化
-  md-to-word init
+# 执行编译（支持指定预设或自定义 format.txt）
+md-to-word 论文.md -p zh-academic -o 论文.docx
+```
   # 指定格式文件导出
   md-to-word 稿件.md -r format.txt -o 稿件.docx
   ```

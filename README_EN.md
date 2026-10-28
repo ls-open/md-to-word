@@ -26,48 +26,46 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 
 ---
 
-## Core Usage Concept
+## Architectural Design: Self-Contained Engine & Multi-Modal Access
 
-`md-to-word` provides **3 usage methods across 4 entry points**:
-- **As an MCP Server**: Connects natively to AI desktop and IDE environments (Claude Desktop, Cursor, Windsurf, LibreChat). The AI calls compilation and validation tools directly.
-- **As an Agent Skill**: Automatically discovered and activated by agents upon detecting document formatting requests.
-- **Via pip Installation**: For terminal CLI scripts, CI/CD automation, or manual command invocation.
+> 💡 **Core Design Philosophy**:  
+> At the foundational layer lies a deterministic Python compilation engine (`md-to-word-docx`), embedding all typographic rules, contracts, and quality gates. To eliminate the chronic headache of "external prompts and skill documents falling out of sync when formatting rules update", `md-to-word` uses a **self-contained design** (`md-to-word --guide` outputs the complete specification directly from the installed package).  
+> Whether you test it in your browser without installation, mount it into desktop AI clients via MCP, inject it into autonomous agents as a Skill, or run batch jobs in the terminal, the identical deterministic pipeline executes underneath.
+
+### Usage & Ecosystem Matrix
+
+| Mode | Target Clients & Use Cases | Local Environment | Quick Start / Launch Command | Key Strengths |
+| :--- | :--- | :---: | :--- | :--- |
+| **🌐 Web Playground** | Browser testing, instant preview, zero-install export | ❌ None needed | Visit [Official Playground](https://ls-open.github.io/md-to-word/) | **Instant zero-setup**: Side-by-side editing, live PDF preview, one-click `.docx` download. |
+| **🤖 MCP Native Server** *(Recommended)* | **Claude Desktop**, **Cursor**, **Windsurf**, and any MCP client | ❌ Handled automatically (`uvx` pulls isolated venv) | Add `uvx` configuration (see below) | **Most Native**: AI invokes it as a native system tool with typed arguments; zero manual pip installation required. |
+| **🧠 Agent Skill** | **Claude Code**, terminal agents, **Nature Skills (51k+ ★)** | ⚠️ Requires host agent environment | `npx skills add ls-open/md-to-word` or `$nature-paper2word` | **Most Autonomous**: AI automatically senses formatting needs, parses the contract, and self-heals upon quality gate warnings. |
+| **💻 Local CLI & SDK** | Terminal batch processing, CI/CD pipelines, Python scripts | Requires Python >= 3.10 | `pip install md-to-word-docx` then `md-to-word paper.md` | **Most Deterministic**: 100% offline, zero LLM API dependency, supports reverse template extraction and byte-level diffs. |
 
 ---
 
-## How to Use: 3 Methods, 4 Entry Points
+### Quick Start Guides
 
-### Method 1: Use as an MCP Server (Recommended · Native AI Tool Integration)
+#### 1. 🤖 Use as an MCP Server (Claude Desktop / Cursor)
 
-Seamlessly attach `md-to-word` to Claude Desktop, Claude Code, Cursor, or any client supporting Anthropic's **Model Context Protocol (MCP)**.
+The Model Context Protocol (MCP) by Anthropic lets AI clients connect to `md-to-word` as a native publishing tool.
 
-#### Entry 1: Claude Desktop / Cursor (One-Click Setup)
+**Why no manual installation is needed?**  
+Using `uvx` (from Astral), the client downloads and executes the package in a transient, isolated virtual environment on first demand without cluttering your system Python.
 
-Add the following to your Claude Desktop configuration (`claude_desktop_config.json`):
+In your `claude_desktop_config.json` (or Cursor MCP settings), add:
 
 ```json
 {
   "mcpServers": {
     "md-to-word": {
       "command": "uvx",
-      "args": ["md-to-word-docx[mcp]"]
+      "args": ["--from", "md-to-word-docx[mcp]", "md-to-word-mcp"]
     }
   }
 }
 ```
 
-Or run via your local Python environment:
-
-```json
-{
-  "mcpServers": {
-    "md-to-word": {
-      "command": "python3",
-      "args": ["-m", "md_to_word.mcp"]
-    }
-  }
-}
-```
+*(Note: For local Python environments, install via `pip install "md-to-word-docx[mcp]"`, then set `command: "python3"` and `args: ["-m", "md_to_word.mcp"]`)*
 
 **Capabilities Granted to Your AI**:
 - `compile_markdown`: Compiles raw Markdown strings or local `.md` files directly into `.docx` documents;
@@ -75,39 +73,36 @@ Or run via your local Python environment:
 - `list_presets`: Explores built-in templates (Chinese Academic Journal, Technical Report/Whitepaper, Nature English Paper);
 - `inspect_preset`: Inspects typography specifications (`format.txt`) with complete transparency.
 
----
+#### 2. 🧠 Use as an Agent Skill (Claude Code / Nature Ecosystem)
 
-### Method 2: Use as an Agent Skill (Autonomous AI Routing)
+For CLI agents or environments with shell execution permissions:
 
-#### Entry 2: Install the Skill into Any Agent Supporting the Skills Standard
-Works with Claude Code, Codex, Cursor, Windsurf, OpenCode, and general AI agents.
-
-- **Automated CLI Installation (Recommended)**:
+- **Automated CLI Installation**:
   ```bash
   npx skills add ls-open/md-to-word
   ```
-  *(Complies with the Agent Skills standard: automatically detects `SKILL.md` in the repository root and mounts it)*
+- **Nature Skills Integration**:
+  Officially merged into **[Nature Skills (51k+ ★)](https://github.com/Yuan1z0825/nature-skills)**. Simply call `$nature-paper2word` in supported setups.
+- **Manual Import**:
+  Copy [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) into your project's rules or skills directory (e.g. `.claude/skills/`).
 
-- **Manual Import**:  
-  Copy [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) from the repository root into your project's rules or skills directory (e.g. `.claude/skills/` or `.cursor/rules/`), or feed its raw URL directly to conversational agents:  
-  `https://raw.githubusercontent.com/ls-open/md-to-word/main/SKILL.md`
+#### 3. 💻 Local pip Installation & Direct CLI Usage
 
-- **Natural Language Usage**:  
-  No need to memorize CLI flags. Prompt your AI directly:
-  > *"Format my manuscript draft (paper.md) into a compliant Word document following IEEE journal standards."*  
-  > *"Here are our university thesis formatting requirements (or attached template.docx). Export the draft accordingly."*
+For direct terminal productivity without LLMs:
 
-#### Entry 3: Direct Use in the Nature Skills Ecosystem
-This project is officially integrated as the independent skill [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word) within **Nature Skills (51k+ ★)**.
+```bash
+# Install core compiler
+pip install md-to-word-docx
 
-- **How to Use**:  
-  In an environment with Nature Skills installed, **no extra installation is required**. Simply invoke `$nature-paper2word`, or ask the AI to export the final publication-ready Word file at the end of the writing pipeline.
+# Scaffold sample workspace
+md-to-word init
 
----
+# Read complete self-contained contract and guide
+md-to-word --guide
 
-### Method 3: Use via pip Installation (Drive Your Local Agent / CLI)
-
-#### Entry 4: Local pip Installation + Prompting the Agent
+# Compile manuscript (with built-in preset or custom format.txt)
+md-to-word paper.md -p en-nature -o paper.docx
+```
 If you prefer direct Python CLI usage or operate in a local terminal / editor Agent environment:
 
 1. **Install the Compiler**:
