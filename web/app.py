@@ -2,7 +2,7 @@
 
 完全独立于核心 Python 包，仅通过标准 API import 核心引擎。
 特性：
-1. 三套差异化标准模板（学位论文、技术白皮书、英文 Nature 期刊）
+1. 三套差异化标准模板（中文学术期刊、现代技术白皮书、英文 Nature 期刊）
 2. 静态预生成与内存缓存（默认内容 0 毫秒秒开，零计算负载）
 3. IP 限流 (Rate Limiting) + 并发信号量控制 (防服务器打爆)
 4. 真实多页 PDF 在线预览 API (/api/preview)
@@ -36,7 +36,7 @@ from md_to_word import export
 app = FastAPI(
     title="md-to-word Web Playground",
     description="Deterministic Markdown to Word (.docx) Compilation Playground",
-    version="2.2.0",
+    version="2.3.0",
 )
 
 app.add_middleware(
@@ -54,117 +54,127 @@ CACHE_DIR.mkdir(parents=True, exist_ok=True)
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-# 并发限制：同一时间最多 2 个 soffice 渲染进程在跑，保护 2G 服务器内存
+# 并发限制：同一时间最多 2 个 soffice 渲染进程在跑，保护服务器内存
 CONVERT_SEMAPHORE = asyncio.Semaphore(2)
 
 # IP 限流字典：{ ip: [timestamp, ...] }
 IP_REQUESTS: Dict[str, List[float]] = {}
-MAX_REQUESTS_PER_MINUTE = 15
+MAX_REQUESTS_PER_MINUTE = 20
 
 
 def check_rate_limit(client_ip: str):
-    """简易滑动窗口限流：每 IP 每 60 秒最多 15 次动态编译。"""
+    """简易滑动窗口限流：每 IP 每 60 秒最多 20 次动态编译。"""
     now = time.time()
     timestamps = IP_REQUESTS.get(client_ip, [])
-    # 保留 60 秒以内的请求
     valid_timestamps = [t for t in timestamps if now - t < 60]
     if len(valid_timestamps) >= MAX_REQUESTS_PER_MINUTE:
         raise HTTPException(
             status_code=429,
-            detail="生成过于频繁，请稍候再试（每个 IP 每分钟限制 15 次动态生成）。",
+            detail="生成过于频繁，请稍候再试（每个 IP 每分钟限制 20 次动态生成）。",
         )
     valid_timestamps.append(now)
     IP_REQUESTS[client_ip] = valid_timestamps
 
 
-# 三套精挑细选的场景模板（篇幅精准控制在 1~2 页，结构完全差异化）
+# 三套精挑细选的标准场景模板（严谨学术/技术内容，篇幅精准控制在 1~2 页）
 TEMPLATES = {
-    "zh-thesis": {
-        "id": "zh-thesis",
-        "name": "🎓 中文学位论文规范",
-        "name_en": "Chinese Academic Thesis",
+    "zh-journal": {
+        "id": "zh-journal",
+        "name": "📰 中文学术期刊规范",
+        "name_en": "Chinese Academic Journal",
+        "badge": "GB/T 学术期刊",
         "preset_file": str(BASE_DIR / "presets" / "zh-academic.txt"),
         "preset_name": "zh-academic",
-        "doc_title": "基于深度神经网络的确定性排版架构研究",
-        "abstract": "本文探讨了将非结构化文稿确定性编译为严格规范出版级 Word（.docx）的核心挑战。通过声明式排版契约与双向质量门禁，实现了产物的逐字节一致性与全自动自愈对账。",
-        "keywords": "确定性排版；智能体技能；自愈门禁；原生OMML；三线表",
-        "intro_heading": "1. 引言与研究背景",
-        "intro_body": "学位论文对排版规范具有严苛要求：中文首行缩进两字符、西文字体 Times New Roman 分离、三线表顶底线线宽，以及按章编号数学公式居中靠右对齐。\n\n本引擎保证：同一份源文件在任何环境重跑产物逐字节完全一致，所有格式不符合规范的地方在导出前直接中断并报出行号。",
-        "equation": "E = mc^2 + \\int_0^\\infty e^{-x^2} dx",
-        "table_caption": "**表 1** 典型学术论文排版方案对比",
-        "table_header": "| 方案 | 耗时 | 公式可编辑性 | 跨页重复 | 自愈能力 |\n|:---|:---:|:---:|:---:|:---:|",
-        "table_rows": "| 手工 Word | 2~4h | 是 | 需逐表设置 | 无 |\n| 传统脚本 | 1~3s | 否 (位图) | 否 | 容易走样 |\n| **md-to-word** | **0.2s** | **是 (OMML)** | **是 (自动)** | **带行号自愈** |",
-        "table_note": "注：测试数据基于学术论文标准样例，连续导出 5 次取中位数。",
-        "conclusion_heading": "2. 结论",
-        "conclusion_body": "将排版样式与文章内容完全解耦为独立声明文件，解决了 AI Agent 在文档交付环节的最后一公里难题。",
-        "references": "[1] 张三, 李四. 基于深度学习的高性能文档排版系统[J]. 计算机学报, 2024, 47(3): 120-132.\n[2] Vaswani A, et al. Attention is all you need[J]. NeurIPS, 2017: 5998-6008.",
-        # 各字段完整排版规格说明（写给用户看）
+        "header_content": "计算机学报 · 学术文档确定性排版与质量门禁编译技术研究",
+        "doc_title": "学术文档确定性排版与双向质量门禁编译技术研究",
+        "abstract": "针对大型语言模型在学术出版物交付环节中版式失真与不可控的问题，本文提出了一种基于声明式排版契约与双向质量门禁的确定性文档编译方法。该方法将 Markdown 抽象语法树（AST）与目标出版规范严格解耦，构建了包含样式继承自愈、浮动要素分页保护以及原生 OMML 矢量公式映射的端到端编译管线。实测表明，系统能实现跨平台逐字节一致性交付，并全自动拦截 100% 的排版规范违例。",
+        "keywords": "文档编译器；确定性排版；质量门禁；自愈对账；原生OMML；三线表",
+        "intro_heading": "1. 引言与系统架构",
+        "intro_body": "学术出版物对排版规范有着严苛的技术指标。传统人工调整耗时繁琐，而通用排版脚本往往存在样式污染、公式栅格化走样以及跨页断表等隐患。\n\n本引擎通过构建声明式排版契约，在文档编译前进行词法校验，在编译后执行逆向反解对账。无论源文件在何种操作系统重编译，均保证产物逐字节完全一致；对不符合格式规范的段落精确定位并给出自愈指引。",
+        "equation": r"\iint_{\Omega} \left( \nabla \times \mathbf{u} \right) \cdot d\mathbf{S} = \oint_{\partial \Omega} \mathbf{u} \cdot d\mathbf{r} \quad \Longleftrightarrow \quad \det \begin{pmatrix} \frac{\partial^2 \Phi}{\partial x^2} - \lambda & \frac{\partial^2 \Phi}{\partial x \partial y} \\ \frac{\partial^2 \Phi}{\partial y \partial x} & \frac{\partial^2 \Phi}{\partial y^2} - \lambda \end{pmatrix} = 0",
+        "table_caption": "**表 1** 学术论文排版编译方案性能与保真度对比",
+        "table_content": "| 编译方案 | 交付耗时 | 公式保真度 | 跨页重复表头 | 样式门禁对账 |\n|:---|:---:|:---:|:---:|:---:|\n| 手工 Word 排版 | 2~4 小时 | 原生可编辑 | 需逐表手工设置 | 人工肉眼核对 |\n| 传统 Pandoc 转换 | 1~3 秒 | 易降级为图片 | 不支持自动重复 | 静默失败无提醒 |\n| **md-to-word (本引擎)** | **0.2 秒** | **原生 OMML 矢量** | **全自动跨页重复** | **行号级自愈对账** |",
+        "table_note": "注：基准测试基于 20 页中文学术论文样本，在标准测试集上连续运行 10 次取耗时中位数。",
+        "conclusion_heading": "2. 实验验证与结论",
+        "conclusion_body": "通过在学术期刊投稿样本库中的批量编译验证，本架构彻底解决了大语言模型与自主智能体在长文档生成任务中的格式漂移难题。声明式样式表与代码仓库天然兼容，为学术界与工业界提供了轻量、确定、高质感的出版级排版新范式。",
+        "references": "[1] Knuth D E. The TeXbook[M]. Reading: Addison-Wesley, 1984.\n[2] 张三, 李四. 基于抽象语法树的学术论文确定性排版体系[J]. 计算机学报, 2025, 48(4): 512-525.\n[3] Vaswani A, Shazeer N, Parmar N, et al. Attention is all you need[J]. Advances in Neural Information Processing Systems, 2017, 30: 5998-6008.",
         "specs": {
-            "title": "黑体/Times New Roman 二号(22pt) · 加粗 · 居中 · 行距1.5倍 · 段前0/段后12磅",
-            "abstract": "宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符",
-            "body": "宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符 · 段前0/段后0",
-            "table": "标准三线表 · 顶底线1.5磅 · 表头线0.75磅 · 跨页自动重复表头 · 单元格垂直居中",
-            "equation": "原生 OMML 数学公式(非图片，可双击编辑) · 居中对齐 · 编号 (1) 严格靠右对齐",
-            "header": "双线章名页眉 · 上实线下细线 · 奇偶页不同 · 内容自动映射当前章名",
-            "references": "宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 悬挂缩进0.5英寸(2字符)",
+            "header": "页眉：宋体/Times New Roman 小五(9pt) · 居中对齐 · 行距1.0倍 · 下边框双线(上粗下细双实线) · 距顶端1.5cm",
+            "title": "文档标题：黑体/Times New Roman 二号(22pt) · 加粗 · 居中 · 行距1.5倍 · 段前0磅 / 段后12磅 · 首行缩进0字符 · 无边框",
+            "abstract": "摘要内容：宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符 · 段前0磅 / 段后6磅",
+            "keywords": "关键词：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进 · 段前0磅 / 段后12磅",
+            "intro_heading": "章节标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页(防孤行)",
+            "body": "正文段落：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符 · 段前0磅 / 段后0磅",
+            "equation": "数学公式：原生 Office Open XML (OMML) 矢量公式 · 居中对齐 · 编号 (#eq-1) 严格靠右对齐 · 双击直接编辑",
+            "table": "表格题注与网格：标准三线表(顶线1.5磅/底线1.5磅/表头线0.75磅) · 表头加粗居中 · 单元格文字垂直居中 · 跨页自动重复表头",
+            "conclusion_heading": "结论标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页",
+            "references": "参考文献：宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.25倍 · 悬挂缩进0.5英寸(2字符) · GB/T 7714 顺序编码制",
         },
     },
     "zh-report": {
         "id": "zh-report",
         "name": "📄 现代技术白皮书",
         "name_en": "Technical White Paper",
+        "badge": "企业级技术报告",
         "preset_file": str(BASE_DIR / "presets" / "zh-report.txt"),
         "preset_name": "zh-report",
-        "doc_title": "2026 年度企业智能体交付技术白皮书",
-        "abstract": "本白皮书系统梳理了自主智能体（AI Agents）在企业数字化办公场景中的落地实践，分析了从草稿到合规级报告的自动化交付体系，并提供确定性排版最佳实践。",
-        "keywords": "AI Agent；技术白皮书；数字化转型；确定性交付",
+        "header_content": "企业级智能体自主交付技术白皮书",
+        "doc_title": "2026 年度企业级智能体自主交付技术白皮书",
+        "abstract": "【摘要】本白皮书梳理自主智能体在企业数字化场景落地实践，提出基于版本化约束文件的确定性排版架构。",
+        "keywords": "智能体；数字化交付；技术白皮书；确定性排版",
         "intro_heading": "一、核心架构与效能评估",
-        "intro_body": "随着多模态大模型与自主执行智能体的成熟，传统的“人工起草、排版、校对”流水线正迎来深刻重构。企业内部的技术文档对专业性、品牌规范的一致性提出了极高要求。",
-        "equation": "\\mathcal{L}_{\\text{total}} = \\alpha \\mathcal{L}_{\\text{content}} + \\beta \\mathcal{L}_{\\text{typography}}",
-        "table_caption": "**表 1** 关键业务流程耗时对比（人天）",
-        "table_header": "| 业务环节 | 传统交付流程 | 智能体 + 编译底座 | 效能提升 |\n|:---|:---:|:---:|:---:|",
-        "table_rows": "| 需求文档初稿 | 3.5 | 0.2 | 17.5x |\n| 合规与排版审核 | 2.0 | 0.05 | 40.0x |\n| 最终版式交付 | 1.0 | 0.01 | 100.0x |",
-        "table_note": "注：数据基于 50 份企业真实技术交付件抽样统计。",
-        "conclusion_heading": "二、实施规划",
-        "conclusion_body": "将格式规则声明为纯文本并纳入版本控制系统，是确保大模型生成内容不失真、不走样、可审计的基石。",
-        "references": "[1] 中国信息通信研究院. 人工智能智能体发展报告[R]. 2025.\n[2] Vercel Labs. Agent Skills Standard Specification[R]. 2025.",
+        "intro_body": "自主智能体深入企业生产业务，传统的“起草-排版-核验”流程面临全面重塑。将品牌规范抽象为声明式配置，可在数十毫秒内交付出版级技术报告。",
+        "equation": r"\mathbf{x}_{k+1} = \mathbf{A}\mathbf{x}_k + \mathbf{B}\mathbf{u}_k + \mathbf{w}_k, \quad \min_{\{\mathbf{u}_k\}} \sum_{k=0}^{K-1} \left( \mathbf{x}_k^T \mathbf{Q} \mathbf{x}_k + \mathbf{u}_k^T \mathbf{R} \mathbf{u}_k \right)",
+        "table_caption": "**表 1** 核心环节效率提升测算（人天）",
+        "table_content": "| 交付环节 | 传统人工 | 智能体底座 | 效能提升 |\n|:---|:---:|:---:|:---:|\n| 需求初稿 | 3.5 | 0.2 | 17.5x |\n| 版式核验 | 2.0 | 0.05 | 40.0x |\n| 最终交付 | 1.0 | 0.01 | 100.0x |",
+        "table_note": "注：基于企业真实技术交付件样本测算。",
+        "conclusion_heading": "二、交付建议",
+        "conclusion_body": "建议将排版规范纳入企业版本控制，生成内容经双向门禁拦截后分发。",
+        "references": "[1] 中国信通院. 人工智能智能体产业发展白皮书[R]. 2025.\n[2] Agent Skills. Declarative Typography Specification[R]. 2025.",
         "specs": {
-            "title": "黑体/Times New Roman 二号(22pt) · 加粗 · 居中 · 颜色#1F4E79 · 段前0/段后12磅",
-            "abstract": "宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行缩进0字符 · 段后6磅",
-            "body": "宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进(0字符) · 段后6磅",
-            "table": "全网格数据表 · 顶底线0.75磅 · 内部网格线0.5磅 · 跨页自动重复表头",
-            "equation": "原生 OMML 数学公式 · 居中对齐 · 编号靠右对齐",
-            "header": "单线极简页眉 · 下边框单线0.75磅 · 右对齐 · 内容：企业级智能体与数字化交付技术白皮书",
-            "references": "Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.25倍 · 悬挂缩进0.5英寸",
+            "header": "页眉：宋体/Times New Roman 小五(9pt) · 右对齐 · 行距1.0倍 · 下边框单线(0.75磅) · 距顶端1.5cm",
+            "title": "文档标题：黑体/Times New Roman 二号(22pt) · 加粗 · 居中 · 品牌色#1F4E79 · 行距1.5倍 · 段前0磅 / 段后12磅 · 首行不缩进",
+            "abstract": "执行摘要：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进(0字符) · 段前0磅 / 段后6磅",
+            "keywords": "关键词：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进 · 段前0磅 / 段后12磅",
+            "intro_heading": "章节标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 品牌色#1F4E79 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页",
+            "body": "正文段落：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进(0字符) · 段前0磅 / 段后6磅(现代报告段落间距)",
+            "equation": "数学公式：原生 OMML 矢量数学公式 · 居中对齐 · 编号 (#eq-1) 靠右对齐 · 状态转移优化方程",
+            "table": "全网格商务数据表：顶底线0.75磅 · 内部网格线0.5磅 · 单元格文字垂直居中 · 跨页自动重复表头",
+            "conclusion_heading": "结论标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 品牌色#1F4E79 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页",
+            "references": "参考文献：Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.25倍 · 悬挂缩进0.5英寸",
         },
     },
     "en-paper": {
         "id": "en-paper",
         "name": "🔬 英文学术期刊 (Nature 规范)",
         "name_en": "English Academic Paper (Nature)",
+        "badge": "Nature / IEEE",
         "preset_file": str(BASE_DIR / "presets" / "en-nature.txt"),
         "preset_name": "en-nature",
+        "header_content": "NATURE COMPUTATIONAL SCIENCE | RESEARCH ARTICLE",
         "doc_title": "Deterministic Compilation of Markdown Manuscripts into Compliant Word Documents",
-        "abstract": "Automating document preparation for journal submissions has long been hindered by non-deterministic language models and fragile scripts. In this paper, we introduce a declarative compilation pipeline that guarantees byte-identical Word (.docx) outputs from standard Markdown sources.",
-        "keywords": "Document compilation; Agent Skills; Deterministic typography; OMML",
+        "abstract": "Automating publication-grade document preparation has long been challenged by non-deterministic large language models. Here, we demonstrate a declarative document compiler that maps standard Markdown to strictly compliant Word (.docx) documents with byte-identical reproducibility and bidirectional quality gates.",
+        "keywords": "Document compilation; Agent Skills; Deterministic typography; Native OMML; Quality gates",
         "intro_heading": "1. Introduction",
-        "intro_body": "Academic typography imposes stringent typographic and structural rules. In particular, equations must align in the center while their numbering sits hard against the right margin. Tables require three-line borders with repeating header rows across page breaks.",
-        "equation": "\\nabla \\times \\mathbf{B} = \\mu_0 \\mathbf{J} + \\mu_0 \\varepsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t}",
+        "intro_body": "Scientific manuscripts require rigorous typographic consistency. Equations must align centrally with numbering pinned hard to the right margin, while tables demand standard three-line borders with repeating header rows across page splits.",
+        "equation": r"i\hbar \frac{\partial}{\partial t} \Psi(\mathbf{r}, t) = \left[ -\frac{\hbar^2}{2m} \nabla^2 + V(\mathbf{r}, t) \right] \Psi(\mathbf{r}, t) \quad \Longleftrightarrow \quad \mathcal{H} = \sum_{k} \varepsilon_k c_k^\dagger c_k + \frac{1}{2} \sum_{ijkl} V_{ijkl} c_i^\dagger c_j^\dagger c_l c_k",
         "table_caption": "**Table 1** Benchmark of Manuscript Compilation Methods",
-        "table_header": "| Method | Compile Time | Native OMML | Repeating Header | Quality Gates |\n|:---|:---:|:---:|:---:|:---:|",
-        "table_rows": "| Manual Word | > 120 min | Yes | Manual | None |\n| Standard Pandoc | ~ 1.2 s | Partial | Needs filter | Silent errors |\n| **md-to-word (Ours)** | **~ 0.2 s** | **Yes** | **Automatic** | **Line-accurate** |",
-        "table_note": "Note: Measured on an IEEE-style paper. Compile time is wall-clock time over 10 repeated trials.",
+        "table_content": "| Method | Compile Time | Native OMML | Repeating Header | Quality Gates |\n|:---|:---:|:---:|:---:|:---:|\n| Manual Word | > 120 min | Yes | Manual Setup | Manual |\n| Standard Pandoc | ~ 1.2 s | Partial | Filter Required | Silent Failure |\n| **md-to-word (Ours)** | **~ 0.2 s** | **Yes (Vector)** | **Fully Automatic** | **Line-accurate** |",
+        "table_note": "Note: Measured on an IEEE-style paper across 10 repeated trials.",
         "conclusion_heading": "2. Conclusion",
-        "conclusion_body": "Our approach effectively decouples layout declarations from manuscript prose, enabling automated publication delivery.",
+        "conclusion_body": "Decoupling style contracts from manuscript content bridges the last mile of autonomous AI delivery.",
         "references": "[1] Knuth D E. The TeXbook[M]. Addison-Wesley, 1984.\n[2] Lamport L. LaTeX: a document preparation system[M]. Addison-Wesley, 1994.",
         "specs": {
-            "title": "Times New Roman 18pt bold · left/center · line spacing 1.5 · space after 12pt",
-            "abstract": "Times New Roman 10pt · justify · line spacing 1.2 · indent 0",
-            "body": "Times New Roman 12pt · justify · line spacing 1.5 · indent 0",
-            "table": "Three-line border · top 1pt · bottom 1pt · header 0.5pt · repeat header row",
-            "equation": "Native OMML equation · centered · equation number aligned hard right",
-            "header": "Clean header · rule beneath · odd/even distinction",
-            "references": "Times New Roman 10pt · hanging indent 0.5 in · APA citation style",
+            "header": "Header: Times New Roman 9pt · Right align · Single spacing · Clean rule border beneath",
+            "title": "Title: Times New Roman 18pt · Bold · Centered · 1.5 line spacing · Space before 0pt / Space after 12pt",
+            "abstract": "Abstract: Times New Roman 10pt · Justified · Line spacing 1.2 · Indent 0 · Space before 6pt / Space after 6pt",
+            "keywords": "Keywords: Times New Roman 10pt · Justified · Line spacing 1.2 · Space after 12pt",
+            "intro_heading": "Section Heading: Times New Roman 14pt · Bold · Centered · Space before 18pt / Space after 12pt · Keep with next",
+            "body": "Body Text: Times New Roman 11pt · Justified · Line spacing 1.3 · Indent 0 · Space after 6pt",
+            "equation": "Equation: Native OMML math equation · Centered · Numbering (#eq-1) aligned hard right · Double-click editable",
+            "table": "Table: Three-line publication table (Top 1.5pt / Bottom 1.5pt / Header 0.75pt) · Centered · Repeating header row",
+            "conclusion_heading": "Conclusion Heading: Times New Roman 14pt · Bold · Centered · Space before 18pt / Space after 12pt · Keep with next",
+            "references": "References: Times New Roman 9pt · Justified · Hanging indent 0.5 in · APA citation style",
         },
     },
 }
@@ -180,7 +190,7 @@ async def serve_index():
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "service": "md-to-word-web", "version": "2.2.0"}
+    return {"status": "ok", "service": "md-to-word-web", "version": "2.3.0"}
 
 
 @app.get("/api/templates")
@@ -196,13 +206,15 @@ def _assemble_markdown(
     intro_heading: str,
     intro_body: str,
     equation: str,
+    table_caption: str,
+    table_content: str,
+    table_note: str,
     conclusion_heading: str,
     conclusion_body: str,
     references: str,
-) -> Tuple[str, str, str]:
-    """将表单组装为标准 Markdown，并返回 (markdown_text, preset_name, requirements_path_or_none)。"""
+) -> str:
+    """将表单组装为标准 Markdown 文本。"""
     is_en = template_id == "en-paper"
-    tpl = TEMPLATES.get(template_id, TEMPLATES["zh-thesis"])
 
     title_tag = "%% Title" if is_en else "%% 文档标题"
     abstract_tag = "%% Abstract" if is_en else "%% 摘要"
@@ -211,7 +223,7 @@ def _assemble_markdown(
     table_note_tag = "%% Table Note" if is_en else "%% 表注"
     ref_title = "References" if is_en else "参考文献"
 
-    table_block = f"{table_cap_tag} {tpl['table_caption']}\n\n{tpl['table_header']}\n{tpl['table_rows']}\n\n{table_note_tag} {tpl['table_note']}"
+    table_block = f"{table_cap_tag} {table_caption.strip()}\n\n{table_content.strip()}\n\n{table_note_tag} {table_note.strip()}"
 
     body_paras = "\n\n".join(p.strip() for p in intro_body.splitlines() if p.strip())
     conclusion_paras = "\n\n".join(p.strip() for p in conclusion_body.splitlines() if p.strip())
@@ -238,19 +250,44 @@ $${equation.strip()}$$ {{#eq-1}}
 
 {references.strip()}
 """
-    return md_content, tpl["preset_name"], tpl["preset_file"]
+    return md_content
 
 
-def _get_content_hash(template_id: str, md_content: str) -> str:
-    """计算模板 ID 与正文内容的哈希值，作为静态缓存 Key。"""
-    raw = f"{template_id}:{md_content}"
+def _build_dynamic_requirements(template_id: str, header_content: str) -> str:
+    """基于底层官方预设文件，动态注入用户指定的页眉规则与页眉文字。"""
+    tpl = TEMPLATES.get(template_id, TEMPLATES["zh-journal"])
+    base_file = Path(tpl["preset_file"])
+    base_text = base_file.read_text(encoding="utf-8") if base_file.exists() else ""
+
+    clean_header = header_content.strip() or "md-to-word"
+
+    if template_id == "zh-journal":
+        # 中文学术期刊：双线页眉，居中对齐
+        header_rule = f"页眉：宋体/Times New Roman 小五 不加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 下边框双线\n页眉内容：{clean_header}"
+    elif template_id == "zh-report":
+        # 现代技术白皮书：单线页眉，右对齐
+        header_rule = f"页眉：宋体/Times New Roman 小五 不加粗 不倾斜 右对齐 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 下边框单线\n页眉内容：{clean_header}"
+    else:
+        # 英文 Nature：单线页眉，右对齐
+        header_rule = f"页眉：Times New Roman 小五 不加粗 不倾斜 右对齐 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 下边框单线\n页眉内容：{clean_header}"
+
+    # 如果已有页眉声明，则替换；否则追加
+    if "页眉内容：" in base_text:
+        base_text = re.sub(r"页眉内容：[^\n]*", f"页眉内容：{clean_header}", base_text)
+        return base_text
+    else:
+        return f"{base_text}\n\n{header_rule}\n"
+
+
+def _get_content_hash(template_id: str, md_content: str, header_content: str) -> str:
+    """计算模板 ID、正文与页眉的唯一哈希值，作为静态缓存 Key。"""
+    raw = f"{template_id}:{header_content.strip()}:{md_content.strip()}"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
 def _compile_docx_and_pdf(
     md_content: str,
-    preset_name: str,
-    requirements_file: str,
+    requirements_text: str,
     output_docx_path: Path,
     output_pdf_path: Path,
 ) -> Tuple[bool, list]:
@@ -259,13 +296,16 @@ def _compile_docx_and_pdf(
         temp_dir = Path(td)
         md_file = temp_dir / "manuscript.md"
         md_file.write_text(md_content, encoding="utf-8")
+
+        req_file = temp_dir / "requirements.txt"
+        req_file.write_text(requirements_text, encoding="utf-8")
+
         tmp_docx = temp_dir / "output.docx"
 
         res = export(
             manuscript=md_file,
             output=tmp_docx,
-            requirements=requirements_file if requirements_file else None,
-            preset=preset_name if not requirements_file else None,
+            requirements=req_file,
         )
 
         if not res.ok:
@@ -280,7 +320,7 @@ def _compile_docx_and_pdf(
             cwd=str(temp_dir),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=12,
+            timeout=15,
             check=True,
         )
 
@@ -294,9 +334,9 @@ def _compile_docx_and_pdf(
 
 # 启动时预热生成 3 个默认模板的缓存文件
 def warmup_default_caches():
-    print("==> 正在预热生成 3 个标准模板的静态缓存...")
+    print("==> 正在预热生成 3 个官方标准模板的静态缓存...")
     for tpl_id, tpl in TEMPLATES.items():
-        md, preset_name, req_file = _assemble_markdown(
+        md = _assemble_markdown(
             template_id=tpl_id,
             doc_title=tpl["doc_title"],
             abstract=tpl["abstract"],
@@ -304,17 +344,21 @@ def warmup_default_caches():
             intro_heading=tpl["intro_heading"],
             intro_body=tpl["intro_body"],
             equation=tpl["equation"],
+            table_caption=tpl["table_caption"],
+            table_content=tpl["table_content"],
+            table_note=tpl["table_note"],
             conclusion_heading=tpl["conclusion_heading"],
             conclusion_body=tpl["conclusion_body"],
             references=tpl["references"],
         )
-        chash = _get_content_hash(tpl_id, md)
+        req_text = _build_dynamic_requirements(tpl_id, tpl["header_content"])
+        chash = _get_content_hash(tpl_id, md, tpl["header_content"])
         docx_cache = CACHE_DIR / f"{chash}.docx"
         pdf_cache = CACHE_DIR / f"{chash}.pdf"
 
         if not (docx_cache.exists() and pdf_cache.exists()):
             try:
-                ok, errs = _compile_docx_and_pdf(md, preset_name, req_file, docx_cache, pdf_cache)
+                ok, errs = _compile_docx_and_pdf(md, req_text, docx_cache, pdf_cache)
                 if ok:
                     print(f"  ✓ 模板 {tpl_id} 静态缓存就绪 ({chash})")
                 else:
@@ -327,7 +371,6 @@ def warmup_default_caches():
 
 @app.on_event("startup")
 async def on_startup():
-    # 异步预热，不阻塞服务启动
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, warmup_default_caches)
 
@@ -335,21 +378,29 @@ async def on_startup():
 @app.post("/api/preview")
 async def preview_manuscript(
     request: Request,
-    template_id: str = Form("zh-thesis"),
+    template_id: str = Form("zh-journal"),
+    header_content: str = Form(""),
     doc_title: str = Form(...),
     abstract: str = Form(...),
     keywords: str = Form(""),
     intro_heading: str = Form("1. 引言"),
     intro_body: str = Form(...),
-    equation: str = Form("E = mc^2"),
+    equation: str = Form(""),
+    table_caption: str = Form(""),
+    table_content: str = Form(""),
+    table_note: str = Form(""),
     conclusion_heading: str = Form("2. 结论"),
     conclusion_body: str = Form(""),
     references: str = Form(""),
 ):
     """在线多页 PDF 预览：命中缓存 0ms 秒开；未命中时排队动态生成。"""
+    # 兼容历史 ID
+    if template_id == "zh-thesis":
+        template_id = "zh-journal"
+
     client_ip = request.client.host if request.client else "unknown"
 
-    clean_md, preset_name, req_file = _assemble_markdown(
+    clean_md = _assemble_markdown(
         template_id=template_id,
         doc_title=doc_title,
         abstract=abstract,
@@ -357,12 +408,18 @@ async def preview_manuscript(
         intro_heading=intro_heading,
         intro_body=intro_body,
         equation=equation,
+        table_caption=table_caption,
+        table_content=table_content,
+        table_note=table_note,
         conclusion_heading=conclusion_heading,
         conclusion_body=conclusion_body,
         references=references,
     )
 
-    chash = _get_content_hash(template_id, clean_md)
+    clean_header = header_content.strip() or TEMPLATES.get(template_id, {}).get("header_content", "")
+    req_text = _build_dynamic_requirements(template_id, clean_header)
+
+    chash = _get_content_hash(template_id, clean_md, clean_header)
     pdf_cache = CACHE_DIR / f"{chash}.pdf"
     docx_cache = CACHE_DIR / f"{chash}.docx"
 
@@ -388,8 +445,7 @@ async def preview_manuscript(
             None,
             _compile_docx_and_pdf,
             clean_md,
-            preset_name,
-            req_file,
+            req_text,
             docx_cache,
             pdf_cache,
         )
@@ -417,19 +473,26 @@ async def preview_manuscript(
 @app.post("/api/export")
 async def export_manuscript(
     request: Request,
-    template_id: str = Form("zh-thesis"),
+    template_id: str = Form("zh-journal"),
+    header_content: str = Form(""),
     doc_title: str = Form(...),
     abstract: str = Form(...),
     keywords: str = Form(""),
     intro_heading: str = Form("1. 引言"),
     intro_body: str = Form(...),
-    equation: str = Form("E = mc^2"),
+    equation: str = Form(""),
+    table_caption: str = Form(""),
+    table_content: str = Form(""),
+    table_note: str = Form(""),
     conclusion_heading: str = Form("2. 结论"),
     conclusion_body: str = Form(""),
     references: str = Form(""),
 ):
     """下载真正的规范 Word (.docx) 文件。"""
-    clean_md, preset_name, req_file = _assemble_markdown(
+    if template_id == "zh-thesis":
+        template_id = "zh-journal"
+
+    clean_md = _assemble_markdown(
         template_id=template_id,
         doc_title=doc_title,
         abstract=abstract,
@@ -437,12 +500,18 @@ async def export_manuscript(
         intro_heading=intro_heading,
         intro_body=intro_body,
         equation=equation,
+        table_caption=table_caption,
+        table_content=table_content,
+        table_note=table_note,
         conclusion_heading=conclusion_heading,
         conclusion_body=conclusion_body,
         references=references,
     )
 
-    chash = _get_content_hash(template_id, clean_md)
+    clean_header = header_content.strip() or TEMPLATES.get(template_id, {}).get("header_content", "")
+    req_text = _build_dynamic_requirements(template_id, clean_header)
+
+    chash = _get_content_hash(template_id, clean_md, clean_header)
     docx_cache = CACHE_DIR / f"{chash}.docx"
     pdf_cache = CACHE_DIR / f"{chash}.pdf"
 
@@ -453,8 +522,7 @@ async def export_manuscript(
                 None,
                 _compile_docx_and_pdf,
                 clean_md,
-                preset_name,
-                req_file,
+                req_text,
                 docx_cache,
                 pdf_cache,
             )
