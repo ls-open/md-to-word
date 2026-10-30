@@ -1,7 +1,7 @@
 # md-to-word
 
-[![Official Skill: Nature Skills](https://img.shields.io/badge/Official%20Skill-Nature%20Skills%20(51k+%E2%98%85)-d9381e?logo=github&logoColor=white)](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
-[![Ecosystem: Academic Research Skills](https://img.shields.io/badge/Ecosystem-Academic%20Research%20Skills%20(51k+%E2%98%85)-0969da?logo=github&logoColor=white)](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects)
+[![Skill: Nature Skills](https://img.shields.io/badge/Skill-Nature%20Skills-d9381e?logo=github&logoColor=white)](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
+[![Listed in Academic Research Skills](https://img.shields.io/badge/Listed-Academic%20Research%20Skills-0969da?logo=github&logoColor=white)](https://github.com/Imbad0202/academic-research-skills/blob/main/THIRD_PARTY.md#listed-projects)
 [![Featured in Chinese Indie Dev](https://img.shields.io/badge/Featured%20in-Chinese%20Indie%20Dev-238636?logo=github&logoColor=white)](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)
 [![Release](https://img.shields.io/github/v/release/ls-open/md-to-word)](https://github.com/ls-open/md-to-word/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
@@ -20,10 +20,10 @@ Compile Markdown into compliant Word (`.docx`) documents matching strict formatt
 Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hallucinations, table drifts across page breaks, and styling inconsistencies. Tools like Pandoc require wrestling with complex internal XML templates and brittle post-filters for fine adjustments.
 
 `md-to-word` uses a **declarative typographic contract** and **bidirectional quality gates with exact line numbers**:
-- **Byte-Identical Reproducibility**: The same Markdown source always yields identical document binaries across different machines.
+- **Byte-Identical Reproducibility**: Rebuilding the same Markdown source yields identical document binaries — packaging timestamps, permissions and entry order are all fixed.
 - **Autonomous Self-Healing**: Missing formats or invalid syntax are caught before writing the file with exact line numbers and guidance, enabling AI Agents to auto-debug and self-heal.
 - **Compliant Typography**: Native OMML math formulas (vector, double-click editable, centered with numbering hard right), three-line tables with repeating headers across page breaks, and double/single-rule running headers.
-- **Flexible typography**: When specific templates or guidelines are provided, compile using the target format file; otherwise, built-in presets deliver clean, compliant documents out of the box.
+- **User format first**: When a template or written spec is available, compile against its format file; built-in presets are for a first look, while a deliverable should follow the template or spec.
 
 ---
 
@@ -39,7 +39,7 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 | :--- | :--- | :---: | :--- | :--- |
 | **🌐 Web Playground** | Browser testing, instant preview, zero-install export | ❌ None needed | Visit [Official Playground](https://ls-open.github.io/md-to-word/) | **Instant trial**: fill in a form and preview with three built-in templates; download `.docx`. |
 | **🤖 MCP Native Server** *(fastest once the format is fixed)* | **Claude Desktop**, **Cursor**, **Windsurf**, and any MCP client | ❌ Handled automatically (`uvx` pulls isolated venv) | Add `uvx` configuration (see below) | **Most Native**: once a `format.txt` exists, the AI compiles directly; the environment is isolated automatically. |
-| **🧠 Agent Skill** *(Recommended)* | **Claude Code**, terminal agents, **Nature Skills (51k+ ★)** | ⚠️ Requires host agent environment | `npx skills add ls-open/md-to-word` or `$nature-paper2word` | **Most Autonomous**: reads the guide, derives the format from the user's template/spec, and self-heals on gate errors. |
+| **🧠 Agent Skill** *(Recommended)* | **Claude Code**, terminal agents, **Nature Skills** | ⚠️ Requires host agent environment | `npx skills add ls-open/md-to-word` or `$nature-paper2word` | **Most Autonomous**: reads the guide, derives the format from the user's template/spec, and self-heals on gate errors. |
 | **💻 Local CLI & SDK** | Terminal batch processing, CI/CD pipelines, Python scripts | Requires Python >= 3.10 | `pip install md-to-word-docx` then `md-to-word paper.md` | **Most Deterministic**: 100% offline, zero LLM API dependency, supports reverse template extraction and byte-level diffs. |
 
 ---
@@ -76,7 +76,7 @@ In your `claude_desktop_config.json` (or Cursor MCP settings), add:
 - `list_presets`: Explores built-in templates (Chinese Academic Journal, Technical Report/Whitepaper, Nature English Paper);
 - `inspect_preset`: Inspects typography specifications (`format.txt`) with complete transparency.
 
-**Order of work**: call `get_guide` first, then decide `format` from the user's template or spec; use built-in presets directly if no custom template is needed.
+**Order of work**: call `get_guide` first, then decide `format` from the user's template or spec; use a built-in preset only for a first look when no template is available.
 
 #### 2. 🧠 Use as an Agent Skill (Claude Code / Nature Ecosystem)
 
@@ -87,7 +87,7 @@ For CLI agents or environments with shell execution permissions:
   npx skills add ls-open/md-to-word
   ```
 - **Nature Skills Integration**:
-  Officially merged into **[Nature Skills (51k+ ★)](https://github.com/Yuan1z0825/nature-skills)**. Simply call `$nature-paper2word` in supported setups.
+  The skill version is merged into **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)**. Simply call `$nature-paper2word` in supported setups.
 - **Manual Import**:
   Copy [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) into your project's rules or skills directory (e.g. `.claude/skills/`).
 
@@ -217,8 +217,8 @@ Refer to the [User Manual](https://github.com/ls-open/md-to-word/blob/main/src/m
 
 Focused on deterministic downstream Word compilation. Recommended to pair with upstream research frameworks:
 
-- **[Nature Skills](https://github.com/Yuan1z0825/nature-skills) (51k+ ★)**: Top-tier academic research and writing agent toolkit. Officially integrated as [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word) to deliver publication-compliant Word documents in the final stage.
-- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills) (51k+ ★)**: 5-stage research framework. Listed in the official ecosystem, directly compiling Stage 5 (FINALIZE) Markdown and `.bib` outputs into Word.
+- **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)**: Academic research and writing agent toolkit. The skill version is merged into that repository to deliver compliant Word documents in the final stage.
+- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**: 5-stage research framework. Listed among its third-party projects, directly compiling Stage 5 (FINALIZE) Markdown and `.bib` outputs into Word.
 - **[Chinese Independent Developer](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)**: Featured in the developer showcase.
 
 ---
