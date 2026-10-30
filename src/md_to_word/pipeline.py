@@ -20,7 +20,7 @@ from md_to_word.config import (
 )
 from md_to_word.i18n import resolve_lang, t
 from md_to_word.preprocessor.cleaner import strip_html_comments
-from md_to_word.spec.parser import parse_requirements
+from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
 from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED
 from md_to_word.template.generator import TemplateError
@@ -37,13 +37,18 @@ class ExportOptions:
 
     input_path: Path | str
     output_path: Optional[Path | str] = None
-    requirements_path: Optional[Path | str] = None
+    format_path: Optional[Path | str] = None
     preset: Optional[str] = None
     check_md: bool = True
     postflight: bool = True
     audit: bool = True
     make_pdf: bool = False
     lang: Optional[str] = None  # 消息语言：None=按稿件语种 | "zh" | "en"
+    requirements_path: Optional[Path | str] = None  # 向后兼容别名
+
+    def __post_init__(self):
+        if self.format_path is None and self.requirements_path is not None:
+            self.format_path = self.requirements_path
 
 
 @dataclass
@@ -118,34 +123,34 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         res.errors.append(t("pipeline.output_is_dir", res.lang, path=out_p))
         return res
 
-    # 2. 确定格式要求 (Requirements Spec)
-    req_file: Optional[Path] = None
-    req_content: Optional[str] = None
+    # 2. 确定格式 (Format Spec)
+    fmt_file: Optional[Path] = None
+    fmt_content: Optional[str] = None
 
-    if options.requirements_path:
-        p_req = Path(options.requirements_path).resolve()
-        if not p_req.is_file():
+    if options.format_path:
+        p_fmt = Path(options.format_path).resolve()
+        if not p_fmt.is_file():
             res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.requirements_missing", res.lang, path=p_req))
+            res.errors.append(t("pipeline.format_missing", res.lang, path=p_fmt))
             return res
-        req_file = p_req
-        req_content = p_req.read_text(encoding="utf-8")
+        fmt_file = p_fmt
+        fmt_content = p_fmt.read_text(encoding="utf-8")
     elif options.preset:
         p_pre = resolve_preset_path(options.preset)
         if not p_pre or not p_pre.is_file():
             res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.preset_missing", res.lang, name=options.preset))
             return res
-        req_file = p_pre
-        req_content = p_pre.read_text(encoding="utf-8")
+        fmt_file = p_pre
+        fmt_content = p_pre.read_text(encoding="utf-8")
     else:
         # 不带 `-r` 时只认一个固定名：稿件同目录的 `format.txt`。不去猜「旁边那个 .txt
         # 也许是要求文件」——猜错是静默用错格式，猜对了也换不来多少方便。旁边确实另有
         # .txt 却没用上时提醒一句，免得用户以为它生效了。
         named = in_p.parent / "format.txt"
         if named.is_file():
-            req_file = named
-            req_content = named.read_text(encoding="utf-8")
+            fmt_file = named
+            fmt_content = named.read_text(encoding="utf-8")
             res.messages.append(t("pipeline.txt_named", res.lang, path=named.name))
         else:
             others = sorted(p.name for p in in_p.parent.glob("*.txt") if p.is_file())
@@ -157,13 +162,13 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             preset_name = DEFAULT_PRESET_ZH if res.lang == "zh" else DEFAULT_PRESET_EN
             p_default = resolve_preset_path(preset_name)
             if p_default and p_default.is_file():
-                req_file = p_default
-                req_content = p_default.read_text(encoding="utf-8")
+                fmt_file = p_default
+                fmt_content = p_default.read_text(encoding="utf-8")
                 res.messages.append(t("pipeline.preset_auto", res.lang, name=preset_name))
 
     # 要求文件写错时预检会给出带行号的原因；这里只取公式编号这一项，读不出就用默认
     try:
-        spec = parse_requirements(req_content) if req_content else None
+        spec = parse_format(fmt_content) if fmt_content else None
     except ValueError:
         spec = None
 
@@ -171,7 +176,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     if options.check_md:
         logger.info("🔍 " + t("pipeline.precheck", res.lang))
         v_report = validate_manuscript(
-            in_p, spec_path=req_file, lang=res.lang
+            in_p, spec_path=fmt_file, lang=res.lang
         )
         if not v_report.valid:
             res.returncode = EXIT_ERROR
@@ -218,17 +223,17 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             builtin_csl = default_csl_path(contract_text)
 
         # 临时模板生成
-        if not req_content:
+        if not fmt_content:
             res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.no_spec", res.lang))
             return res
         temp_tpl_path = Path(temp_dir) / "template.docx"
         try:
-            build_template(req_content, temp_tpl_path, lang=res.lang)
+            build_template(fmt_content, temp_tpl_path, lang=res.lang)
         except TemplateError as exc:
             res.returncode = EXIT_ERROR
             res.errors.append(
-                t("pipeline.requirements_template_failed", res.lang, reason=exc)
+                t("pipeline.format_template_failed", res.lang, reason=exc)
             )
             return res
         tpl_for_render = temp_tpl_path
@@ -315,8 +320,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
 
         # 9. 格式要求逐条对账 (Audit: Inspector)
-        if options.audit and req_file:
-            matched, problems = audit_docx_against_spec(out_p, req_file, res.lang)
+        if options.audit and fmt_file:
+            matched, problems = audit_docx_against_spec(out_p, fmt_file, res.lang)
             if not matched:
                 res.returncode = EXIT_ERROR
                 res.errors.append(t("pipeline.audit_failed", res.lang, count=len(problems)))

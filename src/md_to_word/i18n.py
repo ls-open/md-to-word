@@ -39,9 +39,9 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.version": ("显示版本号后退出", "show program's version number and exit"),
     "cli.input": ("输入的 Markdown 稿件 (.md)", "Input Markdown manuscript (.md)"),
     "cli.output": ("输出的 Word 文档路径 (.docx)", "Output .docx path"),
-    "cli.requirements": (
-        "格式要求文件 (.txt)；未传时只认同目录的 format.txt，没有则用内置预设",
-        "Format requirements (.txt); without it, only a format.txt beside the manuscript is used, else a preset",
+    "cli.format": (
+        "格式文件 (.txt)；未传时只认同目录的 format.txt，没有则用内置预设",
+        "Format file (.txt); without it, only a format.txt beside the manuscript is used, else a preset",
     ),
     "cli.preset": (
         "内置格式预设：zh-academic（中文学术默认）或 en-nature（英文国际期刊）",
@@ -50,7 +50,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.lang": ("消息语言：auto=按稿件语种 / zh / en", "Message language: auto / zh / en"),
     "cli.no_check": ("跳过导前语法与排版契约预检（不推荐）", "Skip the pre-flight check (not recommended)"),
     "cli.no_postflight": ("跳过产物数值防丢检查（不推荐）", "Skip the numeric-integrity check (not recommended)"),
-    "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against requirements"),
+    "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against the format file"),
     "cli.pdf": ("导出后再渲染一份 PDF 供核对（macOS + 本机 Word）", "Also render a PDF for review (macOS + local Word)"),
     "cli.brief": (
         "md-to-word {version} — 把 Markdown 编译成符合声明格式的 Word（.docx）\n\n"
@@ -120,32 +120,32 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "输出目录不存在: {dir}\n  先建目录，或用 -o 指到已存在的目录里。",
         "Output directory does not exist: {dir}\n  Create it first, or point -o at an existing directory.",
     ),
-    "pipeline.requirements_missing": ("指定的格式要求文件不存在: {path}", "Requirements file not found: {path}"),
+    "pipeline.format_missing": ("指定的格式文件不存在: {path}", "Format file not found: {path}"),
     "pipeline.preset_missing": ("未找到预设: {name}", "Preset not found: {name}"),
     "pipeline.preset_auto": (
-        "未指定格式要求，按稿件语种使用内置预设 {name}（要换就用 -r 或 --preset）。",
-        "No requirements given; using the {name} preset for this manuscript's language (pass -r or --preset to override).",
+        "未指定格式文件，按稿件语种使用内置预设 {name}（仅预览；正式交付请用 -f 指定用户格式）。",
+        "No format file given; using the {name} preset for this manuscript's language (preview only; pass -f with the user's format for delivery).",
     ),
     "pipeline.txt_named": (
-        "未指定格式要求，取同目录的 format.txt（要换一份就加 -r）。",
-        "No format file given; using the format.txt beside the manuscript (pass -r to use another).",
+        "未指定格式文件，取同目录的 format.txt（要换一份就加 -f）。",
+        "No format file given; using the format.txt beside the manuscript (pass -f to use another).",
     ),
     "pipeline.txt_ignored": (
-        "同目录有 {names}，但本工具只认 format.txt，未采用（要用其中一份请加 -r）。",
+        "同目录有 {names}，但本工具只认 format.txt，未采用（要用其中一份请加 -f）。",
         "The manuscript's directory has {names}, but only a file named format.txt is picked up; "
-        "pass -r to use one of them.",
+        "pass -f to use one of them.",
     ),
-    "pipeline.no_spec": ("未提供格式要求或模板，无法生成样式文档。", "No requirements or template: cannot build the style template."),
+    "pipeline.no_spec": ("未提供格式文件或模板，无法生成样式文档。", "No format file or template: cannot build the style template."),
     "pipeline.csl_error": ("文献库或 CSL 样式无法使用：{reason}", "Bibliography or CSL style unusable: {reason}"),
-    "pipeline.requirements_template_failed": (
-        "格式要求无法生成样式模板：{reason}",
-        "Could not build a style template from the requirements: {reason}",
+    "pipeline.format_template_failed": (
+        "格式文件无法生成样式模板：{reason}",
+        "Could not build a style template from the format file: {reason}",
     ),
     "pipeline.csl_normalized": (
         "引文样式 {name} 里的 {attrs} 已忽略：段落格式（悬挂缩进、行距）由要求文件的「参考文献」样式决定，"
         "否则同一份要求换个 CSL，排版就会变。",
         "Ignored {attrs} in citation style {name}: paragraph formatting (hanging indent, line spacing) "
-        "comes from the Bibliography style in the requirements file, otherwise the same requirements "
+        "comes from the Bibliography style in the format file, otherwise the same format file "
         "would lay out differently under a different CSL.",
     ),
     # ── 流水线：进度与结论 ──────────────────────────────────────────
@@ -161,10 +161,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "产物完整性检查未通过：原稿中 {count} 处数值未在产物中找到（{sample}）。",
         "Numeric integrity check failed: {count} value(s) from the manuscript are missing ({sample}).",
     ),
-    "pipeline.audit_ok": ("产物与格式要求逐条对账通过。", "Post-export audit against requirements passed."),
+    "pipeline.audit_ok": ("产物与格式要求逐条对账通过。", "Post-export audit against the format file passed."),
     "pipeline.audit_failed": (
         "导出后抽查未通过：产物与格式要求存在 {count} 处不符。",
-        "Post-export audit failed: {count} mismatch(es) against the requirements.",
+        "Post-export audit failed: {count} mismatch(es) against the format file.",
     ),
     "pipeline.unsupported": ("稿件包含当前无法写出的结构：{reason}", "A structure could not be written: {reason}"),
     # ── 写出器 / 公式 / 文献渲染：异常原文会经 `pipeline.unsupported` 漏给用户 ──
@@ -316,7 +316,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "{name} (a references-title style is declared, so the bibliography style must be declared too)",
     ),
     # 要求文件里「该写的那一行」的示例。英文一律用 parser 认得的英文词法，
-    # 测试里真的过一遍 `parse_requirements`——教人写出解析不了的行比中文更糟。
+    # 测试里真的过一遍 `parse_format`——教人写出解析不了的行比中文更糟。
     "template.example.table": (
         "表格：居中 三线表 线宽上1磅 线宽底1磅 线宽表头下0.25磅 单元格垂直居中",
         "Table: center three-line border-top 1pt border-bottom 1pt border-header 0.25pt valign-center",
@@ -349,7 +349,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "template.field.bold": ("加粗状态", "bold setting"),
     "template.field.italic": ("倾斜状态", "italic setting"),
-    # 字段该怎么写。英文那栏是**能直接放进样式行**的片段，测试里逐个过 parse_requirements。
+    # 字段该怎么写。英文那栏是**能直接放进样式行**的片段，测试里逐个过 parse_format。
     "template.hint.font_name": (
         '字体（如"宋体"或"Times New Roman"或"宋体/Times New Roman"）',
         "Times New Roman",
@@ -375,7 +375,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "template.no_styles_parsed": (
         "未解析到任何样式要求；格式应为「样式名：属性」，"
         "如「一级标题：黑体 三号 加粗 不倾斜 左对齐 行距1.5倍 段前12磅 段后6磅 首行缩进0字符」。",
-        "No style requirements were parsed; each line should read `Style: properties`, e.g. "
+        "No style declarations were parsed; each line should read `Style: properties`, e.g. "
         "`Heading 1: SimHei 16pt bold not-italic left line-spacing 1.5 space-before 12pt "
         "space-after 6pt indent 0`.",
     ),
@@ -595,7 +595,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     # ── 逐条明细 ──
     "audit.msg.style_missing": (
         "{name}：产物里没有这个样式（要求文件写了，导出后不存在）",
-        "{name}: the output has no such style (the requirements file declares it, but it does "
+        "{name}: the output has no such style (the format file declares it, but it does "
         "not exist after export)",
     ),
     "audit.msg.font": (
@@ -773,10 +773,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     # 对账脚本自己的命令行（`python -m md_to_word.audit.inspector`）
     "audit.cli.description": (
         "导出后抽查：产物 docx ↔ 格式要求文件",
-        "Post-export audit: the output .docx vs. the requirements file",
+        "Post-export audit: the output .docx vs. the format file",
     ),
     "audit.cli.docx": ("导出的产物 .docx", "the exported .docx"),
-    "audit.cli.requirements": ("生成模板用的格式要求文件", "requirements file the template came from"),
+    "audit.cli.format": ("生成模板用的格式文件", "format file the template came from"),
     "audit.cli.quiet": ("只报结论，不逐条列", "report the verdict only, without the item list"),
     "audit.cli.lang": ("消息语言：auto=按要求文件语种 / zh / en", "Message language: auto / zh / en"),
     "audit.cli.file_missing": ("错误: 文件不存在 {path}", "error: file not found: {path}"),
@@ -837,10 +837,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     # ── 稿件与要求文件本身 ──
     "gate.manuscript.missing": ("稿件文件不存在: {path}", "Manuscript file not found: {path}"),
     "gate.manuscript.unreadable": ("无法读取稿件 {path}: {err}", "Cannot read the manuscript {path}: {err}"),
-    "gate.requirements.missing": ("格式要求文件不存在: {path}", "Requirements file not found: {path}"),
-    "gate.requirements.parse_failed": (
-        "格式要求文件解析失败（{path}）: {err}",
-        "Could not parse the requirements file ({path}): {err}",
+    "gate.format.missing": ("格式文件不存在: {path}", "Format file not found: {path}"),
+    "gate.format.parse_failed": (
+        "格式文件解析失败（{path}）: {err}",
+        "Could not parse the format file ({path}): {err}",
     ),
     "gate.yaml.parse_failed": ("YAML frontmatter 解析失败: {err}", "Could not parse the YAML frontmatter: {err}"),
     "gate.bib.missing": ("文献库不存在: {path}", "Bibliography file not found: {path}"),
@@ -906,7 +906,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "要求文件的「公式编号格式」是 {fmt}，里面有 {{c}}（章号），"
         "但稿件 YAML 的 crossref 下没有 chapters: true。二选一："
         "在 `crossref:` 下加 `chapters: true`，或把格式改成不含 {{c}} 的写法（如 （{{n}}））",
-        "The 「公式编号格式」/Equation Number Format in the requirements file is {fmt}, which contains "
+        "The 「公式编号格式」/Equation Number Format in the format file is {fmt}, which contains "
         "{{c}} (chapter number), but the manuscript YAML has no chapters: true under crossref. Either add "
         "`chapters: true` under `crossref:`, or change the format to one without {{c}} (e.g. ({{n}}))",
     ),
@@ -1010,7 +1010,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "gate.image_width.no_margins": (
         "要求文件没写页边距，算不出版心，图片宽度未校验",
-        "The requirements file declares no page margins, so the text block width is unknown "
+        "The format file declares no page margins, so the text block width is unknown "
         "and image widths were not checked",
     ),
     "gate.table.column_count": (
@@ -1074,7 +1074,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "文献列表由引擎生成（样式仍由要求文件的「参考文献」行控制）",
         "hand-written reference lists are no longer supported: put `bibliography: refs.bib` and `csl:` "
         "in the YAML and the engine generates the list (styling still comes from the `Bibliography` "
-        "row of the requirements file)",
+        "row of the format file)",
     ),
     "gate.style.empty_content": (
         "「{name}」后面没有正文；这一行要写成「%% {name} 内容」",
@@ -1094,14 +1094,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "gate.style.required_missing": (
         "用到了 {feat}，要求文件缺少 {label}，将静默回退默认样式",
-        "used {feat} but the requirements file is missing {label}; it will silently fall back to the "
+        "used {feat} but the format file is missing {label}; it will silently fall back to the "
         "default style",
     ),
     "gate.label.row_settings": ("「{name}：…」配置行", "the `{name}: ...` settings row"),
     "gate.label.style_def": ("「{cn}」（{en}）定义", "the `{en}` style definition"),
     "gate.bib.required_missing": (
         "{feat}，要求文件缺少「{cn}」（{en}）定义，将静默回退默认样式",
-        "{feat}, but the requirements file is missing the `{en}` style definition; it will silently fall "
+        "{feat}, but the format file is missing the `{en}` style definition; it will silently fall "
         "back to the default style",
     ),
     # ── 题注 ──
@@ -1190,7 +1190,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.dialect.image_attr": (
         "图片行只认 `{width=…}`；对齐请写要求文件的「图：… 左对齐」",
         "an image line only accepts `{width=...}`; for alignment add `left` to the `Figure:` row "
-        "of the requirements file",
+        "of the format file",
     ),
     "gate.dialect.empty_heading": (
         "标题只有 `#` 没有文字；补上标题文字，或删掉这一行",

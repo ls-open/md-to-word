@@ -3,7 +3,7 @@
 Chinese edition: `manual.md`
 
 Markdown → compliant Word (`.docx`). Content and layout are separate: Markdown is the source,
-every format decision is declared in the requirements file; export is deterministic — rerun the
+every format decision is declared in the format file; export is deterministic — rerun the
 same source at any time and the output is byte-for-byte identical.
 
 `md-to-word --contract` prints the contract cheatsheet, the absolute paths of the getting-started
@@ -14,7 +14,7 @@ One export needs two files:
 | File | What it holds |
 |:--|:--|
 | manuscript `*.md` | body text + three conventions (§2) |
-| requirements `*.txt` | one line of typography declarations per style (§3); without `-r` only a `format.txt` beside the manuscript is picked up, otherwise the built-in preset |
+| format `*.txt` | one line of typography declarations per style (§3); without `-f` only a `format.txt` beside the manuscript is picked up, otherwise the built-in preset |
 
 ---
 
@@ -22,7 +22,7 @@ One export needs two files:
 
 1. Entry points and exit codes
 2. Manuscript contract
-3. The requirements file
+3. The format file
 4. Agent workflow
 5. Export and gates
 6. Capability limits
@@ -37,14 +37,14 @@ One export needs two files:
 |:--|:--|
 | Command line | `md-to-word manuscript.md -o out.docx` |
 | Python | `from md_to_word import export` |
-| Reverse-engineer a requirements draft from a reference `.docx` | `md-to-word-template reference.docx -o format.txt` |
+| Reverse-engineer a format-file draft from a reference `.docx` | `md-to-word-template reference.docx -o format.txt` |
 | Getting-started guide | `guide.md` inside the package: order of work, how to read the gates, boundaries. Read it first when only the package is installed: `md-to-word --guide` prints it |
 | Starting from nothing | `md-to-word init [dir]`: writes a `format.txt` and a `hello.md` that exports as-is |
 
 ```bash
 md-to-word manuscript.md -o out.docx                     # built-in zh-academic preset (Chinese)
 md-to-word manuscript.md --preset en-nature -o out.docx  # international journal preset
-md-to-word manuscript.md -r format.txt -o out.docx # explicit requirements file
+md-to-word manuscript.md -f format.txt -o out.docx # explicit format file
 md-to-word init                                          # format.txt + a hello.md that exports as-is
 md-to-word --guide                                       # getting-started guide (pipeline entry)
 md-to-word --contract                                    # cheatsheet + guide, manual and preset paths
@@ -52,7 +52,7 @@ md-to-word --contract --lang en                          # same, in English (can
 md-to-word manuscript.md -o out.docx --verbose           # per-style log, for "the format had no effect"
 ```
 
-**Choosing the requirements file — one of three**: pass `-r`; otherwise a file named exactly
+**Choosing the format file — one of three**: pass `-f`; otherwise a file named exactly
 `format.txt` beside the manuscript is used; otherwise the built-in preset, **selected by the
 manuscript's language**: `zh-academic` for Chinese, `en-nature` for every other language. No other
 `.txt` is guessed at — if there is one, the run names it in a reminder. Which file was used is always
@@ -149,7 +149,7 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 - **Numbering by chapter** (a thesis `(2-1)` rather than `(1)`): write `crossref: chapters: true`
   in YAML. The chapter number is the ordinal of the level-1 heading the equation belongs to; a
   hand-typed number in the heading is not read.
-- **Number appearance**: write one line in the requirements file,
+- **Number appearance**: write one line in the format file,
   `Equation Number Format: ({c}.{n})` — `{n}` is the ordinal (required) and `{c}` the chapter
   number (optional). Without it the language default applies: `(5.1)` / `(1)` for English,
   `（5-1）` / `（1）` for Chinese. The number beside the equation and `@eq-x` in the body use the
@@ -199,7 +199,7 @@ Only three are recognised, **each on its own line** and separated from body text
 | Marker | Effect |
 |:--|:--|
 | `{{< pagebreak >}}` | page break |
-| `{{< toc >}}` / `{{< toc 2 >}}` | table-of-contents field; the depth follows the `TOC 1/2/3` styles declared in the requirements file, or is given directly by the number |
+| `{{< toc >}}` / `{{< toc 2 >}}` | table-of-contents field; the depth follows the `TOC 1/2/3` styles declared in the format file, or is given directly by the number |
 | `{{< section page_number=lowerRoman start=1 >}}` | section break that closes **the section above it** |
 
 - All three write OOXML nodes (the `w:sdt` TOC field, `sectPr`) and are valid only in this tool.
@@ -213,7 +213,7 @@ Only three are recognised, **each on its own line** and separated from body text
 
 - **It describes "the section above it"** (in OOXML `sectPr` belongs to the preceding section):
   written after the TOC and before chapter 1, yet it declares the front matter's lowercase Roman
-  numerals — **the body section's page numbers come from `Page Number:` in the requirements file**.
+  numerals — **the body section's page numbers come from `Page Number:` in the format file**.
   Its parameter names are the same set as `Page Number:`.
 - **Do not put a `{{< pagebreak >}}` after it**: the section break already starts a new page, and
   stacking them pushes out an extra page (the pre-flight check warns). A single-section document
@@ -236,14 +236,14 @@ Only three are recognised, **each on its own line** and separated from body text
   three-level numbering definition (Enter, changing the level and changing the number format all
   still work in Word); **two spaces of indentation is the next level, at most three levels**; the
   fourth level and beyond merge into the third. Lists inside block quotes are supported too.
-- **Block quotes**: write `> ` as usual; the requirements file must declare a `Block Text:` style
+- **Block quotes**: write `> ` as usual; the format file must declare a `Block Text:` style
   line (the built-in presets already do).
 - **Code blocks**: a ``` fence lands in `SourceCode`; the base template already gives it a
   monospace font, zero indentation, single line spacing and left alignment, so **it works without a
   `Code:` line**; write one only to change size or colour. Inline `` `code` `` uses
   `VerbatimChar`.
 - **Footnotes**: write `[^1]` in the body plus `[^1]: the note text`; **nothing has to be declared
-  in the requirements file** (without it the style is inferred from the body: same font and
+  in the format file** (without it the style is inferred from the body: same font and
   alignment as the body, one size smaller, single line spacing, superscript number).
 - **Paragraphs and line breaks**: **one line is one paragraph**; consecutive plain lines are never
   joined — a short one-sentence paragraph per line is a normal way to write, and each one can carry
@@ -254,7 +254,7 @@ Only three are recognised, **each on its own line** and separated from body text
   the lines really are short paragraphs.
 - **Inline formatting is written directly in the text**: `**bold**`, `*italic*`,
   `~~strikethrough~~`, `[underline]{.underline}`, `H~2~O`, `x^2^` — the renderer writes them
-  straight as character properties; no declaration in the requirements file is needed and they do
+  straight as character properties; no declaration in the format file is needed and they do
   not conflict with style-level settings.
 - **Fonts are free**: any font installed locally (`SimSun`/`宋体`, `FangSong`/`仿宋`,
   `仿宋_GB2312`, `方正小标宋简体`, `Microsoft YaHei`/`微软雅黑`, `KaiTi`/`楷体`).
@@ -306,9 +306,9 @@ other than `width` on an image line (such as `{align=right}`), percentage image 
 
 ---
 
-## 3. The requirements file
+## 3. The format file
 
-The format requirements file (`format.txt` throughout this manual — the name is free) is a small language: one style per line, every property written on that line.
+The format file (`format.txt` throughout this manual — the name is free) is a small language: one style per line, every property written on that line.
 Three rules:
 
 1. **Write every property on one line**: each style line must contain
@@ -416,7 +416,7 @@ updated when the document is opened or shown in print preview.
   `Footer Content: {page}` and then `Even Header Content: …` leaves even pages without any page
   number at all. The generator fills the empty slots automatically and says so.
 
-### 3.3 The four ways to obtain a requirements file
+### 3.3 The four ways to obtain a format file
 
 | What you have | What to do |
 |:--|:--|
@@ -500,18 +500,18 @@ manuscript normalisation and configuration generation end to end.
 
 | Situation | What the user probably says | What to do |
 |:--|:--|:--|
-| No explicit format requirements | "Just turn it into Word", "export a first version" | Do not interrogate them about format details; export a baseline with a built-in preset. The preset is itself a complete, compliant format, not a placeholder |
-| Explicit format requirements | "Follow the school / journal format" | Given a reference `.docx` → reverse-engineer the requirements file; given text only → fill in the fields (§3.3, §3.5) |
-| An existing requirements file | "This is our lab's formatting spec" | Pass it with `-r`; nothing inside needs changing |
+| No explicit format requirements | "Just turn it into Word", "export a first version" | Do not interrogate them about format details; export a baseline with a built-in preset. The preset is a valid first look, not a substitute for the user's own requirements |
+| Explicit format requirements | "Follow the school / journal format" | Given a reference `.docx` → reverse-engineer the format file; given text only → fill in the fields (§3.3, §3.5) |
+| An existing format file | "This is our lab's formatting spec" | Pass it with `-f`; nothing inside needs changing |
 
 **Steps**:
 
-1. **Normalise the manuscript**: the source may be freshly generated text, a `.txt`, plain `.md`,
-   an old `.docx` or a `.pdf`. Turn it into a `.md` that follows the contract in §2; when the user
-   already has a `.md`, create a copy in the same directory and adapt that, leaving the original
-   untouched.
-2. **Prepare the requirements file**: pick one of the four paths in §3.3.
-3. **Export**: `md-to-word manuscript.md -r format.txt -o out.docx`.
+1. **Confirm export requirements**: Prepare a custom format file if the user provided specific requirements
+   or a reference template (§3.3); otherwise apply a built-in preset (`zh-academic` / `en-nature`).
+2. **Normalise the manuscript**: Standard Markdown handles headings, paragraphs, and tables,
+   but structures beyond standard Markdown (captions, TOC, page breaks, abstract, display math) require contract markings (§2).
+   Map what is actually present in the source; do not invent missing elements.
+3. **Export**: `md-to-word manuscript.md -f format.txt -o out.docx`.
 4. **Read the gate output**: on exit code `1`, fix the manuscript or add the missing style lines
    according to the reported line numbers; do not bypass it with `--no-check`.
 5. **When delivering, remind the user to open the file in Word and check the layout** (§5.3).
@@ -554,17 +554,17 @@ manuscript normalisation and configuration generation end to end.
 
 ```
 pre-flight check → build the style template → read into the document model → write OOXML
-→ numeric-integrity check → audit the product against the requirements line by line
+→ numeric-integrity check → audit the product against the format file line by line
 ```
 
 The template is generated fresh on every export and never cached; it is built entirely from the
-requirements file, and no existing `.docx` is accepted as a base.
+format file, and no existing `.docx` is accepted as a base.
 
-A `.docx` received from a university or a journal is first read into a requirements file:
+A `.docx` received from a university or a journal is first read into a format file:
 
 ```
 md-to-word-template template.docx -o format.txt   # reverse-engineered draft; check it item by item
-md-to-word paper.md -r format.txt -o paper.docx
+md-to-word paper.md -f format.txt -o paper.docx
 ```
 
 Only format data is read (paper size, margins, header/footer text and page numbers, fonts, sizes and
@@ -575,7 +575,7 @@ body) work the same way — section breaks are marked in the manuscript with `{{
 
 | Level | Criterion | Examples |
 |:--|:--|:--|
-| **Blocking** | A silent error you cannot see afterwards | Lost characters (a table row with the wrong column count), degradation to literal text (`\tag{}`, undefined cross-references), formatting that never takes effect (a style name missing from the template, a table style missing from the requirements file), an abstract or keywords written in YAML, a caption written into the image's square brackets |
+| **Blocking** | A silent error you cannot see afterwards | Lost characters (a table row with the wrong column count), degradation to literal text (`\tag{}`, undefined cross-references), formatting that never takes effect (a style name missing from the template, a table style missing from the format file), an abstract or keywords written in YAML, a caption written into the image's square brackets |
 | **Reminder** | Visible, just non-compliant | An over-wide image (it gets clamped), a caption too far from its figure or table, skipped heading levels, an extra page break after a section break, a wrapped paragraph |
 
 Reminders do not block export: the author may have meant it, or may intend to finish the job in
@@ -651,7 +651,7 @@ with a message instead of moving it silently.
 
 **Silent clamping**: an image wider than the text block is clamped to the text-block width (15.92
 cm on A4 with 2.54 cm margins, less any gutter). The pre-flight check computes the real text block
-from the requirements file and reports an over-wide width as a reminder (it does not stop the
+from the format file and reports an over-wide width as a reminder (it does not stop the
 export); a percentage width is blocked.
 
 ---
@@ -690,12 +690,12 @@ examples. The tag is a stable category identifier; the text after it says which 
 
 | Symptom | Cause and fix |
 |:--|:--|
-| `[missing structural style]` | The manuscript uses a structure whose style lines the requirements file does not declare. Add the line at the reported line number, or switch to a preset |
+| `[missing structural style]` | The manuscript uses a structure whose style lines the format file does not declare. Add the line at the reported line number, or switch to a preset |
 | `[paragraph style]` | The name after `%%` is not in the §3.4 vocabulary; check the spelling |
 | Requirements file does not parse | A property word is not in the §3.1 vocabulary; the error gives the line number, the original word and the expected form |
 | Image is not centred | The `Figure:` style line has no indent, so it inherits the body's first-line indent |
 | An equation lost characters or structure | unbalanced braces (`\frac{a}{b`): the converter reports nothing and silently drops content; add the missing `}` at the reported line |
-| A Chinese manuscript is underlined in red throughout | The requirements file has no `Proofing Language: zh-CN` |
+| A Chinese manuscript is underlined in red throughout | The format file has no `Proofing Language: zh-CN` |
 | References were not generated | YAML is missing `bibliography:`, the body has no `[@key]`, or the references section title line is missing |
 | TOC entry font is wrong | The TOC entry styles were not written as Word's built-in styles (`TOC 1/2/3`), or `dot-leader-tab` was written on them (no effect) |
 | Header shows "Error! Reference source not found" | X in `{style-title:X}` is not a Word style name (write `Heading 1`) |

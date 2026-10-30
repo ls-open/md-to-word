@@ -1,6 +1,6 @@
 """md_to_word.spec.serializer — TemplateSpec → 格式要求文本。
 
-存在的意义是让 `parse_requirements` 与 `build_template` 能真正组合起来：
+存在的意义是让 `parse_format` 与 `build_template` 能真正组合起来：
 解析出来的 spec 可以直接拿去生成模板，不必回头再找原始文本。
 
 写法一律用**正典**（`行距1.5倍`、`首行缩进2字符`），数字字号统一写成 `12pt`——
@@ -120,7 +120,7 @@ def _table_line(table: dict) -> str:
     return "表格：" + " ".join(parts)
 
 
-def serialize_requirements(spec: TemplateSpec) -> str:
+def serialize_format(spec: TemplateSpec) -> str:
     """把 TemplateSpec 写回格式要求文本（正典写法）。"""
     lines: list[str] = [f"# schema: {spec.schema_version}"]
 
@@ -152,3 +152,7 @@ def serialize_requirements(spec: TemplateSpec) -> str:
         lines.append(_style_line(spec.table_header))
 
     return "\n".join(lines) + "\n"
+
+
+# 向后兼容别名
+serialize_requirements = serialize_format

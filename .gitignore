@@ -13,3 +13,11 @@ uv.lock
 
 # 并行代理的工作树（本地临时，不进仓库）
 .claude/worktrees/
+
+# 本地临时产物
+tmp_*.mp3
+tmp_video_test/
+video_build/
+demo/cinematic_*.html
+demo/gsap.min.js
+demo/opus_video_preview.html

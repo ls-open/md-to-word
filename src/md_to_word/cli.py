@@ -92,7 +92,7 @@ Block markers (one per line, blank lines around): `{{{{< pagebreak >}}}}`, `{{{{
 Style names (a wrong name stops the export with a line number):
 {', '.join(_style_names(ascii_only=True))}
 
-Format requirements: without -r only a file named exactly `format.txt` beside the manuscript is
+Format: without -f only a file named exactly `format.txt` beside the manuscript is
 used, otherwise the built-in preset chosen by the manuscript's language (zh-academic for Chinese,
 en-nature otherwise). One style per line, for example
 `Body Text: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 0pt indent 0`.
@@ -122,7 +122,7 @@ Built-in presets:
 
 样式名（写错会带行号报错）：{'、'.join(_style_names(ascii_only=False))}
 
-格式要求：不传 -r 时只认同目录的 format.txt，没有则用内置预设（按稿件语种：中文 zh-academic、其他 en-nature），
+格式要求：不传 -f 时只认同目录的 format.txt，没有则用内置预设（按稿件语种：中文 zh-academic、其他 en-nature），
 每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
 推荐从预设起步：将下面那份复制到稿件旁，仅修改需要的行。
 
@@ -158,7 +158,8 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("-h", "--help", action="help", help=t("cli.help", lang))
     parser.add_argument("input", nargs="?", help=t("cli.input", lang))
     parser.add_argument("-o", "--output", help=t("cli.output", lang))
-    parser.add_argument("-r", "--requirements", help=t("cli.requirements", lang))
+    parser.add_argument("-f", "--format", dest="format_path", help=t("cli.format", lang))
+    parser.add_argument("-r", "--requirements", dest="format_path", help=argparse.SUPPRESS)
     parser.add_argument("--preset", help=t("cli.preset", lang))
     parser.add_argument("--lang", choices=["auto", *SUPPORTED], default="auto", help=t("cli.lang", lang))
     parser.add_argument("--no-check", action="store_true", help=t("cli.no_check", lang))
@@ -220,7 +221,7 @@ def main(args: list[str] | None = None) -> int:
     options = ExportOptions(
         input_path=parsed.input,
         output_path=parsed.output,
-        requirements_path=parsed.requirements,
+        format_path=parsed.format_path,
         preset=parsed.preset,
         check_md=not parsed.no_check,
         postflight=not parsed.no_postflight,

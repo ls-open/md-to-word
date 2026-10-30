@@ -21,7 +21,7 @@ from md_to_word.config import get_csl_dir
 from md_to_word.i18n import t
 from md_to_word.spec.constants import PAGE_NUMBER_FMT, ROW_NAME_EN
 from md_to_word.spec.models import TemplateSpec
-from md_to_word.spec.parser import parse_requirements
+from md_to_word.spec.parser import parse_format
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
 from md_to_word.preprocessor.blocks import resolve_style_name
 from md_to_word.template.generator import PAGE_SIZES_CM, missing_styles_for_body
@@ -240,17 +240,17 @@ def validate_manuscript(
 
     # 0. 格式要求（有要求文件才谈得上「稿件结构是否有对应样式」）
     if spec is None and spec_path is not None:
-        req_file = Path(spec_path)
-        if not req_file.is_file():
+        fmt_file = Path(spec_path)
+        if not fmt_file.is_file():
             report.valid = False
-            report.errors.append(t("gate.requirements.missing", lang, path=req_file))
+            report.errors.append(t("gate.format.missing", lang, path=fmt_file))
             return report
         try:
-            spec = parse_requirements(req_file.read_text(encoding="utf-8"))
+            spec = parse_format(fmt_file.read_text(encoding="utf-8"))
         except Exception as e:
             report.valid = False
             report.errors.append(
-                t("gate.requirements.parse_failed", lang, path=req_file, err=e)
+                t("gate.format.parse_failed", lang, path=fmt_file, err=e)
             )
             return report
 

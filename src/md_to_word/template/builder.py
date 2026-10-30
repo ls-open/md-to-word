@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from md_to_word.spec.models import TemplateSpec
-from md_to_word.spec.serializer import serialize_requirements
+from md_to_word.spec.serializer import serialize_format
 from md_to_word.template.generator import generate_template
 
 
@@ -28,7 +28,7 @@ def build_template(
     """
     out = Path(output_path)
     if isinstance(spec_or_text, TemplateSpec):
-        text = serialize_requirements(spec_or_text)
+        text = serialize_format(spec_or_text)
     else:
         text = str(spec_or_text)
 

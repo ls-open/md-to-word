@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from md_to_word.spec.parser import parse_requirements
+from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +49,7 @@ def test_header_border_variant_reaches_the_template(tmp_path: Path, clause: str,
 def test_parser_maps_every_variant(clause: str, val: str) -> None:
     from md_to_word.template.generator import BOTTOM_BORDER_STYLE
 
-    spec = parse_requirements(PRESET + HEADER.format(border=clause))
+    spec = parse_format(PRESET + HEADER.format(border=clause))
     header = next(s for s in spec.styles if s["style_name"] == "Header")
     assert BOTTOM_BORDER_STYLE[header["bottom_border"]] == val
 
@@ -60,7 +60,7 @@ def test_figure_alignment_follows_the_requirements_file(tmp_path: Path) -> None:
         "图：宋体/Times New Roman 五号 不加粗 不倾斜 居中",
         "图：宋体/Times New Roman 五号 不加粗 不倾斜 左对齐",
     )
-    spec = parse_requirements(req)
+    spec = parse_format(req)
     figure = next(s for s in spec.styles if s["style_name"] == "Captioned Figure")
     assert figure["alignment"] == 0  # WD_ALIGN_PARAGRAPH.LEFT
 
@@ -70,7 +70,7 @@ def test_figure_alignment_follows_the_requirements_file(tmp_path: Path) -> None:
 
 def test_style_colour_follows_the_requirements_file(tmp_path: Path) -> None:
     """颜色是样式级属性：写了就落成 w:color，没写一律黑色。"""
-    from md_to_word.spec.parser import parse_requirements as parse
+    from md_to_word.spec.parser import parse_format as parse
 
     req = PRESET.replace(
         "一级标题：黑体/Times New Roman 三号 加粗",
@@ -88,7 +88,7 @@ def test_style_colour_follows_the_requirements_file(tmp_path: Path) -> None:
 
 
 def test_colour_must_be_hex() -> None:
-    from md_to_word.spec.parser import parse_requirements as parse
+    from md_to_word.spec.parser import parse_format as parse
 
     with pytest.raises(ValueError):
         parse(PRESET.replace("一级标题：黑体/Times New Roman 三号 加粗",

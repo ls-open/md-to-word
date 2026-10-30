@@ -9,7 +9,7 @@
 压扁——这些只有真正渲染成 PDF 才看得出来，交给人工/渲染核对。
 
 用法:
-  python3 -m md_to_word.audit.inspector <产物.docx> --requirements <格式要求.txt> [--quiet]
+  python3 -m md_to_word.audit.inspector <产物.docx> --format <格式要求.txt> [--quiet]
 退出码: 0=全部对上 / 1=有对不上的（逐条打印）/ 2=用法或读取错误
 """
 
@@ -27,7 +27,7 @@ from md_to_word.template.generator import (
     TABLE_CELL_MARGIN_DEFAULT_CM, TABLE_BORDER_SIDES,
     TABLE_DEFAULT_WIDTHS, MinLineSpacing, _TWIPS_PER_CM,
     _pt_to_border_sz, doc_grid_pitch, page_size_twips,
-    parse_requirements, table_border_widths,
+    parse_format, table_border_widths,
 )
 
 from md_to_word.config import looks_chinese
@@ -170,13 +170,13 @@ def _rfonts(styles: dict, name: str) -> tuple:
     return val or (None, None)
 
 
-def audit(docx: Path, req_path: Path, lang: str = "zh") -> list:
+def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
     """返回不符项列表，每项 (类别, 说明)。空列表 = 全部对上。
 
     `lang` 决定类别与说明的语言（中文/英文）；判据与阈值与语言无关。
     """
     problems = []
-    spec = parse_requirements(req_path.read_text(encoding='utf-8'))
+    spec = parse_format(fmt_path.read_text(encoding='utf-8'))
     z = zipfile.ZipFile(docx)
     styles = _styles_by_name(z)
 
@@ -588,12 +588,12 @@ def audit(docx: Path, req_path: Path, lang: str = "zh") -> list:
     return problems
 
 
-def _cli_lang(override: str, req_path: Path) -> str:
+def _cli_lang(override: str, fmt_path: Path) -> str:
     """脚本的报错语言：`--lang` 优先，`auto` 时按**要求文件**的语种（不是产物）。"""
     if override in ('zh', 'en'):
         return override
     try:
-        return 'zh' if looks_chinese(req_path.read_text(encoding='utf-8')) else 'en'
+        return 'zh' if looks_chinese(fmt_path.read_text(encoding='utf-8')) else 'en'
     except OSError:
         return 'zh'
 
@@ -602,34 +602,34 @@ def main(argv=None):
     # 先粗读一遍 `--lang`：帮助文本本身也要用最后选定的语言打印
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument('--lang', default='auto')
-    pre.add_argument('--requirements', '-r')
+    pre.add_argument('--format', '-f')
     known, _ = pre.parse_known_args(argv)
-    early = _cli_lang(known.lang, Path(known.requirements)) if known.requirements else (
+    early = _cli_lang(known.lang, Path(known.format)) if known.format else (
         known.lang if known.lang in ('zh', 'en') else 'zh')
 
     ap = argparse.ArgumentParser(description=t('audit.cli.description', early))
     ap.add_argument('docx', help=t('audit.cli.docx', early))
-    ap.add_argument('--requirements', '-r', required=True, help=t('audit.cli.requirements', early))
+    ap.add_argument('--format', '-f', required=True, help=t('audit.cli.format', early))
     ap.add_argument('--quiet', '-q', action='store_true', help=t('audit.cli.quiet', early))
     ap.add_argument('--lang', default='auto', help=t('audit.cli.lang', early))
     args = ap.parse_args(argv)
 
-    docx, req = Path(args.docx), Path(args.requirements)
-    lang = _cli_lang(args.lang, req)
-    for p in (docx, req):
+    docx, fmt = Path(args.docx), Path(args.format)
+    lang = _cli_lang(args.lang, fmt)
+    for p in (docx, fmt):
         if not p.exists():
             print(t('audit.cli.file_missing', lang, path=p), file=sys.stderr)
             return 2
     try:
-        problems = audit(docx, req, lang)
+        problems = audit(docx, fmt, lang)
     except (KeyError, etree.XMLSyntaxError) as e:
         print(t('audit.cli.not_a_docx', lang, err=e), file=sys.stderr)
         return 2
 
     if not problems:
-        print(t('audit.cli.pass', lang, docx=docx.name, req=req.name))
+        print(t('audit.cli.pass', lang, docx=docx.name, req=fmt.name))
         return 0
-    print(t('audit.cli.fail', lang, count=len(problems), docx=docx.name, req=req.name))
+    print(t('audit.cli.fail', lang, count=len(problems), docx=docx.name, req=fmt.name))
     if not args.quiet:
         for cat, msg in problems:
             print(f'   [{cat}] {msg}')
@@ -637,10 +637,10 @@ def main(argv=None):
 
 
 def audit_docx_against_spec(
-    docx_path: Path | str, req_path: Path | str, lang: str = "zh"
+    docx_path: Path | str, fmt_path: Path | str, lang: str = "zh"
 ) -> tuple[bool, list[tuple[str, str]]]:
     """供流水线调用的标准函数：返回 (matched: bool, problems: list)。"""
-    problems = audit(Path(docx_path), Path(req_path), lang)
+    problems = audit(Path(docx_path), Path(fmt_path), lang)
     return (len(problems) == 0, problems)
 
 

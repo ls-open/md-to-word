@@ -20,10 +20,12 @@ every word outside the vocabulary is a hard error with a line number.
 
 ## 1. The work, in order
 
-1. **Normalize** the manuscript (pasted text, `.txt`, `.md`, an old `.docx`, a PDF) to the contract
-   in §2. Write a new file; never edit the user's original in place.
-2. **Decide the format** (§3): built-in preset, an edited copy of one, or the requirements file the
-   user supplied.
+1. **Confirm requirements & decide format** (§3): built-in preset (`zh-academic`, `en-nature`),
+   an edited copy of one, or a custom format file supplied by the user (or extracted from a reference `.docx`).
+2. **Normalize the manuscript**: Standard Markdown natively represents headings and body text, but
+   structures beyond standard Markdown (captions, TOC, page breaks, abstract, display math) must follow the contract
+   in §2. Map what the source actually contains; do not invent missing elements.
+   Write a new file; never edit the user's original in place.
 3. **Export** (§4).
 4. **Read the gates** (§4), fix the reported lines, export again. Repeat until the exit code is `0`.
 5. **Report** (§5): what format was applied, what the run warned about, and that the layout still
@@ -87,12 +89,12 @@ also work). A section marker closes *the section above it*; never add a page bre
 
 **Unsupported Markdown is blocked with a replacement, never printed literally** — the list is manual §2.8.
 
-## 3. The format requirements file
+## 3. The format file
 
 0. **Starting from nothing** — `md-to-word init` writes a complete preset copy plus a one-page
    manuscript that exports as-is. Useful when the user has no format file and no template.
-1. **Built-in preset** — `zh-academic` or `en-nature`. Use as-is when the user gave no detailed spec;
-   the preset is a complete, valid format, not a provisional default.
+1. **Built-in preset** — `zh-academic` or `en-nature`. Use as-is when the user has no custom
+   template or spec; it provides a complete, compliant baseline out of the box.
 2. **Copy and edit a preset** — change only the lines the user mentioned. Field order is fixed: font,
    size, bold, italic, alignment, line spacing, space before, space after, indent. Every style line
    must be complete; missing fields are errors.
@@ -101,12 +103,12 @@ also work). A section marker closes *the section above it*; never add a page bre
 
 Each property has exactly one accepted spelling, plus its Chinese or English counterpart; anything
 else is a hard error with a line number (manual §3.1). `format.txt` in these instructions means *the
-format requirements file* — any filename works, `-r` takes it.
+format file* — any filename works, `-f` takes it.
 
 Citation style comes from `csl:` with a bundled name (manual §7) or a path to the user's own CSL.
 Without `csl:`, Chinese manuscripts get GB/T 7714 numeric and everything else APA 7th.
 
-Without `-r` the only file picked up is one named exactly `format.txt` beside the manuscript;
+Without `-f` the only file picked up is one named exactly `format.txt` beside the manuscript;
 anything else there is ignored and named in a reminder. With no `format.txt`, the preset follows the
 **manuscript's language**.
 
@@ -114,7 +116,7 @@ anything else there is ignored and named in a reminder. With no `format.txt`, th
 
 ```bash
 md-to-word manuscript.md -o manuscript.docx                    # preset by language
-md-to-word manuscript.md -r format.txt -o manuscript.docx      # explicit format
+md-to-word manuscript.md -f format.txt -o manuscript.docx      # explicit format
 md-to-word --guide                                             # this file, printed (pip-only entry)
 md-to-word manuscript.md --contract                            # contract + guide, manual and preset paths
 ```
@@ -138,7 +140,7 @@ skipped. Messages follow the manuscript's language.
 ## 5. Verify before delivery
 
 - Confirm the `.docx` exists and the command exited `0`.
-- Report the preset or requirements file, the citation style, and anything the run warned about.
+- Report the preset or format file, the citation style, and anything the run warned about.
 - Say plainly that the layout still needs a manual check in Word. The engine verifies text and
   structure; row heights, column widths and where equations and captions settle are only visible in
   a real renderer.
@@ -167,7 +169,7 @@ interface in both directions is a Markdown file plus a `format.txt`.
 ## 8. What this file may rely on
 
 - the commands `md-to-word`, `md-to-word-template` and `init`; every flag named in this file
-  (`-o`, `-r`, `--preset`, `--contract`, `--guide`, `--version`, `--json`, `--pdf`, `--lang`) keeps
+  (`-o`, `-f`, `--preset`, `--contract`, `--guide`, `--version`, `--json`, `--pdf`, `--lang`) keeps
   its name and meaning
 - exit codes `0` / `1` / `2` / `3`, and the JSON keys under `--json`
 - the manuscript contract in §2, the vocabulary in §3, the preset names `zh-academic` and

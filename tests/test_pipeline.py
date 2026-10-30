@@ -143,21 +143,21 @@ def test_image_paths_are_relative_to_the_manuscript(tmp_path: Path, monkeypatch)
     assert "drawing" in __import__("zipfile").ZipFile(work / "o.docx").read("word/document.xml").decode()
 
 
-def test_bad_requirements_return_error_instead_of_exiting(tmp_path: Path) -> None:
-    """作为库调用时，写错的格式要求必须返回错误码，不能 sys.exit 掉调用方的进程。"""
+def test_bad_format_returns_error_instead_of_exiting(tmp_path: Path) -> None:
+    """作为库调用时，写错的格式文件必须返回错误码，不能 sys.exit 掉调用方的进程。"""
     (tmp_path / "m.md").write_text('---\n---\n\n# 一\n\n正文。\n', encoding="utf-8")
     (tmp_path / "req.txt").write_text("正文：宋体 小四\n", encoding="utf-8")
 
     try:
         result = run_export_pipeline(
             ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx",
-                          requirements_path=tmp_path / "req.txt")
+                          format_path=tmp_path / "req.txt")
         )
     except SystemExit:  # pragma: no cover - 旧实现会走到这里
-        pytest.fail("写错的 requirements 不应终止进程，应返回 returncode=1")
+        pytest.fail("写错的格式文件不应终止进程，应返回 returncode=1")
 
     assert result.returncode == 1
-    assert any("格式要求" in e for e in result.errors), result.errors
+    assert any("格式文件" in e for e in result.errors), result.errors
 
 
 def test_user_csl_direct_formatting_is_stripped(tmp_path: Path) -> None:
@@ -191,7 +191,7 @@ def test_user_csl_direct_formatting_is_stripped(tmp_path: Path) -> None:
 
 
 def test_default_preset_follows_the_manuscript_language(tmp_path: Path) -> None:
-    """不给 -r 也不给 --preset 时，中文稿走 zh-academic、英文稿走 en-nature。
+    """不给 -f 也不给 --preset 时，中文稿走 zh-academic、英文稿走 en-nature。
 
     英文稿套上中文学位论文的格式（首行缩进两字符 + 宋体 fallback）是错的，而这个错
     看不出来：文档能打开、样式都在，只是每段都被顶了两个字符。
@@ -288,9 +288,9 @@ def _write_manuscript(tmp_path: Path) -> Path:
 
 
 def test_unpicked_txt_files_are_named(tmp_path: Path) -> None:
-    """没传 -r 时只认 `format.txt`；旁边的 .txt 一概不猜，但要在提醒里点名。
+    """没传 -f 时只认 `format.txt`；旁边的 .txt 一概不猜，但要在提醒里点名。
 
-    猜「唯一那个 .txt 大概是要求文件」看着贴心，实则是把笔记当格式用——静默用错格式，
+    猜「唯一那个 .txt 大概是格式文件」看着贴心，实则是把笔记当格式用——静默用错格式，
     比直接不认它难查得多。不猜，但也不能装作没看见：用户以为它生效了才是真问题。
     """
     (tmp_path / "doc.md").write_text("# 引言\n\n正文。\n", encoding="utf-8")
@@ -302,7 +302,7 @@ def test_unpicked_txt_files_are_named(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.errors
     assert any("随手记.txt" in msg for msg in result.messages), result.messages
-    assert any("格式要求" in msg for msg in result.messages), result.messages
+    assert any("格式文件" in msg for msg in result.messages), result.messages
 
 
 def test_contract_cheatsheet_needs_no_manuscript(capsys) -> None:
@@ -421,3 +421,34 @@ def test_theme_attrs_are_stripped_for_fonts_colors_and_fills() -> None:
     for attr in ("asciiTheme", "themeColor", "themeTint", "themeFill", "themeFillTint"):
         assert f"w:{attr}=" not in cleaned, cleaned
     assert 'w:ascii="Times New Roman"' in cleaned and 'w:fill="FFFFFF"' in cleaned
+
+
+def test_backward_compatibility_requirements_aliases(tmp_path: Path) -> None:
+    """向后兼容性保护：旧版 -r 参数、requirements 别名与函数在 v4 中必须无缝兼容。"""
+    from md_to_word.cli import build_parser
+    from md_to_word import (
+        export,
+        parse_format,
+        parse_requirements,
+        serialize_format,
+        serialize_requirements,
+    )
+
+    # 1. CLI -r / --requirements 解析到 format_path
+    parser = build_parser()
+    args = parser.parse_args(["manuscript.md", "-r", "custom_req.txt"])
+    assert args.format_path == "custom_req.txt"
+
+    args2 = parser.parse_args(["manuscript.md", "--requirements", "custom_req2.txt"])
+    assert args2.format_path == "custom_req2.txt"
+
+    # 2. 函数别名指向一致
+    assert parse_requirements is parse_format
+    assert serialize_requirements is serialize_format
+
+    # 3. export(..., requirements=...) 传参兼容
+    md_file = tmp_path / "test.md"
+    md_file.write_text("# 测试\n\n正文。\n", encoding="utf-8")
+    out_docx = tmp_path / "out.docx"
+    res = export(md_file, out_docx, requirements=None, preset="zh-academic")
+    assert res.ok and out_docx.exists()

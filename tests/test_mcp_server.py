@@ -7,7 +7,12 @@ import asyncio
 
 pytest.importorskip("mcp")
 
-from md_to_word.mcp.server import create_mcp_server, _resolve_markdown_source, _resolve_format_txt
+from md_to_word.mcp.server import (
+    create_mcp_server,
+    _resolve_markdown_source,
+    _resolve_format_source,
+    RESOURCES_DIR,
+)
 
 
 def test_mcp_server_initialization():
@@ -79,6 +84,50 @@ def test_mcp_compile_markdown_success(tmp_path: Path):
         assert data["returncode"] == 0
         assert out_docx.is_file()
         assert out_docx.stat().st_size > 5000
+    asyncio.run(_run())
+
+
+def test_mcp_guide_is_the_packaged_guide():
+    """MCP 不能再维护另一份契约；get_guide 必须原样返回包内 guide.md。"""
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool("get_guide", {})
+        assert not res.is_error
+        expected = (RESOURCES_DIR / "guide.md").read_text(encoding="utf-8")
+        assert res.structured_content["result"] == expected
+    asyncio.run(_run())
+
+
+def test_mcp_extract_format_from_docx():
+    """模板反推是 MCP 的核心入口之一，不能只有 CLI 能用。"""
+    async def _run():
+        server = create_mcp_server()
+        docx = Path(__file__).resolve().parent.parent / "demo/00_quickstart/hello.docx"
+        res = await server.call_tool(
+            "extract_format_from_docx", {"docx_path": str(docx)}
+        )
+        assert not res.is_error
+        data = res.structured_content
+        assert data["success"] is True
+        assert "纸张：" in data["format_text"]
+    asyncio.run(_run())
+
+
+def test_mcp_compile_does_not_overwrite_existing(tmp_path: Path):
+    """MCP 默认输出不能覆盖稿件旁边已有的同名 .docx。"""
+    md = tmp_path / "doc.md"
+    md.write_text("# 引言\n\n正文。\n", encoding="utf-8")
+    existing = tmp_path / "doc.docx"
+    existing.write_bytes(b"sentinel")
+
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool("compile_markdown", {"markdown": str(md)})
+        assert not res.is_error
+        data = res.structured_content
+        assert data["success"] is True
+        assert Path(data["output_docx"]).name == "doc.out.docx"
+        assert existing.read_bytes() == b"sentinel"
     asyncio.run(_run())
 
 

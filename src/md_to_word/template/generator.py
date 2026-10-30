@@ -489,7 +489,7 @@ class TemplateError(ValueError):
     """格式要求或模板无法生成。
 
     作为库调用时（`run_export_pipeline`、`build_template`）必须抛这个异常，不能
-    `sys.exit`：调用方的进程不该被一份写错的 requirements 直接终结。
+    `sys.exit`：调用方的进程不该被一份写错的格式文件直接终结。
     """
 
 
@@ -580,7 +580,7 @@ def modify_style(doc, style_name, props, default_latin=None):
 # 这里只做转发：本文件负责「把 spec 写成 OOXML」，不负责「读懂格式要求文本」。
 from md_to_word.spec.constants import ROW_NAME_EN  # noqa: E402
 from md_to_word.spec.parser import (  # noqa: E402
-    parse_requirements,
+    parse_format,
     parse_style_props,
 )
 
@@ -764,7 +764,7 @@ REQUIRED_FIELDS_BY_STYLE = {
 # 被顶右 2 字符再叠加居中会顶出右边界——肉眼看是"图片没居中"，实则是继承来的缩进。
 
 # 字段名与「该写什么」都在 `i18n` 的词表里（`template.field.*` / `template.hint.*`）：
-# 英文那栏的示例是**能直接放进样式行**的片段，测试里逐个过 `parse_requirements`。
+# 英文那栏的示例是**能直接放进样式行**的片段，测试里逐个过 `parse_format`。
 FIELD_KEYS = (
     'font_name', 'font_size', 'alignment', 'line_spacing',
     'space_before', 'space_after', 'indent', 'bold', 'italic',
@@ -1006,7 +1006,7 @@ def ensure_style_alias(doc, style_name, alias):
 def apply_page_decorations(doc, spec, lang: str = "zh"):
     """写入页眉/页脚内容、奇偶与首页开关、页码格式。
 
-    只在 requirements 里**真的出现了**的容器上动手：没写的容器保持"链接上一节"，
+    只在格式文件里**真的出现了**的容器上动手：没写的容器保持"链接上一节"，
     不会凭空建出空页眉把偶数页刷白。
     """
     if not spec.decor and not spec.page_number:
@@ -1225,7 +1225,7 @@ def apply_table_format(doc, spec, default_latin=None, lang: str = "zh"):
     if table_style != 'none':
         declared = table.get('widths', {})
         widths = dict(TABLE_DEFAULT_WIDTHS.get(table_style, {}))
-        widths.update(declared)                    # requirements 显式声明的线宽覆盖默认
+        widths.update(declared)                    # 格式文件显式声明的线宽覆盖默认
         style_names = {'three-line': '三线表', 'grid': '全网格线', 'top-bottom': '顶底线'}
         logger.debug(f' ✓ Table: 已应用{style_names.get(table_style, table_style)}边框'
               + (f'（线宽 {widths} 磅）' if declared else ''))
@@ -1351,12 +1351,12 @@ def apply_footnote_format(doc, spec, page_size, margins, default_latin=None):
     logger.debug(f' ✓ {_FOOTNOTE_REF_STYLE}: 已设为上标')
 
 
-def generate_template(requirements_text, output_path, margins=None, lang="zh"):
+def generate_template(format_text, output_path, margins=None, lang="zh"):
     """主流程：生成模板"""
     output_path = str(output_path)
     logger.debug('生成学术 Word 模板')
 
-    spec = parse_requirements(requirements_text)
+    spec = parse_format(format_text)
     page_size = spec.page_size
     reqs, default_latin = spec.styles, spec.default_latin
     if not reqs:
@@ -1563,7 +1563,7 @@ def main():
         print(__doc__)
         sys.exit(0)
 
-    requirements_file = None
+    format_file = None
     output_path = 'template.docx'
 
     args = sys.argv[1:]
@@ -1574,28 +1574,28 @@ def main():
             i += 1
             if i < len(args):
                 output_path = args[i]
-        elif not arg.startswith('-') and requirements_file is None:
-            requirements_file = arg
+        elif not arg.startswith('-') and format_file is None:
+            format_file = arg
         else:
             logger.error(f'错误: 不认识的参数 "{arg}"')
             logger.error('用法: python3 generate_template.py format.txt -o template.docx')
             sys.exit(1)
         i += 1
 
-    if requirements_file is None:
+    if format_file is None:
         logger.error('错误: 未提供格式要求文件')
         logger.error('用法: python3 generate_template.py format.txt -o template.docx')
         sys.exit(1)
 
-    if not os.path.exists(requirements_file):
-        logger.error(f'错误: 文件不存在 "{requirements_file}"')
+    if not os.path.exists(format_file):
+        logger.error(f'错误: 文件不存在 "{format_file}"')
         sys.exit(1)
 
-    with open(requirements_file, 'r', encoding='utf-8') as f:
-        requirements_text = f.read()
+    with open(format_file, 'r', encoding='utf-8') as f:
+        format_text = f.read()
 
     try:
-        generate_template(requirements_text, output_path)
+        generate_template(format_text, output_path)
     except TemplateError as exc:
         logger.error(f'错误: {exc}')
         sys.exit(1)

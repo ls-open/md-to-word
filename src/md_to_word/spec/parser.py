@@ -798,7 +798,7 @@ def _read_schema_version(text: str) -> int:
     return CURRENT_SCHEMA
 
 
-def parse_requirements(text: str) -> TemplateSpec:
+def parse_format(text: str) -> TemplateSpec:
     """解析格式要求文本（中英双语） → TemplateSpec。"""
     schema = _read_schema_version(text)
     if schema > CURRENT_SCHEMA:
@@ -857,3 +857,7 @@ def parse_requirements(text: str) -> TemplateSpec:
         spec.styles.append(parse_style_props(style_name, desc, lineno))
 
     return spec
+
+
+# 向后兼容别名
+parse_requirements = parse_format

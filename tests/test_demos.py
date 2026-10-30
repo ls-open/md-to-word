@@ -36,7 +36,7 @@ def test_demo_exports_cleanly(
         ExportOptions(
             input_path=demo_dir / manuscript,
             output_path=out,
-            requirements_path=demo_dir / requirements if requirements else None,
+            format_path=demo_dir / requirements if requirements else None,
             preset=preset,
             # 产物落到 tmp_path：demo 目录里那份是给人看的，不该被测试改动
         )

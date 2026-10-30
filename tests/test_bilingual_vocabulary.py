@@ -14,7 +14,7 @@ import re
 
 import pytest
 
-from md_to_word.spec.parser import _CLAUSE_TABLE, parse_requirements
+from md_to_word.spec.parser import _CLAUSE_TABLE, parse_format
 
 CJK = re.compile(r"[一-鿿]")
 ASCII = re.compile(r"[A-Za-z]")
@@ -70,8 +70,8 @@ SPEC_LEVEL = {
 @pytest.mark.parametrize("name", sorted(PAIRS))
 def test_style_line_parses_identically(name: str) -> None:
     zh_text, en_text = PAIRS[name]
-    zh_spec = parse_requirements(zh_text)
-    en_spec = parse_requirements(en_text)
+    zh_spec = parse_format(zh_text)
+    en_spec = parse_format(en_text)
     # 「表头：」进的是 table_header，不是 styles
     zh = zh_spec.table_header if name == "table_header" else zh_spec.styles[0]
     en = en_spec.table_header if name == "table_header" else en_spec.styles[0]
@@ -87,7 +87,7 @@ def test_style_line_parses_identically(name: str) -> None:
 
 @pytest.mark.parametrize("name", sorted(SPEC_LEVEL))
 def test_spec_level_setting_parses_identically(name: str) -> None:
-    zh = parse_requirements(SPEC_LEVEL[name][0])
-    en = parse_requirements(SPEC_LEVEL[name][1])
+    zh = parse_format(SPEC_LEVEL[name][0])
+    en = parse_format(SPEC_LEVEL[name][1])
     field = {"paper": "page_size", "margins": "margins", "table": "table"}[name]
     assert getattr(zh, field) == getattr(en, field)

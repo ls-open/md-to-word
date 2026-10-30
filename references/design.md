@@ -81,7 +81,7 @@
 ### 1.4 工作流程图
 
 ```
-格式要求.txt → parse_requirements() → 属性字典列表
+格式要求.txt → parse_format() → 属性字典列表
                                                │
 纯净 Word 365 底模 pure_modern_base.docx → Document(tmp.docx) │
                           ↓                    ↓
@@ -289,7 +289,7 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 
 症状：MD 中写 `{width=15cm}`，导出后图片实际宽度只有 14.817cm。
 原因与解决见 §1.5——模板 sectPr 缺 `pgSz`/`pgMar` 时只能按兜底值算版心；用
-`src/md_to_word/template/generator.py` 重新生成模板即可（它按 requirements 的 `纸张：` 行写入这两个元素）。
+`src/md_to_word/template/generator.py` 重新生成模板即可（它按格式文件的 `纸张：` 行写入这两个元素）。
 
 ### 2.6 图片因文件名空格无法加载
 

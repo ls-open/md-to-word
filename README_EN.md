@@ -9,9 +9,9 @@
 
 **English** | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md) | [Web Playground](https://ls-open.github.io/md-to-word/)
 
-Compile Markdown into publication-grade Word (`.docx`) documents matching strict formatting specifications. Designed for academic papers, theses, technical reports, and official publications — **and built as a deterministic Word compilation engine for AI Agents**.
+Compile Markdown into compliant Word (`.docx`) documents matching strict formatting specifications. Designed for academic papers, theses, technical reports, and official documents — **and built as a deterministic Word compilation engine for AI Agents**.
 
-> 🌐 **Try it Online (No Installation Needed)**: [Launch the Official Web Playground](https://ls-open.github.io/md-to-word/) to edit live manuscripts, inspect native formulas, three-line tables, running headers, and download publication `.docx` outputs in seconds.
+> 🌐 **Try it Online (No Installation Needed)**: [Launch the Official Web Playground](https://ls-open.github.io/md-to-word/) — fill in a form (title / abstract / body / equation / table), preview with three built-in templates, and download a `.docx` in seconds.
 
 ---
 
@@ -22,7 +22,8 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 `md-to-word` uses a **declarative typographic contract** and **bidirectional quality gates with exact line numbers**:
 - **Byte-Identical Reproducibility**: The same Markdown source always yields identical document binaries across different machines.
 - **Autonomous Self-Healing**: Missing formats or invalid syntax are caught before writing the file with exact line numbers and guidance, enabling AI Agents to auto-debug and self-heal.
-- **Publication-Grade Typography**: Native OMML math formulas (vector, double-click editable, centered with numbering hard right), three-line tables with repeating headers across page breaks, and double/single-rule running headers.
+- **Compliant Typography**: Native OMML math formulas (vector, double-click editable, centered with numbering hard right), three-line tables with repeating headers across page breaks, and double/single-rule running headers.
+- **Flexible typography**: When specific templates or guidelines are provided, compile using the target format file; otherwise, built-in presets deliver clean, compliant documents out of the box.
 
 ---
 
@@ -36,9 +37,9 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 
 | Mode | Target Clients & Use Cases | Local Environment | Quick Start / Launch Command | Key Strengths |
 | :--- | :--- | :---: | :--- | :--- |
-| **🌐 Web Playground** | Browser testing, instant preview, zero-install export | ❌ None needed | Visit [Official Playground](https://ls-open.github.io/md-to-word/) | **Instant zero-setup**: Side-by-side editing, live PDF preview, one-click `.docx` download. |
-| **🤖 MCP Native Server** *(Recommended)* | **Claude Desktop**, **Cursor**, **Windsurf**, and any MCP client | ❌ Handled automatically (`uvx` pulls isolated venv) | Add `uvx` configuration (see below) | **Most Native**: AI invokes it as a native system tool with typed arguments; zero manual pip installation required. |
-| **🧠 Agent Skill** | **Claude Code**, terminal agents, **Nature Skills (51k+ ★)** | ⚠️ Requires host agent environment | `npx skills add ls-open/md-to-word` or `$nature-paper2word` | **Most Autonomous**: AI automatically senses formatting needs, parses the contract, and self-heals upon quality gate warnings. |
+| **🌐 Web Playground** | Browser testing, instant preview, zero-install export | ❌ None needed | Visit [Official Playground](https://ls-open.github.io/md-to-word/) | **Instant trial**: fill in a form and preview with three built-in templates; download `.docx`. |
+| **🤖 MCP Native Server** *(fastest once the format is fixed)* | **Claude Desktop**, **Cursor**, **Windsurf**, and any MCP client | ❌ Handled automatically (`uvx` pulls isolated venv) | Add `uvx` configuration (see below) | **Most Native**: once a `format.txt` exists, the AI compiles directly; the environment is isolated automatically. |
+| **🧠 Agent Skill** *(Recommended)* | **Claude Code**, terminal agents, **Nature Skills (51k+ ★)** | ⚠️ Requires host agent environment | `npx skills add ls-open/md-to-word` or `$nature-paper2word` | **Most Autonomous**: reads the guide, derives the format from the user's template/spec, and self-heals on gate errors. |
 | **💻 Local CLI & SDK** | Terminal batch processing, CI/CD pipelines, Python scripts | Requires Python >= 3.10 | `pip install md-to-word-docx` then `md-to-word paper.md` | **Most Deterministic**: 100% offline, zero LLM API dependency, supports reverse template extraction and byte-level diffs. |
 
 ---
@@ -70,8 +71,12 @@ In your `claude_desktop_config.json` (or Cursor MCP settings), add:
 **Capabilities Granted to Your AI**:
 - `compile_markdown`: Compiles raw Markdown strings or local `.md` files directly into `.docx` documents;
 - `validate_manuscript`: Runs preflight validation gates (unclosed math formulas, broken table lines, unresolved CSL citations);
+- `get_guide` / `get_manual`: Reads the packaged workflow guide and full vocabulary;
+- `extract_format_from_docx`: Reverse-engineers a draft `format.txt` from a school/journal template;
 - `list_presets`: Explores built-in templates (Chinese Academic Journal, Technical Report/Whitepaper, Nature English Paper);
 - `inspect_preset`: Inspects typography specifications (`format.txt`) with complete transparency.
+
+**Order of work**: call `get_guide` first, then decide `format` from the user's template or spec; use built-in presets directly if no custom template is needed.
 
 #### 2. 🧠 Use as an Agent Skill (Claude Code / Nature Ecosystem)
 
@@ -100,8 +105,11 @@ md-to-word init
 # Read complete self-contained contract and guide
 md-to-word --guide
 
-# Compile manuscript (with built-in preset or custom format.txt)
-md-to-word paper.md -p en-nature -o paper.docx
+# Compile with an explicit format file
+md-to-word paper.md -f format.txt -o paper.docx
+
+# Without a format file, use a preset for a first look (preview only)
+md-to-word paper.md --preset en-nature -o preview.docx
 ```
 If you prefer direct Python CLI usage or operate in a local terminal / editor Agent environment:
 
@@ -115,12 +123,12 @@ If you prefer direct Python CLI usage or operate in a local terminal / editor Ag
    The package includes a comprehensive guide identical to `SKILL.md`. When interacting with an Agent, **prompt it to read the guide first**:
 
    > 💬 **Standard Prompt Template (Ready to copy):**  
-   > "I have installed `md-to-word-docx`. Please first run `md-to-word --guide` to understand its formatting rules and contracts, then help me format the manuscript in this directory into a compliant Word document (if a template Word file is available, run `md-to-word-template` first to deduce formatting requirements)."
+   > "I have installed `md-to-word-docx`. Please first run `md-to-word --guide` to understand its formatting rules and contracts, then help me format the manuscript in this directory into a compliant Word document (if a template Word file is available, run `md-to-word-template` first to deduce the format file)."
 
 3. **Autonomous AI Execution Loop**:
    - **Read specs**: Runs `md-to-word --guide` (or `--contract`) to understand closed vocabulary and Markdown contracts.
    - **Define rules**: Generates or adjusts `format.txt`, or deduces from an existing `.docx` template.
-   - **Compile**: Runs `md-to-word manuscript.md -r format.txt -o manuscript.docx --json`.
+   - **Compile**: Runs `md-to-word manuscript.md -f format.txt -o manuscript.docx --json`.
    - **Self-heal**: If intercepted by preflight gates, fixes issues automatically based on reported line numbers until exit code is `0`.
 
 ---
@@ -133,14 +141,14 @@ If you need to call the engine directly in scripts or CI/CD pipelines:
   ```bash
   # Initialize minimal sample
   md-to-word init
-  # Compile with specific rule file
-  md-to-word manuscript.md -r format.txt -o output.docx
+  # Compile with an explicit format file
+  md-to-word manuscript.md -f format.txt -o output.docx
   ```
 - **Python API**:
   ```python
   from md_to_word import export
 
-  result = export("manuscript.md", "manuscript.docx", rules="format.txt")
+  result = export("manuscript.md", "manuscript.docx", format="format.txt")
   if not result.ok:
       raise SystemExit("\n".join(result.errors))
   ```
@@ -207,7 +215,7 @@ Refer to the [User Manual](https://github.com/ls-open/md-to-word/blob/main/src/m
 
 ## Ecosystem & Listed In
 
-Focused on deterministic downstream compilation and publication delivery. Recommended to pair with upstream research frameworks:
+Focused on deterministic downstream Word compilation. Recommended to pair with upstream research frameworks:
 
 - **[Nature Skills](https://github.com/Yuan1z0825/nature-skills) (51k+ ★)**: Top-tier academic research and writing agent toolkit. Officially integrated as [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word) to deliver publication-compliant Word documents in the final stage.
 - **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills) (51k+ ★)**: 5-stage research framework. Listed in the official ecosystem, directly compiling Stage 5 (FINALIZE) Markdown and `.bib` outputs into Word.

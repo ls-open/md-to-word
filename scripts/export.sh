@@ -7,7 +7,7 @@
 #
 # 用法:
 #   bash export.sh 稿件.md -o 输出.docx
-#   bash export.sh 稿件.md -r 要求.txt -o 输出.docx
+#   bash export.sh 稿件.md -f 格式.txt -o 输出.docx
 #   bash export.sh 稿件.md --preset en-nature -o 输出.docx
 #   bash export.sh --contract        # 契约速查 + 手册与预设的路径
 #   bash export.sh --help            # 全部选项

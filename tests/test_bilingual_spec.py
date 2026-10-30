@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from md_to_word.spec import list_available_presets, parse_requirements, read_preset_content
+from md_to_word.spec import list_available_presets, parse_format, read_preset_content
 
 
 def test_presets_exist():
@@ -16,7 +16,7 @@ def test_presets_exist():
 def test_zh_academic_preset():
     content = read_preset_content("zh-academic")
     assert content is not None
-    spec = parse_requirements(content)
+    spec = parse_format(content)
     assert len(spec.styles) >= 20
     assert spec.page_size == "a4"
     assert spec.proofing_lang == "zh-CN"
@@ -28,7 +28,7 @@ def test_zh_academic_preset():
 def test_en_nature_preset_native_english():
     content = read_preset_content("en-nature")
     assert content is not None
-    spec = parse_requirements(content)
+    spec = parse_format(content)
     assert len(spec.styles) >= 20
     assert spec.page_size == "a4"
     assert spec.proofing_lang == "en-US"
@@ -54,7 +54,7 @@ Bibliography: Times New Roman 9pt left line-spacing 1.0 hanging-indent 0.5in
 Page Number: decimal start 1
 Footer Content: {page}
 """
-    spec = parse_requirements(text)
+    spec = parse_format(text)
     assert spec.page_size == "a4"
     assert spec.margins == {"top": 2.54, "bottom": 2.54, "left": 2.54, "right": 2.54}
     assert spec.default_latin == "Times New Roman"
@@ -68,7 +68,7 @@ Footer Content: {page}
 def test_unknown_keyword_raises_error():
     text = "InvalidKey: Arial 12pt bold"
     with pytest.raises(ValueError, match="不认识的键名"):
-        parse_requirements(text)
+        parse_format(text)
 
 
 def test_duplicate_style_raises_error():
@@ -77,7 +77,7 @@ Body Text: Times New Roman 12pt left
 Body Text: Arial 10pt right
 """
     with pytest.raises(ValueError, match="重复定义"):
-        parse_requirements(text)
+        parse_format(text)
 
 
 def test_canonical_syntax():
@@ -94,7 +94,7 @@ def test_canonical_syntax():
         ("正文: Times New Roman 12pt line-spacing 1.5 hanging-indent 0.5in", 1.5, Pt(12)),
     ]
     for text, exp_ls, exp_fs in cases:
-        spec = parse_requirements(text + "\n")
+        spec = parse_format(text + "\n")
         s = spec.get_style("Body Text")
         assert s is not None, f"Failed for {text}"
         if exp_ls is not None:
@@ -107,23 +107,23 @@ def test_rejection_with_canonical_hints():
     """测试非正典变体被严格拦截，且给出精准单一正典纠偏提示。"""
     # 1. 裸倍数拦截
     with pytest.raises(ValueError, match="行距倍数请统一写「行距N倍」"):
-        parse_requirements("正文: 宋体 小四 1.5倍\n")
+        parse_format("正文: 宋体 小四 1.5倍\n")
 
     # 2. 固定值写法拦截
     with pytest.raises(ValueError, match="固定磅值行距请统一写「行距N磅」"):
-        parse_requirements("正文: 宋体 小四 固定值20磅\n")
+        parse_format("正文: 宋体 小四 固定值20磅\n")
 
     # 3. 裸单倍行距拦截
     with pytest.raises(ValueError, match="行距倍数请统一写「行距1.0倍」"):
-        parse_requirements("正文: 宋体 小四 单倍行距\n")
+        parse_format("正文: 宋体 小四 单倍行距\n")
 
     # 4. 无缩进拦截，引导到首行缩进0
     with pytest.raises(ValueError, match="免缩进请统一写「首行缩进0」"):
-        parse_requirements("正文: 宋体 小四 无缩进\n")
+        parse_format("正文: 宋体 小四 无缩进\n")
 
     # 5. 字号裸磅值拦截，引导到 12pt
     with pytest.raises(ValueError, match="数值字号必须带单位 pt"):
-        parse_requirements("正文: 宋体 12磅 行距20磅\n")
+        parse_format("正文: 宋体 12磅 行距20磅\n")
 
 
 def test_table_image_caption_key_aliases():
@@ -132,7 +132,7 @@ def test_table_image_caption_key_aliases():
 表名: 宋体 五号 居中
 图名: 宋体 五号 居中
 """
-    spec = parse_requirements(text)
+    spec = parse_format(text)
     tbl_c = spec.get_style("Table Caption")
     assert tbl_c is not None
     assert tbl_c["style_name"] == "Table Caption"

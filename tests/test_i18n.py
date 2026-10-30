@@ -14,7 +14,7 @@ import pytest
 
 from md_to_word.cli import build_parser
 from md_to_word.i18n import _MESSAGES, resolve_lang, t
-from md_to_word.spec.parser import parse_requirements
+from md_to_word.spec.parser import parse_format
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -136,7 +136,7 @@ def test_reminder_is_localized_end_to_end(tmp_path: Path) -> None:
 #
 # 英文提示教人写 `Table: center three-line …`，如果 parser 不认这串词，作者照着改还是
 # 生成不了模板——比看中文更糟。所以词表里凡是给出**要求文件写法**的英文条目，都要在
-# 这里过一遍 `parse_requirements`。
+# 这里过一遍 `parse_format`。
 # ══════════════════════════════════════════════════════════════════════
 
 _CJK = re.compile(r"[一-鿿]")
@@ -168,14 +168,14 @@ def test_english_requirement_examples_are_parseable() -> None:
     for key, line in examples:
         assert not _CJK.search(line), f"{key}: 英文示例里混进了中文：{line}"
         try:
-            parse_requirements(line)
+            parse_format(line)
         except Exception as exc:  # noqa: BLE001 —— 任何异常都说明这行教错了
             raise AssertionError(f"{key}: 示例解析不了 -> {line}\n{exc}") from exc
 
 
 def test_english_field_hints_are_parseable_properties() -> None:
     """字段提示是属性片段：塞进一行样式里必须解析得动，而且真的落到该落的属性上。"""
-    spec = parse_requirements("Title: " + " ".join(
+    spec = parse_format("Title: " + " ".join(
         _MESSAGES[f"template.hint.{field}"][1] for field in
         ("font_name", "font_size", "alignment", "line_spacing", "space_before",
          "space_after", "indent", "bold", "italic")

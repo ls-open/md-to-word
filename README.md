@@ -9,9 +9,9 @@
 
 [English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | **简体中文** | [在线演示站 (Playground)](https://ls-open.github.io/md-to-word/)
 
-把 Markdown 确定性编译为出版级规范 Word（`.docx`）。专为学术期刊、技术报告、学位论文、公文打造，**也是面向 AI Agent 设计的确定性排版与出版交付底座**。
+把 Markdown 确定性编译为规范 Word（`.docx`）。专为学位论文、技术报告、学术论文、公文打造，**也是面向 AI Agent 设计的确定性 Word 格式编译底座**。
 
-> 🌐 **零门槛免安装试玩**：[点击访问官方在线体验站 (Web Playground)](https://ls-open.github.io/md-to-word/)，实时编辑内容，在线验证公式、三线表、页眉与出版规范，秒级下载成品 `.docx`。
+> 🌐 **零门槛免安装试玩**：[点击访问官方在线体验站 (Web Playground)](https://ls-open.github.io/md-to-word/)，按表单填入内容，用三套内置模板实时预览公式、三线表与页眉，秒级下载成品 `.docx`。
 
 ---
 
@@ -22,7 +22,8 @@
 `md-to-word` 采用**声明式排版契约**与**带精确行号的双向质量门禁**：
 - **逐字节一致**：同一份源文件在任何操作系统重编译，产物二进制完全一致；
 - **自愈门禁**：格式没写全或语法错误，导出前精准指示行号并提供自愈指引，让 AI Agent 具备自主调试闭环能力；
-- **出版级排版**：原生 OMML 矢量数学公式（双击可编辑、自动居中、编号靠右）、跨页自动重复表头三线表、双线/单线页眉、中西文字体分离。
+- **规范排版**：原生 OMML 矢量数学公式（双击可编辑、自动居中、编号靠右）、跨页自动重复表头三线表、双线/单线页眉、中西文字体分离。
+- **按需灵活排版**：有具体模板或规范时优先按用户要求的 `format.txt` 编译；无特定要求时，直接使用内置预设即可生成规范规整的 Word 文档。
 
 ---
 
@@ -36,9 +37,9 @@
 
 | 使用形态 | 适用客户端 / 场景 | 本地环境依赖 | 一键接入 / 启动方式 | 核心特点与适用建议 |
 | :--- | :--- | :---: | :--- | :--- |
-| **🌐 Web 在线体验站** | 浏览器直接试玩、零门槛体验、快速排版预览 | ❌ 无需安装任何环境 | 直接访问 [官方体验站](https://ls-open.github.io/md-to-word/) | **免配置开箱即用**：在线编辑，分屏实时预览 PDF，秒级下载 `.docx` 成品。 |
-| **🤖 MCP 原生外设** *(推荐)* | **Claude Desktop**、**Cursor**、**Windsurf** 等支持 MCP 协议的 AI 桌面端 | ❌ 无需手动配 Python（`uvx` 自动拉取） | 在客户端配置中声明 `uvx` 命令（见下文） | **最原生**：AI 客户端将其识别为原生系统工具，零代码直接唤起编译与自检；环境全自动隔离。 |
-| **🧠 Agent Skill 技能** | **Claude Code**、**终端 Agent**、**Nature Skills (51k+ ★)** | ⚠️ 依赖宿主 Agent 执行环境 | `npx skills add ls-open/md-to-word` 或呼叫 `$nature-paper2word` | **最智能**：AI 具备自主感知排版需求、自动阅读规范契约、遇格式门禁拦截自主读行号自愈重跑。 |
+| **🌐 Web 在线体验站** | 浏览器直接试玩、零门槛体验、快速排版预览 | ❌ 无需安装任何环境 | 直接访问 [官方体验站](https://ls-open.github.io/md-to-word/) | **免配置试玩**：按表单填入标题/摘要/正文/公式/表格，用三套内置模板分屏预览 PDF、下载 `.docx`。 |
+| **🤖 MCP 原生外设** *(格式确定后最快)* | **Claude Desktop**、**Cursor**、**Windsurf** 等支持 MCP 协议的 AI 桌面端 | ❌ 无需手动配 Python（`uvx` 自动拉取） | 在客户端配置中声明 `uvx` 命令（见下文） | **最原生**：已经拿到 `format.txt` 后，让 AI 直接编译；环境全自动隔离。 |
+| **🧠 Agent Skill 技能** *(推荐)* | **Claude Code**、**终端 Agent**、**Nature Skills (51k+ ★)** | ⚠️ 依赖宿主 Agent 执行环境 | `npx skills add ls-open/md-to-word` 或呼叫 `$nature-paper2word` | **最智能**：AI 先读规范、按用户模板/要求定格式，遇门禁读行号自愈重跑。 |
 | **💻 本地 CLI 与 SDK** | 终端命令行批处理、CI/CD 自动化流水线、Python 脚本开发 | 需 Python >= 3.10 | `pip install md-to-word-docx` 然后运行 `md-to-word 稿.md` | **最确定**：纯本地编译，不依赖任何大模型 API，支持模板样式反推与逐字节回归测试。 |
 
 ---
@@ -68,10 +69,16 @@ MCP（Model Context Protocol）是 Anthropic 开源的标准模型上下文协�
 *（注：若习惯本地全局 Python 环境，亦可运行 `pip install "md-to-word-docx[mcp]"`，并将 `command` 设为 `python3`，`args` 设为 `["-m", "md_to_word.mcp"]`）*
 
 **AI 自动获得的原生能力**：
-- `compile_markdown`：将输入的 Markdown（文本或文件路径）直接编译为出版级 `.docx`（并可按需转为 PDF）；
+- `compile_markdown`：将输入的 Markdown（文本或文件路径）直接编译为规范 `.docx`（并可按需转为 PDF）；
 - `validate_manuscript`：在生成前执行预检，自动检测未闭合的数学公式、缺线的表格或格式错误；
+- `get_guide` / `get_manual`：读取包内的工作流指南与完整词表；
+- `extract_format_from_docx`：从学校/期刊模板反推 `format.txt` 草稿；
 - `list_presets`：按需选择中文核心期刊、白皮书或 Nature 顶级英文规范；
 - `inspect_preset`：透明查阅任意预设的完整字体、行距与排版规则（`format.txt`）。
+
+**使用顺序**：先让 Agent 调用 `get_guide`，若有具体模板或格式要求则提取或编写 `format.txt`，无特殊要求则直接选用内置预设。可以直接给 Agent 这条提示：
+
+> 先运行 `md-to-word --guide` 读完整工作流；如果有目标模板或规范要求，先用 `md-to-word-template` 反推出 `format.txt` 再编译；若无特殊要求，直接使用内置预设快速出稿。
 
 #### 2. 🧠 作为 Agent Skill 技能使用（Claude Code / Nature 生态）
 
@@ -94,23 +101,24 @@ MCP（Model Context Protocol）是 Anthropic 开源的标准模型上下文协�
 # 安装核心编译器
 pip install md-to-word-docx
 
-# 初始化示例项目
+# 初始化示例项目（写入 format.txt 与一篇可直接导出的样例）
 md-to-word init
 
-# 查看最新排版契约与编写指南（自包含内核）
+# 查看完整工作流与格式词表
 md-to-word --guide
 
-# 执行编译（支持指定预设或自定义 format.txt）
-md-to-word 论文.md -p zh-academic -o 论文.docx
+# 显式指定格式文件导出
+md-to-word 论文.md -f format.txt -o 论文.docx
+
+# 没有格式文件时，用内置预设先看效果（仅预览）
+md-to-word 论文.md --preset zh-academic -o 预览.docx
 ```
-  # 指定格式文件导出
-  md-to-word 稿件.md -r format.txt -o 稿件.docx
-  ```
+
 - **作为 Python 库调用**：
   ```python
   from md_to_word import export
 
-  result = export("稿件.md", "稿件.docx", rules="format.txt")
+  result = export("稿件.md", "稿件.docx", format="format.txt")
   if not result.ok:
       raise SystemExit("\n".join(result.errors))
   ```
@@ -189,7 +197,7 @@ md-to-word-template 学校模板.docx -o format.txt
 
 ## 协同生态与收录
 
-本项目专注下游的高质量确定性排版与出版交付，前期的文献调研、开题构思与论文写作推荐配合以下学术 Agent 框架：
+本项目专注下游的高质量确定性排版与 Word 交付，前期的文献调研、开题构思与论文写作推荐配合以下学术 Agent 框架：
 
 - **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)（51k+ ★）**：顶流科研论文全流程写作 Agent 技能集。本项目已作为官方内置独立技能 [`nature-paper2word`](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word) 正式合并入官方仓库，负责该生态终稿阶段的“规范 Word 编译交付”。在 Nature Skills 环境中可直接唤起 `$nature-paper2word`。
 - **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)（51k+ ★）**：五阶段学术研究全流程框架。本项目被收录在官方第三方项目列表中，在 Stage 5（FINALIZE）产出 Markdown 草稿与参考文献后，直接承接出规范 `.docx`。

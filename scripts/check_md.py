@@ -26,12 +26,13 @@ def main() -> int:
         description="导出前预检：拦下会造成静默失败的稿件写法",
     )
     parser.add_argument("md", help="待检查的 Markdown 稿件")
-    parser.add_argument("-r", "--requirements", help="（可选）格式要求文件，用于校验稿件结构是否有对应样式")
+    parser.add_argument("-f", "--format", dest="format_path", help="（可选）格式要求文件，用于校验稿件结构是否有对应样式")
+    parser.add_argument("-r", "--requirements", dest="format_path", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     report = validate_manuscript(
         args.md,
-        spec_path=args.requirements,
+        spec_path=args.format_path,
     )
 
     for warning in report.warnings:

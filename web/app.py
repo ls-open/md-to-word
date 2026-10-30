@@ -36,7 +36,7 @@ from md_to_word import export
 app = FastAPI(
     title="md-to-word Web Playground",
     description="Deterministic Markdown to Word (.docx) Compilation Playground",
-    version="2.4.0",
+    version="4.0.0",
 )
 
 app.add_middleware(
@@ -320,7 +320,7 @@ $${equation.strip()}$$ {{#eq-1}}
     return md_content
 
 
-def _build_dynamic_requirements(template_id: str, header_content: str) -> str:
+def _build_dynamic_format(template_id: str, header_content: str) -> str:
     """基于底层官方预设文件，动态注入用户指定的页眉规则与页眉文字。"""
     tpl = TEMPLATES.get(template_id, TEMPLATES["zh-journal"])
     base_file = Path(tpl["preset_file"])
@@ -354,7 +354,7 @@ def _get_content_hash(template_id: str, md_content: str, header_content: str) ->
 
 def _compile_docx_and_pdf(
     md_content: str,
-    requirements_text: str,
+    format_text: str,
     output_docx_path: Path,
     output_pdf_path: Path,
 ) -> Tuple[bool, list]:
@@ -364,15 +364,15 @@ def _compile_docx_and_pdf(
         md_file = temp_dir / "manuscript.md"
         md_file.write_text(md_content, encoding="utf-8")
 
-        req_file = temp_dir / "requirements.txt"
-        req_file.write_text(requirements_text, encoding="utf-8")
+        fmt_file = temp_dir / "format.txt"
+        fmt_file.write_text(format_text, encoding="utf-8")
 
         tmp_docx = temp_dir / "output.docx"
 
         res = export(
             manuscript=md_file,
             output=tmp_docx,
-            requirements=req_file,
+            format=fmt_file,
         )
 
         if not res.ok:
@@ -418,14 +418,14 @@ def warmup_default_caches():
             conclusion_body=tpl["conclusion_body"],
             references=tpl["references"],
         )
-        req_text = _build_dynamic_requirements(tpl_id, tpl["header_content"])
+        fmt_text = _build_dynamic_format(tpl_id, tpl["header_content"])
         chash = _get_content_hash(tpl_id, md, tpl["header_content"])
         docx_cache = CACHE_DIR / f"{chash}.docx"
         pdf_cache = CACHE_DIR / f"{chash}.pdf"
 
         if not (docx_cache.exists() and pdf_cache.exists()):
             try:
-                ok, errs = _compile_docx_and_pdf(md, req_text, docx_cache, pdf_cache)
+                ok, errs = _compile_docx_and_pdf(md, fmt_text, docx_cache, pdf_cache)
                 if ok:
                     print(f"  ✓ 模板 {tpl_id} 静态缓存就绪 ({chash})")
                 else:
@@ -483,7 +483,7 @@ async def preview_manuscript(
     )
 
     clean_header = header_content.strip() or TEMPLATES.get(template_id, {}).get("header_content", "")
-    req_text = _build_dynamic_requirements(template_id, clean_header)
+    fmt_text = _build_dynamic_format(template_id, clean_header)
 
     chash = _get_content_hash(template_id, clean_md, clean_header)
     pdf_cache = CACHE_DIR / f"{chash}.pdf"
@@ -511,7 +511,7 @@ async def preview_manuscript(
             None,
             _compile_docx_and_pdf,
             clean_md,
-            req_text,
+            fmt_text,
             docx_cache,
             pdf_cache,
         )
@@ -575,7 +575,7 @@ async def export_manuscript(
     )
 
     clean_header = header_content.strip() or TEMPLATES.get(template_id, {}).get("header_content", "")
-    req_text = _build_dynamic_requirements(template_id, clean_header)
+    fmt_text = _build_dynamic_format(template_id, clean_header)
 
     chash = _get_content_hash(template_id, clean_md, clean_header)
     docx_cache = CACHE_DIR / f"{chash}.docx"
@@ -588,7 +588,7 @@ async def export_manuscript(
                 None,
                 _compile_docx_and_pdf,
                 clean_md,
-                req_text,
+                fmt_text,
                 docx_cache,
                 pdf_cache,
             )

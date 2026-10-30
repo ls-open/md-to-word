@@ -17,7 +17,7 @@ import zipfile
 from docx import Document
 import pytest
 
-from md_to_word.spec.parser import parse_requirements
+from md_to_word.spec.parser import parse_format
 from md_to_word.template.generator import generate_template
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
@@ -29,7 +29,7 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 def test_preset_parses_and_generates_template(preset: str, tmp_path: Path) -> None:
     """Every shipped preset must be a valid requirements file and build a template."""
     text = (SKILL_DIR / "presets" / preset).read_text(encoding="utf-8")
-    spec = parse_requirements(text)
+    spec = parse_format(text)
     names = {style["style_name"] for style in spec.styles}
 
     # Required skeleton plus the structures a real manuscript commonly uses.

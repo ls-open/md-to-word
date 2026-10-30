@@ -25,6 +25,8 @@ from md_to_word.config import (
     get_presets_dir,
     resolve_preset_path,
 )
+from md_to_word.i18n import resolve_lang
+from md_to_word.template.extractor import extract_spec_from_docx
 
 logger = logging.getLogger("md_to_word.mcp")
 
@@ -42,7 +44,7 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
         "id": "zh-academic",
         "name": "中文学术期刊 / 学位论文规范 (Chinese Academic Thesis & Journal)",
         "target": "中国知网 (CNKI)、万方、高校硕博学位论文、CSCD/CSSCI 核心期刊",
-        "description": "Standard Chinese academic publication layout with SimSun/Times New Roman, GB/T 7714-2015 citations, double-line header, two-character paragraph indents, and three-line tables.",
+        "description": "Standard Chinese academic format with SimSun/Times New Roman, GB/T 7714-2015 citations, double-line header, two-character paragraph indents, and three-line tables.",
         "typography": {
             "fonts": "宋体 (SimSun) / Times New Roman",
             "header": "双线页眉 (Double-line header) with running title",
@@ -68,48 +70,24 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
         "id": "en-nature",
         "name": "国际顶级英文期刊规范 (International English Paper - Nature / IEEE Style)",
         "target": "Nature, IEEE, ACM, Springer, Elsevier, arXiv submissions",
-        "description": "International publication-grade English layout with Times New Roman / Arial, running header, block paragraph spacing (0 indent), and Nature-style numbered citations.",
+        "description": "International journal format with Times New Roman / Arial, running header, block paragraph spacing (0 indent), and Nature-style numbered citations.",
         "typography": {
             "fonts": "Times New Roman / Arial",
             "header": "English running head with page number right-aligned",
             "body": "10pt, 1.15 line spacing, 6pt after paragraph, 0 indent",
-            "tables": "Classic publication three-line table",
+            "tables": "Classic three-line table",
             "citations": "Nature numbered brackets [1], APA author-date supported",
         },
     },
 }
 
-CONTRACT_GUIDE = """# md-to-word Markdown Compilation Rules & Style Contract
+RESOURCES_DIR = Path(__file__).resolve().parent.parent / "resources"
 
-md-to-word compiles Markdown into publication-grade Word documents (.docx) with deterministic byte-level consistency. To ensure 100% compliant rendering, follow these rules:
 
-1. Headers & Sections:
-   - Use `# Document Title` for the main title.
-   - Use `## Section` for H1 headings, `### Subsection` for H2 headings.
-   - For abstracts, use `## 摘要` or `## Abstract`.
+def _read_resource(name: str) -> str:
+    """读取包内文档。MCP 不再维护另一份契约，避免和 SKILL.md / guide.md 分叉。"""
+    return (RESOURCES_DIR / name).read_text(encoding="utf-8")
 
-2. Mathematical Formulas:
-   - Inline formulas: `$E = mc^2$` (Must be enclosed with single dollar signs on the SAME line; do NOT split across lines).
-   - Display/Block formulas: Enclose within `$$` on separate lines:
-     $$
-     \\nabla \\times \\mathbf{B} = \\mu_0 \\mathbf{J} + \\mu_0 \\varepsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t}
-     $$
-   - Escaped dollar signs in normal text should be written as `\\$100`.
-
-3. Three-Line Tables:
-   - Must have outer pipes:
-     | Header 1 | Header 2 | Header 3 |
-     | :--- | :---: | ---: |
-     | Row 1 | Val 2 | Val 3 |
-   - Alignment indicators (`:---`, `:---:`, `---:`) are strictly preserved.
-
-4. Citations & References:
-   - In-text citation keys: `[@vaswani2017attention]` or `[@knuth1984; @turing1950]`.
-   - Place a `references.bib` file alongside the markdown or configure CSL styles.
-
-5. Code Blocks:
-   - Always wrap code in triple-backtick fences ```python ... ```, four-space indentation is not recommended.
-"""
 
 
 def _resolve_markdown_source(markdown: str) -> tuple[Path, bool]:
@@ -134,13 +112,28 @@ def _resolve_markdown_source(markdown: str) -> tuple[Path, bool]:
     return Path(tmp.name), True
 
 
-def _resolve_format_txt(format_txt: str | None) -> tuple[Path | None, bool]:
-    """Determine whether format_txt is a file path or raw string.
+def _default_output_path(in_path: Path) -> Path:
+    """不覆盖已有文件：同名 .docx 存在时改用 `.out.docx`，再冲突就加序号。"""
+    candidate = in_path.with_suffix(".docx")
+    if not candidate.exists():
+        return candidate
+    candidate = in_path.with_name(in_path.stem + ".out.docx")
+    if not candidate.exists():
+        return candidate
+    for i in range(2, 100):
+        candidate = in_path.with_name("%s.out-%d.docx" % (in_path.stem, i))
+        if not candidate.exists():
+            return candidate
+    return in_path.with_name("%s.out-%s.docx" % (in_path.stem, os.urandom(4).hex()))
+
+
+def _resolve_format_source(format: str | None) -> tuple[Path | None, bool]:
+    """Determine whether format is a file path or raw string.
     Returns (Path or None, is_temporary).
     """
-    if not format_txt:
+    if not format:
         return None, False
-    cleaned = format_txt.strip()
+    cleaned = format.strip()
     if "\n" not in cleaned:
         candidate = Path(cleaned)
         if candidate.is_file():
@@ -152,7 +145,7 @@ def _resolve_format_txt(format_txt: str | None) -> tuple[Path | None, bool]:
         encoding="utf-8",
         delete=False,
     )
-    tmp.write(format_txt)
+    tmp.write(format)
     tmp.flush()
     tmp.close()
     return Path(tmp.name), True
@@ -168,8 +161,8 @@ def create_mcp_server() -> Any:
 
     server = MCPServer(
         name="md-to-word",
-        title="md-to-word Publishing Compiler",
-        description="Deterministic Markdown to Word (.docx) compiler with publication-grade typography, native formulas, three-line tables, and CSL citations.",
+        title="md-to-word Word Compiler",
+        description="Deterministic Markdown to Word (.docx) compiler with native formulas, tables, and CSL citations.",
         version=getattr(md_to_word, "__version__", "1.0.0"),
         website_url="https://ls-open.github.io/md-to-word/",
     )
@@ -181,45 +174,57 @@ def create_mcp_server() -> Any:
     @server.tool(
         name="compile_markdown",
         title="Compile Markdown to Word (.docx)",
-        description="Compile a Markdown manuscript (string or file path) into a publication-compliant Word (.docx) document.",
+        description=(
+            "Compile Markdown into a Word (.docx) document. "
+            "Ensure structures beyond standard Markdown (e.g. captions, TOC, page breaks, abstract, "
+            "math blocks) follow the contract in get_guide. Uses the provided format file, or defaults "
+            "to a built-in preset."
+        ),
     )
     def compile_markdown(
         markdown: str,
-        output_path: str = "output.docx",
-        preset: str = "zh-academic",
-        format_txt: str | None = None,
+        output_path: str | None = None,
+        format: str | None = None,
+        preset: str | None = None,
         generate_pdf: bool = False,
         lang: str | None = None,
     ) -> dict[str, Any]:
-        """Compile Markdown into a publication-grade Word (.docx) document.
+        """Compile Markdown into a Word (.docx) document.
 
         Args:
             markdown: The Markdown manuscript content as a string, OR an existing .md file path.
-            output_path: Target path for the output .docx file. Defaults to 'output.docx'.
-            preset: Built-in style preset name. Choices:
-                - 'zh-academic': Chinese Academic Thesis / Journal (CNKI / CSCD / CSSCI standard)
-                - 'zh-report': Modern Tech Report / Whitepaper (SimHei, single header, shaded tables)
-                - 'en-nature': International English Paper (Nature / IEEE style, running head)
-                Ignored if format_txt is explicitly provided.
-            format_txt: Optional raw format.txt content (or path) to override all typographic rules.
-            generate_pdf: Whether to also generate a PDF version (requires LibreOffice or Word installed).
-            lang: Optional explicit document language ('zh' or 'en'). Auto-detected if omitted.
+            output_path: Target .docx path. If omitted, the output is written next to the input
+                file without overwriting an existing file (`.out.docx` is used on collision);
+                raw Markdown goes to a temporary file and its path is returned.
+            format: A format file path OR raw format content. This is the typography contract
+                (the `format.txt` file), not Python dependency requirements.
+            preset: Built-in preset name ('zh-academic', 'zh-report', 'en-nature'). Only used
+                when `format` is absent. A preset is a preview baseline, not a deliverable.
+            generate_pdf: Whether to also generate a PDF (requires LibreOffice or Word).
+            lang: Optional message/document language ('zh' or 'en'); auto-detected if omitted.
 
         Returns:
-            A dictionary containing compilation status, output paths, file size, warnings, and error messages.
+            Compilation status, output paths, the format source, warnings and errors.
         """
         in_path, in_is_tmp = _resolve_markdown_source(markdown)
-        fmt_path, fmt_is_tmp = _resolve_format_txt(format_txt)
+        fmt_path, fmt_is_tmp = _resolve_format_source(format)
 
         try:
-            out_docx = Path(output_path).resolve()
+            if output_path:
+                out_docx = Path(output_path).expanduser().resolve()
+            elif not in_is_tmp:
+                out_docx = _default_output_path(in_path)
+            else:
+                out_docx = Path(tempfile.gettempdir()) / (
+                    "md-to-word-%s.docx" % os.urandom(4).hex()
+                )
             out_docx.parent.mkdir(parents=True, exist_ok=True)
 
             result = md_to_word.export(
                 manuscript=in_path,
                 output=out_docx,
+                format=fmt_path,
                 preset=preset if not fmt_path else None,
-                requirements=fmt_path,
                 pdf=generate_pdf,
                 lang=lang,
             )
@@ -230,6 +235,17 @@ def create_mcp_server() -> Any:
                 if result.output_pdf and result.output_pdf.exists()
                 else None
             )
+            format_source = (
+                "format" if fmt_path
+                else ("preset:%s" % preset if preset else "auto-preset")
+            )
+            notice = ""
+            if not fmt_path:
+                used_preset = preset or ("zh-academic" if result.lang == "zh" else "en-nature")
+                notice = (
+                    f"已套用官方内置预设「{used_preset}」完成排版。建议在 Word 中打开核对效果；"
+                    "若学校或期刊有专属格式要求，可提供 format 文件或参考 .docx 重新编译。"
+                )
 
             return {
                 "success": result.ok,
@@ -237,6 +253,8 @@ def create_mcp_server() -> Any:
                 "output_docx": str(out_docx) if result.ok else None,
                 "output_pdf": pdf_str,
                 "file_size_bytes": file_size,
+                "format_source": format_source,
+                "notice": notice,
                 "messages": result.messages,
                 "warnings": result.warnings,
                 "errors": result.errors,
@@ -250,6 +268,8 @@ def create_mcp_server() -> Any:
                 "output_docx": None,
                 "output_pdf": None,
                 "file_size_bytes": None,
+                "format_source": "format" if fmt_path else "none",
+                "notice": "",
                 "messages": [],
                 "warnings": [],
                 "errors": [str(exc)],
@@ -270,38 +290,58 @@ def create_mcp_server() -> Any:
     @server.tool(
         name="validate_manuscript",
         title="Validate Markdown Manuscript",
-        description="Run preflight validation on a Markdown manuscript before compiling, reporting syntax errors, missing citations, and formatting violations.",
+        description=(
+            "Validate a Markdown manuscript's syntax and non-standard Markdown structure mappings "
+            "against the compilation contract before export."
+        ),
     )
     def validate_manuscript(
         markdown: str,
-        preset: str = "zh-academic",
-        format_txt: str | None = None,
-        lang: str = "zh",
+        format: str | None = None,
+        preset: str | None = None,
+        lang: str | None = None,
     ) -> dict[str, Any]:
-        """Check whether a Markdown manuscript conforms to md-to-word publication rules.
+        """Check whether a Markdown manuscript conforms to the declared format.
 
         Args:
             markdown: The Markdown manuscript content as a string, OR an existing .md file path.
-            preset: Style preset to validate against.
-            format_txt: Optional custom format.txt override.
-            lang: Language for error messages ('zh' or 'en').
+            format: A format file path OR raw format content.
+            preset: Built-in preset to validate against when `format` is absent.
+            lang: Message language ('zh' or 'en'); auto-detected from the manuscript if omitted.
 
         Returns:
-            Dictionary with 'valid' bool, 'errors' list, and 'warnings' list.
+            Dictionary with 'valid', 'errors', 'warnings' and the format source.
         """
         in_path, in_is_tmp = _resolve_markdown_source(markdown)
-        fmt_path, fmt_is_tmp = _resolve_format_txt(format_txt)
+        fmt_path, fmt_is_tmp = _resolve_format_source(format)
 
         try:
+            if in_is_tmp:
+                lang_text = markdown
+            else:
+                lang_text = in_path.read_text(encoding="utf-8", errors="ignore")
+            doc_lang = resolve_lang(lang_text, lang)
+
+            spec_path = fmt_path
+            format_source = "format" if fmt_path else ""
+            if spec_path is None:
+                preset_name = preset or (
+                    DEFAULT_PRESET_ZH if doc_lang == "zh" else DEFAULT_PRESET_EN
+                )
+                spec_path = resolve_preset_path(preset_name)
+                format_source = "preset:%s" % preset_name
+
             report = md_to_word.validate_manuscript(
                 in_path,
-                spec_path=fmt_path,
-                lang=lang,
+                spec_path=spec_path,
+                lang=doc_lang,
             )
             return {
                 "valid": report.valid,
                 "errors": report.errors,
                 "warnings": report.warnings,
+                "format_source": format_source,
+                "lang": doc_lang,
             }
         except Exception as exc:
             logger.exception("Validation failed: %s", exc)
@@ -309,6 +349,8 @@ def create_mcp_server() -> Any:
                 "valid": False,
                 "errors": [str(exc)],
                 "warnings": [],
+                "format_source": "format" if fmt_path else "none",
+                "lang": lang or "unknown",
             }
         finally:
             if in_is_tmp and in_path.exists():
@@ -323,12 +365,69 @@ def create_mcp_server() -> Any:
                     pass
 
     @server.tool(
+        name="get_guide",
+        title="Read the Workflow Guide",
+        description=(
+            "Read this before drafting or compiling. Explains requirements confirmation, "
+            "non-standard Markdown structure mappings, and the compilation contract."
+        ),
+    )
+    def get_guide() -> str:
+        """Return the packaged workflow guide (identical to SKILL.md)."""
+        return _read_resource("guide.md")
+
+    @server.tool(
+        name="get_manual",
+        title="Read the Full Manual",
+        description=(
+            "Read the full manual when a spelling or behaviour is not certain: every style "
+            "name, YAML key, equation rule, CSL preset and known limit."
+        ),
+    )
+    def get_manual(lang: str = "zh") -> str:
+        """Return the full manual; `lang` is 'zh' or 'en'."""
+        name = "manual_en.md" if lang == "en" else "manual.md"
+        return _read_resource(name)
+
+    @server.tool(
+        name="extract_format_from_docx",
+        title="Reverse-engineer a format file from a .docx",
+        description=(
+            "Read a school/journal/company .docx template and produce a draft format file. "
+            "The draft lists every value it could determine and a 'to confirm' list it could "
+            "not; review those before compiling."
+        ),
+    )
+    def extract_format_from_docx(
+        docx_path: str,
+        output_path: str | None = None,
+        lang: str = "zh",
+    ) -> dict[str, Any]:
+        """Extract a draft format file from a reference .docx."""
+        try:
+            text = extract_spec_from_docx(docx_path, output_path, lang)
+            return {
+                "success": True,
+                "format_text": text,
+                "output_format": str(Path(output_path).expanduser().resolve())
+                if output_path else None,
+            }
+        except Exception as exc:
+            logger.exception("Format extraction failed: %s", exc)
+            return {
+                "success": False,
+                "format_text": None,
+                "output_format": None,
+                "errors": [str(exc)],
+            }
+
+    @server.tool(
         name="list_presets",
         title="List Built-in Style Presets",
-        description="List all available built-in publication style presets (Academic Thesis, Tech Report, Nature English Paper) with typography specifications.",
+        description="List all available built-in style presets (Academic Thesis, Tech Report, Nature English Paper) with typography specifications.",
     )
     def list_presets() -> list[dict[str, Any]]:
-        """List all available built-in publication style presets with target domains and typographic highlights."""
+        """List all available built-in style presets with target domains and typographic highlights."""
         presets_dir = get_presets_dir()
         result = []
         found_ids = set()
@@ -389,8 +488,13 @@ def create_mcp_server() -> Any:
 
     @server.resource("guide://contract")
     def get_contract_guide() -> str:
-        """Access the complete Markdown formatting contract for publication-grade Word compilation."""
-        return CONTRACT_GUIDE
+        """Access the packaged workflow guide (same text as SKILL.md)."""
+        return _read_resource("guide.md")
+
+    @server.resource("manual://{lang}")
+    def get_manual_resource(lang: str) -> str:
+        """Access the full manual: `manual://zh` or `manual://en`."""
+        return _read_resource("manual_en.md" if lang == "en" else "manual.md")
 
     # ------------------------------------------------------------------
     # Prompts
@@ -409,24 +513,12 @@ def create_mcp_server() -> Any:
             preset: Target style preset ('zh-academic', 'zh-report', or 'en-nature').
             lang: Language for the manuscript ('zh' or 'en').
         """
-        prompt_content = f"""Please draft a publication-grade manuscript on the topic: "{topic}".
+        prompt_content = f"""Please draft a manuscript on the topic: "{topic}".
+Target style: {preset}. Target language: {lang}.
 
-Target Style Preset: {preset}
-Target Language: {lang}
-
-IMPORTANT COMPILATION CONTRACT:
-1. Document Structure:
-   - Begin with `# <Document Title>` on the first line.
-   - For academic papers, include `## 摘要` / `## Abstract` with keywords.
-   - Structure sections cleanly using `## Section` and `### Subsection`.
-2. Mathematical Formulas:
-   - Inline math must be written as `$formula$` strictly on the same line.
-   - Display/Block formulas must be enclosed in `$$` on separate lines.
-3. Tables:
-   - Write standard three-line tables with enclosing vertical bars `| ... |`.
-4. Quality:
-   - Avoid HTML tags or non-standard markdown extensions.
-   - Ensure complete citations with `[@key]` if citing literature.
+Workflow:
+1. Confirm export requirements: Use the user's custom format if specified; otherwise use the built-in preset '{preset}'.
+2. Draft content following the manuscript contract for elements beyond standard Markdown (captions, TOC, abstract, math blocks; call get_guide for syntax).
 """
         return [{"role": "user", "content": prompt_content}]
 

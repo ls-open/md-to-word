@@ -11,13 +11,17 @@ from md_to_word.spec.constants import (
     TWIPS_PER_CM,
 )
 from md_to_word.spec.models import MinLineSpacing, TemplateSpec
-from md_to_word.spec.parser import parse_requirements
+from md_to_word.spec.parser import parse_format, parse_requirements
 from md_to_word.spec.presets import list_available_presets, read_preset_content
+from md_to_word.spec.serializer import serialize_format, serialize_requirements
 
 __all__ = [
     "TemplateSpec",
     "MinLineSpacing",
+    "parse_format",
     "parse_requirements",
+    "serialize_format",
+    "serialize_requirements",
     "list_available_presets",
     "read_preset_content",
     "SIZE_MAP",
