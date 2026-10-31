@@ -31,12 +31,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+import md_to_word
 from md_to_word import export
 
 app = FastAPI(
     title="md-to-word Web Playground",
     description="Deterministic Markdown to Word (.docx) Compilation Playground",
-    version="4.0.0",
+    version=getattr(md_to_word, "__version__", "3.2.0"),
 )
 
 app.add_middleware(
@@ -257,7 +258,11 @@ async def serve_index():
 
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "service": "md-to-word-web", "version": "2.4.0"}
+    return {
+        "status": "ok",
+        "service": "md-to-word-web",
+        "version": getattr(md_to_word, "__version__", "3.2.0"),
+    }
 
 
 @app.get("/api/templates")
