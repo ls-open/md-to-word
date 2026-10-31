@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>md-to-word | 确定性 Markdown 转出版级 Word 在线体验站</title>
+  <title>md-to-word | 确定性 Markdown 转规范 Word 在线体验站</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>">
+  <!-- 不蒜子免配置轻量访问统计 -->
+  <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -423,6 +425,12 @@
           查看 Agent 技能规范 (SKILL.md)
         </a>
       </div>
+      <!-- 访问量与访客数统计 -->
+      <div class="pt-1 text-[11px] text-slate-400 flex items-center justify-center space-x-3" id="busuanzi_container_site_pv">
+        <span><i data-lucide="eye" class="inline w-3 h-3 mr-1 text-slate-400"></i><span id="txtStatPv">本站总访问量</span> <strong id="busuanzi_value_site_pv" class="text-slate-600 font-mono">--</strong> <span id="txtStatPvUnit">次</span></span>
+        <span>·</span>
+        <span><i data-lucide="users" class="inline w-3 h-3 mr-1 text-slate-400"></i><span id="txtStatUv">访客数</span> <strong id="busuanzi_value_site_uv" class="text-slate-600 font-mono">--</strong> <span id="txtStatUvUnit">人</span></span>
+      </div>
     </div>
   </footer>
 
@@ -810,6 +818,15 @@
         : '不仅支持在线演示，更推荐在 AI Agent（Claude Code, Cursor, Nature Skills）中作为技能直接自动化调用。';
       document.getElementById('txtFooterStar').textContent = isEn ? 'Star us on GitHub' : '去 GitHub 给我们点个 Star 支持';
       document.getElementById('txtFooterSkill').textContent = isEn ? 'Agent Skill Specification (SKILL.md)' : '查看 Agent 技能规范 (SKILL.md)';
+
+      const elStatPv = document.getElementById('txtStatPv');
+      const elStatPvUnit = document.getElementById('txtStatPvUnit');
+      const elStatUv = document.getElementById('txtStatUv');
+      const elStatUvUnit = document.getElementById('txtStatUvUnit');
+      if (elStatPv) elStatPv.textContent = isEn ? 'Views: ' : '本站总访问量 ';
+      if (elStatPvUnit) elStatPvUnit.textContent = isEn ? '' : '次';
+      if (elStatUv) elStatUv.textContent = isEn ? 'Visitors: ' : '访客数 ';
+      if (elStatUvUnit) elStatUvUnit.textContent = isEn ? '' : '人';
 
       // 刷新顶部卡片文案
       renderTemplateCards();
