@@ -591,6 +591,13 @@ Only format data is read (paper size, margins, header/footer text and page numbe
 spacing of each style); the export still builds its own template. Multi-section templates (cover, TOC,
 body) work the same way — section breaks are marked in the manuscript with `{{< section >}}`.
 
+**Where reverse-engineering stops**: it reads values Word actually stored. Anything a reference file
+expresses through direct paragraph formatting, or through a long style-inheritance chain, comes out
+empty or default — the more real formatting a document carries, the lower the share that can be read.
+Headers and footers are resolved **by reference** (when sections differ, the body's is taken and a note
+is added), so three chapter names are never mistaken for three kinds of header. The result is a
+**draft**: unread items are listed at its end — check them one by one before typesetting.
+
 ### 5.2 Two pre-flight levels; the criterion is "would the mistake be visible?"
 
 | Level | Criterion | Examples |

@@ -474,6 +474,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "font undefined (this style sets none in the reference file; the effective font depends on "
         "the app that opens it)",
     ),
+    "extractor.note.sections_differ": (
+        "参考文件的各节页眉（或页脚）内容不同，已按最后一节（正文节）取值，其余需人工确认",
+        "the sections of the reference file use different headers (or footers); the last section "
+        "(the body) was taken and the rest need a manual check",
+    ),
     "extractor.note.size_undefined": (
         "字号未定义（参考文件里这条样式没有设字号）",
         "font size undefined (this style sets none in the reference file)",
