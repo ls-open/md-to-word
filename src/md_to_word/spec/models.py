@@ -46,6 +46,9 @@ class TemplateSpec:
     equation_number: str = "right"  # right=编号靠右（默认）| inline=紧跟公式
     # 编号外观模板：`（{c}-{n}）`。空串=按语种与是否按章编号自动给默认
     equation_number_format: str = ""
+    # 附录里的编号外观；空串=沿用 equation_number_format。学校要「（附2-1）」还是
+    # 「（B-1）」是两种不同的前缀，一个全局模板表达不了，故单列一行。
+    appendix_equation_number_format: str = ""
     proofing_lang: Optional[str] = None
     header_distance: Optional[float] = None
     footer_distance: Optional[float] = None

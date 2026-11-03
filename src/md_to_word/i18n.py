@@ -909,11 +909,16 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "otherwise the generated list has no heading",
     ),
     # ── 公式编号 ──
+    "spec.line.equation_format": ("公式编号格式", "Equation Number Format"),
+    "spec.line.appendix_equation_format": (
+        "附录公式编号格式",
+        "Appendix Equation Number Format",
+    ),
     "gate.equation.chapters": (
-        "要求文件的「公式编号格式」是 {fmt}，里面有 {{c}}（章号），"
+        "要求文件的「{name}」是 {fmt}，里面有 {{c}}（章号），"
         "但稿件 YAML 的 crossref 下没有 chapters: true。二选一："
         "在 `crossref:` 下加 `chapters: true`，或把格式改成不含 {{c}} 的写法（如 （{{n}}））",
-        "The 「公式编号格式」/Equation Number Format in the format file is {fmt}, which contains "
+        "The 「{name}」 line in the format file is {fmt}, which contains "
         "{{c}} (chapter number), but the manuscript YAML has no chapters: true under crossref. Either add "
         "`chapters: true` under `crossref:`, or change the format to one without {{c}} (e.g. ({{n}}))",
     ),

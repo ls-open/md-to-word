@@ -66,10 +66,14 @@ def test_gate_messages_with_code_syntax_keep_their_text() -> None:
         "发现 `\\tag{}`，这不是本工具的编号写法，整条公式会退化成字面文本（E=mc^2）；"
         "删掉 `\\tag{X}`，改写成 `$$…$$ {#eq-标签}`，编号由 crossref 生成"
     )
-    assert t("gate.equation.chapters", "zh", fmt="（{c}-{n}）") == (
+    assert t("gate.equation.chapters", "zh", fmt="（{c}-{n}）", name="公式编号格式") == (
         "要求文件的「公式编号格式」是 （{c}-{n}），里面有 {c}（章号），"
         "但稿件 YAML 的 crossref 下没有 chapters: true。二选一："
         "在 `crossref:` 下加 `chapters: true`，或把格式改成不含 {c} 的写法（如 （{n}））"
+    )
+    # 附录那一行报错时要指名道姓，否则作者改错文件里的另一行
+    assert "附录公式编号格式" in t(
+        "gate.equation.chapters", "zh", fmt="（附{c}-{n}）", name="附录公式编号格式"
     )
     # 不带占位符的那条不格式化，双花括号就是最终产物
     assert "`{{< pagebreak >}}`" in t("gate.dialect.html", "zh")

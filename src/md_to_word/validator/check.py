@@ -364,13 +364,21 @@ def validate_manuscript(
                 )
 
     # 1e. 编号格式用了 {c}（章号），稿件却没说按章编号：两个文件各写一半，等式不成立
-    eq_format = getattr(spec, "equation_number_format", "") or ""
-    if "{c}" in eq_format:
+    #     正文与附录两行都要查：附录里「按附录标识编号」同样依赖 {c}。
+    for attr, name_key in (
+        ("equation_number_format", "spec.line.equation_format"),
+        ("appendix_equation_number_format", "spec.line.appendix_equation_format"),
+    ):
+        eq_format = getattr(spec, attr, "") or ""
+        if "{c}" not in eq_format:
+            continue
         crossref = fm_data.get("crossref") if isinstance(fm_data, dict) else None
         by_chapter = isinstance(crossref, dict) and bool(crossref.get("chapters"))
         if not by_chapter:
             report.valid = False
-            report.errors.append(t("gate.equation.chapters", lang, fmt=eq_format))
+            report.errors.append(
+                t("gate.equation.chapters", lang, fmt=eq_format, name=t(name_key, lang))
+            )
 
     # 2. 图片路径空格与存在性
     in_code = False

@@ -95,6 +95,33 @@ def _escape(text: str) -> str:
     )
 
 
+# 附录标题：`附录A`、`附录2`、`Appendix B` 都认；标识后面必须跟空白或标点，
+# 否则 `# 附录 一些补充` 里的「一」会被当成本附录的编号。
+_APPENDIX_TITLE_RE = re.compile(
+    r"^\s*(?:附录|Appendix)\s*([A-Za-z]{1,3}|\d{1,2}|[一二三四五六七八九十]{1,3})?",
+    re.I,
+)
+
+
+def _appendix_label(title: str) -> str | None:
+    """一级标题 → 附录标识（`A` / `2` / `一`）；不是附录返回 None，是附录但没写标识返回 ""。"""
+    match = _APPENDIX_TITLE_RE.match(title)
+    if match is None:
+        return None
+    ident = match.group(1) or ""
+    rest = title[match.end():]
+    if ident and rest and not rest[0].isspace() and rest[0] not in "：:、.．，,（）()":
+        return ""
+    return ident
+
+
+def _serial_label(serial: int) -> str:
+    """附录标题没写标识时按出现顺序给 A、B、C…；超过 Z 就退回数字，不编造字母组合。"""
+    if 1 <= serial <= 26:
+        return chr(ord("A") + serial - 1)
+    return str(serial)
+
+
 def _trim_citation_gap(nodes: Iterable[Inline]) -> list:
     """中文正文与数字制引文之间的那个空格不该印出来：`认知负荷 [9]` → `认知负荷[9]`。
 
@@ -128,6 +155,7 @@ class _Writer:
         base_dir=None,
         equation_number_placement="right",
         equation_number_format="",
+        appendix_equation_number_format="",
         no_row_split: bool = False,
         repeat_header: bool = False,
         lang: Optional[str] = None,
@@ -145,7 +173,7 @@ class _Writer:
         self._style_objects: dict | None = None
         self._compact_style = self._style_name("Compact")
         self._footnote_ids: dict[str, int] = {}
-        self._eq_numbers: dict[str, tuple[int, int]] = {}  # 标签 → (章号, 序号)
+        self._eq_numbers: dict[str, tuple[str, int, bool]] = {}  # 标签 → (章号/附录标识, 序号, 是否附录)
         self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
         self._bibliography_written = False  # 文献表只在「参考文献标题」后写一次
         self.no_row_split = no_row_split  # 表格行是否禁止跨页断开（要求文件写「行不跨页」）
@@ -160,6 +188,10 @@ class _Writer:
         # 编号外观：要求文件写了就照写的来，没写按语种给默认（中文全角短横、英文半角点）
         self.eq_number_format = equation_number_format or _default_eq_format(
             chinese, document.meta.chapters
+        )
+        # 附录没单独写就用正文那套；「（附2-1）」这类前缀要单独写一行才表达得出来
+        self.appendix_eq_number_format = (
+            appendix_equation_number_format or self.eq_number_format
         )
 
     # ── 入口 ─────────────────────────────────────────────────────────
@@ -251,18 +283,38 @@ class _Writer:
     def _collect_equation_numbers(self) -> None:
         """先扫一遍给带标签的公式编号：写正文时要用它解析 `@eq-x`。
 
-        编号规则：默认按出现顺序 (1)(2)…；开了 `chapters: true` 就按「章号, 序号」，
-        章号取自一级标题的序号。外观由 `equation_number_format` 模板决定。
+        编号规则：默认按出现顺序 (1)(2)…；开了 `chapters: true` 就按「章号, 序号」。
+
+        章号取自一级标题，但**要分清正文和附录**：`# 附录A …`、`# 附录2 …` 是附录章，
+        编号取标题里那个标识（A / 2），标题没写标识时按出现顺序给 A、B、C…；附录之内的
+        序号重新从 1 起——学校要求附录单独编号，接着正文往下编就成了（8-1）这种数。
+
+        **只有「按章编号」时才分章、才重置序号**（格式里有 `{c}`）。格式里没有 `{c}` 时
+        全文是一个连续序号，在每章开头把它清零只会让编号重复（（1）（2）（1））。
         """
-        chapter = 0
+        by_chapter = "{c}" in self.eq_number_format
+        appendix_by_chapter = "{c}" in self.appendix_eq_number_format
+        chapter = 0  # 正文章号：只数正文章，附录不占号
+        appendix_serial = 0  # 附录序号：标题没写标识时按它给 A、B、C…
+        prefix = "1"  # 当前公式的前缀：正文章号或附录标识
         index = 0
+        in_appendix = False
         for block in self.model.blocks:
             if isinstance(block, Heading) and block.level == 1:
-                chapter += 1
-                index = 0
+                label = _appendix_label(_plain_text(block.inlines))
+                if label is None:
+                    chapter += 1
+                    in_appendix = False
+                    if by_chapter:
+                        prefix, index = str(chapter), 0
+                else:
+                    appendix_serial += 1
+                    in_appendix = True
+                    if appendix_by_chapter:
+                        prefix, index = label or _serial_label(appendix_serial), 0
             elif isinstance(block, Equation) and block.label:
                 index += 1
-                self._eq_numbers[block.label] = (chapter, index)
+                self._eq_numbers[block.label] = (prefix, index, in_appendix)
 
     def _content_width_twips(self) -> int:
         sect = self._body_sectpr()
@@ -788,10 +840,14 @@ class _Writer:
             return f'<w:hyperlink r:id="{{{{L{index}}}}}">{inner}</w:hyperlink>' 
         return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
 
-    def _render_eq_number(self, chapter: int, index: int) -> str:
+    def _render_eq_number(self, chapter: str, index: int, in_appendix: bool = False) -> str:
         """按模板渲染编号。公式旁的编号与正文里的 `@eq-x` 走的是同一个函数——
-        两处必须长得一样，否则就是同一个事实的两个真相源。"""
-        fmt = self.eq_number_format
+        两处必须长得一样，否则就是同一个事实的两个真相源。
+
+        附录里的公式用 `附录公式编号格式：` 那一行（没写就沿用正文的），因为
+        「（附2-1）」和「（B-1）」是两种前缀，一个全局模板表达不了。
+        """
+        fmt = self.appendix_eq_number_format if in_appendix else self.eq_number_format
         if "{c}" in fmt:
             if not self.model.meta.chapters:
                 raise UnsupportedFeature(t("writer.equation_chapter_without_yaml", self.lang))
@@ -1037,6 +1093,7 @@ def write_docx(
     base_dir: Path | str | None = None,
     equation_number_placement: str = "right",
     equation_number_format: str = "",
+    appendix_equation_number_format: str = "",
     no_row_split: bool = False,
     repeat_header: bool = False,
     lang: Optional[str] = None,
@@ -1049,6 +1106,7 @@ def write_docx(
     否则从别的目录调用时图全找不到（预览与流水线走的是同一个入口）。
     `equation_number_placement`：`right` 编号靠版心右边（默认），`inline` 紧跟公式。
     `equation_number_format`：编号外观模板（`（{c}-{n}）`）；空串按语种给默认。
+    `appendix_equation_number_format`：附录里的编号外观；空串沿用上面那套。
     """
     docx = open_docx(str(template))
     writer = _Writer(
@@ -1058,6 +1116,7 @@ def write_docx(
         base_dir=base_dir,
         equation_number_placement=equation_number_placement,
         equation_number_format=equation_number_format,
+        appendix_equation_number_format=appendix_equation_number_format,
         no_row_split=no_row_split,
         repeat_header=repeat_header,
         lang=lang,

@@ -154,6 +154,12 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   number (optional). Without it the language default applies: `(5.1)` / `(1)` for English,
   `（5-1）` / `（1）` for Chinese. The number beside the equation and `@eq-x` in the body use the
   same format — never parenthesised in one place and not in another.
+- **Appendices number their own equations**: a level-1 heading such as `# Appendix B Proof` or
+  `# 附录2 …` is treated as an appendix chapter — `{c}` becomes the label from the heading (B / 2),
+  and the ordinal restarts at 1 inside each appendix. With no label in the heading, appendices get
+  A, B, C in order. For a prefix such as `(App 2.1)`, add `Appendix Equation Number Format:
+  (App {c}.{n})` (without it the body format applies). **Appendices take no chapter number**: six
+  body chapters stay 1–6, and an `# Acknowledgements` heading after the appendices is chapter 7.
 - An unnumbered equation is simply `$$…$$`: it gets no number and consumes none. Writing a label
   without referring to it is allowed; the number still appears.
 - **Multi-line equations** use the `cases`, `matrix` or `split` environment (`aligned` is treated as
@@ -384,7 +390,8 @@ Chinese spellings parse as well and may be mixed into the same line: `加粗` / 
 `加入目录`, `跨页重复`, `点线制表位`. The configuration keys have Chinese forms too (`纸张：`,
 `页边距：`, `西文字体：`, `校对语言：`, `页眉距边界：`, `页脚距边界：`, `装订线：`, `文档网格：`,
 `页码：`, `表格：`, `表头：`, `页眉：`, `页脚：`, `页眉内容：`, `页脚内容：`, `公式编号：`,
-`公式编号格式：`, `脚注：`); the Chinese column of the vocabulary is in `manual.md` §3.1.
+`公式编号格式：`, `附录公式编号格式：`, `脚注：`); the Chinese column of the vocabulary is in
+`manual.md` §3.1.
 
 **Fields available in headers and footers** (closed set; anything else is an error): `{page}`
 (PAGE), `{total-pages}` (NUMPAGES), `{style-title:<Word style name>}` (STYLEREF, e.g.
