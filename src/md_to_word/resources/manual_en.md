@@ -189,6 +189,9 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   the dashes in the separator row uneven** (`|:--|:--|:------|` ≈ 2:2:6, spread across the text
   block; only the dashes are counted). Identical dashes = not specified, which is also why equal
   widths cannot be forced.
+- Colons in the separator row declare the alignment **of that column** (`:--` left, `:--:` centre,
+  `--:` right). **No colon means "no opinion"**, and the column follows the `Compact:` row instead.
+  A colon is an explicit instruction and overrides `Compact:` for whichever column it is written in.
 - Tables need leading and trailing pipes (`| a | b |`); a table without outer borders is not
   recognised.
 
