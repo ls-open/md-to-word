@@ -183,6 +183,12 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
         help=t("cli.keep_pages", lang),
     )
     parser.add_argument(
+        "--keep-until",
+        dest="keep_until",
+        default="",
+        help=t("cli.keep_until", lang),
+    )
+    parser.add_argument(
         "--cover-sections",
         dest="cover_sections",
         type=int,
@@ -257,6 +263,7 @@ def main(args: list[str] | None = None) -> int:
         base_template=parsed.base_template,
         cover_sections=parsed.cover_sections,
         keep_pages=parsed.keep_pages,
+        keep_until=parsed.keep_until,
         check_md=not parsed.no_check,
         postflight=not parsed.no_postflight,
         audit=not parsed.no_audit,

@@ -179,6 +179,44 @@ def _drop_attached_template(doc, set_part_xml) -> str | None:
     return target
 
 
+def sections_until_text(base: Path, needle: str) -> list[int]:
+    """底模里包含这段文字的节号（从 1 起）。找不到返回空列表。
+
+    人说的是内容——「留到版权使用授权书那一页」——机器要的是节数。这里把前者翻成后者。
+    只看 XML 不看排版，所以在没装 Word 的机器上一样能用。
+    """
+    want = re.sub(r"\s+", "", needle)
+    if not want:
+        return []
+    with zipfile.ZipFile(base) as z:
+        root = etree.fromstring(z.read("word/document.xml"))
+    hits: list[int] = []
+    sect = 1
+    for el in root.find(W + "body"):
+        text = re.sub(r"\s+", "", "".join(t.text or "" for t in el.iter(W + "t")))
+        if want in text and sect not in hits:
+            hits.append(sect)
+        if el.tag == W + "sectPr" or el.find(".//" + W + "sectPr") is not None:
+            sect += 1  # sectPr 归它上面那一节，所以先记内容再进一节
+    return hits
+
+
+def section_outline(base: Path) -> list[str]:
+    """每节的第一句非空文字：定位失败时摆给人看，好让他自己数该留几节。"""
+    with zipfile.ZipFile(base) as z:
+        root = etree.fromstring(z.read("word/document.xml"))
+    outline, sect = [], 1
+    for el in root.find(W + "body"):
+        text = "".join(t.text or "" for t in el.iter(W + "t")).strip()
+        if text and (len(outline) < sect):
+            outline.append(text[:34])
+        if el.tag == W + "sectPr" or el.find(".//" + W + "sectPr") is not None:
+            if len(outline) < sect:
+                outline.append("（空）")
+            sect += 1
+    return outline
+
+
 def section_count(path: Path) -> int:
     """底模有几节。给「这台机器算不了页数」那条提示用：至少让人知道一共有几节可数。"""
     with zipfile.ZipFile(path) as z:

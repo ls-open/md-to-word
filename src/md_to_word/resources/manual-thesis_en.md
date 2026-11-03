@@ -42,13 +42,23 @@ path works the other way round: **use the school file as the base**, keep its fi
 matter, and replace the rest with our typeset body.
 
 ```bash
-md-to-word manuscript.md -f format.txt --base-template school-template.docx --cover-sections 4 -o out.docx
+md-to-word manuscript.md -f format.txt --base-template school-template.docx --keep-until "copyright authorization" -o out.docx
 ```
 
-`--cover-sections N` is **your declaration**: the first N sections of the base are front matter.
-Pages and sections are not the same thing (4 sections = 6 pages when blank pages sit between them),
-so you can also say it in pages: `--keep-pages 6` makes the tool try a few cuts and report
-"6 pages = 3 sections", which you then keep as `--cover-sections 3`.
+**Say it by content, which is how people actually think**: `--keep-until <text>` keeps everything
+through the section containing that text. The tool looks for it in the base's body, keeps that many
+sections, and reports the number ("keeping through section 3, the one containing ..."). When it is
+not found it lists how each section starts, so you can pick. This part reads XML only — **no Word
+needed**.
+
+Two machine spellings are also accepted:
+
+- `--cover-sections N` — the first N sections of the base are front matter.
+- `--keep-pages P` — say it in pages; the tool tries a few cuts and reports "6 pages = 3 sections".
+  **Requires Word**, because the conversion needs a real layout.
+
+Pages and sections are not the same thing (3 sections = 6 pages when blank pages sit between them),
+so counting pages is easy to get off by one; saying it by content is not.
 The number is never guessed; cutting too early silently drops later cover pages, so the export always
 reports "the first paragraph after the cut is ..." — read it.
 

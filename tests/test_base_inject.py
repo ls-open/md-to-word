@@ -332,3 +332,31 @@ def test_the_attached_dot_template_is_dropped(tmp_path: Path) -> None:
 
     left = zipfile.ZipFile(out).read("word/settings.xml").decode("utf-8")
     assert "attachedTemplate" not in left
+
+
+def test_find_the_section_by_its_text(tmp_path: Path) -> None:
+    """人说的是内容，机器要的是节数——这一步只看 XML，Windows 上也走得通。"""
+    from md_to_word.template.base_inject import section_outline, sections_until_text
+
+    base = _school_base(tmp_path / "base.docx", sections=3)
+    doc = Document(base)
+    doc.paragraphs[-1].runs[0].text = "版权使用授权书 本人同意……"
+    doc.save(base)
+
+    assert sections_until_text(base, "版权使用授权书") == [3]
+    assert sections_until_text(base, "根本不存在的句子") == []
+    assert len(section_outline(base)) == 3
+
+
+def test_ambiguous_anchor_is_refused_not_guessed(tmp_path: Path) -> None:
+    """同一段文字在两节里都有，停在哪就不确定了——报出来，别挑一个。"""
+    from md_to_word.template.base_inject import sections_until_text
+
+    base = _school_base(tmp_path / "base.docx", sections=3)
+    doc = Document(base)
+    for paragraph in doc.paragraphs:
+        if paragraph.runs:
+            paragraph.runs[0].text = "版权使用授权书"
+    doc.save(base)
+
+    assert len(sections_until_text(base, "版权使用授权书")) > 1

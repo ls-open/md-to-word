@@ -261,6 +261,26 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "换一种说法：保留底模的前几页（工具试切几次换算成节数，慢一点，一次就够）",
         "Say it in pages instead: keep the first N pages (the tool tries a few cuts; slow, one-off)",
     ),
+    "cli.keep_until": (
+        "按内容说：底模里出现这段文字的那一节为止，前面的原样保留（如 --keep-until 版权使用授权书）",
+        "Say it by content: keep through the section containing this text "
+        "(e.g. --keep-until \"copyright authorization\")",
+    ),
+    "pipeline.base_until_resolved": (
+        "保留到「{text}」所在的第 {sections} 节（以后可以直接用 --cover-sections {sections}）",
+        "Keeping through section {sections}, the one containing \"{text}\" "
+        "(next time pass --cover-sections {sections})",
+    ),
+    "pipeline.base_until_missing": (
+        "底模里找不到「{text}」。底模各节的开头是：\n{outline}\n用 --cover-sections N 直接说明保留几节",
+        "\"{text}\" does not appear in the base. Its sections start with:\n{outline}\n"
+        "Pass --cover-sections N to say how many to keep",
+    ),
+    "pipeline.base_until_ambiguous": (
+        "「{text}」在第 {sections} 节里都出现过，没法确定停在哪。用 --cover-sections N 直接说明",
+        "\"{text}\" appears in sections {sections}; cannot tell where to stop. "
+        "Pass --cover-sections N directly",
+    ),
     "pipeline.base_resolved": (
         "前 {pages} 页 = 底模的前 {sections} 节，记下来以后直接用 --cover-sections {sections}",
         "First {pages} pages = first {sections} sections of the base; use --cover-sections {sections} next time",
@@ -279,8 +299,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Base template not found: {path}",
     ),
     "pipeline.base_need_sections": (
-        "用 --base-template 时必须给 --cover-sections N，说明底模前几节是前置件。猜错会切坏封面，所以不猜",
-        "--base-template requires --cover-sections N: say how many leading sections are front matter",
+        "用 --base-template 时要说清前置件到哪儿结束：--keep-until 某段文字（推荐，"
+        "按内容说）、--cover-sections N（按节说）或 --keep-pages P（按页说，要装 Word）。猜错会切坏封面，所以不猜",
+        "--base-template needs to know where the front matter ends: --keep-until <text> "
+        "(recommended), --cover-sections N, or --keep-pages P (needs Word)",
     ),
     "pipeline.base_failed": (
         "没有产出文件——底模这条路走不通：{reason}",

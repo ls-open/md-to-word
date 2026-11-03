@@ -47,7 +47,8 @@ class ExportOptions:
     lang: Optional[str] = None  # 消息语言：None=按稿件语种 | "zh" | "en"
     base_template: Optional[Path | str] = None  # 学校模板：把正文灌进它，保留它自己的封面版式
     cover_sections: int = 0  # 底模的前几节是前置件（封面、声明等），原样保留
-    keep_pages: int = 0  # 想按"前几页"说也行：工具试切几次，换算成节数
+    keep_pages: int = 0  # 按"前几页"说：要排版才能换算成节数
+    keep_until: str = ""  # 按内容说：底模里出现这段文字的那一节为止
     requirements_path: Optional[Path | str] = None  # 向后兼容别名
 
     def __post_init__(self):
@@ -388,12 +389,41 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 return res
             sentinel = _first_text(model.blocks)
             sections = options.cover_sections
-            if not sections and not options.keep_pages:
+            if not sections and not options.keep_pages and not options.keep_until:
                 res.returncode = EXIT_ERROR
                 res.errors.append(t("pipeline.base_need_sections", res.lang))
                 return res
             try:
-                if not sections and options.keep_pages:
+                if not sections and options.keep_until:
+                    # 人说的是内容，机器要的是节数。这一步只看 XML 不看排版。
+                    from md_to_word.template.base_inject import (
+                        section_outline,
+                        sections_until_text,
+                    )
+
+                    hits = sections_until_text(base_p, options.keep_until)
+                    if not hits:
+                        outline = "\n".join(
+                            f"  第 {i} 节：{line}"
+                            for i, line in enumerate(section_outline(base_p), 1)
+                        )
+                        res.returncode = EXIT_ERROR
+                        res.errors.append(t(
+                            "pipeline.base_until_missing", res.lang,
+                            text=options.keep_until, outline=outline))
+                        return res
+                    if len(hits) > 1:
+                        res.returncode = EXIT_ERROR
+                        res.errors.append(t(
+                            "pipeline.base_until_ambiguous", res.lang,
+                            text=options.keep_until,
+                            sections="、".join(str(h) for h in hits)))
+                        return res
+                    sections = hits[0]
+                    res.messages.append(t(
+                        "pipeline.base_until_resolved", res.lang,
+                        text=options.keep_until, sections=sections))
+                elif not sections and options.keep_pages:
                     # 按页换算节数要先真的排一次版。这台机器排不了，就得在这里说清楚，
                     # 而不是让它在深处抛出去、被兜底成「本工具的缺陷」。
                     from md_to_word.template.base_inject import (
