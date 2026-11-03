@@ -168,12 +168,15 @@ def test_structure_verification_works_without_word(tmp_path: Path, monkeypatch) 
 
     base = _school_base(tmp_path / "base.docx", sections=3)
     rendered = _rendered(tmp_path, "# 第一章 绪论\n\n正文。\n")
-    monkeypatch.setattr(base_inject, "can_render_word_pdf", lambda: (False, "not-darwin"))
+    from md_to_word.visual_qa import word_pdf
 
-    notes = base_inject.apply_base_template(base, rendered, 2, tmp_path / "out.docx", "第一章绪论")
+    monkeypatch.setattr(word_pdf, "can_render_word_pdf", lambda: (False, "not-darwin"))
+
+    outcome = base_inject.apply_base_template(base, rendered, 2, tmp_path / "out.docx", "第一章绪论")
 
     assert (tmp_path / "out.docx").is_file()
-    assert any("结构验真" in n for n in notes)
+    assert not outcome.layout_verified, "没有 Word 就不能声称验过版面"
+    assert any("结构验真" in n for n in outcome.notes)
 
 
 def test_structure_verification_catches_a_touched_cover(tmp_path: Path) -> None:
@@ -216,3 +219,78 @@ def test_sentinel_reads_through_inline_wrappers() -> None:
     doc = read_markdown("**绪论**与背景\n\n第二段。\n")
 
     assert _first_text(doc.blocks) == "绪论与背景"
+
+
+def _rels_of(result: Path, member: str) -> dict[str, tuple[str, str]]:
+    return {
+        r.get("Id"): (r.get("Type").rsplit("/", 1)[-1], r.get("Target"))
+        for r in etree.fromstring(zipfile.ZipFile(result).read(member))
+    }
+
+
+def test_a_link_in_the_body_still_points_at_its_url(tmp_path: Path) -> None:
+    """关系属于**包**，不属于内容流：正文搬了家，源包里的 `rId8` 就换成别人的编号了。
+
+    以前只给图片重挂过关系，超链接没管，于是正文链接指到了主题部件上——Word 打不开，
+    而没装 Word 的机器上结构验真一路放行。
+    """
+    from md_to_word.template.base_inject import inject_into_base
+
+    base = _school_base(tmp_path / "base.docx", sections=2)
+    rendered = _rendered(tmp_path, "# 一\n\n参见[说明](https://example.com/a)。\n")
+    out = tmp_path / "out.docx"
+    inject_into_base(base, rendered, 1, out)
+
+    doc = etree.fromstring(zipfile.ZipFile(out).read("word/document.xml"))
+    rels = _rels_of(out, "word/_rels/document.xml.rels")
+    link = next(n for n in doc.iter() if n.tag.endswith("}hyperlink"))
+
+    assert rels[link.get(qn("r:id"))] == ("hyperlink", "https://example.com/a")
+
+
+def test_a_link_inside_a_footnote_resolves_in_its_own_part(tmp_path: Path) -> None:
+    """脚注有自己的一张关系表，正文那张管不到它。"""
+    from md_to_word.template.base_inject import inject_into_base
+
+    base = _school_base(tmp_path / "base.docx", sections=2)
+    rendered = _rendered(
+        tmp_path, "# 一\n\n正文[^1]。\n\n[^1]: 见[说明](https://example.com/b)。\n"
+    )
+    out = tmp_path / "out.docx"
+    inject_into_base(base, rendered, 1, out)
+
+    notes = etree.fromstring(zipfile.ZipFile(out).read("word/footnotes.xml"))
+    link = next((n for n in notes.iter() if n.tag.endswith("}hyperlink")), None)
+    assert link is not None, "脚注里的链接没搬过来"
+    rels = _rels_of(out, "word/_rels/footnotes.xml.rels")
+    assert rels[link.get(qn("r:id"))] == ("hyperlink", "https://example.com/b")
+
+
+def test_structure_check_catches_a_link_pointing_at_the_wrong_relationship(
+    tmp_path: Path,
+) -> None:
+    """验真得能抓住「关系还在、类型不对」——那正是 Word 打不开、结构检查却看不出来的样子。"""
+    from md_to_word.template.base_inject import inject_into_base, verify_structure
+
+    base = _school_base(tmp_path / "base.docx", sections=2)
+    rendered = _rendered(tmp_path, "# 一\n\n参见[说明](https://example.com/a)。\n")
+    out = tmp_path / "out.docx"
+    inject_into_base(base, rendered, 1, out)
+    assert verify_structure(base, out, 1)[0]
+
+    rels_member = "word/_rels/document.xml.rels"
+    with zipfile.ZipFile(out) as z:
+        members = {n: z.read(n) for n in z.namelist()}
+    rels = etree.fromstring(members[rels_member])
+    for rel in rels:
+        if rel.get("Type", "").endswith("/hyperlink"):
+            rel.set("Type", "http://schemas.openxmlformats.org/officeDocument/2006/"
+                            "relationships/theme")
+    members[rels_member] = etree.tostring(rels, xml_declaration=True, encoding="UTF-8",
+                                          standalone=True)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in members.items():
+            z.writestr(name, blob)
+
+    ok, why = verify_structure(base, out, 1)
+    assert not ok and "关系" in why

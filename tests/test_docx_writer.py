@@ -471,3 +471,24 @@ def test_canonical_opc_packaging_order_and_permissions(template: Path, tmp_path:
         for item in z.infolist():
             assert item.date_time == (1980, 1, 1, 0, 0, 0)
             assert item.external_attr == 0o100644 << 16
+
+
+def test_a_link_inside_a_footnote_keeps_the_part_well_formed(tmp_path: Path) -> None:
+    """脚注正文是拼字符串拼出来的：根元素少声明一个前缀，整份 footnotes.xml 就不是合法 XML。
+
+    超链接用 `r:`、行内公式用 `m:`，而根上只声明过 `w:`——Word 打开会说文件损坏。
+    以前没有用例碰「脚注里带链接」，所以这个坏文件能一路产出。
+    """
+    from lxml import etree
+
+    template = tmp_path / "t.docx"
+    build_template(PRESET.read_text(encoding="utf-8"), template)
+    out = write_docx(
+        read_markdown("# 一\n\n正文[^1]。\n\n[^1]: 见[说明](https://example.com/b)。\n"),
+        template,
+        tmp_path / "o.docx",
+    )
+
+    blob = zipfile.ZipFile(out).read("word/footnotes.xml")
+    etree.fromstring(blob)  # 不是合法 XML 就在这里抛
+    assert b"hyperlink" in blob

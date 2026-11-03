@@ -20,7 +20,7 @@ from docx.opc.packuri import PackURI
 from docx.opc.part import Part
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import parse_xml
-from docx.oxml.ns import nsdecls, qn
+from docx.oxml.ns import nsdecls, nsmap, qn
 from docx.shared import Cm, Emu
 
 from md_to_word.config import default_crossref_prefixes, looks_chinese
@@ -60,6 +60,16 @@ _ALIGN = {
 
 
 _W_FMT = {"bold": "b", "italic": "i", "strike": "strike", "underline": "u"}
+
+
+def _notes_nsdecls() -> str:
+    """脚注部件的根元素要声明所有可能用到的前缀。
+
+    脚注正文是拼字符串拼出来的，里面有超链接就是 `r:id`、有行内公式就是 `m:oMath`。
+    根上只声明 `w:`，整份 footnotes.xml 就不是合法 XML——Word 直接判文件损坏。
+    与其逐个补前缀（补漏一个又是一次），不如一次把它们全声明上：多余的声明没有副作用。
+    """
+    return " ".join(f'xmlns:{p}="{u}"' for p, u in nsmap.items() if p != "xml")
 
 
 def _plain_text(nodes: Iterable[Inline]) -> str:
@@ -877,7 +887,7 @@ class _Writer:
             body.append(f'<w:footnote w:id="{fid}">{paragraphs}</w:footnote>')
 
         xml = (
-            f'<w:footnotes {nsdecls("w")}>'
+            f"<w:footnotes {_notes_nsdecls()}>"
             '<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>'
             '<w:footnote w:type="continuationSeparator" w:id="0">'
             "<w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>"

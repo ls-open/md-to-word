@@ -586,10 +586,15 @@ pre-flight check → build the style template → read into the document model �
 → numeric-integrity check → audit the product against the format file line by line
 ```
 
-The template is generated fresh on every export and never cached; it is built entirely from the
-format file, and no existing `.docx` is accepted as a base.
+The style template is generated fresh on every export and never cached, and **styles** have exactly
+one source: the format file.
 
-A `.docx` received from a university or a journal is first read into a format file:
+A `.docx` received from a university or a journal goes one of two ways:
+
+- **Styles only** — read it into a format file and export as usual (below).
+- **Keep its cover too** — use that `.docx` as the base and pour the body in with `--base-template`.
+  Styles still come from the format file; the base only supplies the front matter and page setup.
+  That is the thesis path — see volume 2, §2.
 
 ```
 md-to-word-template template.docx -o format.txt   # reverse-engineered draft; check it item by item

@@ -290,6 +290,19 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "前置件 {pages} 节与原件逐页一致，正文已灌入",
         "Front matter ({pages} sections) matches the original page by page; body poured in",
     ),
+    # 没有 Word 的机器上只做了结构那一层，说「逐页一致」就是在撒谎
+    "pipeline.base_ok_structure": (
+        "前置件 {pages} 节的内容与原件逐节点一致（这台机器没有 Word，没做版面验真），正文已灌入",
+        "Front matter ({pages} sections) matches the original node by node; no Word here, so "
+        "the layout was not checked. Body poured in",
+    ),
+    "pipeline.base_keep_pages_needs_word": (
+        "这台机器算不了 --keep-pages：按页换算节数要先真的排一次版，而排版只有装了 Word 的 "
+        "macOS 才能做。底模一共有 {sections} 节，数一下前置件占几节，直接用 --cover-sections N",
+        "--keep-pages needs a real page layout, which this machine cannot produce (Word "
+        "rendering is macOS-only). The base has {sections} sections; count the front matter "
+        "and pass --cover-sections N instead",
+    ),
     "pipeline.reminder": (
         "导出完成。版面效果仍须在 Word 中人工核验。",
         "Export complete. The layout still requires a manual check in Word.",

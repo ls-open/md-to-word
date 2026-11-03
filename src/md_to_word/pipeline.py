@@ -81,6 +81,24 @@ def _inline_text(inline) -> str:
     return "".join(_inline_text(child) for child in getattr(inline, "children", ()) or ())
 
 
+def _first_texts(blocks, limit: int = 5) -> list[str]:
+    """正文前几段的开头，按顺序给一串。
+
+    只用第一段会有个坑：很多学校模板的前置件里放了一份示例目录，「第一章 绪论」正好也
+    在上面，拿它去定位正文起点就会落在封面上。多给几个候选，让验真那边把在前置件里出现
+    过的剔掉，剩下的才用来定位。
+    """
+    heads: list[str] = []
+    for block in blocks:
+        text = re.sub(r"\s+", "", "".join(
+            _inline_text(inline) for inline in getattr(block, "inlines", []) or []))
+        if len(text) >= 4 and text[:12] not in heads:
+            heads.append(text[:12])
+        if len(heads) >= limit:
+            break
+    return heads or [""]
+
+
 def _first_text(blocks) -> str:
     """取正文第一段的前几个字：既要能在 PDF 里定位，又不能出现在封面上。"""
     for block in blocks:
@@ -374,28 +392,44 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 res.returncode = EXIT_ERROR
                 res.errors.append(t("pipeline.base_need_sections", res.lang))
                 return res
-            if not sections and options.keep_pages:
-                from md_to_word.template.base_inject import resolve_sections_for_pages
-
-                sections = resolve_sections_for_pages(
-                    base_p, render_target, options.keep_pages, Path(temp_dir), sentinel
-                )
-                res.messages.append(
-                    t("pipeline.base_resolved", res.lang, pages=options.keep_pages, sections=sections)
-                )
             try:
-                notes = apply_base_template(
-                    base_p, render_target, sections, out_p, sentinel
+                if not sections and options.keep_pages:
+                    # 按页换算节数要先真的排一次版。这台机器排不了，就得在这里说清楚，
+                    # 而不是让它在深处抛出去、被兜底成「本工具的缺陷」。
+                    from md_to_word.template.base_inject import (
+                        resolve_sections_for_pages,
+                        section_count,
+                    )
+                    from md_to_word.visual_qa.word_pdf import can_render_word_pdf
+
+                    if not can_render_word_pdf()[0]:
+                        res.returncode = EXIT_ERROR
+                        res.errors.append(
+                            t("pipeline.base_keep_pages_needs_word", res.lang,
+                              sections=section_count(base_p))
+                        )
+                        return res
+                    sections = resolve_sections_for_pages(
+                        base_p, render_target, options.keep_pages, Path(temp_dir), sentinel
+                    )
+                    res.messages.append(
+                        t("pipeline.base_resolved", res.lang,
+                          pages=options.keep_pages, sections=sections)
+                    )
+                outcome = apply_base_template(
+                    base_p, render_target, sections, out_p, _first_texts(model.blocks)
                 )
             except BaseTemplateError as exc:
                 res.returncode = EXIT_ERROR
                 res.errors.append(t("pipeline.base_failed", res.lang, reason=exc.reason))
                 res.errors.extend(f"  {n}" for n in exc.notes)
                 return res
-            for note in notes:
+            for note in outcome.notes:
                 res.messages.append(note)
                 res.warnings.append(note)
-            logger.info("✓ " + t("pipeline.base_ok", res.lang, pages=sections))
+            # 「逐页一致」只有真排过版才说得出口
+            key = "pipeline.base_ok" if outcome.layout_verified else "pipeline.base_ok_structure"
+            logger.info("✓ " + t(key, res.lang, pages=outcome.cover_sections))
 
         # 11. 可选 PDF 渲染 (Visual QA)
         if options.make_pdf:

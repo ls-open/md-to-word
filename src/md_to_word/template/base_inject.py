@@ -21,7 +21,7 @@ from pathlib import Path
 
 from lxml import etree
 
-from md_to_word.visual_qa.word_pdf import can_render_word_pdf
+from md_to_word.visual_qa import word_pdf
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
@@ -29,6 +29,9 @@ W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 R_EMBED = R + "embed"
 R_ID = R + "id"
+R_LINK = R + "link"
+# 正文里所有"指向包内别处"的属性，都要随节点一起重挂
+_R_ATTRS = (R_ID, R_EMBED, R_LINK)
 
 _HEADER_CT = "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"
 _FOOTER_CT = "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"
@@ -70,6 +73,19 @@ class BaseTemplateError(Exception):
         super().__init__(reason)
         self.reason = reason
         self.notes = notes or []
+
+
+@dataclass
+class BaseOutcome:
+    """灌入结果：**验到哪一层**是结果的一部分，不是文案自己说了算。
+
+    以前日志里那句「与原件逐页一致」是写死的，没有 Word 的机器上照样打印，紧接着又提醒
+    「只做了结构验真」——两行互相打脸，而用户对这条路径的信任正来自那行字。
+    """
+
+    cover_sections: int
+    layout_verified: bool
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -127,11 +143,16 @@ def inspect_base(path: Path, cover_sections: int) -> BaseReport:
     rels = _rels_of(path, "word/_rels/document.xml.rels")
     external = [t for t in rels if t.get("TargetMode") == "External"]
     if external:
-        report.notes.append(f"有 {len(external)} 个外部链接，注入时会剥掉")
-
-    if any(True for _ in root.iter(W + "style")):
-        pass  # 样式表里带 mdw- 前缀说明之前灌过一次
+        # 这些是前置件自己的链接，原样保留才对——剥掉就违背了「封面一个字节不动」
+        report.notes.append(f"前置件里有 {len(external)} 个外部链接，会原样保留")
     return report
+
+
+def section_count(path: Path) -> int:
+    """底模有几节。给「这台机器算不了页数」那条提示用：至少让人知道一共有几节可数。"""
+    with zipfile.ZipFile(path) as z:
+        root = etree.fromstring(z.read("word/document.xml"))
+    return len(list(root.iter(W + "sectPr")))
 
 
 def _rels_of(path: Path, member: str) -> list:
@@ -192,10 +213,17 @@ def inject_into_base(
                 rid = ref.get(qn("r:id"))
                 if not rid or rid not in ours.part.related_parts:
                     continue
-                blob = _rewrite_part(ours.part.related_parts[rid].blob, style_ids, style_names)
+                src = ours.part.related_parts[rid]
+                blob = _rewrite_part(src.blob, style_ids, style_names)
                 counters[kind] = counters.get(kind, 0) + 1
                 part = Part(
                     PackURI(f"/word/{kind}-mdw{counters[kind]}.xml"), ct, blob, school.part.package
+                )
+                # 页眉页脚自己也可能引用别的东西（图片、域），同样得重挂
+                blob_root = etree.fromstring(blob)
+                _rehome_rels(blob_root, src, part)
+                part._blob = etree.tostring(
+                    blob_root, xml_declaration=True, encoding="UTF-8", standalone=True
                 )
                 new_rid = school.part.relate_to(part, rel)
                 ref.set(qn("r:id"), new_rid)
@@ -242,7 +270,7 @@ def inject_into_base(
 
     for child in [c for c in obody if c.tag != qn("w:sectPr")]:
         _remap_refs(child, style_ids, num_map, note_map, qn)
-        _copy_images(child, ours, school, qn)
+        _rehome_rels(child, ours.part, school.part)
         for sect in child.iter(qn("w:sectPr")):
             copy_hf(sect)
             ensure_hf(sect)
@@ -391,18 +419,48 @@ def _remap_refs(el, ids, num_map, note_map, qn) -> None:
                 node.set(qn("w:id"), mapping[val])
 
 
-def _copy_images(el, src_doc, dst_doc, qn) -> None:
-    for node in el.iter():
-        if node.tag == qn("a:blip"):
-            rid = node.get(R_EMBED)
-            if rid and rid in src_doc.part.related_parts:
-                node.set(R_EMBED, dst_doc.part.get_or_add_image(
-                    BytesIO(src_doc.part.related_parts[rid].blob))[0])
-        elif node.tag.endswith("}imagedata"):
-            rid = node.get(R_ID)
-            if rid and rid in src_doc.part.related_parts:
-                node.set(R_ID, dst_doc.part.get_or_add_image(
-                    BytesIO(src_doc.part.related_parts[rid].blob))[0])
+def _carry_rel(src_part, dst_part, rid: str, counters: dict[str, int]) -> str | None:
+    """把源部件里的一个关系在目标部件里重建，返回目标包里的 rId。
+
+    关系属于**包**，不属于内容流。正文搬到另一个包里，节点上的 `rId8` 就不再是原来那个
+    东西了——它可能指向主题，也可能不存在。图片以前单独处理过，超链接没有，于是正文链接
+    指到了别处，而结构验真看不出来。所以这里走一条统一的路：凡是被搬的节点引用到的关系，
+    都按目标包的编号重建。
+    """
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+    from docx.opc.packuri import PackURI
+    from docx.opc.part import Part
+
+    rel = src_part.rels.get(rid)
+    if rel is None:
+        return None
+    if rel.reltype == RT.IMAGE:
+        return dst_part.get_or_add_image(BytesIO(rel.target_part.blob))[0]
+    if rel.is_external:
+        return dst_part.relate_to(rel.target_ref, rel.reltype, is_external=True)
+    # 其余内部部件（OLE、嵌入对象等）原样复制一份，换个不会被现有部件占住的名字
+    counters["part"] = counters.get("part", 0) + 1
+    name = rel.target_part.partname
+    part = Part(
+        PackURI(f"{name.dirname}/mdw{counters['part']}-{name.basename}"),
+        rel.target_part.content_type,
+        rel.target_part.blob,
+        dst_part.package,
+    )
+    return dst_part.relate_to(part, rel.reltype)
+
+
+def _rehome_rels(root, src_part, dst_part) -> None:
+    """把 root 里所有关系引用改指到目标包里的对应关系。"""
+    counters: dict[str, int] = {}
+    for el in root.iter():
+        for attr in _R_ATTRS:
+            rid = el.get(attr)
+            if not rid:
+                continue
+            new = _carry_rel(src_part, dst_part, rid, counters)
+            if new:
+                el.set(attr, new)
 
 
 def _copy_numbering(src_doc, dst_doc, qn, set_part_xml) -> dict[str, str]:
@@ -460,6 +518,7 @@ def _copy_notes(src_doc, dst_doc, member: str, tag: str, qn, set_part_xml) -> di
     existing = [int(n.get(W + "id")) for n in dst_root.iter(qn(tag))]
     nxt = max([i for i in existing if i > 0] or [0]) + 1
     mapping = {}
+    clones = []
     for note in src_root.findall(qn(tag)):
         nid = int(note.get(W + "id"))
         if nid < 1:  # -1 / 0 是分隔符，目标里本来就有
@@ -467,8 +526,12 @@ def _copy_notes(src_doc, dst_doc, member: str, tag: str, qn, set_part_xml) -> di
         clone = copy.deepcopy(note)
         clone.set(W + "id", str(nxt))
         dst_root.append(clone)
+        clones.append(clone)
         mapping[str(nid)] = str(nxt)
         nxt += 1
+    # 脚注里也能有超链接和图片，它们同样指向源包的关系编号
+    for clone in clones:
+        _rehome_rels(clone, src_part, dst_part)
     set_part_xml(dst_part, dst_root)
     return mapping
 
@@ -511,7 +574,13 @@ def verify_structure(base: Path, result: Path, cover_sections: int) -> tuple[boo
     ok, why = _check_numbering_preserved(base, result)
     if not ok:
         return False, why
+    ok, why = _check_theme_preserved(base, result)
+    if not ok:
+        return False, why
     ok, why = _check_notes_resolvable(result)
+    if not ok:
+        return False, why
+    ok, why = _check_rels_resolvable(result)
     if not ok:
         return False, why
     ok, why = _check_body_shape(result)
@@ -584,6 +653,23 @@ def _check_numbering_preserved(base: Path, result: Path) -> tuple[bool, str]:
     return True, ""
 
 
+def _check_theme_preserved(base: Path, result: Path) -> tuple[bool, str]:
+    """主题部件必须一个字节都没变。
+
+    主题决定字体表与默认配色，改了它，封面上任何没显式指定字体的字都会跟着变——而这种
+    变化在结构比对里看不出来（前置件的段落 XML 一模一样）。文档里一直写着"主题也验过"，
+    以前其实没验。
+    """
+    def themes(path: Path) -> dict[str, bytes]:
+        with zipfile.ZipFile(path) as z:
+            return {n: z.read(n) for n in z.namelist() if n.startswith("word/theme/")}
+
+    before, after = themes(base), themes(result)
+    if before != after:
+        return False, "主题部件被改动了"
+    return True, ""
+
+
 def _check_notes_resolvable(result: Path) -> tuple[bool, str]:
     """脚注/尾注引用指向不存在的 id，Word 直接判文件损坏——这条得挡住。"""
     try:
@@ -604,6 +690,45 @@ def _check_notes_resolvable(result: Path) -> tuple[bool, str]:
         missing = used - defined
         if missing:
             return False, f"脚注引用指向不存在的脚注：{sorted(missing)[:3]}"
+    return True, ""
+
+
+def _check_rels_resolvable(result: Path) -> tuple[bool, str]:
+    """每个 `r:id` / `r:embed` / `r:link` 都必须在同一部件的 .rels 里找得到，且类型对得上。
+
+    关系是**包**级的：正文搬了家，`rId8` 就不再是原来那个东西。这条不查，装了 Word 的机器
+    会拒绝打开产物，没装 Word 的机器却一路放行、以成功状态交出去——最坏的那一种失败。
+    """
+    from docx.opc.constants import RELATIONSHIP_TYPE as RT
+
+    expect = {"hyperlink": RT.HYPERLINK, "blip": RT.IMAGE, "imagedata": RT.IMAGE}
+    pkg_ns = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+    with zipfile.ZipFile(result) as z:
+        members = set(z.namelist())
+        for member in sorted(members):
+            if not member.startswith("word/") or not member.endswith(".xml"):
+                continue
+            head, _, tail = member.rpartition("/")
+            rels_member = f"{head}/_rels/{tail}.rels"
+            rels = {}
+            if rels_member in members:
+                for rel in etree.fromstring(z.read(rels_member)).iter(f"{pkg_ns}Relationship"):
+                    rels[rel.get("Id")] = rel.get("Type", "")
+            root = etree.fromstring(z.read(member))
+            for el in root.iter():
+                for attr in _R_ATTRS:
+                    rid = el.get(attr)
+                    if not rid:
+                        continue
+                    local = etree.QName(el).localname
+                    if rid not in rels:
+                        return False, f"{member} 里的 <{local}> 指向不存在的 {rid}，Word 会判文件损坏"
+                    want = expect.get(local)
+                    if want and not rels[rid].endswith("/" + want.split("/")[-1]):
+                        return False, (
+                            f"{member} 里的 <{local}> 指向的 {rid} 是"
+                            f"{rels[rid].rsplit('/', 1)[-1]}，不是它要的那种关系"
+                        )
     return True, ""
 
 
@@ -629,16 +754,21 @@ def _part_bytes(path: Path, member: str) -> bytes | None:
 # ── 验收二：版面得和原件一样（要有 Word，macOS） ────────────────────────
 
 
-def verify_cover_pages(base: Path, result: Path, sentinel: str) -> tuple[bool, str]:
+def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> tuple[bool, str]:
     """拿原件和产物逐词比坐标，比到我们的正文出现为止。
 
     比对基准**不能**是「把前置件单独切出来」——实测切出来的那份会多出一页：前置件最后
     一节的长相取决于后面接什么，它不是自足的。所以直接用原件做基准，用正文首句定位
     前置件占了几页，再把这几页逐词比一遍。
-    """
-    from md_to_word.visual_qa.word_pdf import can_render_word_pdf, render_pdf_via_word
 
-    ok, why = can_render_word_pdf()
+    哨兵不能是"看起来像正文"就算数，得先证明它**不在前置件里**：很多学校模板的前置件
+    放了一份示例目录，里面就有「第一章 绪论」，而论文稿第一段往往正是这几个字。撞上了，
+    定位到的就不是正文起点——轻则少比几页，重则把正确的切点判成错的。所以候选给一串，
+    先用原件自己的渲染结果把在前置件里出现过的剔掉。
+    """
+    render_pdf_via_word = word_pdf.render_pdf_via_word
+
+    ok, why = word_pdf.can_render_word_pdf()
     if not ok:
         return False, f"需要本机 Microsoft Word 才能验真（{why}）；验不了就不产出文件"
     for tool in ("pdftotext", "pdfinfo"):
@@ -653,9 +783,23 @@ def verify_cover_pages(base: Path, result: Path, sentinel: str) -> tuple[bool, s
             if not rendered:
                 return False, f"Word 打不开 {src.name}：{reason}"
 
-        start = _first_page_with(out_pdf, sentinel)
+        candidates = [sentinels] if isinstance(sentinels, str) else list(sentinels)
+        candidates = [c for c in candidates if c]
+        front_text = "".join(_page_texts(base_pdf))
+        usable = [c for c in candidates if c not in front_text]
+        if not usable:
+            return False, (
+                "正文前几句话在底模的前置件里也出现过（模板里常带示例目录），"
+                "没法用它定位正文从哪一页开始。请人工核对前置件页数"
+            )
+        sentinel, start = "", None
+        for cand in usable:
+            start = _first_page_with(out_pdf, cand)
+            if start is not None:
+                sentinel = cand
+                break
         if start is None:
-            return False, f"产物里找不到正文首句「{sentinel}」，没法定位前置件到哪一页"
+            return False, f"产物里找不到正文首句「{usable[0]}」，没法定位前置件到哪一页"
         cover_pages = start - 1
         if cover_pages < 1:
             return False, "前置件在产物里只有 0 页，说明切点不对"
@@ -672,6 +816,18 @@ def verify_cover_pages(base: Path, result: Path, sentinel: str) -> tuple[bool, s
     finally:
         for pdf in (base_pdf, out_pdf):
             pdf.unlink(missing_ok=True)
+
+
+def _page_texts(pdf: Path) -> list[str]:
+    """每一页的纯文本（空白压掉），用来判断某个串是不是也长在前置件里。"""
+    texts = []
+    for page in range(1, _pages(pdf) + 1):
+        text = subprocess.run(
+            ["pdftotext", "-f", str(page), "-l", str(page), "-layout", str(pdf), "-"],
+            capture_output=True, text=True,
+        ).stdout
+        texts.append(re.sub(r"\s+", "", text))
+    return texts
 
 
 def _first_page_with(pdf: Path, needle: str) -> int | None:
@@ -712,7 +868,7 @@ def resolve_sections_for_pages(
     """
     from docx import Document
 
-    from md_to_word.visual_qa.word_pdf import render_pdf_via_word
+    render_pdf_via_word = word_pdf.render_pdf_via_word
 
     total = len(Document(str(base)).sections)
     staged = work / ".probe.docx"
@@ -736,8 +892,8 @@ def resolve_sections_for_pages(
 
 
 def apply_base_template(
-    base: Path, rendered: Path, cover_sections: int, out: Path, sentinel: str
-) -> list[str]:
+    base: Path, rendered: Path, cover_sections: int, out: Path, sentinels: str | list[str]
+) -> BaseOutcome:
     """体检 → 注入 → 验真。任何一步不过都抛 BaseTemplateError，**不写出 out**。"""
     report = inspect_base(base, cover_sections)
     if not report.ok:
@@ -759,8 +915,9 @@ def apply_base_template(
 
         # 版面验真只有在装了 Word 的机器上才做得了。做不了不等于不做——
         # 结构那一关已经保证封面一个字节没动，剩下的"排出来一样不一样"只能请人看。
-        if can_render_word_pdf()[0]:
-            ok, why = verify_cover_pages(base, staged, sentinel)
+        layout_verified = word_pdf.can_render_word_pdf()[0]
+        if layout_verified:
+            ok, why = verify_cover_pages(base, staged, sentinels)
             if not ok:
                 raise BaseTemplateError(why, report.notes)
         else:
@@ -771,4 +928,4 @@ def apply_base_template(
         staged.replace(out)
     finally:
         staged.unlink(missing_ok=True)
-    return report.notes
+    return BaseOutcome(cover_sections, layout_verified, report.notes)
