@@ -302,7 +302,7 @@ def test_the_attached_dot_template_is_dropped(tmp_path: Path) -> None:
     到了别人的机器上这个文件不存在：Word 打开会问「是否更新域」，点「是」去加载失败，
     域更新不成功——目录页码就停在 1，得手动再按 F9。它属于对方的写作环境，不属于交付物。
     """
-    from md_to_word.template.base_inject import inject_into_base, inspect_base
+    from md_to_word.template.base_inject import inject_into_base
 
     base = _school_base(tmp_path / "base.docx", sections=2)
     # 给底模装一个指向 Windows 本机路径的挂载模板
@@ -325,8 +325,6 @@ def test_the_attached_dot_template_is_dropped(tmp_path: Path) -> None:
     with zipfile.ZipFile(base, "w", zipfile.ZIP_DEFLATED) as z:
         for name, blob in members.items():
             z.writestr(name, blob)
-
-    assert any("模板" in n for n in inspect_base(base, 1).notes), "体检要提一句会被摘掉"
 
     rendered = _rendered(tmp_path, "# 第一章 绪论\n\n正文。\n")
     out = tmp_path / "out.docx"

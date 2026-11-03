@@ -145,31 +145,7 @@ def inspect_base(path: Path, cover_sections: int) -> BaseReport:
     if external:
         # 这些是前置件自己的链接，原样保留才对——剥掉就违背了「封面一个字节不动」
         report.notes.append(f"前置件里有 {len(external)} 个外部链接，会原样保留")
-    attached = _attached_template(path)
-    if attached:
-        report.notes.append(
-            f"底模挂着作者自己电脑上的模板「{attached.rsplit('/', 1)[-1]}」，"
-            f"在你这里不存在，会摘掉——不摘的话 Word 每次打开都会问「是否更新域」，"
-            f"而且更新会失败"
-        )
     return report
-
-
-def _attached_template(path: Path) -> str:
-    """底模挂在 settings.xml 上的 .dot 模板路径；没有就返回空串。"""
-    try:
-        with zipfile.ZipFile(path) as z:
-            root = etree.fromstring(z.read("word/settings.xml"))
-    except (OSError, KeyError, zipfile.BadZipFile):
-        return ""
-    node = root.find(W + "attachedTemplate")
-    if node is None:
-        return ""
-    rid = node.get(R_ID)
-    for rel in _rels_of(path, "word/_rels/settings.xml.rels"):
-        if rel.get("Id") == rid:
-            return rel.get("Target") or ""
-    return "（未知路径）"
 
 
 def _drop_attached_template(doc, set_part_xml) -> str | None:
@@ -181,6 +157,9 @@ def _drop_attached_template(doc, set_part_xml) -> str | None:
     停在 1，得手动再按一次 F9 才对。
 
     它属于对方的写作环境，不属于交付物：样式已经在 styles.xml 里，摘掉不影响排版。
+
+    不单独提示：用户对此做不了任何事——摘掉总是对的，而且封面与版面各有验真兜着。
+    报一句他没法处理的话，只是噪音。
     """
     part = _part(doc, "settings.xml")
     if part is None:
