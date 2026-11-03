@@ -1,7 +1,7 @@
 # md-to-word Manual (volume 2: theses)
 
 Read this volume when the manuscript contains any of `{{< section >}}`, `{{< toc >}}`,
-`crossref: chapters`, `Appendix`, `References` or `--base`. **It does not repeat volume 1**
+`crossref: chapters`, `Appendix`, `References` or `--base-template`. **It does not repeat volume 1**
 (`manual_en.md`): commands, the style vocabulary, format-file syntax, gates and exports live there.
 
 ## 1. What a thesis has that a journal paper does not
@@ -42,7 +42,7 @@ path works the other way round: **use the school file as the base**, keep its fi
 matter, and replace the rest with our typeset body.
 
 ```bash
-md-to-word manuscript.md -f format.txt --base school-template.docx --cover-sections 4 -o out.docx
+md-to-word manuscript.md -f format.txt --base-template school-template.docx --cover-sections 4 -o out.docx
 ```
 
 `--cover-sections N` is **your declaration**: the first N sections of the base are front matter.

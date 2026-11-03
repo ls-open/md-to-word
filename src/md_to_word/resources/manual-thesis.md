@@ -1,7 +1,7 @@
 # md-to-word 手册（第 2 册：学位论文）
 
 读这一册的前提是稿子里出现了 `{{< section >}}`、`{{< toc >}}`、`crossref: chapters`、`附录`、
-`参考文献`、`--base` 中的任意一项。**本册不重复第 1 册**（`manual.md`）：命令、样式词表、格式文件
+`参考文献`、`--base-template` 中的任意一项。**本册不重复第 1 册**（`manual.md`）：命令、样式词表、格式文件
 语法、预检与门禁都在那里。
 
 ## 1. 学位论文比期刊论文多了什么
@@ -37,7 +37,7 @@ Word 重定义同名样式，把整篇正文带歪。这条路换一种做法：
 前几节，后面换成我们排的正文。
 
 ```bash
-md-to-word 稿件.md -f format.txt --base 学校模板.docx --cover-sections 4 -o 输出.docx
+md-to-word 稿件.md -f format.txt --base-template 学校模板.docx --cover-sections 4 -o 输出.docx
 ```
 
 `--cover-sections N` 是**你声明**的：底模前 N 节属于前置件，原样保留。页和节不是一回事

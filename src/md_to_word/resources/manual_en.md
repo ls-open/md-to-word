@@ -3,7 +3,7 @@
 Journal papers, course reports and technical notes need only this volume.
 
 **A thesis also needs volume 2, `manual-thesis_en.md`** — read it when the manuscript contains any of
-`{{< section >}}`, `{{< toc >}}`, `crossref: chapters`, `Appendix`, `References` or `--base`. Volume 2
+`{{< section >}}`, `{{< toc >}}`, `crossref: chapters`, `Appendix`, `References` or `--base-template`. Volume 2
 does not repeat this one; it covers only what is thesis-specific.
 
 Chinese edition: `manual.md`

@@ -254,8 +254,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Base template (.docx): pour the body into it, keeping its own cover pages (experimental)",
     ),
     "cli.cover_sections": (
-        "底模的前几节是前置件（封面、声明…），原样保留；配合 --base 使用",
-        "How many leading sections of the base template are front matter (used with --base)",
+        "底模的前几节是前置件（封面、声明…），原样保留；配合 --base-template 使用",
+        "How many leading sections of the base template are front matter (used with --base-template)",
     ),
     "cli.keep_pages": (
         "换一种说法：保留底模的前几页（工具试切几次换算成节数，慢一点，一次就够）",
@@ -270,8 +270,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Base template not found: {path}",
     ),
     "pipeline.base_need_sections": (
-        "用 --base 时必须给 --cover-sections N，说明底模前几节是前置件。猜错会切坏封面，所以不猜",
-        "--base requires --cover-sections N: say how many leading sections are front matter",
+        "用 --base-template 时必须给 --cover-sections N，说明底模前几节是前置件。猜错会切坏封面，所以不猜",
+        "--base-template requires --cover-sections N: say how many leading sections are front matter",
     ),
     "pipeline.base_failed": (
         "没有产出文件——底模这条路走不通：{reason}",

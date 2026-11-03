@@ -53,6 +53,10 @@ def _style_names(ascii_only: bool) -> list[str]:
     return names
 
 
+# 模板库地址：这里是唯一真相源。技能与手册都只转述这一行，不各写一份。
+TEMPLATE_LIBRARY = "https://github.com/ls-open/md-to-word-templates"
+
+
 def contract_cheatsheet(lang: str = "zh") -> str:
     """稿件契约速查 + 手册与预设的真实路径。
 
@@ -69,6 +73,7 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     # 入门文档与技能入口是同一份流程（tests/test_resource_sync.py 盯着两者不许分叉）：
     # 只装 pip 包、手上没有 SKILL.md 的 Agent 从这里读“按什么顺序做”。
     guide = resources / "guide.md"
+    library = TEMPLATE_LIBRARY
     presets = "\n".join(
         f"  {name:<12} {resolve_preset_path(name)}" for name in ("zh-academic", "en-nature")
     )
@@ -103,7 +108,8 @@ Starting from a preset is recommended: copy the file below next to the manuscrip
 
 Getting-started guide (identical to SKILL.md at the skill entry; one copy suffices): {guide}
 Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits): {manual}
-Thesis manual (covers, front matter, sections, `--base`; read it only for a thesis): {thesis}
+Thesis manual (covers, front matter, sections, `--base-template`; read it only for a thesis): {thesis}
+Template library (ready-made format files + sample manuscripts, by school or journal): {library}
 Built-in presets:
 {presets}
 """
@@ -132,7 +138,8 @@ Built-in presets:
 
 入门文档（与技能入口 SKILL.md 同文，读其一即可）：{guide}
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界）：{manual}
-学位论文手册（封面、前置件、分节、`--base`；只有写论文才需要）：{thesis}
+学位论文手册（封面、前置件、分节、`--base-template`；只有写论文才需要）：{thesis}
+模板库（各校各刊现成的格式文件 + 样稿）：{library}
 内置预设：
 {presets}
 """
@@ -166,7 +173,7 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("-f", "--format", dest="format_path", help=t("cli.format", lang))
     parser.add_argument("-r", "--requirements", dest="format_path", help=argparse.SUPPRESS)
     parser.add_argument("--preset", help=t("cli.preset", lang))
-    parser.add_argument("--base", dest="base_template", help=t("cli.base", lang))
+    parser.add_argument("--base-template", dest="base_template", help=t("cli.base", lang))
     parser.add_argument(
         "--keep-pages",
         dest="keep_pages",

@@ -3,7 +3,7 @@
 期刊论文、课程报告、技术方案，读这一册就够。
 
 **学位论文加读第 2 册 `manual-thesis.md`**——判断标准是稿子里出现了下面任意一项：`{{< section >}}`、
-`{{< toc >}}`、`crossref: chapters`、`附录`、`参考文献`、`--base`。第 2 册不重复本册内容，只讲那些
+`{{< toc >}}`、`crossref: chapters`、`附录`、`参考文献`、`--base-template`。第 2 册不重复本册内容，只讲那些
 只跟学位论文有关的部分。
 
 English: `manual_en.md`
