@@ -143,13 +143,17 @@ REFERENCED_SECTIONS = {
     "zh": ["### 3.1 ", "### 3.3 ", "### 3.4 ", "## 6. ", "## 7. ", "## 8. "],
     "en": ["### 3.1 ", "### 3.3 ", "### 3.4 ", "## 6. ", "## 7. ", "## 8. "],
 }
+# 第 2 册同样被外部指路：nature-paper2word 讲底模时让人「读第 2 册 §2」。那一节一旦
+# 不是「封面与前置件」，对面仓库读到的就是分节页码，而它自己发现不了。
+THESIS_SECTIONS = {"zh": ["## 2. "], "en": ["## 2. "]}
 
 
 def test_section_numbers_cited_elsewhere_stay_put() -> None:
-    for lang, headings in REFERENCED_SECTIONS.items():
-        text = MANUALS[lang].read_text(encoding="utf-8")
-        missing = [h.strip() for h in headings if h not in text]
-        assert not missing, f"{lang} 手册缺了对外引用的章节编号：{missing}"
+    for book, cited in ((MANUALS, REFERENCED_SECTIONS), (THESIS, THESIS_SECTIONS)):
+        for lang, headings in cited.items():
+            text = book[lang].read_text(encoding="utf-8")
+            missing = [h.strip() for h in headings if h not in text]
+            assert not missing, f"{lang} 手册缺了对外引用的章节编号：{missing}"
 
 
 def test_every_flag_is_documented_somewhere() -> None:
