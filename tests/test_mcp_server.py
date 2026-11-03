@@ -211,3 +211,15 @@ def test_all_three_entrances_offer_the_same_options() -> None:
         assert name in api, f"Python API export() 缺 {name}"
         assert f"{name}:" in src or f"{name} =" in src or f'"{name}"' in src, \
             f"MCP compile_markdown 缺 {name}"
+
+
+def test_the_thesis_volume_is_readable_as_a_resource() -> None:
+    """资源模板也要能取到：工具（get_manual）和资源是两条路，只测一条等于没测。"""
+    async def _run():
+        server = create_mcp_server()
+        out = await server.read_resource("manual-thesis://zh")
+        text = out[0].content if isinstance(out, list) else str(out)
+        assert "--base-template" in text
+        assert "--keep-until" in text
+
+    asyncio.run(_run())
