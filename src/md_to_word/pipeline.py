@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -44,6 +45,9 @@ class ExportOptions:
     audit: bool = True
     make_pdf: bool = False
     lang: Optional[str] = None  # 消息语言：None=按稿件语种 | "zh" | "en"
+    base_template: Optional[Path | str] = None  # 学校模板：把正文灌进它，保留它自己的封面版式
+    cover_sections: int = 0  # 底模的前几节是前置件（封面、声明等），原样保留
+    keep_pages: int = 0  # 想按"前几页"说也行：工具试切几次，换算成节数
     requirements_path: Optional[Path | str] = None  # 向后兼容别名
 
     def __post_init__(self):
@@ -67,6 +71,16 @@ class ExportResult:
     def ok(self) -> bool:
         """docx 是否已经写出来了（`--pdf` 跳过不算失败）。"""
         return self.returncode in (EXIT_OK, EXIT_PDF_SKIPPED)
+
+
+def _first_text(blocks) -> str:
+    """取正文第一段的前几个字：既要能在 PDF 里定位，又不能出现在封面上。"""
+    for block in blocks:
+        for inline in getattr(block, "inlines", []) or []:
+            text = getattr(inline, "text", "") or getattr(inline, "value", "")
+            if text.strip():
+                return re.sub(r"\s+", "", text)[:12]
+    return ""
 
 
 def _normalized_csl(path: Path, temp_dir: Path, res: ExportResult) -> Path:
@@ -227,6 +241,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.no_spec", res.lang))
             return res
+        # 有底模时先写到临时文件：验真不过就什么都不给，不能留一份"看着能交"的产物
+        render_target = out_p if not options.base_template else Path(temp_dir) / "rendered.docx"
         temp_tpl_path = Path(temp_dir) / "template.docx"
         try:
             build_template(fmt_content, temp_tpl_path, lang=res.lang)
@@ -288,7 +304,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             write_docx(
                 model,
                 tpl_for_render,
-                out_p,
+                render_target,
                 citations=engine,
                 base_dir=in_p.parent,
                 equation_number_format=spec.equation_number_format if spec else "",
@@ -312,7 +328,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
         # 8. 产物数值防丢检查 (Audit: Post-flight)
         if options.postflight:
-            all_kept, missing = verify_numeric_integrity(in_p, out_p)
+            all_kept, missing = verify_numeric_integrity(in_p, render_target)
             if not all_kept:
                 res.returncode = EXIT_ERROR
                 res.errors.append(
@@ -324,7 +340,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
         # 9. 格式要求逐条对账 (Audit: Inspector)
         if options.audit and fmt_file:
-            matched, problems = audit_docx_against_spec(out_p, fmt_file, res.lang)
+            matched, problems = audit_docx_against_spec(render_target, fmt_file, res.lang)
             if not matched:
                 res.returncode = EXIT_ERROR
                 res.errors.append(t("pipeline.audit_failed", res.lang, count=len(problems)))
@@ -333,7 +349,45 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 return res
             logger.info("✓ " + t("pipeline.audit_ok", res.lang))
 
-        # 10. 可选 PDF 渲染 (Visual QA)
+        # 10. 灌进学校模板：封面原样保留，正文换成我们排的
+        if options.base_template:
+            from md_to_word.template.base_inject import BaseTemplateError, apply_base_template
+
+            base_p = Path(options.base_template).resolve()
+            if not base_p.is_file():
+                res.returncode = EXIT_ERROR
+                res.errors.append(t("pipeline.base_missing", res.lang, path=base_p))
+                return res
+            sentinel = _first_text(model.blocks)
+            sections = options.cover_sections
+            if not sections and not options.keep_pages:
+                res.returncode = EXIT_ERROR
+                res.errors.append(t("pipeline.base_need_sections", res.lang))
+                return res
+            if not sections and options.keep_pages:
+                from md_to_word.template.base_inject import resolve_sections_for_pages
+
+                sections = resolve_sections_for_pages(
+                    base_p, render_target, options.keep_pages, Path(temp_dir), sentinel
+                )
+                res.messages.append(
+                    t("pipeline.base_resolved", res.lang, pages=options.keep_pages, sections=sections)
+                )
+            try:
+                notes = apply_base_template(
+                    base_p, render_target, sections, out_p, sentinel
+                )
+            except BaseTemplateError as exc:
+                res.returncode = EXIT_ERROR
+                res.errors.append(t("pipeline.base_failed", res.lang, reason=exc.reason))
+                res.errors.extend(f"  {n}" for n in exc.notes)
+                return res
+            for note in notes:
+                res.messages.append(note)
+                res.warnings.append(note)
+            logger.info("✓ " + t("pipeline.base_ok", res.lang, pages=sections))
+
+        # 11. 可选 PDF 渲染 (Visual QA)
         if options.make_pdf:
             pdf_path = out_p.with_suffix(".pdf")
             success, reason = render_pdf_via_word(out_p, pdf_path)

@@ -162,6 +162,21 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("-f", "--format", dest="format_path", help=t("cli.format", lang))
     parser.add_argument("-r", "--requirements", dest="format_path", help=argparse.SUPPRESS)
     parser.add_argument("--preset", help=t("cli.preset", lang))
+    parser.add_argument("--base", dest="base_template", help=t("cli.base", lang))
+    parser.add_argument(
+        "--keep-pages",
+        dest="keep_pages",
+        type=int,
+        default=0,
+        help=t("cli.keep_pages", lang),
+    )
+    parser.add_argument(
+        "--cover-sections",
+        dest="cover_sections",
+        type=int,
+        default=0,
+        help=t("cli.cover_sections", lang),
+    )
     parser.add_argument("--lang", choices=["auto", *SUPPORTED], default="auto", help=t("cli.lang", lang))
     parser.add_argument("--no-check", action="store_true", help=t("cli.no_check", lang))
     parser.add_argument("--no-postflight", action="store_true", help=t("cli.no_postflight", lang))
@@ -224,6 +239,9 @@ def main(args: list[str] | None = None) -> int:
         output_path=parsed.output,
         format_path=parsed.format_path,
         preset=parsed.preset,
+        base_template=parsed.base_template,
+        cover_sections=parsed.cover_sections,
+        keep_pages=parsed.keep_pages,
         check_md=not parsed.no_check,
         postflight=not parsed.no_postflight,
         audit=not parsed.no_audit,

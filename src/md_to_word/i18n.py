@@ -249,6 +249,38 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "citations.key_missing": ("文献库里没有条目：{key}", "the bibliography has no entry for {key}"),
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
     "pipeline.pdf_skipped": ("docx 已正常生成；PDF 渲染未执行或未完成。", "docx written; the PDF step was skipped or did not finish."),
+    "cli.base": (
+        "学校模板（.docx）：正文灌进它，保留它自己的封面/声明等版式（实验性，验不过就不产出）",
+        "Base template (.docx): pour the body into it, keeping its own cover pages (experimental)",
+    ),
+    "cli.cover_sections": (
+        "底模的前几节是前置件（封面、声明…），原样保留；配合 --base 使用",
+        "How many leading sections of the base template are front matter (used with --base)",
+    ),
+    "cli.keep_pages": (
+        "换一种说法：保留底模的前几页（工具试切几次换算成节数，慢一点，一次就够）",
+        "Say it in pages instead: keep the first N pages (the tool tries a few cuts; slow, one-off)",
+    ),
+    "pipeline.base_resolved": (
+        "前 {pages} 页 = 底模的前 {sections} 节，记下来以后直接用 --cover-sections {sections}",
+        "First {pages} pages = first {sections} sections of the base; use --cover-sections {sections} next time",
+    ),
+    "pipeline.base_missing": (
+        "找不到底模文件：{path}",
+        "Base template not found: {path}",
+    ),
+    "pipeline.base_need_sections": (
+        "用 --base 时必须给 --cover-sections N，说明底模前几节是前置件。猜错会切坏封面，所以不猜",
+        "--base requires --cover-sections N: say how many leading sections are front matter",
+    ),
+    "pipeline.base_failed": (
+        "没有产出文件——底模这条路走不通：{reason}",
+        "No file written — the base-template path does not hold: {reason}",
+    ),
+    "pipeline.base_ok": (
+        "前置件 {pages} 节与原件逐页一致，正文已灌入",
+        "Front matter ({pages} sections) matches the original page by page; body poured in",
+    ),
     "pipeline.reminder": (
         "导出完成。版面效果仍须在 Word 中人工核验。",
         "Export complete. The layout still requires a manual check in Word.",
