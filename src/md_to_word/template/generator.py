@@ -221,6 +221,39 @@ def doc_grid_lines_from_pitch(pitch: int, line_multiple: float, page_size, margi
     读参考 .docx 时用（把别人模板里的网格反推成本工具的写法）。"""
     return max(1, int(round(_body_height_twips(page_size, margins) / pitch / line_multiple)))
 
+
+# 单倍行距下，一行中文文字的高度约等于字号的这个倍数（实测小四 12pt → 15.6pt）。
+_CJK_LINE_HEIGHT_RATIO = 1.3
+
+
+def body_line_height_pt(spec) -> float:
+    """正文一行实际占多高（磅）：固定值就用那个值，倍数按 1.3×字号 折算。"""
+    for name in ('Body Text', 'Normal'):
+        style = spec.get_style(name)
+        if not style:
+            continue
+        size = style.get('font_size')
+        size_pt = size.pt if hasattr(size, 'pt') else 12.0
+        spacing = style.get('line_spacing')
+        if hasattr(spacing, 'pt'):
+            return float(spacing.pt)  # 固定值 / 最小值：交给 Word 的就是这个磅数
+        multiple = spacing if isinstance(spacing, float) and spacing > 0 else 1.0
+        return _CJK_LINE_HEIGHT_RATIO * size_pt * multiple
+    return _CJK_LINE_HEIGHT_RATIO * 12.0
+
+
+def max_doc_grid_lines(spec) -> int:
+    """声明「每页 N 行」能兑现到几行：版心高度 ÷ 正文行高。
+
+    超过这个数的 N 兑现不了——Word 会把行高向上取整到网格的整数倍，实际行数反而更少，
+    产物比不声明网格还差。所以这个数要报给作者，而不是默默按他的 N 排。
+    """
+    margins = spec.margins or {}
+    if not all(k in margins for k in ('top', 'bottom')):
+        return 0
+    height_pt = _body_height_twips(spec.page_size, margins) / 20.0
+    return int(height_pt // body_line_height_pt(spec))
+
 # python-docx 枚举 → OOXML 值（由上面那张中文表派生）
 _ALIGN_VAL = {enum: val for enum, val in _ALIGN.values()}
 

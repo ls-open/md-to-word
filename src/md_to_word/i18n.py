@@ -914,6 +914,15 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "附录公式编号格式",
         "Appendix Equation Number Format",
     ),
+    "gate.doc_grid.unreachable": (
+        "「文档网格：每页{want}行」做不到：按正文的字号与行距，版心最多放 {limit} 行。"
+        "Word 会把行高向上取整到网格整数倍，实际行数反而比不声明网格更少。"
+        "要么把行距调小，要么把这个行数改成 {limit} 以内",
+        "「Document Grid: {want} lines per page」is unreachable: with the body font size and line "
+        "spacing the text block holds at most {limit} lines. Word rounds the line height up to whole "
+        "grid units, so the result is worse than declaring no grid at all. Either reduce the line "
+        "spacing or set this to {limit} or fewer",
+    ),
     "gate.equation.chapters": (
         "要求文件的「{name}」是 {fmt}，里面有 {{c}}（章号），"
         "但稿件 YAML 的 crossref 下没有 chapters: true。二选一："

@@ -404,6 +404,7 @@ class _Writer:
                                        snippet=snippet, err=exc)) from exc
 
         paragraph = self._new_paragraph("Body Text")
+        self._relax_fixed_line_spacing(paragraph)
         number = self._eq_numbers.get(block.label or "")
         if number is None:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -472,6 +473,24 @@ class _Writer:
             self._adopt_style(paragraph, style)
         if block.style == "References Title":
             self._write_bibliography()
+
+    def _relax_fixed_line_spacing(self, paragraph) -> None:
+        """正文用固定行距时，公式段落改成同值的「最小值」。
+
+        固定值的意思是「这一行就占这么多」，公式比它高，多出来的部分会压到上下两段
+        正文上（多行公式实测能把邻居压穿）。最小值让高的内容自己撑开，单行公式看起来
+        和原来一模一样。
+        """
+        style = self._style_object("Body Text")
+        if style is None:
+            return
+        source_ppr = style.element.find(qn("w:pPr"))
+        source = source_ppr.find(qn("w:spacing")) if source_ppr is not None else None
+        if source is None or source.get(qn("w:lineRule")) != "exact":
+            return
+        spacing = ensure_ordered_child(paragraph._p.get_or_add_pPr(), "spacing", _PPR_ORDER)
+        spacing.set(qn("w:line"), source.get(qn("w:line")))
+        spacing.set(qn("w:lineRule"), "atLeast")
 
     def _adopt_style(self, paragraph, style_name: str) -> None:
         """把某个样式的段落/字符属性抄成这一段的直接格式。
