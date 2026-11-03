@@ -64,6 +64,8 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     # 手册按语言各一份：中文版 manual.md，英文版 manual_en.md。两份都随包发布。
     resources = Path(__file__).resolve().parent / "resources"
     manual = resources / ("manual_en.md" if lang == "en" else "manual.md")
+    # 第 2 册只讲学位论文：期刊稿读第 1 册就够，论文稿再读这一本
+    thesis = resources / ("manual-thesis_en.md" if lang == "en" else "manual-thesis.md")
     # 入门文档与技能入口是同一份流程（tests/test_resource_sync.py 盯着两者不许分叉）：
     # 只装 pip 包、手上没有 SKILL.md 的 Agent 从这里读“按什么顺序做”。
     guide = resources / "guide.md"
@@ -101,6 +103,7 @@ Starting from a preset is recommended: copy the file below next to the manuscrip
 
 Getting-started guide (identical to SKILL.md at the skill entry; one copy suffices): {guide}
 Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits): {manual}
+Thesis manual (covers, front matter, sections, `--base`; read it only for a thesis): {thesis}
 Built-in presets:
 {presets}
 """
@@ -129,6 +132,7 @@ Built-in presets:
 
 入门文档（与技能入口 SKILL.md 同文，读其一即可）：{guide}
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界）：{manual}
+学位论文手册（封面、前置件、分节、`--base`；只有写论文才需要）：{thesis}
 内置预设：
 {presets}
 """

@@ -546,10 +546,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "extractor.note.tabs_limited": (
         "用了 {count} 个制表位（{where}）——本工具的 `点线制表位` 只能表达"
         "「右对齐 + 点线 + 落在版心右边界」那一种，其余的草稿里没法表达，"
-        "需要在 Word 里手工设（任意制表位见 manual.md §6）",
+        "需要在 Word 里手工设（任意制表位见手册 §6）",
         "{count} tab stop(s) found ({where}) — this tool's `dot-leader-tab` can only express "
         "right-aligned + dot leader + at the right edge of the text block; the rest cannot be "
-        "expressed in the draft and must be set by hand in Word (see manual.md §6)",
+        "expressed in the draft and must be set by hand in Word (see the manual §6)",
     ),
     "extractor.note.table_border_default": (
         "表格边框不是四种标准样式之一，已按三线表处理",

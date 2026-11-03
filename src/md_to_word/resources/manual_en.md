@@ -1,4 +1,10 @@
-# md-to-word Manual
+# md-to-word Manual (volume 1: general)
+
+Journal papers, course reports and technical notes need only this volume.
+
+**A thesis also needs volume 2, `manual-thesis_en.md`** — read it when the manuscript contains any of
+`{{< section >}}`, `{{< toc >}}`, `crossref: chapters`, `Appendix`, `References` or `--base`. Volume 2
+does not repeat this one; it covers only what is thesis-specific.
 
 Chinese edition: `manual.md`
 
@@ -636,38 +642,12 @@ the references page. When PDF rendering is unavailable (Windows, Word not instal
 but never launched) it is skipped automatically and does not affect the `.docx` output (exit code
 `3`).
 
-### 5.4 Pour the body into the school's own template (experimental)
+### 5.4 Theses: cover and front matter
 
-Covers, originality statements and double-ruled chapter headers cannot be expressed in `format.txt`,
-and copying them by hand lets Word redefine same-named styles and drag the whole body with it. This
-path works the other way round: **use the school file as the base**, keep its first sections as front
-matter, and replace the rest with our typeset body.
-
-```bash
-md-to-word manuscript.md -f format.txt --base school-template.docx --cover-sections 4 -o out.docx
-```
-
-`--cover-sections N` is **your declaration**: the first N sections of the base are front matter.
-Pages and sections are not the same thing (4 sections = 6 pages when blank pages sit between them),
-so you can also say it in pages: `--keep-pages 6` makes the tool try a few cuts and report
-"6 pages = 3 sections", which you then keep as `--cover-sections 3`.
-The number is never guessed; cutting too early silently drops later cover pages, so the export always
-reports "the first paragraph after the cut is ..." — read it.
-
-One rule: **no file is produced unless it verifies**, in two layers:
-
-- **Structure (every platform)**: every front-matter node must be byte-identical to the original, none
-  of its styles, numbering definitions or theme may go missing, style names must stay unique with one
-  default per type, and every footnote reference must resolve. This proves *we did not touch the cover*.
-- **Layout (only where Word is installed)**: both files are laid out by Word and the front-matter pages
-  are compared word by word; any mismatch deletes the output. This proves *it still prints the same* —
-  pagination and blank pages cannot be seen in the XML.
-
-On Windows only the first layer runs, and the export says so: check the layout yourself in Word.
-(PDF rendering has only ever been implemented for macOS.)
-
-Two things it cannot verify: whether the cut point is right (that is what the note above is for), and
-whether fields or macro buttons in the cover need a click when opened.
+Covers, originality statements and double-ruled chapter headers cannot be expressed in
+`format.txt`, and do not belong in this volume. **For a thesis, read volume 2**
+(`manual-thesis_en.md`, next to this file): front matter, and how to pour the body into the
+school's own template.
 
 ---
 

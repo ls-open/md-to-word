@@ -17,6 +17,8 @@ from md_to_word.spec.constants import STYLE_MAP
 
 RESOURCES = Path(md_to_word.__file__).resolve().parent / "resources"
 MANUALS = {"zh": RESOURCES / "manual.md", "en": RESOURCES / "manual_en.md"}
+# 第 2 册只讲学位论文：期刊稿读第 1 册就够，论文稿再读这本
+THESIS = {"zh": RESOURCES / "manual-thesis.md", "en": RESOURCES / "manual-thesis_en.md"}
 REPO_ONLY = ("references/", "demo/", "scripts/", "tests/")
 YAML_KEYS = ("bibliography", "csl", "crossref", "link-citations")
 BLOCK_MARKERS = ("pagebreak", "toc", "section")
@@ -52,6 +54,27 @@ def test_manual_ships_inside_the_package() -> None:
         assert path.is_file(), f"{lang} 手册没随包发布: {path}"
         text = path.read_text(encoding="utf-8")
         assert len(text.splitlines()) > 200, f"{lang} 手册被削得太薄，已不足以替掉旧的参考文档"
+
+
+def test_thesis_volume_ships_and_stays_thin() -> None:
+    """第 2 册是"再读一本"，不是第二本全手册：只讲学位论文，不重复第 1 册。"""
+    for lang, path in THESIS.items():
+        assert path.is_file(), f"{lang} 学位论文手册没随包发布: {path}"
+        text = path.read_text(encoding="utf-8")
+        assert 60 < len(text.splitlines()) < 200, f"{lang} 第 2 册篇幅失控：{len(text.splitlines())} 行"
+        first = MANUALS[lang].read_text(encoding="utf-8")
+        assert path.name in first, f"{lang} 第 1 册没有指到第 2 册，读者不会知道它存在"
+
+
+def test_both_volumes_share_the_same_headings() -> None:
+    """中英两版第 2 册必须同构，否则译文会悄悄落后一版。"""
+    heads = {
+        lang: [l for l in path.read_text(encoding="utf-8").splitlines() if l.startswith("## ")]
+        for lang, path in THESIS.items()
+    }
+    assert heads["zh"] and len(heads["zh"]) == len(heads["en"]), (
+        f"两版章节数不同：中文 {len(heads['zh'])}，英文 {len(heads['en'])}"
+    )
 
 
 def test_manual_lists_every_style_name() -> None:
@@ -96,7 +119,7 @@ def test_both_manuals_list_the_same_csl_inventory() -> None:
 
 
 def test_manuals_have_no_repository_only_paths() -> None:
-    for lang, path in MANUALS.items():
+    for lang, path in {**MANUALS, **THESIS}.items():
         text = path.read_text(encoding="utf-8")
         found = [p for p in REPO_ONLY if p in text]
         assert not found, f"{lang} 手册里出现了只有仓库才有的路径：{found}"

@@ -19,7 +19,8 @@ PKG_RESOURCES = REPO_ROOT / "src" / "md_to_word" / "resources"
 
 
 # 只随包发布、仓库根不放副本的文件
-PACKAGE_ONLY = {"manual.md", "manual_en.md", "guide.md", "render_via_word.sh"}
+PACKAGE_ONLY = {"manual.md", "manual_en.md", "manual-thesis.md", "manual-thesis_en.md",
+                "guide.md", "render_via_word.sh"}
 
 
 def _relative_files(root: Path) -> set[str]:
