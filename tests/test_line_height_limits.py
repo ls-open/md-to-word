@@ -54,8 +54,16 @@ def test_equation_relaxes_fixed_line_spacing(tmp_path: Path) -> None:
 
 
 def test_equation_leaves_multiple_spacing_alone(tmp_path: Path) -> None:
-    """倍数行距本来就会撑开，不该多写一层。"""
-    assert _equation_spacing(tmp_path, _spec_with(MULTIPLE)) == ""
+    """倍数行距本来就会撑开，不该改写行距；只补那 6 磅段后。"""
+    spacing = _equation_spacing(tmp_path, _spec_with(MULTIPLE))
+
+    assert "w:line=" not in spacing and "lineRule" not in spacing
+    assert 'w:after="120"' in spacing
+
+
+def test_equation_keeps_a_gap_below_it(tmp_path: Path) -> None:
+    """公式盒子紧贴内容底部，不补段后就会贴着下文——实测上下 7.8 / 1.9pt。"""
+    assert 'w:after="120"' in _equation_spacing(tmp_path, _spec_with(EXACT))
 
 
 @pytest.mark.parametrize(

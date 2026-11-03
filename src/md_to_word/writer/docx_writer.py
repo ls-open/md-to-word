@@ -475,20 +475,25 @@ class _Writer:
             self._write_bibliography()
 
     def _relax_fixed_line_spacing(self, paragraph) -> None:
-        """正文用固定行距时，公式段落改成同值的「最小值」。
+        """公式段落的行距：固定值改成同值的「最小值」，并补 6 磅段后。
 
         固定值的意思是「这一行就占这么多」，公式比它高，多出来的部分会压到上下两段
         正文上（多行公式实测能把邻居压穿）。最小值让高的内容自己撑开，单行公式看起来
         和原来一模一样。
+
+        段后那 6 磅是量出来的：Word 把行距的余量放在文字上方，公式段落的盒子又紧贴
+        内容底部，实测公式离上一行 7.8pt、离下一行只有 1.9pt，看上去贴着下文。补 6 磅
+        后两侧都是 7.9pt。只影响公式段落，正文不动。
         """
         style = self._style_object("Body Text")
         if style is None:
             return
+        spacing = ensure_ordered_child(paragraph._p.get_or_add_pPr(), "spacing", _PPR_ORDER)
+        spacing.set(qn("w:after"), "120")
         source_ppr = style.element.find(qn("w:pPr"))
         source = source_ppr.find(qn("w:spacing")) if source_ppr is not None else None
         if source is None or source.get(qn("w:lineRule")) != "exact":
             return
-        spacing = ensure_ordered_child(paragraph._p.get_or_add_pPr(), "spacing", _PPR_ORDER)
         spacing.set(qn("w:line"), source.get(qn("w:line")))
         spacing.set(qn("w:lineRule"), "atLeast")
 
