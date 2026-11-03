@@ -62,6 +62,18 @@ so counting pages is easy to get off by one; saying it by content is not.
 The number is never guessed; cutting too early silently drops later cover pages, so the export always
 reports "the first paragraph after the cut is ..." — read it.
 
+**What the base actually contributes** (it is not just the cover):
+
+| From the base | From the format file |
+|:--|:--|
+| The front-matter sections: verbatim, including their page setup, headers, footers, page numbering | The body's paper size, margins, page numbering |
+| Document-level settings: theme, compatibility mode, odd/even pages | The twenty-odd styles the format file declares |
+| **Styles you did not declare**: the base keeps its own | Header/footer content and styling |
+
+So "once poured in, it matches using our own base" holds only for the declared styles and the body
+layout. Styles you never wrote — footnotes, captions, school-specific ones — stay as the school
+defined them. That is usually what you want, but it means **switching bases can move the corners**.
+
 One rule: **no file is produced unless it verifies**, in two layers:
 
 - **Structure (every platform)**: every front-matter node must be byte-identical to the original, none
