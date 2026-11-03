@@ -56,6 +56,7 @@ md-to-word --guide                                       # getting-started guide
 md-to-word --contract                                    # cheatsheet + guide, manual and preset paths
 md-to-word --contract --lang en                          # same, in English (canonical English style names)
 md-to-word manuscript.md -o out.docx --verbose           # per-style log, for "the format had no effect"
+md-to-word thesis.md --base-template school.docx --cover-sections 3 -o thesis.docx   # volume 2
 ```
 
 **Choosing the format file — one of three**: pass `-f`; otherwise a file named exactly
@@ -445,7 +446,7 @@ updated when the document is opened or shown in print preview.
   `Footer Content: {page}` and then `Even Header Content: …` leaves even pages without any page
   number at all. The generator fills the empty slots automatically and says so.
 
-### 3.3 The four ways to obtain a format file
+### 3.3 The five ways to obtain a format file
 
 | What you have | What to do |
 |:--|:--|
@@ -453,6 +454,7 @@ updated when the document is opened or shown in print preview.
 | A reference `.docx` template | `md-to-word-template reference.docx -o format.txt` reverse-engineers a draft; **items it could not read are listed at the end of the draft** — check each one before using it |
 | Format instructions in text or given verbally | fill in whatever the user stated explicitly; derive and fill the unmentioned required fields of the same set per §3.5 |
 | Nothing at all | use a built-in preset, export a standard `.docx` first, then adjust from feedback |
+| Someone at the same school or journal already did | Check the template library first (`--contract` prints the address): `format.txt` fixes the look, `sample.md` fixes the structure — take both |
 
 ### 3.4 Style names (closed vocabulary)
 
