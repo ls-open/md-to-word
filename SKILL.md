@@ -24,6 +24,10 @@ manual's absolute path (Chinese or English, following the manuscript), the built
 a one-screen contract summary. When a spelling is not certain, read the manual rather than guess:
 every word outside the vocabulary is a hard error with a line number.
 
+The manual ships in **two volumes**: volume 1 is general (papers, reports, official documents);
+volume 2 covers theses only — cover and front matter, section and page numbering, chapter/appendix
+numbering, and `--base-template`. For a degree thesis read both; `--contract` prints both paths.
+
 ## 1. The work, in order
 
 1. **Confirm requirements & decide format** (§3): built-in preset (`zh-academic`, `en-nature`),
