@@ -265,6 +265,15 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "前 {pages} 页 = 底模的前 {sections} 节，记下来以后直接用 --cover-sections {sections}",
         "First {pages} pages = first {sections} sections of the base; use --cover-sections {sections} next time",
     ),
+    "extractor.library_hint": (
+        "这份格式文件可以提到模板库，同校同刊的人就不必再反推一遍：{library}",
+        "This format file can be contributed to the template library so nobody at the same "
+        "school or journal has to reverse-engineer it again: {library}",
+    ),
+    "cli.legacy_r": (
+        "`-r` 是旧写法，改用 `-f`（两者等价，`-r` 会在后续版本移除）",
+        "`-r` is the old spelling; use `-f` (they are equivalent, `-r` will be removed later)",
+    ),
     "pipeline.base_missing": (
         "找不到底模文件：{path}",
         "Base template not found: {path}",

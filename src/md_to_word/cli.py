@@ -53,16 +53,13 @@ def _style_names(ascii_only: bool) -> list[str]:
     return names
 
 
-# 模板库地址：这里是唯一真相源。技能与手册都只转述这一行，不各写一份。
-TEMPLATE_LIBRARY = "https://github.com/ls-open/md-to-word-templates"
-
-
 def contract_cheatsheet(lang: str = "zh") -> str:
     """稿件契约速查 + 手册与预设的真实路径。
 
     给「只装了包、手上没有任何文档」的调用方一个自足入口：一份够用的速查，加上
     去哪儿读全部内容、去哪儿拿一份现成的要求文件。路径从安装位置现算，不写死。
     """
+    from md_to_word.config import TEMPLATE_LIBRARY
     from md_to_word.config import resolve_preset_path
 
     # 手册按语言各一份：中文版 manual.md，英文版 manual_en.md。两份都随包发布。
@@ -231,6 +228,9 @@ def main(args: list[str] | None = None) -> int:
         return _run_init(argv[1:], lang)
     parser = build_parser(lang)
     parsed = parser.parse_args(argv)
+    if "--requirements" in argv or "-r" in argv:
+        # 只在用了旧写法时说一句；用 -f 的人看不到这行
+        print(t("cli.legacy_r", lang), file=sys.stderr)
     configure_logging("DEBUG" if parsed.verbose else "INFO", force=True)
 
     if parsed.guide:

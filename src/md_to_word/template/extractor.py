@@ -616,6 +616,10 @@ def main(argv=None):
     if args.output:
         Path(args.output).write_text(text, encoding='utf-8')
         print(t('extractor.draft_written', lang, path=args.output, styled=styled, notes=notes))
+        # 反推完的人手上正好有一份新格式文件，是唯一"能贡献"的时刻；其余时候不打扰
+        from md_to_word.config import TEMPLATE_LIBRARY
+
+        print(t('extractor.library_hint', lang, library=TEMPLATE_LIBRARY))
     else:
         print(text, end='')
     return 0
