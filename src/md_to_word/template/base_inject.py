@@ -440,9 +440,9 @@ def _carry_rel(src_part, dst_part, rid: str, counters: dict[str, int]) -> str | 
         return dst_part.relate_to(rel.target_ref, rel.reltype, is_external=True)
     # 其余内部部件（OLE、嵌入对象等）原样复制一份，换个不会被现有部件占住的名字
     counters["part"] = counters.get("part", 0) + 1
-    name = rel.target_part.partname
+    head, _, tail = str(rel.target_part.partname).rpartition("/")
     part = Part(
-        PackURI(f"{name.dirname}/mdw{counters['part']}-{name.basename}"),
+        PackURI(f"{head}/mdw{counters['part']}-{tail}"),
         rel.target_part.content_type,
         rel.target_part.blob,
         dst_part.package,
