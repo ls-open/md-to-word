@@ -97,6 +97,10 @@ also work). A section marker closes *the section above it*; never add a page bre
 
 ## 3. The format file
 
+**Check for an existing format file before writing one.** `md-to-word --contract` points at the
+community library of school and journal formats; that library carries its own selection and usage
+rules, which change more often than this file should.
+
 0. **Starting from nothing** — `md-to-word init` writes a complete preset copy plus a one-page
    manuscript that exports as-is. Useful when the user has no format file and no template.
 1. **Built-in preset** — `zh-academic` or `en-nature`. Use as-is when the user has no custom
