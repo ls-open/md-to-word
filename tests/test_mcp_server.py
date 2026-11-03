@@ -145,3 +145,81 @@ def test_resolve_markdown_source_raw_content():
     assert p.is_file()
     assert p.read_text(encoding="utf-8") == "# Raw content\nline 2"
     p.unlink()
+
+
+def test_mcp_compile_can_pour_into_a_school_template(tmp_path: Path) -> None:
+    """MCP 是第三个入口：命令行有的能力，这里也得有，否则走 MCP 的 Agent 用不了这条路。"""
+    from docx import Document
+    from docx.enum.section import WD_SECTION
+
+    base = tmp_path / "base.docx"
+    doc = Document()
+    for i in range(2):
+        doc.add_paragraph(f"封面第{i + 1}节")
+        if i == 0:
+            doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.add_paragraph("版权使用授权书 本人同意……")
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.add_paragraph("正文占位")
+    doc.save(base)
+
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool("compile_markdown", {
+            "markdown": "# 第一章 绪论\n\n正文。\n",
+            "output_path": str(tmp_path / "out.docx"),
+            "base_template": str(base),
+            "keep_until": "版权使用授权书",
+        })
+        payload = res.structured_content
+        assert payload["success"], payload["errors"]
+        assert Path(payload["output_docx"]).is_file()
+
+    asyncio.run(_run())
+
+
+def test_mcp_can_return_the_thesis_volume() -> None:
+    """第 1 册里写着「封面见第 2 册」，远端调用方读不到本地路径——第 2 册必须能单独取。"""
+    async def _run():
+        server = create_mcp_server()
+        general = await server.call_tool("get_manual", {"lang": "zh"})
+        thesis = await server.call_tool("get_manual", {"lang": "zh", "volume": "thesis"})
+        a = general.structured_content["result"]
+        b = thesis.structured_content["result"]
+        assert "--base-template" in b
+        assert a != b
+    asyncio.run(_run())
+
+
+def test_all_three_entrances_offer_the_same_options() -> None:
+    """CLI / Python / MCP 是同一个引擎的三张脸。少一张脸的门票，用户就得换入口才能用。
+
+    以前 `--base-template` 只在命令行有：走 Python 的脚本和走 MCP 的 Agent 完全用不了。
+    """
+    import inspect
+
+    import md_to_word
+    from md_to_word.pipeline import ExportOptions
+
+    names = ("base_template", "cover_sections", "keep_pages", "keep_until")
+    fields = set(ExportOptions.__annotations__)
+    api = set(inspect.signature(md_to_word.export).parameters)
+    src = inspect.getsource(create_mcp_server)
+
+    for name in names:
+        assert name in fields, f"ExportOptions 缺 {name}"
+        assert name in api, f"Python API export() 缺 {name}"
+        assert f"{name}:" in src or f"{name} =" in src or f'"{name}"' in src, \
+            f"MCP compile_markdown 缺 {name}"
+
+
+def test_the_thesis_volume_is_readable_as_a_resource() -> None:
+    """资源模板也要能取到：工具（get_manual）和资源是两条路，只测一条等于没测。"""
+    async def _run():
+        server = create_mcp_server()
+        out = await server.read_resource("manual-thesis://zh")
+        text = out[0].content if isinstance(out, list) else str(out)
+        assert "--base-template" in text
+        assert "--keep-until" in text
+
+    asyncio.run(_run())

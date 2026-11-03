@@ -24,7 +24,7 @@ from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_format
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
 from md_to_word.preprocessor.blocks import resolve_style_name
-from md_to_word.template.generator import PAGE_SIZES_CM, missing_styles_for_body
+from md_to_word.template.generator import PAGE_SIZES_CM, max_doc_grid_lines, missing_styles_for_body
 from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES, PdfFigureError, page_count
 
 # 复用 utils 中的基础文本解析工具
@@ -364,13 +364,29 @@ def validate_manuscript(
                 )
 
     # 1e. 编号格式用了 {c}（章号），稿件却没说按章编号：两个文件各写一半，等式不成立
-    eq_format = getattr(spec, "equation_number_format", "") or ""
-    if "{c}" in eq_format:
+    #     正文与附录两行都要查：附录里「按附录标识编号」同样依赖 {c}。
+    for attr, name_key in (
+        ("equation_number_format", "spec.line.equation_format"),
+        ("appendix_equation_number_format", "spec.line.appendix_equation_format"),
+    ):
+        eq_format = getattr(spec, attr, "") or ""
+        if "{c}" not in eq_format:
+            continue
         crossref = fm_data.get("crossref") if isinstance(fm_data, dict) else None
         by_chapter = isinstance(crossref, dict) and bool(crossref.get("chapters"))
         if not by_chapter:
             report.valid = False
-            report.errors.append(t("gate.equation.chapters", lang, fmt=eq_format))
+            report.errors.append(
+                t("gate.equation.chapters", lang, fmt=eq_format, name=t(name_key, lang))
+            )
+
+    # 1f. 文档网格：声明的行数超过版心能放下的行数时兑现不了，而且结果比不声明还差
+    if spec and spec.doc_grid_lines:
+        limit = max_doc_grid_lines(spec)
+        if limit and spec.doc_grid_lines > limit:
+            report.warnings.append(
+                t("gate.doc_grid.unreachable", lang, want=spec.doc_grid_lines, limit=limit)
+            )
 
     # 2. 图片路径空格与存在性
     in_code = False

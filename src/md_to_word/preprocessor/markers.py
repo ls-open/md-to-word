@@ -87,8 +87,16 @@ def section_paragraph_xml(params: dict, template_sect) -> str:
         if template_sect is not None
         else etree.Element(_W + "sectPr", nsmap={"w": _NS})
     )
-    for tag in ("headerReference", "titlePg", "type", "pgNumType"):
+    # 页眉/页脚的引用**要留着**：OOXML 里「没写引用」等于「沿用上一节」，而第一节
+    # 没有可沿用的，结果就是前置部分整段没有页眉。要「这一节不要」由参数显式说。
+    for tag in ("titlePg", "type", "pgNumType"):
         for el in sect.findall(_W + tag):
+            sect.remove(el)
+    if params.get("no_header"):
+        for el in sect.findall(_W + "headerReference"):
+            sect.remove(el)
+    if params.get("no_footer"):
+        for el in sect.findall(_W + "footerReference"):
             sect.remove(el)
 
     type_el = etree.Element(_W + "type")

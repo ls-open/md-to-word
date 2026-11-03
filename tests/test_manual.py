@@ -17,6 +17,8 @@ from md_to_word.spec.constants import STYLE_MAP
 
 RESOURCES = Path(md_to_word.__file__).resolve().parent / "resources"
 MANUALS = {"zh": RESOURCES / "manual.md", "en": RESOURCES / "manual_en.md"}
+# 第 2 册只讲学位论文：期刊稿读第 1 册就够，论文稿再读这本
+THESIS = {"zh": RESOURCES / "manual-thesis.md", "en": RESOURCES / "manual-thesis_en.md"}
 REPO_ONLY = ("references/", "demo/", "scripts/", "tests/")
 YAML_KEYS = ("bibliography", "csl", "crossref", "link-citations")
 BLOCK_MARKERS = ("pagebreak", "toc", "section")
@@ -52,6 +54,27 @@ def test_manual_ships_inside_the_package() -> None:
         assert path.is_file(), f"{lang} 手册没随包发布: {path}"
         text = path.read_text(encoding="utf-8")
         assert len(text.splitlines()) > 200, f"{lang} 手册被削得太薄，已不足以替掉旧的参考文档"
+
+
+def test_thesis_volume_ships_and_stays_thin() -> None:
+    """第 2 册是"再读一本"，不是第二本全手册：只讲学位论文，不重复第 1 册。"""
+    for lang, path in THESIS.items():
+        assert path.is_file(), f"{lang} 学位论文手册没随包发布: {path}"
+        text = path.read_text(encoding="utf-8")
+        assert 60 < len(text.splitlines()) < 200, f"{lang} 第 2 册篇幅失控：{len(text.splitlines())} 行"
+        first = MANUALS[lang].read_text(encoding="utf-8")
+        assert path.name in first, f"{lang} 第 1 册没有指到第 2 册，读者不会知道它存在"
+
+
+def test_both_volumes_share_the_same_headings() -> None:
+    """中英两版第 2 册必须同构，否则译文会悄悄落后一版。"""
+    heads = {
+        lang: [l for l in path.read_text(encoding="utf-8").splitlines() if l.startswith("## ")]
+        for lang, path in THESIS.items()
+    }
+    assert heads["zh"] and len(heads["zh"]) == len(heads["en"]), (
+        f"两版章节数不同：中文 {len(heads['zh'])}，英文 {len(heads['en'])}"
+    )
 
 
 def test_manual_lists_every_style_name() -> None:
@@ -96,7 +119,7 @@ def test_both_manuals_list_the_same_csl_inventory() -> None:
 
 
 def test_manuals_have_no_repository_only_paths() -> None:
-    for lang, path in MANUALS.items():
+    for lang, path in {**MANUALS, **THESIS}.items():
         text = path.read_text(encoding="utf-8")
         found = [p for p in REPO_ONLY if p in text]
         assert not found, f"{lang} 手册里出现了只有仓库才有的路径：{found}"
@@ -120,10 +143,52 @@ REFERENCED_SECTIONS = {
     "zh": ["### 3.1 ", "### 3.3 ", "### 3.4 ", "## 6. ", "## 7. ", "## 8. "],
     "en": ["### 3.1 ", "### 3.3 ", "### 3.4 ", "## 6. ", "## 7. ", "## 8. "],
 }
+# 第 2 册同样被外部指路：nature-paper2word 讲底模时让人「读第 2 册 §2」。那一节一旦
+# 不是「封面与前置件」，对面仓库读到的就是分节页码，而它自己发现不了。
+THESIS_SECTIONS = {"zh": ["## 2. "], "en": ["## 2. "]}
 
 
 def test_section_numbers_cited_elsewhere_stay_put() -> None:
-    for lang, headings in REFERENCED_SECTIONS.items():
-        text = MANUALS[lang].read_text(encoding="utf-8")
-        missing = [h.strip() for h in headings if h not in text]
-        assert not missing, f"{lang} 手册缺了对外引用的章节编号：{missing}"
+    for book, cited in ((MANUALS, REFERENCED_SECTIONS), (THESIS, THESIS_SECTIONS)):
+        for lang, headings in cited.items():
+            text = book[lang].read_text(encoding="utf-8")
+            missing = [h.strip() for h in headings if h not in text]
+            assert not missing, f"{lang} 手册缺了对外引用的章节编号：{missing}"
+
+
+def test_every_flag_is_documented_somewhere() -> None:
+    """加了参数却没人写进文档，用户看 `--help` 也只有一行，出了事只能来问。
+
+    这条把「文档跟上代码」变成红灯，而不是指望每次收尾都有人通读四份文档。
+    真有故意不写的，加进 DELIBERATELY_HIDDEN 并写清理由。
+    """
+    import re
+
+    from md_to_word.cli import build_parser
+
+    # 逃生舱：写进文档等于推荐绕过门禁。旧别名：不该再有人学着用。
+    DELIBERATELY_HIDDEN = {"--no-audit", "--no-postflight", "--requirements"}
+    # 文档里用缩写形式写的那几个
+    SHORT_FORM = {"--format": "-f", "--output": "-o"}
+
+    repo_root = Path(md_to_word.__file__).resolve().parents[2]
+    corpus = "\n".join([
+        (repo_root / "SKILL.md").read_text(encoding="utf-8"),
+        (RESOURCES / "manual.md").read_text(encoding="utf-8"),
+        (RESOURCES / "manual_en.md").read_text(encoding="utf-8"),
+        (RESOURCES / "manual-thesis.md").read_text(encoding="utf-8"),
+        (RESOURCES / "manual-thesis_en.md").read_text(encoding="utf-8"),
+    ])
+
+    flags = sorted({
+        opt
+        for action in build_parser("zh")._actions
+        for opt in action.option_strings
+        if opt.startswith("--")
+    } - {"--help"} - DELIBERATELY_HIDDEN)
+
+    missing = [
+        flag for flag in flags
+        if not re.search(re.escape(SHORT_FORM.get(flag, flag)) + r"\b", corpus)
+    ]
+    assert not missing, f"这些参数没有任何文档提到：{missing}"

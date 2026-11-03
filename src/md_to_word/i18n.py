@@ -106,6 +106,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "把结果写成一行 JSON 到 stdout（给程序与 Agent 解析，键名不随版本变）",
         "Print the result as one JSON object on stdout (for programs and agents; keys are stable)",
     ),
+    "cli.internal_error": (
+        "导出中断，发生了未预料到的内部错误：{reason}\n"
+        "  这是本工具的缺陷，不是稿件的写法问题。请把上面的 traceback 与稿件、格式文件一并发给维护者。",
+        "Export aborted by an unexpected internal error: {reason}\n"
+        "  This is a defect in this tool, not a problem with the manuscript. "
+        "Please report the traceback above together with the manuscript and format file.",
+    ),
     # ── 流水线：路径与配置 ──────────────────────────────────────────
     "pipeline.input_missing": ("输入稿件不存在: {path}", "Input manuscript not found: {path}"),
     "pipeline.write_failed": (
@@ -242,6 +249,82 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "citations.key_missing": ("文献库里没有条目：{key}", "the bibliography has no entry for {key}"),
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
     "pipeline.pdf_skipped": ("docx 已正常生成；PDF 渲染未执行或未完成。", "docx written; the PDF step was skipped or did not finish."),
+    "cli.base": (
+        "学校模板（.docx）：正文灌进它，保留它自己的封面/声明等版式（实验性，验不过就不产出）",
+        "Base template (.docx): pour the body into it, keeping its own cover pages (experimental)",
+    ),
+    "cli.cover_sections": (
+        "底模的前几节是前置件（封面、声明…），原样保留；配合 --base-template 使用",
+        "How many leading sections of the base template are front matter (used with --base-template)",
+    ),
+    "cli.keep_pages": (
+        "换一种说法：保留底模的前几页（工具试切几次换算成节数，慢一点，一次就够）",
+        "Say it in pages instead: keep the first N pages (the tool tries a few cuts; slow, one-off)",
+    ),
+    "cli.keep_until": (
+        "按内容说：底模里出现这段文字的那一节为止，前面的原样保留（如 --keep-until 版权使用授权书）",
+        "Say it by content: keep through the section containing this text "
+        "(e.g. --keep-until \"copyright authorization\")",
+    ),
+    "pipeline.base_until_resolved": (
+        "保留到「{text}」所在的第 {sections} 节（以后可以直接用 --cover-sections {sections}）",
+        "Keeping through section {sections}, the one containing \"{text}\" "
+        "(next time pass --cover-sections {sections})",
+    ),
+    "pipeline.base_until_missing": (
+        "底模里找不到「{text}」。底模各节的开头是：\n{outline}\n用 --cover-sections N 直接说明保留几节",
+        "\"{text}\" does not appear in the base. Its sections start with:\n{outline}\n"
+        "Pass --cover-sections N to say how many to keep",
+    ),
+    "pipeline.base_until_ambiguous": (
+        "「{text}」在第 {sections} 节里都出现过，没法确定停在哪。用 --cover-sections N 直接说明",
+        "\"{text}\" appears in sections {sections}; cannot tell where to stop. "
+        "Pass --cover-sections N directly",
+    ),
+    "pipeline.base_resolved": (
+        "前 {pages} 页 = 底模的前 {sections} 节，记下来以后直接用 --cover-sections {sections}",
+        "First {pages} pages = first {sections} sections of the base; use --cover-sections {sections} next time",
+    ),
+    "extractor.library_hint": (
+        "这份格式文件可以提到模板库，同校同刊的人就不必再反推一遍：{library}",
+        "This format file can be contributed to the template library so nobody at the same "
+        "school or journal has to reverse-engineer it again: {library}",
+    ),
+    "cli.legacy_r": (
+        "`-r` 是旧写法，改用 `-f`（两者等价，`-r` 会在后续版本移除）",
+        "`-r` is the old spelling; use `-f` (they are equivalent, `-r` will be removed later)",
+    ),
+    "pipeline.base_missing": (
+        "找不到底模文件：{path}",
+        "Base template not found: {path}",
+    ),
+    "pipeline.base_need_sections": (
+        "用 --base-template 时要说清前置件到哪儿结束：--keep-until 某段文字（推荐，"
+        "按内容说）、--cover-sections N（按节说）或 --keep-pages P（按页说，要装 Word）。猜错会切坏封面，所以不猜",
+        "--base-template needs to know where the front matter ends: --keep-until <text> "
+        "(recommended), --cover-sections N, or --keep-pages P (needs Word)",
+    ),
+    "pipeline.base_failed": (
+        "没有产出文件——底模这条路走不通：{reason}",
+        "No file written — the base-template path does not hold: {reason}",
+    ),
+    "pipeline.base_ok": (
+        "前置件 {pages} 节与原件逐页一致，正文已灌入",
+        "Front matter ({pages} sections) matches the original page by page; body poured in",
+    ),
+    # 没有 Word 的机器上只做了结构那一层，说「逐页一致」就是在撒谎
+    "pipeline.base_ok_structure": (
+        "前置件 {pages} 节的内容与原件逐节点一致（这台机器没有 Word，没做版面验真），正文已灌入",
+        "Front matter ({pages} sections) matches the original node by node; no Word here, so "
+        "the layout was not checked. Body poured in",
+    ),
+    "pipeline.base_keep_pages_needs_word": (
+        "这台机器算不了 --keep-pages：按页换算节数要先真的排一次版，而排版只有装了 Word 的 "
+        "macOS 才能做。底模一共有 {sections} 节，数一下前置件占几节，直接用 --cover-sections N",
+        "--keep-pages needs a real page layout, which this machine cannot produce (Word "
+        "rendering is macOS-only). The base has {sections} sections; count the front matter "
+        "and pass --cover-sections N instead",
+    ),
     "pipeline.reminder": (
         "导出完成。版面效果仍须在 Word 中人工核验。",
         "Export complete. The layout still requires a manual check in Word.",
@@ -467,6 +550,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "font undefined (this style sets none in the reference file; the effective font depends on "
         "the app that opens it)",
     ),
+    "extractor.note.sections_differ": (
+        "参考文件的各节页眉（或页脚）内容不同，已按最后一节（正文节）取值，其余需人工确认",
+        "the sections of the reference file use different headers (or footers); the last section "
+        "(the body) was taken and the rest need a manual check",
+    ),
     "extractor.note.size_undefined": (
         "字号未定义（参考文件里这条样式没有设字号）",
         "font size undefined (this style sets none in the reference file)",
@@ -502,10 +590,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "extractor.note.tabs_limited": (
         "用了 {count} 个制表位（{where}）——本工具的 `点线制表位` 只能表达"
         "「右对齐 + 点线 + 落在版心右边界」那一种，其余的草稿里没法表达，"
-        "需要在 Word 里手工设（任意制表位见 manual.md §6）",
+        "需要在 Word 里手工设（任意制表位见手册 §6）",
         "{count} tab stop(s) found ({where}) — this tool's `dot-leader-tab` can only express "
         "right-aligned + dot leader + at the right edge of the text block; the rest cannot be "
-        "expressed in the draft and must be set by hand in Word (see manual.md §6)",
+        "expressed in the draft and must be set by hand in Word (see the manual §6)",
     ),
     "extractor.note.table_border_default": (
         "表格边框不是四种标准样式之一，已按三线表处理",
@@ -902,11 +990,25 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "otherwise the generated list has no heading",
     ),
     # ── 公式编号 ──
+    "spec.line.equation_format": ("公式编号格式", "Equation Number Format"),
+    "spec.line.appendix_equation_format": (
+        "附录公式编号格式",
+        "Appendix Equation Number Format",
+    ),
+    "gate.doc_grid.unreachable": (
+        "「文档网格：每页{want}行」做不到：按正文的字号与行距，版心最多放 {limit} 行。"
+        "Word 会把行高向上取整到网格整数倍，实际行数反而比不声明网格更少。"
+        "要么把行距调小，要么把这个行数改成 {limit} 以内",
+        "「Document Grid: {want} lines per page」is unreachable: with the body font size and line "
+        "spacing the text block holds at most {limit} lines. Word rounds the line height up to whole "
+        "grid units, so the result is worse than declaring no grid at all. Either reduce the line "
+        "spacing or set this to {limit} or fewer",
+    ),
     "gate.equation.chapters": (
-        "要求文件的「公式编号格式」是 {fmt}，里面有 {{c}}（章号），"
+        "要求文件的「{name}」是 {fmt}，里面有 {{c}}（章号），"
         "但稿件 YAML 的 crossref 下没有 chapters: true。二选一："
         "在 `crossref:` 下加 `chapters: true`，或把格式改成不含 {{c}} 的写法（如 （{{n}}））",
-        "The 「公式编号格式」/Equation Number Format in the format file is {fmt}, which contains "
+        "The 「{name}」 line in the format file is {fmt}, which contains "
         "{{c}} (chapter number), but the manuscript YAML has no chapters: true under crossref. Either add "
         "`chapters: true` under `crossref:`, or change the format to one without {{c}} (e.g. ({{n}}))",
     ),
@@ -1186,6 +1288,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.dialect.inline_math_paren": (
         "行内公式用 `$…$`，不支持 `\\(…\\)`（会连同括号当成正文印出来）",
         "inline math uses `$...$`; `\\(...\\)` is not supported and is printed as body text",
+    ),
+    "gate.dialect.block_math_bracket": (
+        "块级公式用 `$$…$$`，不支持 `\\[…\\]`（会连同方括号当成正文印出来）",
+        "display math uses `$$...$$`; `\\[...\\]` is not supported and is printed as body text",
     ),
     "gate.dialect.image_attr": (
         "图片行只认 `{width=…}`；对齐请写要求文件的「图：… 左对齐」",

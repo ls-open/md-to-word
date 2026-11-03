@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 from md_to_word import __version__
 from md_to_word.i18n import SUPPORTED, resolve_lang, t
-from md_to_word.pipeline import ExportOptions, run_export_pipeline
-from md_to_word.status import EXIT_OK, EXIT_PDF_SKIPPED, EXIT_USAGE
+from md_to_word.pipeline import ExportOptions, ExportResult, run_export_pipeline
+from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED, EXIT_USAGE
 from md_to_word.utils.skill_utils import configure_logging
 
 
@@ -58,14 +59,19 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     给「只装了包、手上没有任何文档」的调用方一个自足入口：一份够用的速查，加上
     去哪儿读全部内容、去哪儿拿一份现成的要求文件。路径从安装位置现算，不写死。
     """
+    from md_to_word.config import TEMPLATE_LIBRARY
     from md_to_word.config import resolve_preset_path
 
     # 手册按语言各一份：中文版 manual.md，英文版 manual_en.md。两份都随包发布。
     resources = Path(__file__).resolve().parent / "resources"
     manual = resources / ("manual_en.md" if lang == "en" else "manual.md")
+    # 第 2 册只讲学位论文：期刊稿读第 1 册就够，论文稿再读这一本
+    thesis = resources / ("manual-thesis_en.md" if lang == "en" else "manual-thesis.md")
     # 入门文档与技能入口是同一份流程（tests/test_resource_sync.py 盯着两者不许分叉）：
     # 只装 pip 包、手上没有 SKILL.md 的 Agent 从这里读“按什么顺序做”。
     guide = resources / "guide.md"
+    library = TEMPLATE_LIBRARY
+    library_raw = TEMPLATE_LIBRARY.replace("github.com", "raw.githubusercontent.com") + "/main/index.json"
     presets = "\n".join(
         f"  {name:<12} {resolve_preset_path(name)}" for name in ("zh-academic", "en-nature")
     )
@@ -100,6 +106,10 @@ Starting from a preset is recommended: copy the file below next to the manuscrip
 
 Getting-started guide (identical to SKILL.md at the skill entry; one copy suffices): {guide}
 Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits): {manual}
+Thesis manual (covers, front matter, sections, `--base-template`; read it only for a thesis): {thesis}
+Template library (ready-made format files + sample manuscripts, by school or journal): {library}
+  check whether one already fits before building a format file by hand:
+  curl -s {library_raw}
 Built-in presets:
 {presets}
 """
@@ -128,6 +138,9 @@ Built-in presets:
 
 入门文档（与技能入口 SKILL.md 同文，读其一即可）：{guide}
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界）：{manual}
+学位论文手册（封面、前置件、分节、`--base-template`；只有写论文才需要）：{thesis}
+模板库（各校各刊现成的格式文件 + 样稿）：{library}
+  先查有没有现成的，再自己写格式文件：curl -s {library_raw}
 内置预设：
 {presets}
 """
@@ -161,6 +174,27 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("-f", "--format", dest="format_path", help=t("cli.format", lang))
     parser.add_argument("-r", "--requirements", dest="format_path", help=argparse.SUPPRESS)
     parser.add_argument("--preset", help=t("cli.preset", lang))
+    parser.add_argument("--base-template", dest="base_template", help=t("cli.base", lang))
+    parser.add_argument(
+        "--keep-pages",
+        dest="keep_pages",
+        type=int,
+        default=0,
+        help=t("cli.keep_pages", lang),
+    )
+    parser.add_argument(
+        "--keep-until",
+        dest="keep_until",
+        default="",
+        help=t("cli.keep_until", lang),
+    )
+    parser.add_argument(
+        "--cover-sections",
+        dest="cover_sections",
+        type=int,
+        default=0,
+        help=t("cli.cover_sections", lang),
+    )
     parser.add_argument("--lang", choices=["auto", *SUPPORTED], default="auto", help=t("cli.lang", lang))
     parser.add_argument("--no-check", action="store_true", help=t("cli.no_check", lang))
     parser.add_argument("--no-postflight", action="store_true", help=t("cli.no_postflight", lang))
@@ -204,6 +238,9 @@ def main(args: list[str] | None = None) -> int:
         return _run_init(argv[1:], lang)
     parser = build_parser(lang)
     parsed = parser.parse_args(argv)
+    if "--requirements" in argv or "-r" in argv:
+        # 只在用了旧写法时说一句；用 -f 的人看不到这行
+        print(t("cli.legacy_r", lang), file=sys.stderr)
     configure_logging("DEBUG" if parsed.verbose else "INFO", force=True)
 
     if parsed.guide:
@@ -223,6 +260,10 @@ def main(args: list[str] | None = None) -> int:
         output_path=parsed.output,
         format_path=parsed.format_path,
         preset=parsed.preset,
+        base_template=parsed.base_template,
+        cover_sections=parsed.cover_sections,
+        keep_pages=parsed.keep_pages,
+        keep_until=parsed.keep_until,
         check_md=not parsed.no_check,
         postflight=not parsed.no_postflight,
         audit=not parsed.no_audit,
@@ -230,7 +271,17 @@ def main(args: list[str] | None = None) -> int:
         lang=None if parsed.lang == "auto" else parsed.lang,
     )
 
-    result = run_export_pipeline(options)
+    try:
+        result = run_export_pipeline(options)
+    except Exception as exc:
+        # 兜底，只为守住 CLI 的输出契约：`--json` 承诺 stdout 恒有一行结果，
+        # 一个没料到的内部异常不该把这一行连同退出码一起吞掉（库调用方仍收到异常）。
+        # traceback 照旧走 stderr——它正是要报给维护者的东西，不在这里静默。
+        traceback.print_exc()
+        result = ExportResult(returncode=EXIT_ERROR, lang=lang)
+        result.errors.append(
+            t("cli.internal_error", lang, reason=f"{type(exc).__name__}: {exc}")
+        )
 
     if parsed.as_json:
         # 给程序与 Agent 用：stdout 只有这一行，键名是契约（不随版本改），值原样透传——

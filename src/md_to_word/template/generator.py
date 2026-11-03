@@ -26,6 +26,7 @@ from lxml import etree
 from md_to_word.config import get_base_template_path
 from md_to_word.i18n import t
 from md_to_word.spec.constants import STYLE_CN, STYLE_MAP
+from md_to_word.spec.models import MinLineSpacing
 from md_to_word.utils.skill_utils import (
     TOC_MARKER_RE,
     clear_color_theme_attrs,
@@ -220,6 +221,39 @@ def doc_grid_lines_from_pitch(pitch: int, line_multiple: float, page_size, margi
     读参考 .docx 时用（把别人模板里的网格反推成本工具的写法）。"""
     return max(1, int(round(_body_height_twips(page_size, margins) / pitch / line_multiple)))
 
+
+# 单倍行距下，一行中文文字的高度约等于字号的这个倍数（实测小四 12pt → 15.6pt）。
+_CJK_LINE_HEIGHT_RATIO = 1.3
+
+
+def body_line_height_pt(spec) -> float:
+    """正文一行实际占多高（磅）：固定值就用那个值，倍数按 1.3×字号 折算。"""
+    for name in ('Body Text', 'Normal'):
+        style = spec.get_style(name)
+        if not style:
+            continue
+        size = style.get('font_size')
+        size_pt = size.pt if hasattr(size, 'pt') else 12.0
+        spacing = style.get('line_spacing')
+        if hasattr(spacing, 'pt'):
+            return float(spacing.pt)  # 固定值 / 最小值：交给 Word 的就是这个磅数
+        multiple = spacing if isinstance(spacing, float) and spacing > 0 else 1.0
+        return _CJK_LINE_HEIGHT_RATIO * size_pt * multiple
+    return _CJK_LINE_HEIGHT_RATIO * 12.0
+
+
+def max_doc_grid_lines(spec) -> int:
+    """声明「每页 N 行」能兑现到几行：版心高度 ÷ 正文行高。
+
+    超过这个数的 N 兑现不了——Word 会把行高向上取整到网格的整数倍，实际行数反而更少，
+    产物比不声明网格还差。所以这个数要报给作者，而不是默默按他的 N 排。
+    """
+    margins = spec.margins or {}
+    if not all(k in margins for k in ('top', 'bottom')):
+        return 0
+    height_pt = _body_height_twips(spec.page_size, margins) / 20.0
+    return int(height_pt // body_line_height_pt(spec))
+
 # python-docx 枚举 → OOXML 值（由上面那张中文表派生）
 _ALIGN_VAL = {enum: val for enum, val in _ALIGN.values()}
 
@@ -399,6 +433,11 @@ def write_para_props(ppr, props):
         ind = ensure_ordered_child(ppr, 'ind', _PPR_ORDER)
         indent_type = props['indent_type']
         indent_val = props['indent']
+        # 「左缩进」与「悬挂缩进」是 `w:ind` 上**两个不同的属性**（left/leftChars 是段落
+        # 整体左移，hanging/hangingChars 只是首行相对回退），写悬挂时顺手把 left 也设成
+        # 同一个值，只是为了让「没写左缩进」的悬挂缩进（英文参考文献那种）首行落在 0。
+        # 作者显式写了左缩进时，那个值必须留着——两行都写是合法组合，不是冲突。
+        has_left = props.get('left_indent_chars') is not None
         if props.get('indent_unit', 'pt') == 'chars':
             # 字符单位用 firstLineChars/hangingChars，Word 根据段落字号自动换算实际缩进，
             # 字号变化时比例自动保持；与 firstLine（绝对 pt）不同，故两者互斥地清掉一个。
@@ -407,10 +446,11 @@ def write_para_props(ppr, props):
                 ind.attrib.pop(W('firstLine'), None)
             elif indent_type == 'hanging':
                 ind.set(W('hangingChars'), str(int(indent_val * 100)))
-                ind.set(W('leftChars'), str(int(indent_val * 100)))
+                if not has_left:
+                    ind.set(W('leftChars'), str(int(indent_val * 100)))
+                    ind.attrib.pop(W('left'), None)
                 _neutralize_inherited_first_line(ind)
                 ind.attrib.pop(W('hanging'), None)
-                ind.attrib.pop(W('left'), None)
         else:
             twips = str(int(round(indent_val * 20)))  # indent_val 单位为 pt
             if indent_type == 'first_line':
@@ -418,10 +458,11 @@ def write_para_props(ppr, props):
                 ind.attrib.pop(W('firstLineChars'), None)
             elif indent_type == 'hanging':
                 ind.set(W('hanging'), twips)
-                ind.set(W('left'), twips)
+                if not has_left:
+                    ind.set(W('left'), twips)
+                    ind.attrib.pop(W('leftChars'), None)
                 _neutralize_inherited_first_line(ind)
                 ind.attrib.pop(W('hangingChars'), None)
-                ind.attrib.pop(W('leftChars'), None)
 
 
 # ── 解析函数 ──
@@ -465,24 +506,6 @@ def parse_font_name(text):
     if latin:
         result.append(latin)
     return result if result else None
-
-
-class MinLineSpacing:
-    """行距「最小值 N 磅」（`w:lineRule="atLeast"`）：至少 N 磅，内容更高时自动撑开。
-
-    Pt 表示固定值、float 表示倍数，三种不能用同一个类型表达——固定值会被超高的内容裁掉，
-    与最小值在单行时长得一样，只有折行才分得出，故类型上就必须分开。
-    """
-    __slots__ = ('pt',)
-
-    def __init__(self, pt: float):
-        self.pt = float(pt)
-
-    def __eq__(self, other):
-        return isinstance(other, MinLineSpacing) and other.pt == self.pt
-
-    def __repr__(self):
-        return f'MinLineSpacing({self.pt}磅)'
 
 
 class TemplateError(ValueError):

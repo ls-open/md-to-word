@@ -1,4 +1,10 @@
-# md-to-word Manual
+# md-to-word Manual (volume 1: general)
+
+Journal papers, course reports and technical notes need only this volume.
+
+**A thesis also needs volume 2, `manual-thesis_en.md`** — read it when the manuscript contains any of
+`{{< section >}}`, `{{< toc >}}`, `crossref: chapters`, `Appendix`, `References` or `--base-template`. Volume 2
+does not repeat this one; it covers only what is thesis-specific.
 
 Chinese edition: `manual.md`
 
@@ -50,6 +56,7 @@ md-to-word --guide                                       # getting-started guide
 md-to-word --contract                                    # cheatsheet + guide, manual and preset paths
 md-to-word --contract --lang en                          # same, in English (canonical English style names)
 md-to-word manuscript.md -o out.docx --verbose           # per-style log, for "the format had no effect"
+md-to-word thesis.md --base-template school.docx --cover-sections 3 -o thesis.docx   # volume 2
 ```
 
 **Choosing the format file — one of three**: pass `-f`; otherwise a file named exactly
@@ -129,6 +136,9 @@ To style a paragraph, start the line with `%% Style Name content`:
 - `Bibliography` cannot be written here either: the reference list is generated from `.bib` and is
   **inserted after the `%% References Title` line** (a literal `# References` heading also works),
   so appendices and acknowledgements can follow the references normally.
+- `%% References Title` **is a level-1 heading in structure** (that is what lets a header field
+  `{style-title:Heading 1}` pick it up); its look still comes from that line in the format file,
+  and whether it joins the table of contents depends on whether that row says `join-toc`.
 - Every block-level element (`$$` equation, first table row, standalone image line, short code,
   `%%` line) **must be separated from adjacent body text by a blank line**; §2.5 has the table of
   which side must be blank. `%% Table Caption` may sit directly above the first table row.
@@ -154,6 +164,12 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   number (optional). Without it the language default applies: `(5.1)` / `(1)` for English,
   `（5-1）` / `（1）` for Chinese. The number beside the equation and `@eq-x` in the body use the
   same format — never parenthesised in one place and not in another.
+- **Appendices number their own equations**: a level-1 heading such as `# Appendix B Proof` or
+  `# 附录2 …` is treated as an appendix chapter — `{c}` becomes the label from the heading (B / 2),
+  and the ordinal restarts at 1 inside each appendix. With no label in the heading, appendices get
+  A, B, C in order. For a prefix such as `(App 2.1)`, add `Appendix Equation Number Format:
+  (App {c}.{n})` (without it the body format applies). **Appendices take no chapter number**: six
+  body chapters stay 1–6, and an `# Acknowledgements` heading after the appendices is chapter 7.
 - An unnumbered equation is simply `$$…$$`: it gets no number and consumes none. Writing a label
   without referring to it is allowed; the number still appears.
 - **Multi-line equations** use the `cases`, `matrix` or `split` environment (`aligned` is treated as
@@ -189,6 +205,9 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   the dashes in the separator row uneven** (`|:--|:--|:------|` ≈ 2:2:6, spread across the text
   block; only the dashes are counted). Identical dashes = not specified, which is also why equal
   widths cannot be forced.
+- Colons in the separator row declare the alignment **of that column** (`:--` left, `:--:` centre,
+  `--:` right). **No colon means "no opinion"**, and the column follows the `Compact:` row instead.
+  A colon is an explicit instruction and overrides `Compact:` for whichever column it is written in.
 - Tables need leading and trailing pipes (`| a | b |`); a table without outer borders is not
   recognised.
 
@@ -201,6 +220,15 @@ Only three are recognised, **each on its own line** and separated from body text
 | `{{< pagebreak >}}` | page break |
 | `{{< toc >}}` / `{{< toc 2 >}}` | table-of-contents field; the depth follows the `TOC 1/2/3` styles declared in the format file, or is given directly by the number |
 | `{{< section page_number=lowerRoman start=1 >}}` | section break that closes **the section above it** |
+
+Headers and footers on sections: **every section gets them by default** (if the format file
+declares header content, every page should show it). To opt a section out, write `header=none` /
+`footer=none` on that marker — the usual cover reads
+`{{< section page_number=lowerRoman start=1 header=none footer=none >}}`. A `start` value belongs to
+the section that declares it. **The last section (the body) numbers itself from the format file's
+`Page Numbers:` line** — it restarts at `start` when the section before it uses another numbering
+style or shows no page numbers at all (a cover), and keeps counting when that section is already
+decimal, so references after the body never fall back to 1.
 
 - All three write OOXML nodes (the `w:sdt` TOC field, `sectPr`) and are valid only in this tool.
 - `\newpage` / `\pagebreak` / `\clearpage` have no effect in docx.
@@ -302,7 +330,8 @@ indentation), a heading with no space after `#`, a heading with only `#` and no 
 other than `width` on an image line (such as `{align=right}`), percentage image widths
 (`{width=60%}` — write an absolute length such as `{width=14cm}`), image formats Word cannot hold
 (`.svg`, `.webp`, `.eps` — save them as PNG, or reference a PDF), `==highlight==`,
-`[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`).
+`[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`), `\[...\]` display
+maths (write `$$...$$`).
 
 ---
 
@@ -359,7 +388,7 @@ another rule.
 | Margins | `Margins: top <N>cm bottom <N>cm left <N>cm right <N>cm` | `Margins: top 2.54cm bottom 2.54cm left 2.54cm right 2.54cm` | — |
 | Gutter | `Gutter: <N>cm` | `Gutter: 1cm` | — (the engine folds it into the left margin; write this line only) |
 | Header / footer distance from the edge | `Header Distance: <N>cm` / `Footer Distance: <N>cm` | `Header Distance: 1.40cm` | — |
-| Document grid | `Document Grid: <N> lines` | `Document Grid: 22 lines` | specify it by line count only; line-spacing multiples are compensated automatically, so no manual tuning is needed; **there is no "characters per line" switch** (it follows font size and text-block width) |
+| Document grid | `Document Grid: <N> lines` | `Document Grid: 22 lines` | the ceiling is "text-block height ÷ body line height" (12 pt at 1.3 spacing = 34 lines); beyond it you get a warning, because Word rounds the line height up to whole grid units and the result is worse; **there is no "characters per line" switch** |
 | Latin font | `Font: <typeface>` (global Latin default) | `Font: Times New Roman` | — |
 | Proofing language | `Proofing Language: <language code>` | `Proofing Language: en-US` | `Proofing Language: English` (without it the base template proofreads as English, and Word flags a Chinese manuscript as misspelled throughout) |
 | Table (required when the manuscript has tables) | `Table: <center\|left\|right> <three-line\|grid\|top-bottom\|none> [border-top/border-bottom/border-header <N>pt (rule widths)] [border-inside <N>pt (grid only)] [valign center\|top\|bottom] [cell-margin <N>cm] [no-row-split]` | `Table: center three-line border-top 1pt border-bottom 1pt border-header 0.25pt valign center` | writing `border-inside` for three-line or top-bottom (there are no inner rules); writing any border width for `none`; `cell-margin` in pt rather than cm |
@@ -380,7 +409,8 @@ Chinese spellings parse as well and may be mixed into the same line: `加粗` / 
 `加入目录`, `跨页重复`, `点线制表位`. The configuration keys have Chinese forms too (`纸张：`,
 `页边距：`, `西文字体：`, `校对语言：`, `页眉距边界：`, `页脚距边界：`, `装订线：`, `文档网格：`,
 `页码：`, `表格：`, `表头：`, `页眉：`, `页脚：`, `页眉内容：`, `页脚内容：`, `公式编号：`,
-`公式编号格式：`, `脚注：`); the Chinese column of the vocabulary is in `manual.md` §3.1.
+`公式编号格式：`, `附录公式编号格式：`, `脚注：`); the Chinese column of the vocabulary is in
+`manual.md` §3.1.
 
 **Fields available in headers and footers** (closed set; anything else is an error): `{page}`
 (PAGE), `{total-pages}` (NUMPAGES), `{style-title:<Word style name>}` (STYLEREF, e.g.
@@ -416,7 +446,7 @@ updated when the document is opened or shown in print preview.
   `Footer Content: {page}` and then `Even Header Content: …` leaves even pages without any page
   number at all. The generator fills the empty slots automatically and says so.
 
-### 3.3 The four ways to obtain a format file
+### 3.3 The five ways to obtain a format file
 
 | What you have | What to do |
 |:--|:--|
@@ -424,6 +454,7 @@ updated when the document is opened or shown in print preview.
 | A reference `.docx` template | `md-to-word-template reference.docx -o format.txt` reverse-engineers a draft; **items it could not read are listed at the end of the draft** — check each one before using it |
 | Format instructions in text or given verbally | fill in whatever the user stated explicitly; derive and fill the unmentioned required fields of the same set per §3.5 |
 | Nothing at all | use a built-in preset, export a standard `.docx` first, then adjust from feedback |
+| Someone at the same school or journal already did | Check the template library first (`--contract` prints the address): `format.txt` fixes the look, `sample.md` fixes the structure — take both |
 
 ### 3.4 Style names (closed vocabulary)
 
@@ -557,10 +588,15 @@ pre-flight check → build the style template → read into the document model �
 → numeric-integrity check → audit the product against the format file line by line
 ```
 
-The template is generated fresh on every export and never cached; it is built entirely from the
-format file, and no existing `.docx` is accepted as a base.
+The style template is generated fresh on every export and never cached, and **styles** have exactly
+one source: the format file.
 
-A `.docx` received from a university or a journal is first read into a format file:
+A `.docx` received from a university or a journal goes one of two ways:
+
+- **Styles only** — read it into a format file and export as usual (below).
+- **Keep its cover too** — use that `.docx` as the base and pour the body in with `--base-template`.
+  Styles still come from the format file; the base only supplies the front matter and page setup.
+  That is the thesis path — see volume 2, §2.
 
 ```
 md-to-word-template template.docx -o format.txt   # reverse-engineered draft; check it item by item
@@ -570,6 +606,13 @@ md-to-word paper.md -f format.txt -o paper.docx
 Only format data is read (paper size, margins, header/footer text and page numbers, fonts, sizes and
 spacing of each style); the export still builds its own template. Multi-section templates (cover, TOC,
 body) work the same way — section breaks are marked in the manuscript with `{{< section >}}`.
+
+**Where reverse-engineering stops**: it reads values Word actually stored. Anything a reference file
+expresses through direct paragraph formatting, or through a long style-inheritance chain, comes out
+empty or default — the more real formatting a document carries, the lower the share that can be read.
+Headers and footers are resolved **by reference** (when sections differ, the body's is taken and a note
+is added), so three chapter names are never mistaken for three kinds of header. The result is a
+**draft**: unread items are listed at its end — check them one by one before typesetting.
 
 ### 5.2 Two pre-flight levels; the criterion is "would the mistake be visible?"
 
@@ -605,6 +648,13 @@ From the PDF, check four places: the first page / the widest table page / the eq
 the references page. When PDF rendering is unavailable (Windows, Word not installed, or installed
 but never launched) it is skipped automatically and does not affect the `.docx` output (exit code
 `3`).
+
+### 5.4 Theses: cover and front matter
+
+Covers, originality statements and double-ruled chapter headers cannot be expressed in
+`format.txt`, and do not belong in this volume. **For a thesis, read volume 2**
+(`manual-thesis_en.md`, next to this file): front matter, and how to pour the body into the
+school's own template.
 
 ---
 

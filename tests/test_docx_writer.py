@@ -71,6 +71,27 @@ def test_table_header_is_marked_and_cells_use_compact(template: Path, tmp_path: 
     assert "tblHeader" not in xml, "没声明就不该重复表头"
 
 
+def test_plain_separator_leaves_cell_alignment_to_the_style(template: Path, tmp_path: Path) -> None:
+    """`|---|` 是「没说」，不是「左对齐」：写死 left 会盖掉「紧凑：居中」。"""
+    model = read_markdown("| 甲 | 乙 |\n|---|---|\n| 1 | 2 |\n")
+    out = write_docx(model, template, tmp_path / "align.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+
+    assert "<w:jc" not in xml.split("<w:tbl>")[1].split("</w:tbl>")[0], \
+        "没写冒号就不该有直接对齐格式"
+
+
+def test_colon_separator_still_sets_alignment(template: Path, tmp_path: Path) -> None:
+    """显式写了冒号就该落成对齐——放宽普通分隔行不能顺手把这条也废掉。"""
+    model = read_markdown("| 甲 | 乙 |\n|:--:|--:|\n| 1 | 2 |\n")
+    out = write_docx(model, template, tmp_path / "align2.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    table = xml.split("<w:tbl>")[1].split("</w:tbl>")[0]
+
+    assert table.count('<w:jc w:val="center"/>') == 2
+    assert table.count('<w:jc w:val="right"/>') == 2
+
+
 def test_code_block_keeps_line_breaks(template: Path, tmp_path: Path) -> None:
     model = read_markdown("```\nline1\nline2\n```\n")
     out = write_docx(model, template, tmp_path / "d.docx")
@@ -450,3 +471,24 @@ def test_canonical_opc_packaging_order_and_permissions(template: Path, tmp_path:
         for item in z.infolist():
             assert item.date_time == (1980, 1, 1, 0, 0, 0)
             assert item.external_attr == 0o100644 << 16
+
+
+def test_a_link_inside_a_footnote_keeps_the_part_well_formed(tmp_path: Path) -> None:
+    """脚注正文是拼字符串拼出来的：根元素少声明一个前缀，整份 footnotes.xml 就不是合法 XML。
+
+    超链接用 `r:`、行内公式用 `m:`，而根上只声明过 `w:`——Word 打开会说文件损坏。
+    以前没有用例碰「脚注里带链接」，所以这个坏文件能一路产出。
+    """
+    from lxml import etree
+
+    template = tmp_path / "t.docx"
+    build_template(PRESET.read_text(encoding="utf-8"), template)
+    out = write_docx(
+        read_markdown("# 一\n\n正文[^1]。\n\n[^1]: 见[说明](https://example.com/b)。\n"),
+        template,
+        tmp_path / "o.docx",
+    )
+
+    blob = zipfile.ZipFile(out).read("word/footnotes.xml")
+    etree.fromstring(blob)  # 不是合法 XML 就在这里抛
+    assert b"hyperlink" in blob

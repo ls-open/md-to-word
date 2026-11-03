@@ -143,6 +143,8 @@ def serialize_format(spec: TemplateSpec) -> str:
         lines.append("公式编号：紧跟")
     if spec.equation_number_format:
         lines.append(f"公式编号格式：{spec.equation_number_format}")
+    if spec.appendix_equation_number_format:
+        lines.append(f"附录公式编号格式：{spec.appendix_equation_number_format}")
 
     for style in spec.styles:
         lines.append(_style_line(style))

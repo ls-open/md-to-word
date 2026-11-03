@@ -20,7 +20,7 @@ from docx.opc.packuri import PackURI
 from docx.opc.part import Part
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import parse_xml
-from docx.oxml.ns import nsdecls, qn
+from docx.oxml.ns import nsdecls, nsmap, qn
 from docx.shared import Cm, Emu
 
 from md_to_word.config import default_crossref_prefixes, looks_chinese
@@ -29,6 +29,7 @@ from md_to_word.utils.docx_zip import normalize_zip
 from md_to_word.utils.pdf_figure import PdfFigureError, is_pdf, rasterize
 from md_to_word.preprocessor.markers import MarkerError, section_paragraph_xml, toc_xml
 from md_to_word.spec.constants import PAGE_NUMBER_FMT
+from md_to_word.template.generator import _PPR_ORDER, _RPR_ORDER, ensure_ordered_child
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
@@ -38,6 +39,11 @@ from md_to_word.model.document import (
 )
 
 SUPPORTED_BLOCKS = (Heading, Paragraph, ListBlock, Table, Figure, CodeBlock, PageBreak, Quote)
+
+# 章级但**不是**章标题的样式：结构上必须是一级标题，外观另给。
+# 页眉里的 `{样式标题:Heading 1}` 是 STYLEREF 域，只认样式名——这些标题若用自己的
+# 样式，域只能回退到上一个一级标题，文献页页眉就会显示「第六章」。
+_CHAPTER_LEVEL_STYLES = ("References Title",)
 
 # 列表缩进（twips，1 英寸 = 1440）：每层左缩进 0.5 英寸，编号悬挂 0.25 英寸。
 # 引用块里的列表整体再右移一个正文缩进，免得和引用正文左对齐、看不出从属关系。
@@ -54,6 +60,16 @@ _ALIGN = {
 
 
 _W_FMT = {"bold": "b", "italic": "i", "strike": "strike", "underline": "u"}
+
+
+def _notes_nsdecls() -> str:
+    """脚注部件的根元素要声明所有可能用到的前缀。
+
+    脚注正文是拼字符串拼出来的，里面有超链接就是 `r:id`、有行内公式就是 `m:oMath`。
+    根上只声明 `w:`，整份 footnotes.xml 就不是合法 XML——Word 直接判文件损坏。
+    与其逐个补前缀（补漏一个又是一次），不如一次把它们全声明上：多余的声明没有副作用。
+    """
+    return " ".join(f'xmlns:{p}="{u}"' for p, u in nsmap.items() if p != "xml")
 
 
 def _plain_text(nodes: Iterable[Inline]) -> str:
@@ -95,6 +111,33 @@ def _escape(text: str) -> str:
     )
 
 
+# 附录标题：`附录A`、`附录2`、`Appendix B` 都认；标识后面必须跟空白或标点，
+# 否则 `# 附录 一些补充` 里的「一」会被当成本附录的编号。
+_APPENDIX_TITLE_RE = re.compile(
+    r"^\s*(?:附录|Appendix)\s*([A-Za-z]{1,3}|\d{1,2}|[一二三四五六七八九十]{1,3})?",
+    re.I,
+)
+
+
+def _appendix_label(title: str) -> str | None:
+    """一级标题 → 附录标识（`A` / `2` / `一`）；不是附录返回 None，是附录但没写标识返回 ""。"""
+    match = _APPENDIX_TITLE_RE.match(title)
+    if match is None:
+        return None
+    ident = match.group(1) or ""
+    rest = title[match.end():]
+    if ident and rest and not rest[0].isspace() and rest[0] not in "：:、.．，,（）()":
+        return ""
+    return ident
+
+
+def _serial_label(serial: int) -> str:
+    """附录标题没写标识时按出现顺序给 A、B、C…；超过 Z 就退回数字，不编造字母组合。"""
+    if 1 <= serial <= 26:
+        return chr(ord("A") + serial - 1)
+    return str(serial)
+
+
 def _trim_citation_gap(nodes: Iterable[Inline]) -> list:
     """中文正文与数字制引文之间的那个空格不该印出来：`认知负荷 [9]` → `认知负荷[9]`。
 
@@ -119,6 +162,21 @@ class UnsupportedFeature(NotImplementedError):
     """模型里有、但写出器还没实现的结构。"""
 
 
+def _copy_prop(parent, source, order) -> None:
+    """把 source 拷进 parent，按 OOXML schema 顺序落位（顺序错了 Word 会整条忽略）。"""
+    tag = source.tag.rsplit("}", 1)[-1]
+    parent.replace(ensure_ordered_child(parent, tag, order), copy.deepcopy(source))
+
+
+def _fill_props(target, source) -> None:
+    """只补 target 上缺的属性：行内格式（加粗、斜体）写在 run 上，比样式更具体，不能盖。"""
+    for child in source:
+        tag = child.tag.rsplit("}", 1)[-1]
+        if tag == "rStyle" or target.find(qn(f"w:{tag}")) is not None:
+            continue
+        _copy_prop(target, child, _RPR_ORDER)
+
+
 class _Writer:
     def __init__(
         self,
@@ -128,6 +186,7 @@ class _Writer:
         base_dir=None,
         equation_number_placement="right",
         equation_number_format="",
+        appendix_equation_number_format="",
         no_row_split: bool = False,
         repeat_header: bool = False,
         lang: Optional[str] = None,
@@ -145,7 +204,7 @@ class _Writer:
         self._style_objects: dict | None = None
         self._compact_style = self._style_name("Compact")
         self._footnote_ids: dict[str, int] = {}
-        self._eq_numbers: dict[str, tuple[int, int]] = {}  # 标签 → (章号, 序号)
+        self._eq_numbers: dict[str, tuple[str, int, bool]] = {}  # 标签 → (章号/附录标识, 序号, 是否附录)
         self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
         self._bibliography_written = False  # 文献表只在「参考文献标题」后写一次
         self.no_row_split = no_row_split  # 表格行是否禁止跨页断开（要求文件写「行不跨页」）
@@ -160,6 +219,10 @@ class _Writer:
         # 编号外观：要求文件写了就照写的来，没写按语种给默认（中文全角短横、英文半角点）
         self.eq_number_format = equation_number_format or _default_eq_format(
             chinese, document.meta.chapters
+        )
+        # 附录没单独写就用正文那套；「（附2-1）」这类前缀要单独写一行才表达得出来
+        self.appendix_eq_number_format = (
+            appendix_equation_number_format or self.eq_number_format
         )
 
     # ── 入口 ─────────────────────────────────────────────────────────
@@ -177,6 +240,7 @@ class _Writer:
         self._write_bibliography()
         if self._footnote_ids:
             self._write_footnotes()
+        self._trailing_page_number()
 
     # ── 块 ───────────────────────────────────────────────────────────
     def block(self, block: Block) -> None:
@@ -251,18 +315,38 @@ class _Writer:
     def _collect_equation_numbers(self) -> None:
         """先扫一遍给带标签的公式编号：写正文时要用它解析 `@eq-x`。
 
-        编号规则：默认按出现顺序 (1)(2)…；开了 `chapters: true` 就按「章号, 序号」，
-        章号取自一级标题的序号。外观由 `equation_number_format` 模板决定。
+        编号规则：默认按出现顺序 (1)(2)…；开了 `chapters: true` 就按「章号, 序号」。
+
+        章号取自一级标题，但**要分清正文和附录**：`# 附录A …`、`# 附录2 …` 是附录章，
+        编号取标题里那个标识（A / 2），标题没写标识时按出现顺序给 A、B、C…；附录之内的
+        序号重新从 1 起——学校要求附录单独编号，接着正文往下编就成了（8-1）这种数。
+
+        **只有「按章编号」时才分章、才重置序号**（格式里有 `{c}`）。格式里没有 `{c}` 时
+        全文是一个连续序号，在每章开头把它清零只会让编号重复（（1）（2）（1））。
         """
-        chapter = 0
+        by_chapter = "{c}" in self.eq_number_format
+        appendix_by_chapter = "{c}" in self.appendix_eq_number_format
+        chapter = 0  # 正文章号：只数正文章，附录不占号
+        appendix_serial = 0  # 附录序号：标题没写标识时按它给 A、B、C…
+        prefix = "1"  # 当前公式的前缀：正文章号或附录标识
         index = 0
+        in_appendix = False
         for block in self.model.blocks:
             if isinstance(block, Heading) and block.level == 1:
-                chapter += 1
-                index = 0
+                label = _appendix_label(_plain_text(block.inlines))
+                if label is None:
+                    chapter += 1
+                    in_appendix = False
+                    if by_chapter:
+                        prefix, index = str(chapter), 0
+                else:
+                    appendix_serial += 1
+                    in_appendix = True
+                    if appendix_by_chapter:
+                        prefix, index = label or _serial_label(appendix_serial), 0
             elif isinstance(block, Equation) and block.label:
                 index += 1
-                self._eq_numbers[block.label] = (chapter, index)
+                self._eq_numbers[block.label] = (prefix, index, in_appendix)
 
     def _content_width_twips(self) -> int:
         sect = self._body_sectpr()
@@ -282,6 +366,25 @@ class _Writer:
         if len(body) and body[-1].tag == qn("w:sectPr"):
             return body[-1]
         return body.find(qn("w:sectPr"))
+
+    def _trailing_page_number(self) -> None:
+        """末节的「起始」留不留：前面那节换了编号体系、或者根本不显示页码，才重新起编。
+
+        格式文件的 `页码：阿拉伯 起始1` 落在末节。前面是前置件（小写罗马）时，正文确实
+        要从 1 起，该留；前面同样是阿拉伯序号（正文之后接参考文献）时，再起编就成了
+        「参考文献从 1 开始」，作者没这么说过，这时才删。
+        """
+        sects = list(self.docx.element.body.iter(qn("w:sectPr")))
+        if len(sects) < 2:
+            return
+        prev, last = sects[-2], sects[-1]
+        pg = last.find(qn("w:pgNumType"))
+        if pg is None or pg.get(qn("w:start")) is None:
+            return
+        prev_pg = prev.find(qn("w:pgNumType"))
+        prev_fmt = None if prev_pg is None else prev_pg.get(qn("w:fmt"))
+        if prev_fmt == pg.get(qn("w:fmt")) and prev.find(qn("w:footerReference")) is not None:
+            del pg.attrib[qn("w:start")]
 
     def _insert_before_sectpr(self, element) -> None:
         """插到文末 sectPr 之前：body 的 sectPr 必须是最后一个子元素。"""
@@ -311,6 +414,10 @@ class _Writer:
             params["fmt"] = fmt
         if block.start:
             params["start"] = block.start
+        if block.no_header:
+            params["no_header"] = True
+        if block.no_footer:
+            params["no_footer"] = True
 
         template_sect = self._body_sectpr()
         xml = section_paragraph_xml(params, copy.deepcopy(template_sect) if template_sect is not None else None)
@@ -331,6 +438,7 @@ class _Writer:
                                        snippet=snippet, err=exc)) from exc
 
         paragraph = self._new_paragraph("Body Text")
+        self._relax_fixed_line_spacing(paragraph)
         number = self._eq_numbers.get(block.label or "")
         if number is None:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -387,13 +495,71 @@ class _Writer:
         else:
             style = "First Paragraph" if self._after_heading else "Body Text"
         self._after_heading = False
+        chapter_level = style in _CHAPTER_LEVEL_STYLES
         # 样式在模板里不存在时退回 Normal：预检本该拦住，走到这里说明门禁被关掉了，
         # 此时宁可降级排版，也不要 KeyError 中断整份稿件的导出。
-        paragraph = self._new_paragraph(self._style_name(style) or "Normal")
+        paragraph = self._new_paragraph(
+            "Heading 1" if chapter_level else (self._style_name(style) or "Normal")
+        )
         self._last_paragraph = paragraph
         self.inlines(paragraph, block.inlines)
+        if chapter_level:
+            self._adopt_style(paragraph, style)
         if block.style == "References Title":
             self._write_bibliography()
+
+    def _relax_fixed_line_spacing(self, paragraph) -> None:
+        """公式段落的行距：固定值改成同值的「最小值」，并补 6 磅段后。
+
+        固定值的意思是「这一行就占这么多」，公式比它高，多出来的部分会压到上下两段
+        正文上（多行公式实测能把邻居压穿）。最小值让高的内容自己撑开，单行公式看起来
+        和原来一模一样。
+
+        段后那 6 磅是量出来的：Word 把行距的余量放在文字上方，公式段落的盒子又紧贴
+        内容底部，实测公式离上一行 7.8pt、离下一行只有 1.9pt，看上去贴着下文。补 6 磅
+        后两侧都是 7.9pt。只影响公式段落，正文不动。
+        """
+        style = self._style_object("Body Text")
+        if style is None:
+            return
+        spacing = ensure_ordered_child(paragraph._p.get_or_add_pPr(), "spacing", _PPR_ORDER)
+        spacing.set(qn("w:after"), "120")
+        source_ppr = style.element.find(qn("w:pPr"))
+        source = source_ppr.find(qn("w:spacing")) if source_ppr is not None else None
+        if source is None or source.get(qn("w:lineRule")) != "exact":
+            return
+        spacing.set(qn("w:line"), source.get(qn("w:line")))
+        spacing.set(qn("w:lineRule"), "atLeast")
+
+    def _adopt_style(self, paragraph, style_name: str) -> None:
+        """把某个样式的段落/字符属性抄成这一段的直接格式。
+
+        只给章级标题用：结构必须是 Heading 1（页眉的 STYLEREF 认样式名），外观又由
+        格式文件里那一行决定，两者只能用「结构 + 直接格式」叠起来表达。抄的是模板里
+        那一份，和格式文件一字不差，不是在这里重算一遍。
+
+        `加入目录` 没写时补一条 `outlineLvl=9`：以前这些标题不在目录里，升成一级标题
+        不能顺手把目录也改了——要不要进目录由作者那一行说了算。
+        """
+        style = self._style_object(style_name)
+        if style is None:
+            return
+        source = style.element
+        source_ppr = source.find(qn("w:pPr"))
+        source_rpr = source.find(qn("w:rPr"))
+        ppr = paragraph._p.get_or_add_pPr()
+        if source_ppr is not None:
+            for child in source_ppr:
+                tag = child.tag.rsplit("}", 1)[-1]
+                if tag in ("pStyle", "numPr", "sectPr", "outlineLvl"):
+                    continue
+                _copy_prop(ppr, child, _PPR_ORDER)
+        if source_ppr is None or source_ppr.find(qn("w:outlineLvl")) is None:
+            ensure_ordered_child(ppr, "outlineLvl", _PPR_ORDER).set(qn("w:val"), "9")
+        if source_rpr is not None:
+            _fill_props(ensure_ordered_child(ppr, "rPr", _PPR_ORDER), source_rpr)
+            for run in paragraph.runs:
+                _fill_props(run._r.get_or_add_rPr(), source_rpr)
 
     def _code(self, block: CodeBlock) -> None:
         paragraph = self._new_paragraph(self._style_ref("SourceCode"))
@@ -542,8 +708,12 @@ class _Writer:
                 paragraph = cell.paragraphs[0]
                 if cell_style:
                     paragraph.style = self._style_object(cell_style)
+                # 只有分隔行真的写了冒号才写对齐：`|---|` 是不表态，段落对齐留给
+                # 「紧凑：」样式行。写死一个 left 会盖掉样式里的「居中」。
                 if block.alignments and c < len(block.alignments):
-                    paragraph.alignment = _ALIGN.get(block.alignments[c], WD_ALIGN_PARAGRAPH.LEFT)
+                    align = _ALIGN.get(block.alignments[c])
+                    if align is not None:
+                        paragraph.alignment = align
                 self.inlines(paragraph, cell_inlines)
         if self.no_row_split:
             for row in table.rows:
@@ -717,7 +887,7 @@ class _Writer:
             body.append(f'<w:footnote w:id="{fid}">{paragraphs}</w:footnote>')
 
         xml = (
-            f'<w:footnotes {nsdecls("w")}>'
+            f"<w:footnotes {_notes_nsdecls()}>"
             '<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>'
             '<w:footnote w:type="continuationSeparator" w:id="0">'
             "<w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>"
@@ -784,10 +954,14 @@ class _Writer:
             return f'<w:hyperlink r:id="{{{{L{index}}}}}">{inner}</w:hyperlink>' 
         return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
 
-    def _render_eq_number(self, chapter: int, index: int) -> str:
+    def _render_eq_number(self, chapter: str, index: int, in_appendix: bool = False) -> str:
         """按模板渲染编号。公式旁的编号与正文里的 `@eq-x` 走的是同一个函数——
-        两处必须长得一样，否则就是同一个事实的两个真相源。"""
-        fmt = self.eq_number_format
+        两处必须长得一样，否则就是同一个事实的两个真相源。
+
+        附录里的公式用 `附录公式编号格式：` 那一行（没写就沿用正文的），因为
+        「（附2-1）」和「（B-1）」是两种前缀，一个全局模板表达不了。
+        """
+        fmt = self.appendix_eq_number_format if in_appendix else self.eq_number_format
         if "{c}" in fmt:
             if not self.model.meta.chapters:
                 raise UnsupportedFeature(t("writer.equation_chapter_without_yaml", self.lang))
@@ -1033,6 +1207,7 @@ def write_docx(
     base_dir: Path | str | None = None,
     equation_number_placement: str = "right",
     equation_number_format: str = "",
+    appendix_equation_number_format: str = "",
     no_row_split: bool = False,
     repeat_header: bool = False,
     lang: Optional[str] = None,
@@ -1045,6 +1220,7 @@ def write_docx(
     否则从别的目录调用时图全找不到（预览与流水线走的是同一个入口）。
     `equation_number_placement`：`right` 编号靠版心右边（默认），`inline` 紧跟公式。
     `equation_number_format`：编号外观模板（`（{c}-{n}）`）；空串按语种给默认。
+    `appendix_equation_number_format`：附录里的编号外观；空串沿用上面那套。
     """
     docx = open_docx(str(template))
     writer = _Writer(
@@ -1054,6 +1230,7 @@ def write_docx(
         base_dir=base_dir,
         equation_number_placement=equation_number_placement,
         equation_number_format=equation_number_format,
+        appendix_equation_number_format=appendix_equation_number_format,
         no_row_split=no_row_split,
         repeat_header=repeat_header,
         lang=lang,

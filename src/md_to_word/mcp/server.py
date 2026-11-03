@@ -89,6 +89,16 @@ def _read_resource(name: str) -> str:
     return (RESOURCES_DIR / name).read_text(encoding="utf-8")
 
 
+def _read_manual(lang: str, volume: str) -> str:
+    """手册按册取：`general` 是通用那本，`thesis` 是学位论文那本。
+
+    第 1 册里的「封面/前置件见第 2 册」对远端调用方是死链——它读不到本地文件路径，
+    所以第 2 册必须能单独取到。
+    """
+    stem = "manual-thesis" if volume == "thesis" else "manual"
+    return _read_resource(f"{stem}_en.md" if lang == "en" else f"{stem}.md")
+
+
 
 def _resolve_markdown_source(markdown: str) -> tuple[Path, bool]:
     """Determine whether input is an existing file path or raw markdown content.
@@ -188,6 +198,10 @@ def create_mcp_server() -> Any:
         preset: str | None = None,
         generate_pdf: bool = False,
         lang: str | None = None,
+        base_template: str | None = None,
+        cover_sections: int = 0,
+        keep_pages: int = 0,
+        keep_until: str = "",
     ) -> dict[str, Any]:
         """Compile Markdown into a Word (.docx) document.
 
@@ -202,6 +216,14 @@ def create_mcp_server() -> Any:
                 when `format` is absent. A preset is a preview baseline, not a deliverable.
             generate_pdf: Whether to also generate a PDF (requires LibreOffice or Word).
             lang: Optional message/document language ('zh' or 'en'); auto-detected if omitted.
+            base_template: A school/journal .docx to pour the body into, keeping its own cover
+                and front matter (experimental; a run either verifies or writes nothing).
+                Pair it with exactly one of `keep_until` / `cover_sections` / `keep_pages`
+                to say where the front matter ends.
+            cover_sections: Keep the base's first N sections as front matter.
+            keep_pages: Say it in pages instead; requires Word to convert pages to sections.
+            keep_until: Say it by content (recommended) — keep through the section containing
+                this text, e.g. "版权使用授权书".
 
         Returns:
             Compilation status, output paths, the format source, warnings and errors.
@@ -227,6 +249,10 @@ def create_mcp_server() -> Any:
                 preset=preset if not fmt_path else None,
                 pdf=generate_pdf,
                 lang=lang,
+                base_template=base_template,
+                cover_sections=cover_sections,
+                keep_pages=keep_pages,
+                keep_until=keep_until,
             )
 
             file_size = out_docx.stat().st_size if out_docx.exists() else None
@@ -381,13 +407,18 @@ def create_mcp_server() -> Any:
         title="Read the Full Manual",
         description=(
             "Read the full manual when a spelling or behaviour is not certain: every style "
-            "name, YAML key, equation rule, CSL preset and known limit."
+            "name, YAML key, equation rule, CSL preset and known limit. Volume 1 is general; "
+            "volume 2 (thesis) covers covers, front matter, section/page numbering and "
+            "`--base-template` — read both for a degree thesis."
         ),
     )
-    def get_manual(lang: str = "zh") -> str:
-        """Return the full manual; `lang` is 'zh' or 'en'."""
-        name = "manual_en.md" if lang == "en" else "manual.md"
-        return _read_resource(name)
+    def get_manual(lang: str = "zh", volume: str = "general") -> str:
+        """Return the manual; `lang` is 'zh' or 'en', `volume` is 'general' or 'thesis'.
+
+        第 2 册讲学位论文独有的事（封面、前置件、分节页码、`--base-template`）。
+        通用稿读第 1 册就够——这也是它单独成册的原因。
+        """
+        return _read_manual(lang, volume)
 
     @server.tool(
         name="extract_format_from_docx",
@@ -493,8 +524,13 @@ def create_mcp_server() -> Any:
 
     @server.resource("manual://{lang}")
     def get_manual_resource(lang: str) -> str:
-        """Access the full manual: `manual://zh` or `manual://en`."""
-        return _read_resource("manual_en.md" if lang == "en" else "manual.md")
+        """Access volume 1 (general): `manual://zh` or `manual://en`."""
+        return _read_manual(lang, "general")
+
+    @server.resource("manual-thesis://{lang}")
+    def get_thesis_manual_resource(lang: str) -> str:
+        """Access volume 2 (thesis): `manual-thesis://zh` or `manual-thesis://en`."""
+        return _read_manual(lang, "thesis")
 
     # ------------------------------------------------------------------
     # Prompts

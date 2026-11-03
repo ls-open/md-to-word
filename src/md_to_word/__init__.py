@@ -11,7 +11,7 @@ from md_to_word.template.builder import build_template
 from md_to_word.validator.check import ValidationReport, validate_manuscript
 
 # 包元数据从这里取这一行（pyproject 的 version 是 dynamic），不维护第二份
-__version__ = "3.2.0"
+__version__ = "3.3.0"
 
 
 def export(
@@ -23,12 +23,19 @@ def export(
     preset=None,
     pdf=False,
     lang=None,
+    base_template=None,
+    cover_sections=0,
+    keep_pages=0,
+    keep_until="",
 ) -> "ExportResult":
     """一行导出：`export("稿.md", "稿.docx", format="format.txt")`。
 
     返回 `ExportResult`；`result.returncode` 为 0 即成功，`result.errors` 是失败原因。
     这一层只是把 `ExportOptions` 的默认值摆好——等价于命令行 `md-to-word`。
     `requirements` 为旧版别名，推荐使用 `format`。
+
+    `base_template` / `cover_sections` / `keep_pages` / `keep_until` 与命令行同名同义，
+    见手册第 2 册 §2.1（实验性）。
     """
     format_p = format if format is not None else requirements
     return run_export_pipeline(
@@ -39,6 +46,10 @@ def export(
             preset=preset,
             make_pdf=pdf,
             lang=lang,
+            base_template=base_template,
+            cover_sections=cover_sections,
+            keep_pages=keep_pages,
+            keep_until=keep_until,
         )
     )
 

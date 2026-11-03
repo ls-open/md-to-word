@@ -641,6 +641,9 @@ _EMPTY_HEADING_RE = re.compile(r"^\s*#{1,6}\s*$")
 _HIGHLIGHT_RE = re.compile(r"==[^=\s][^=]*?==")
 _SPAN_ATTR_RE = re.compile(r"\[[^\]]*\]\{\s*(?P<attr>[.#][^}]*)\}")
 _PAREN_MATH_RE = re.compile(r"\\\(.+?\\\)")
+# `\[…\]` 与 `\(…\)` 是同一种失败：原样印进 Word。前面紧挨反斜杠的是转义写法的
+# 一部分（LaTeX 换行 `\\[2pt]`），不是这里要拦的括号。
+_BRACKET_MATH_RE = re.compile(r"(?<!\\)\\[\[\]]")
 _NO_SPACE_HEADING_RE = re.compile(r"^\s*#{1,6}[^\s#]")
 # 图片行能带的属性只有宽度；`{align=right}` 这类「写了等于没写」的写法要拦下来
 _IMAGE_ATTR_RE = re.compile(r"!\[[^\]]*\]\([^)\s]+\)\s*\{(?P<attrs>[^}]*)\}")
@@ -727,6 +730,9 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
         if _PAREN_MATH_RE.search(code_free):
             issues.append((line_no, t("gate.dialect.inline_math_paren", lang)))
             continue
+        if _BRACKET_MATH_RE.search(code_free):
+            issues.append((line_no, t("gate.dialect.block_math_bracket", lang)))
+            continue
         if _EMPTY_HEADING_RE.match(code_free):
             issues.append((line_no, t("gate.dialect.empty_heading", lang)))
             continue
@@ -740,7 +746,9 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
             issues.append((line_no, t("gate.dialect.wide_style_marker", lang)))
             continue
         if (
-            _INDENT_CODE_RE.match(code_free)
+            # 缩进看**原始行**：`code_free` 把行内代码换成了等长空格，拿它判缩进的话，
+            # 以行内代码开头的一段正文（`` `code` 开头… ``）会凭空多出空格被当成代码块。
+            _INDENT_CODE_RE.match(line)
             and (index == 0 or not lines[index - 1].strip())
             and not _LIST_ITEM_ANY_RE.match(code_free)
         ):

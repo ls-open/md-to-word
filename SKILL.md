@@ -24,6 +24,10 @@ manual's absolute path (Chinese or English, following the manuscript), the built
 a one-screen contract summary. When a spelling is not certain, read the manual rather than guess:
 every word outside the vocabulary is a hard error with a line number.
 
+The manual ships in **two volumes**: volume 1 is general (papers, reports, official documents);
+volume 2 covers theses only — cover and front matter, section and page numbering, chapter/appendix
+numbering, and `--base-template`. For a degree thesis read both; `--contract` prints both paths.
+
 ## 1. The work, in order
 
 1. **Confirm requirements & decide format** (§3): built-in preset (`zh-academic`, `en-nature`),
@@ -96,6 +100,10 @@ also work). A section marker closes *the section above it*; never add a page bre
 **Unsupported Markdown is blocked with a replacement, never printed literally** — the list is manual §2.8.
 
 ## 3. The format file
+
+**Check for an existing format file before writing one.** `md-to-word --contract` points at the
+community library of school and journal formats; that library carries its own selection and usage
+rules, which change more often than this file should.
 
 0. **Starting from nothing** — `md-to-word init` writes a complete preset copy plus a one-page
    manuscript that exports as-is. Useful when the user has no format file and no template.

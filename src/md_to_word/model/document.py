@@ -173,7 +173,7 @@ class Table:
 
     header: list[list[Inline]] = field(default_factory=list)
     rows: list[list[list[Inline]]] = field(default_factory=list)
-    alignments: list[str] = field(default_factory=list)  # left / center / right
+    alignments: list[str | None] = field(default_factory=list)  # left / center / right / None=不表态
     widths: Optional[list[float]] = None  # 由分隔行短横线长短推出的相对比例
 
 
@@ -221,10 +221,16 @@ class Toc:
 
 @dataclass(frozen=True)
 class SectionBreak:
-    """分节符。page_format 如「罗马」「小写罗马」「阿拉伯」；start 为起始页码。"""
+    """分节符。page_format 如「罗马」「小写罗马」「阿拉伯」；start 为起始页码。
+
+    `no_header` / `no_footer`：这一节不要页眉/页脚（封面那种）。OOXML 里没写引用是
+    「沿用上一节」，而第一节没有可沿用的，所以「不要」必须显式表达。
+    """
 
     page_format: str = "阿拉伯"
     start: int = 1
+    no_header: bool = False
+    no_footer: bool = False
 
 
 Block = Union[

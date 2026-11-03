@@ -501,14 +501,60 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
     return out, doubt
 
 
+_R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+
+_DECOR_LABELS = {
+    ("header", "default"): "页眉内容",
+    ("header", "even"): "偶数页页眉内容",
+    ("header", "first"): "首页页眉内容",
+    ("footer", "default"): "页脚内容",
+    ("footer", "even"): "偶数页页脚内容",
+    ("footer", "first"): "首页页脚内容",
+}
+
+
+def _document_rels(ref: Ref) -> dict:
+    """rId → word/ 下的部件名。"""
+    raw = ref.parts.get("word/_rels/document.xml.rels")
+    if not raw:
+        return {}
+    out = {}
+    for rel in etree.fromstring(raw):
+        target = (rel.get("Target") or "").lstrip("/")
+        out[rel.get("Id")] = target if target.startswith("word/") else f"word/{target}"
+    return out
+
+
+def _decor_parts(ref: Ref) -> tuple[dict, bool]:
+    """(header|footer, default|even|first) → 部件名，以及「各节写的不一样」的标记。
+
+    **按 sectPr 里的引用解析，不按部件名猜**：多节模板里每节可能各有自己的页眉，
+    `header1/2/3.xml` 只是打包顺序，把三个章名当成默认/偶数页/首页会张冠李戴。
+    从最后一节往回找，与 Word 的「沿用上一节」同一条链；找到即止。
+    """
+    rels = _document_rels(ref)
+    found: dict = {}
+    conflicting = False
+    for sect in reversed(ref.all_sects or []):
+        for tag, kind in (("headerReference", "header"), ("footerReference", "footer")):
+            for el in sect.findall(q(tag)):
+                key = (kind, el.get(q("type")) or "default")
+                part = rels.get(el.get(f"{{{_R_NS}}}id"))
+                if not part or part not in ref.parts:
+                    continue
+                if key in found:
+                    conflicting = conflicting or found[key] != part
+                else:
+                    found[key] = part
+    return found, conflicting
+
+
 def read_decor(ref: Ref) -> tuple:
     """页眉/页脚内容 → 页眉内容：… 等行（含 {页码} {总页数} {样式标题:X} 三种域）"""
     out, doubt = [], []
-    slots = {'header1': '页眉内容', 'header2': '偶数页页眉内容', 'header3': '首页页眉内容',
-             'footer1': '页脚内容', 'footer2': '偶数页页脚内容', 'footer3': '首页页脚内容'}
-    found_any = False
-    for name, label in slots.items():
-        raw = ref.parts.get(f'word/{name}.xml')
+    parts, conflicting = _decor_parts(ref)
+    for (kind, which), name in _DECOR_LABELS.items():
+        raw = ref.parts.get(parts.get((kind, which), ""))
         if not raw:
             continue
         root = etree.fromstring(raw)
@@ -528,10 +574,9 @@ def read_decor(ref: Ref) -> tuple:
                     pieces.append('{样式标题:' + name_arg + '}')
         content = ' '.join(p for p in pieces if p).strip()
         if content:
-            found_any = True
-            out.append(f'{label}：{content}')
-    if not found_any:
-        return [], []
+            out.append(f'{name}：{content}')
+    if conflicting:
+        doubt.append(t("extractor.note.sections_differ", ref.lang))
     return out, doubt
 
 
@@ -571,6 +616,10 @@ def main(argv=None):
     if args.output:
         Path(args.output).write_text(text, encoding='utf-8')
         print(t('extractor.draft_written', lang, path=args.output, styled=styled, notes=notes))
+        # 反推完的人手上正好有一份新格式文件，是唯一"能贡献"的时刻；其余时候不打扰
+        from md_to_word.config import TEMPLATE_LIBRARY
+
+        print(t('extractor.library_hint', lang, library=TEMPLATE_LIBRARY))
     else:
         print(text, end='')
     return 0

@@ -347,6 +347,26 @@ def test_json_output_reports_a_missing_manuscript(tmp_path: Path, capsys) -> Non
     assert payload["output"] is None
 
 
+def test_json_output_survives_an_internal_error(tmp_path: Path, capsys, monkeypatch) -> None:
+    """没料到的异常也要留下一行 JSON：`--json` 是给程序读的契约，不能被 traceback 吞掉。"""
+    import json
+
+    import md_to_word.cli as cli
+
+    def boom(_options):
+        raise TypeError("模拟内部异常")
+
+    monkeypatch.setattr(cli, "run_export_pipeline", boom)
+    code = cli.main([str(tmp_path / "nope.md"), "--json"])
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert code == payload["returncode"] == 1
+    assert payload["ok"] is False
+    assert any("TypeError" in error for error in payload["errors"]), payload["errors"]
+    assert "Traceback" in captured.err, "traceback 仍要留给维护者，不能静默"
+
+
 def test_guide_is_readable_without_the_skill_directory(capsys) -> None:
     """只装了 pip 包的人也要能一条命令读到‘按什么顺序做’。"""
     from md_to_word.cli import main
@@ -452,3 +472,110 @@ def test_backward_compatibility_requirements_aliases(tmp_path: Path) -> None:
     out_docx = tmp_path / "out.docx"
     res = export(md_file, out_docx, requirements=None, preset="zh-academic")
     assert res.ok and out_docx.exists()
+
+
+def test_reverse_engineering_points_at_the_template_library(tmp_path: Path, capsys) -> None:
+    """反推完正是"手上有一份新格式文件"的时刻，也是唯一该提一句模板库的时候。"""
+    from md_to_word.config import TEMPLATE_LIBRARY
+    from md_to_word.template.extractor import main as extract_main
+
+    source = tmp_path / "seed.docx"
+    assert run_export_pipeline(
+        ExportOptions(input_path=_write_manuscript(tmp_path), output_path=source,
+                      preset="zh-academic")
+    ).returncode == 0
+
+    assert extract_main([str(source), "-o", str(tmp_path / "fmt.txt")]) == 0
+
+    assert TEMPLATE_LIBRARY in capsys.readouterr().out
+
+
+def test_legacy_r_flag_still_works_and_says_so(tmp_path: Path, capsys) -> None:
+    """老技能文件还在用 `-r`：留着别名，但每次用都要说一句该换成 `-f`——用 `-f` 的人看不到。"""
+    from md_to_word.cli import main as cli_main
+
+    manuscript = _write_manuscript(tmp_path)
+    out = tmp_path / "out.docx"
+
+    assert cli_main([str(manuscript), "-r", "presets/zh-academic.txt", "-o", str(out)]) == 0
+    assert "-r" in capsys.readouterr().err
+
+    assert cli_main([str(manuscript), "-f", "presets/zh-academic.txt", "-o", str(out)]) == 0
+    assert "旧写法" not in capsys.readouterr().err
+
+
+def _two_section_base(path: Path) -> Path:
+    from docx import Document
+    from docx.enum.section import WD_SECTION
+
+    doc = Document()
+    for i in range(2):
+        doc.sections[-1].header.paragraphs[0].text = "某某大学学位论文"
+        doc.add_paragraph(f"封面第{i + 1}节")
+        if i == 0:
+            doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.save(path)
+    return path
+
+
+def test_keep_pages_without_a_renderer_is_a_usage_answer_not_an_internal_error(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """按页换算节数要先排版，而这台机器排不了。
+
+    以前它从深处抛出去，被 CLI 兜底成「这是本工具的缺陷，请把 traceback 发给维护者」——
+    Windows 上这条路永远走不通，却报得像我们出了 bug。
+    """
+    from md_to_word.visual_qa import word_pdf
+
+    monkeypatch.setattr(word_pdf, "can_render_word_pdf", lambda: (False, "not-darwin"))
+    manuscript = tmp_path / "m.md"
+    manuscript.write_text("# 第一章 绪论\n\n正文。\n", encoding="utf-8")
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=manuscript,
+        output_path=tmp_path / "o.docx",
+        base_template=str(_two_section_base(tmp_path / "base.docx")),
+        keep_pages=2,
+    ))
+
+    assert result.returncode != 0
+    joined = " ".join(result.errors)
+    assert "--cover-sections" in joined and "2 节" in joined, joined
+    assert not (tmp_path / "o.docx").exists()
+
+
+def test_the_success_line_does_not_claim_a_page_check_that_never_ran(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """没有 Word 时只能验结构，就不能说「与原件逐页一致」——那行字正是这条路径的信任来源。"""
+    import logging
+
+    from md_to_word.visual_qa import word_pdf
+
+    # 直接挂在 logger 上取，别依赖 caplog：别的用例会把日志配置成不向上传播
+    lines: list[str] = []
+    handler = logging.Handler()
+    handler.emit = lambda record: lines.append(record.getMessage())
+    sink = logging.getLogger("md2word")
+    sink.addHandler(handler)
+    monkeypatch.setattr(sink, "level", logging.INFO)
+
+    monkeypatch.setattr(word_pdf, "can_render_word_pdf", lambda: (False, "not-darwin"))
+    manuscript = tmp_path / "m.md"
+    manuscript.write_text("# 第一章 绪论\n\n正文。\n", encoding="utf-8")
+
+    try:
+        result = run_export_pipeline(ExportOptions(
+            input_path=manuscript,
+            output_path=tmp_path / "o.docx",
+            base_template=str(_two_section_base(tmp_path / "base.docx")),
+            cover_sections=1,
+        ))
+    finally:
+        sink.removeHandler(handler)
+
+    assert result.returncode == 0, result.errors
+    text = " | ".join(lines)
+    assert "逐页一致" not in text, f"没排过版却说逐页一致：{text}"
+    assert "逐节点一致" in text, text
