@@ -145,7 +145,59 @@ def inspect_base(path: Path, cover_sections: int) -> BaseReport:
     if external:
         # 这些是前置件自己的链接，原样保留才对——剥掉就违背了「封面一个字节不动」
         report.notes.append(f"前置件里有 {len(external)} 个外部链接，会原样保留")
+    attached = _attached_template(path)
+    if attached:
+        report.notes.append(
+            f"底模挂着作者自己电脑上的模板「{attached.rsplit('/', 1)[-1]}」，"
+            f"在你这里不存在，会摘掉——不摘的话 Word 每次打开都会问「是否更新域」，"
+            f"而且更新会失败"
+        )
     return report
+
+
+def _attached_template(path: Path) -> str:
+    """底模挂在 settings.xml 上的 .dot 模板路径；没有就返回空串。"""
+    try:
+        with zipfile.ZipFile(path) as z:
+            root = etree.fromstring(z.read("word/settings.xml"))
+    except (OSError, KeyError, zipfile.BadZipFile):
+        return ""
+    node = root.find(W + "attachedTemplate")
+    if node is None:
+        return ""
+    rid = node.get(R_ID)
+    for rel in _rels_of(path, "word/_rels/settings.xml.rels"):
+        if rel.get("Id") == rid:
+            return rel.get("Target") or ""
+    return "（未知路径）"
+
+
+def _drop_attached_template(doc, set_part_xml) -> str | None:
+    r"""摘掉底模挂着的 .dot 模板，返回它原来的路径。
+
+    学校那份 docx 常挂着作者机器上的模板（实测：`file:///E:\work\...\研究生学位论文模板.dot`）。
+    到了别人的机器上这个文件根本不存在，Word 打开时会问「此文档包含可能引用其他文件的域，
+    是否更新」——点「是」，它去加载那个不存在的模板，加载失败，域就没更新成；目录页码于是
+    停在 1，得手动再按一次 F9 才对。
+
+    它属于对方的写作环境，不属于交付物：样式已经在 styles.xml 里，摘掉不影响排版。
+    """
+    part = _part(doc, "settings.xml")
+    if part is None:
+        return None
+    root = etree.fromstring(part.blob)
+    node = root.find(W + "attachedTemplate")
+    if node is None:
+        return None
+    rid = node.get(R_ID)
+    target = ""
+    if rid and rid in part.rels:
+        rel = part.rels[rid]
+        target = rel.target_ref or ""
+        part.drop_rel(rid)
+    root.remove(node)
+    set_part_xml(part, root)
+    return target
 
 
 def section_count(path: Path) -> int:
@@ -199,6 +251,7 @@ def inject_into_base(
         else:
             part._blob = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
+    _drop_attached_template(school, set_part_xml)
     num_map = _copy_numbering(ours, school, qn, set_part_xml)
     note_map = _copy_notes(ours, school, "footnotes.xml", "w:footnote", qn, set_part_xml)
     note_map |= _copy_notes(ours, school, "endnotes.xml", "w:endnote", qn, set_part_xml)
