@@ -129,6 +129,9 @@ To style a paragraph, start the line with `%% Style Name content`:
 - `Bibliography` cannot be written here either: the reference list is generated from `.bib` and is
   **inserted after the `%% References Title` line** (a literal `# References` heading also works),
   so appendices and acknowledgements can follow the references normally.
+- `%% References Title` **is a level-1 heading in structure** (that is what lets a header field
+  `{style-title:Heading 1}` pick it up); its look still comes from that line in the format file,
+  and whether it joins the table of contents depends on whether that row says `join-toc`.
 - Every block-level element (`$$` equation, first table row, standalone image line, short code,
   `%%` line) **must be separated from adjacent body text by a blank line**; §2.5 has the table of
   which side must be blank. `%% Table Caption` may sit directly above the first table row.

@@ -29,6 +29,7 @@ from md_to_word.utils.docx_zip import normalize_zip
 from md_to_word.utils.pdf_figure import PdfFigureError, is_pdf, rasterize
 from md_to_word.preprocessor.markers import MarkerError, section_paragraph_xml, toc_xml
 from md_to_word.spec.constants import PAGE_NUMBER_FMT
+from md_to_word.template.generator import _PPR_ORDER, _RPR_ORDER, ensure_ordered_child
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
@@ -38,6 +39,11 @@ from md_to_word.model.document import (
 )
 
 SUPPORTED_BLOCKS = (Heading, Paragraph, ListBlock, Table, Figure, CodeBlock, PageBreak, Quote)
+
+# 章级但**不是**章标题的样式：结构上必须是一级标题，外观另给。
+# 页眉里的 `{样式标题:Heading 1}` 是 STYLEREF 域，只认样式名——这些标题若用自己的
+# 样式，域只能回退到上一个一级标题，文献页页眉就会显示「第六章」。
+_CHAPTER_LEVEL_STYLES = ("References Title",)
 
 # 列表缩进（twips，1 英寸 = 1440）：每层左缩进 0.5 英寸，编号悬挂 0.25 英寸。
 # 引用块里的列表整体再右移一个正文缩进，免得和引用正文左对齐、看不出从属关系。
@@ -144,6 +150,21 @@ def _trim_citation_gap(nodes: Iterable[Inline]) -> list:
 
 class UnsupportedFeature(NotImplementedError):
     """模型里有、但写出器还没实现的结构。"""
+
+
+def _copy_prop(parent, source, order) -> None:
+    """把 source 拷进 parent，按 OOXML schema 顺序落位（顺序错了 Word 会整条忽略）。"""
+    tag = source.tag.rsplit("}", 1)[-1]
+    parent.replace(ensure_ordered_child(parent, tag, order), copy.deepcopy(source))
+
+
+def _fill_props(target, source) -> None:
+    """只补 target 上缺的属性：行内格式（加粗、斜体）写在 run 上，比样式更具体，不能盖。"""
+    for child in source:
+        tag = child.tag.rsplit("}", 1)[-1]
+        if tag == "rStyle" or target.find(qn(f"w:{tag}")) is not None:
+            continue
+        _copy_prop(target, child, _RPR_ORDER)
 
 
 class _Writer:
@@ -439,13 +460,48 @@ class _Writer:
         else:
             style = "First Paragraph" if self._after_heading else "Body Text"
         self._after_heading = False
+        chapter_level = style in _CHAPTER_LEVEL_STYLES
         # 样式在模板里不存在时退回 Normal：预检本该拦住，走到这里说明门禁被关掉了，
         # 此时宁可降级排版，也不要 KeyError 中断整份稿件的导出。
-        paragraph = self._new_paragraph(self._style_name(style) or "Normal")
+        paragraph = self._new_paragraph(
+            "Heading 1" if chapter_level else (self._style_name(style) or "Normal")
+        )
         self._last_paragraph = paragraph
         self.inlines(paragraph, block.inlines)
+        if chapter_level:
+            self._adopt_style(paragraph, style)
         if block.style == "References Title":
             self._write_bibliography()
+
+    def _adopt_style(self, paragraph, style_name: str) -> None:
+        """把某个样式的段落/字符属性抄成这一段的直接格式。
+
+        只给章级标题用：结构必须是 Heading 1（页眉的 STYLEREF 认样式名），外观又由
+        格式文件里那一行决定，两者只能用「结构 + 直接格式」叠起来表达。抄的是模板里
+        那一份，和格式文件一字不差，不是在这里重算一遍。
+
+        `加入目录` 没写时补一条 `outlineLvl=9`：以前这些标题不在目录里，升成一级标题
+        不能顺手把目录也改了——要不要进目录由作者那一行说了算。
+        """
+        style = self._style_object(style_name)
+        if style is None:
+            return
+        source = style.element
+        source_ppr = source.find(qn("w:pPr"))
+        source_rpr = source.find(qn("w:rPr"))
+        ppr = paragraph._p.get_or_add_pPr()
+        if source_ppr is not None:
+            for child in source_ppr:
+                tag = child.tag.rsplit("}", 1)[-1]
+                if tag in ("pStyle", "numPr", "sectPr", "outlineLvl"):
+                    continue
+                _copy_prop(ppr, child, _PPR_ORDER)
+        if source_ppr is None or source_ppr.find(qn("w:outlineLvl")) is None:
+            ensure_ordered_child(ppr, "outlineLvl", _PPR_ORDER).set(qn("w:val"), "9")
+        if source_rpr is not None:
+            _fill_props(ensure_ordered_child(ppr, "rPr", _PPR_ORDER), source_rpr)
+            for run in paragraph.runs:
+                _fill_props(run._r.get_or_add_rPr(), source_rpr)
 
     def _code(self, block: CodeBlock) -> None:
         paragraph = self._new_paragraph(self._style_ref("SourceCode"))
