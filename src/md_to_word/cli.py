@@ -71,6 +71,7 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     # 只装 pip 包、手上没有 SKILL.md 的 Agent 从这里读“按什么顺序做”。
     guide = resources / "guide.md"
     library = TEMPLATE_LIBRARY
+    library_raw = TEMPLATE_LIBRARY.replace("github.com", "raw.githubusercontent.com") + "/main/index.json"
     presets = "\n".join(
         f"  {name:<12} {resolve_preset_path(name)}" for name in ("zh-academic", "en-nature")
     )
@@ -107,6 +108,8 @@ Getting-started guide (identical to SKILL.md at the skill entry; one copy suffic
 Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits): {manual}
 Thesis manual (covers, front matter, sections, `--base-template`; read it only for a thesis): {thesis}
 Template library (ready-made format files + sample manuscripts, by school or journal): {library}
+  check whether one already fits before building a format file by hand:
+  curl -s {library_raw}
 Built-in presets:
 {presets}
 """
@@ -137,6 +140,7 @@ Built-in presets:
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界）：{manual}
 学位论文手册（封面、前置件、分节、`--base-template`；只有写论文才需要）：{thesis}
 模板库（各校各刊现成的格式文件 + 样稿）：{library}
+  先查有没有现成的，再自己写格式文件：curl -s {library_raw}
 内置预设：
 {presets}
 """
