@@ -218,7 +218,10 @@ Headers and footers on sections: **every section gets them by default** (if the 
 declares header content, every page should show it). To opt a section out, write `header=none` /
 `footer=none` on that marker — the usual cover reads
 `{{< section page_number=lowerRoman start=1 header=none footer=none >}}`. A `start` value belongs to
-the section that declares it; the last section of the document just continues, it never restarts.
+the section that declares it. **The last section (the body) numbers itself from the format file's
+`Page Numbers:` line** — it restarts at `start` when the section before it uses another numbering
+style or shows no page numbers at all (a cover), and keeps counting when that section is already
+decimal, so references after the body never fall back to 1.
 
 - All three write OOXML nodes (the `w:sdt` TOC field, `sectPr`) and are valid only in this tool.
 - `\newpage` / `\pagebreak` / `\clearpage` have no effect in docx.
@@ -632,6 +635,39 @@ From the PDF, check four places: the first page / the widest table page / the eq
 the references page. When PDF rendering is unavailable (Windows, Word not installed, or installed
 but never launched) it is skipped automatically and does not affect the `.docx` output (exit code
 `3`).
+
+### 5.4 Pour the body into the school's own template (experimental)
+
+Covers, originality statements and double-ruled chapter headers cannot be expressed in `format.txt`,
+and copying them by hand lets Word redefine same-named styles and drag the whole body with it. This
+path works the other way round: **use the school file as the base**, keep its first sections as front
+matter, and replace the rest with our typeset body.
+
+```bash
+md-to-word manuscript.md -f format.txt --base school-template.docx --cover-sections 4 -o out.docx
+```
+
+`--cover-sections N` is **your declaration**: the first N sections of the base are front matter.
+Pages and sections are not the same thing (4 sections = 6 pages when blank pages sit between them),
+so you can also say it in pages: `--keep-pages 6` makes the tool try a few cuts and report
+"6 pages = 3 sections", which you then keep as `--cover-sections 3`.
+The number is never guessed; cutting too early silently drops later cover pages, so the export always
+reports "the first paragraph after the cut is ..." — read it.
+
+One rule: **no file is produced unless it verifies**, in two layers:
+
+- **Structure (every platform)**: every front-matter node must be byte-identical to the original, none
+  of its styles, numbering definitions or theme may go missing, style names must stay unique with one
+  default per type, and every footnote reference must resolve. This proves *we did not touch the cover*.
+- **Layout (only where Word is installed)**: both files are laid out by Word and the front-matter pages
+  are compared word by word; any mismatch deletes the output. This proves *it still prints the same* —
+  pagination and blank pages cannot be seen in the XML.
+
+On Windows only the first layer runs, and the export says so: check the layout yourself in Word.
+(PDF rendering has only ever been implemented for macOS.)
+
+Two things it cannot verify: whether the cut point is right (that is what the note above is for), and
+whether fields or macro buttons in the cover need a click when opened.
 
 ---
 

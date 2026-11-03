@@ -67,6 +67,28 @@ def test_trailing_section_does_not_restart_page_numbers(tmp_path: Path) -> None:
     assert 'w:start="1"' in sections[0], "起始值由分节标记自己声明"
 
 
+def test_body_starts_at_one_after_roman_front_matter(tmp_path: Path) -> None:
+    """前置件小写罗马、正文阿拉伯：正文就是最后一节，必须从 1 起，不能接着 i、ii 往下编。"""
+    sections = _sections(
+        tmp_path,
+        "{{< toc 2 >}}\n\n{{< section 页码=小写罗马 起始=1 >}}\n\n# 一\n\n正文。\n",
+    )
+
+    assert "lowerRoman" in sections[0]
+    assert 'w:start="1"' in sections[-1], "正文要从 1 起"
+
+
+def test_body_restarts_after_an_unnumbered_cover(tmp_path: Path) -> None:
+    """封面不显示页码，但它在编号序列里占了一页：正文仍该从 1 起。"""
+    sections = _sections(
+        tmp_path,
+        "%% 文档标题 标题\n\n{{< section 页脚=无 页眉=无 >}}\n\n# 一\n\n正文。\n",
+    )
+
+    assert "footerReference" not in sections[0]
+    assert 'w:start="1"' in sections[-1], "封面不显示页码，不等于正文接着它编"
+
+
 def test_single_section_keeps_the_start_from_the_format_file(tmp_path: Path) -> None:
     """没有分节符时，「起始」就是整份文档的起点，照旧写进唯一的 sectPr。"""
     sections = _sections(tmp_path, "# 一\n\n正文。\n")

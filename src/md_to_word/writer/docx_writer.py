@@ -197,7 +197,6 @@ class _Writer:
         self._eq_numbers: dict[str, tuple[str, int, bool]] = {}  # 标签 → (章号/附录标识, 序号, 是否附录)
         self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
         self._bibliography_written = False  # 文献表只在「参考文献标题」后写一次
-        self._sections = 0  # 已插入的分节符数量
         self.no_row_split = no_row_split  # 表格行是否禁止跨页断开（要求文件写「行不跨页」）
         self.repeat_header = repeat_header  # 表头跨页重复（要求文件写「跨页重复」）
         chinese = looks_chinese(self._prose_text())
@@ -231,6 +230,7 @@ class _Writer:
         self._write_bibliography()
         if self._footnote_ids:
             self._write_footnotes()
+        self._trailing_page_number()
 
     # ── 块 ───────────────────────────────────────────────────────────
     def block(self, block: Block) -> None:
@@ -357,6 +357,25 @@ class _Writer:
             return body[-1]
         return body.find(qn("w:sectPr"))
 
+    def _trailing_page_number(self) -> None:
+        """末节的「起始」留不留：前面那节换了编号体系、或者根本不显示页码，才重新起编。
+
+        格式文件的 `页码：阿拉伯 起始1` 落在末节。前面是前置件（小写罗马）时，正文确实
+        要从 1 起，该留；前面同样是阿拉伯序号（正文之后接参考文献）时，再起编就成了
+        「参考文献从 1 开始」，作者没这么说过，这时才删。
+        """
+        sects = list(self.docx.element.body.iter(qn("w:sectPr")))
+        if len(sects) < 2:
+            return
+        prev, last = sects[-2], sects[-1]
+        pg = last.find(qn("w:pgNumType"))
+        if pg is None or pg.get(qn("w:start")) is None:
+            return
+        prev_pg = prev.find(qn("w:pgNumType"))
+        prev_fmt = None if prev_pg is None else prev_pg.get(qn("w:fmt"))
+        if prev_fmt == pg.get(qn("w:fmt")) and prev.find(qn("w:footerReference")) is not None:
+            del pg.attrib[qn("w:start")]
+
     def _insert_before_sectpr(self, element) -> None:
         """插到文末 sectPr 之前：body 的 sectPr 必须是最后一个子元素。"""
         body = self.docx.element.body
@@ -391,14 +410,6 @@ class _Writer:
             params["no_footer"] = True
 
         template_sect = self._body_sectpr()
-        if template_sect is not None and not self._sections:
-            # 格式文件写的「页码：… 起始N」落在**最后一节**的 sectPr 上。没有分节符时
-            # 它等于整份文档的起点；一旦有分节符，它就成了「最后一节从 1 重新编号」——
-            # 作者没这么说过。起始值由前面的分节标记各自声明。
-            pg = template_sect.find(qn("w:pgNumType"))
-            if pg is not None and pg.get(qn("w:start")) is not None:
-                del pg.attrib[qn("w:start")]
-        self._sections += 1
         xml = section_paragraph_xml(params, copy.deepcopy(template_sect) if template_sect is not None else None)
         self._insert_before_sectpr(parse_xml(xml))
 
