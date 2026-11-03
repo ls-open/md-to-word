@@ -324,6 +324,9 @@ def _merge_styles(src, dst, ids: dict[str, str], names: dict[str, str], qn) -> N
         clone = copy.deepcopy(st)
         clone.set(qn("w:styleId"), f"mdw-{sid}")
         clone.attrib.pop(qn("w:default"), None)
+        # 别名一律丢掉：留着它，两条样式都自称「Heading 1」，域代码与 Word 挑哪条全看运气
+        for alias in clone.findall(qn("w:aliases")):
+            clone.remove(alias)
         if name_el is not None:
             names[name] = f"{name}（模板）"
             clone.find(qn("w:name")).set(qn("w:val"), names[name])
@@ -347,9 +350,21 @@ def _canon(el) -> bytes:
 
 
 def _rewrite_part(blob: bytes, ids: dict[str, str], names: dict[str, str]) -> bytes:
+    r"""域代码里的样式名要跟着改。
+
+    `STYLEREF` 的域文本是 `STYLEREF  "Heading 1"   \* MERGEFORMAT`——STYLEREF 后面是
+    **两个空格**，而样式名在 styles.xml 里常是小写的 `heading 1`。按字面替换既对不上空格、
+    也对不上大小写，会静默留下旧名（别名在时还能蒙对，别名一去页眉就空）。所以用正则，
+    空白数量与大小写都不敏感。
+    """
     text = blob.decode("utf-8")
     for old, new in names.items():
-        text = text.replace(f'STYLEREF "{old}"', f'STYLEREF "{new}"')
+        text = re.sub(
+            r'(STYLEREF\s+)"%s"' % re.escape(old),
+            lambda m: f'{m.group(1)}"{new}"',
+            text,
+            flags=re.IGNORECASE,
+        )
     for old, new in ids.items():
         text = re.sub(
             r'(w:(?:pStyle|rStyle|tblStyle) w:val=")%s(")' % re.escape(old),

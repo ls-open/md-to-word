@@ -73,13 +73,23 @@ class ExportResult:
         return self.returncode in (EXIT_OK, EXIT_PDF_SKIPPED)
 
 
+def _inline_text(inline) -> str:
+    """行内节点里真正的字。加粗、斜体是包着一层的容器，只读 `.value` 会漏掉整段加粗的开头。"""
+    text = getattr(inline, "text", "") or getattr(inline, "value", "")
+    if text:
+        return text
+    return "".join(_inline_text(child) for child in getattr(inline, "children", ()) or ())
+
+
 def _first_text(blocks) -> str:
     """取正文第一段的前几个字：既要能在 PDF 里定位，又不能出现在封面上。"""
     for block in blocks:
-        for inline in getattr(block, "inlines", []) or []:
-            text = getattr(inline, "text", "") or getattr(inline, "value", "")
-            if text.strip():
-                return re.sub(r"\s+", "", text)[:12]
+        # 整段拼起来再截，不是取第一个有字的行内节点：拼出来的哨兵更长，误撞封面的机会更小
+        text = re.sub(r"\s+", "", "".join(
+            _inline_text(inline) for inline in getattr(block, "inlines", []) or []
+        ))
+        if text:
+            return text[:12]
     return ""
 
 

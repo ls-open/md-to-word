@@ -193,3 +193,26 @@ def test_structure_verification_catches_a_touched_cover(tmp_path: Path) -> None:
     doc.save(out)
     ok, why = verify_structure(base, out, 2)
     assert not ok and "改动" in why
+
+
+def test_styleref_field_follows_the_renamed_style() -> None:
+    """域里的样式名要跟着改：`STYLEREF` 后面是两个空格，样式名在 styles.xml 里还是小写的——
+    按字面替换一次也命中不了，页眉会指向一个已经不用的样式。"""
+    from md_to_word.template.base_inject import _rewrite_part
+
+    blob = (b'<w:p><w:r><w:instrText xml:space="preserve">'
+            b'STYLEREF  "Heading 1"   \\* MERGEFORMAT </w:instrText></w:r></w:p>')
+
+    out = _rewrite_part(blob, {}, {"heading 1": "heading 1（模板）"}).decode("utf-8")
+
+    assert "heading 1（模板）" in out
+    assert '"Heading 1"' not in out
+
+
+def test_sentinel_reads_through_inline_wrappers() -> None:
+    """正文以加粗开头时，哨兵不能跳过整段——跳了就会拿后面某一段去定位封面页数。"""
+    from md_to_word.pipeline import _first_text
+
+    doc = read_markdown("**绪论**与背景\n\n第二段。\n")
+
+    assert _first_text(doc.blocks) == "绪论与背景"
