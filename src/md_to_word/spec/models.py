@@ -10,7 +10,13 @@ from typing import Any, Optional
 
 
 class MinLineSpacing:
-    """行距最小值（磅）。与 Pt / float 区分，对应 Word 的 lineRule='atLeast'。"""
+    """行距「最小值 N 磅」：与 Pt / float 区分，对应 Word 的 `w:lineRule="atLeast"`。
+
+    三种行距不能用同一个类型表达——`Pt` 是固定值、`float` 是倍数、本类是**最小值**。
+    固定值会把超高的内容裁掉，与最小值在单行时长得一样，只有折行才分得出，故类型上
+    就必须分开。**全流水线共用这一个类**（解析器产出、模板生成写入、导出后对账读取）：
+    各层各定义一份时 `isinstance` 认不出自己人，最小值会被当成倍数去乘 240。
+    """
 
     def __init__(self, pt: float):
         self.pt = float(pt)

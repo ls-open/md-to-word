@@ -347,6 +347,26 @@ def test_json_output_reports_a_missing_manuscript(tmp_path: Path, capsys) -> Non
     assert payload["output"] is None
 
 
+def test_json_output_survives_an_internal_error(tmp_path: Path, capsys, monkeypatch) -> None:
+    """没料到的异常也要留下一行 JSON：`--json` 是给程序读的契约，不能被 traceback 吞掉。"""
+    import json
+
+    import md_to_word.cli as cli
+
+    def boom(_options):
+        raise TypeError("模拟内部异常")
+
+    monkeypatch.setattr(cli, "run_export_pipeline", boom)
+    code = cli.main([str(tmp_path / "nope.md"), "--json"])
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert code == payload["returncode"] == 1
+    assert payload["ok"] is False
+    assert any("TypeError" in error for error in payload["errors"]), payload["errors"]
+    assert "Traceback" in captured.err, "traceback 仍要留给维护者，不能静默"
+
+
 def test_guide_is_readable_without_the_skill_directory(capsys) -> None:
     """只装了 pip 包的人也要能一条命令读到‘按什么顺序做’。"""
     from md_to_word.cli import main

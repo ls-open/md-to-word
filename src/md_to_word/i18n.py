@@ -106,6 +106,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "把结果写成一行 JSON 到 stdout（给程序与 Agent 解析，键名不随版本变）",
         "Print the result as one JSON object on stdout (for programs and agents; keys are stable)",
     ),
+    "cli.internal_error": (
+        "导出中断，发生了未预料到的内部错误：{reason}\n"
+        "  这是本工具的缺陷，不是稿件的写法问题。请把上面的 traceback 与稿件、格式文件一并发给维护者。",
+        "Export aborted by an unexpected internal error: {reason}\n"
+        "  This is a defect in this tool, not a problem with the manuscript. "
+        "Please report the traceback above together with the manuscript and format file.",
+    ),
     # ── 流水线：路径与配置 ──────────────────────────────────────────
     "pipeline.input_missing": ("输入稿件不存在: {path}", "Input manuscript not found: {path}"),
     "pipeline.write_failed": (
@@ -1186,6 +1193,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.dialect.inline_math_paren": (
         "行内公式用 `$…$`，不支持 `\\(…\\)`（会连同括号当成正文印出来）",
         "inline math uses `$...$`; `\\(...\\)` is not supported and is printed as body text",
+    ),
+    "gate.dialect.block_math_bracket": (
+        "块级公式用 `$$…$$`，不支持 `\\[…\\]`（会连同方括号当成正文印出来）",
+        "display math uses `$$...$$`; `\\[...\\]` is not supported and is printed as body text",
     ),
     "gate.dialect.image_attr": (
         "图片行只认 `{width=…}`；对齐请写要求文件的「图：… 左对齐」",

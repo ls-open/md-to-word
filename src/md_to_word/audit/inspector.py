@@ -22,10 +22,11 @@ from pathlib import Path
 
 from lxml import etree
 
+from md_to_word.spec.models import MinLineSpacing
 from md_to_word.template.generator import (
     ALIGN_VAL, BOTTOM_BORDER_STYLE, CJK_FONTS,
     TABLE_CELL_MARGIN_DEFAULT_CM, TABLE_BORDER_SIDES,
-    TABLE_DEFAULT_WIDTHS, MinLineSpacing, _TWIPS_PER_CM,
+    TABLE_DEFAULT_WIDTHS, _TWIPS_PER_CM,
     _pt_to_border_sz, doc_grid_pitch, page_size_twips,
     parse_format, table_border_widths,
 )

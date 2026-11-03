@@ -542,8 +542,12 @@ class _Writer:
                 paragraph = cell.paragraphs[0]
                 if cell_style:
                     paragraph.style = self._style_object(cell_style)
+                # 只有分隔行真的写了冒号才写对齐：`|---|` 是不表态，段落对齐留给
+                # 「紧凑：」样式行。写死一个 left 会盖掉样式里的「居中」。
                 if block.alignments and c < len(block.alignments):
-                    paragraph.alignment = _ALIGN.get(block.alignments[c], WD_ALIGN_PARAGRAPH.LEFT)
+                    align = _ALIGN.get(block.alignments[c])
+                    if align is not None:
+                        paragraph.alignment = align
                 self.inlines(paragraph, cell_inlines)
         if self.no_row_split:
             for row in table.rows:

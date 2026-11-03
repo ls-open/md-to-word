@@ -173,7 +173,7 @@ class Table:
 
     header: list[list[Inline]] = field(default_factory=list)
     rows: list[list[list[Inline]]] = field(default_factory=list)
-    alignments: list[str] = field(default_factory=list)  # left / center / right
+    alignments: list[str | None] = field(default_factory=list)  # left / center / right / None=不表态
     widths: Optional[list[float]] = None  # 由分隔行短横线长短推出的相对比例
 
 

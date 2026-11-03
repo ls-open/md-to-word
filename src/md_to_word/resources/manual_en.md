@@ -302,7 +302,8 @@ indentation), a heading with no space after `#`, a heading with only `#` and no 
 other than `width` on an image line (such as `{align=right}`), percentage image widths
 (`{width=60%}` — write an absolute length such as `{width=14cm}`), image formats Word cannot hold
 (`.svg`, `.webp`, `.eps` — save them as PNG, or reference a PDF), `==highlight==`,
-`[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`).
+`[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`), `\[...\]` display
+maths (write `$$...$$`).
 
 ---
 

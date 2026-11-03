@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 from md_to_word import __version__
 from md_to_word.i18n import SUPPORTED, resolve_lang, t
-from md_to_word.pipeline import ExportOptions, run_export_pipeline
-from md_to_word.status import EXIT_OK, EXIT_PDF_SKIPPED, EXIT_USAGE
+from md_to_word.pipeline import ExportOptions, ExportResult, run_export_pipeline
+from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED, EXIT_USAGE
 from md_to_word.utils.skill_utils import configure_logging
 
 
@@ -230,7 +231,17 @@ def main(args: list[str] | None = None) -> int:
         lang=None if parsed.lang == "auto" else parsed.lang,
     )
 
-    result = run_export_pipeline(options)
+    try:
+        result = run_export_pipeline(options)
+    except Exception as exc:
+        # 兜底，只为守住 CLI 的输出契约：`--json` 承诺 stdout 恒有一行结果，
+        # 一个没料到的内部异常不该把这一行连同退出码一起吞掉（库调用方仍收到异常）。
+        # traceback 照旧走 stderr——它正是要报给维护者的东西，不在这里静默。
+        traceback.print_exc()
+        result = ExportResult(returncode=EXIT_ERROR, lang=lang)
+        result.errors.append(
+            t("cli.internal_error", lang, reason=f"{type(exc).__name__}: {exc}")
+        )
 
     if parsed.as_json:
         # 给程序与 Agent 用：stdout 只有这一行，键名是契约（不随版本改），值原样透传——

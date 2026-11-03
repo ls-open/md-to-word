@@ -342,11 +342,23 @@ def _column_widths(separator: str) -> Optional[list[float]]:
     return [float(d) for d in dashes]
 
 
-def _alignments(separator: str) -> list[str]:
+def _alignments(separator: str) -> list[str | None]:
+    """分隔行的冒号 → 每列对齐方式；**没写冒号的列是 `None`（不表态）**。
+
+    普通 `|---|` 不是「左对齐」，是「没说」：这一列的段落对齐应由「紧凑：」这类样式行
+    决定。当成左对齐写进产物，就成了直接格式，把作者写在样式里的「居中」盖掉。
+    """
     out = []
     for cell in _table_cells(separator):
         left, right = cell.startswith(":"), cell.endswith(":")
-        out.append("center" if left and right else "right" if right else "left")
+        if left and right:
+            out.append("center")
+        elif right:
+            out.append("right")
+        elif left:
+            out.append("left")
+        else:
+            out.append(None)
     return out
 
 
