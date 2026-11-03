@@ -151,7 +151,7 @@ def inspect_base(path: Path, cover_sections: int) -> BaseReport:
 def _drop_attached_template(doc, set_part_xml) -> str | None:
     r"""摘掉底模挂着的 .dot 模板，返回它原来的路径。
 
-    学校那份 docx 常挂着作者机器上的模板（实测：`file:///E:\work\...\研究生学位论文模板.dot`）。
+    学校那份 docx 常挂着作者机器上的模板（如 `file:///D:/templates/school_thesis.dot`）。
     到了别人的机器上这个文件根本不存在，Word 打开时会问「此文档包含可能引用其他文件的域，
     是否更新」——点「是」，它去加载那个不存在的模板，加载失败，域就没更新成；目录页码于是
     停在 1，得手动再按一次 F9 才对。

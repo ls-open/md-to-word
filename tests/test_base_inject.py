@@ -297,7 +297,7 @@ def test_structure_check_catches_a_link_pointing_at_the_wrong_relationship(
 
 
 def test_the_attached_dot_template_is_dropped(tmp_path: Path) -> None:
-    """学校模板常挂着作者自己电脑上的 .dot（`file:///E:\\...`）。
+    """学校模板常挂着作者自己电脑上的 .dot（如 `file:///D:/templates/...`）。
 
     到了别人的机器上这个文件不存在：Word 打开会问「是否更新域」，点「是」去加载失败，
     域更新不成功——目录页码就停在 1，得手动再按 F9。它属于对方的写作环境，不属于交付物。
@@ -305,7 +305,7 @@ def test_the_attached_dot_template_is_dropped(tmp_path: Path) -> None:
     from md_to_word.template.base_inject import inject_into_base
 
     base = _school_base(tmp_path / "base.docx", sections=2)
-    # 给底模装一个指向 Windows 本机路径的挂载模板
+    # 给底模装一个指向外部路径的挂载模板
     with zipfile.ZipFile(base) as z:
         members = {n: z.read(n) for n in z.namelist()}
     ns_w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -319,7 +319,7 @@ def test_the_attached_dot_template_is_dropped(tmp_path: Path) -> None:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
         '<Relationship Id="rIdX" Type="http://schemas.openxmlformats.org/officeDocument/'
-        '2006/relationships/attachedTemplate" Target="file:///E:/work/模板.dot" '
+        '2006/relationships/attachedTemplate" Target="file:///D:/templates/thesis.dot" '
         'TargetMode="External"/></Relationships>'
     ).encode("utf-8")
     with zipfile.ZipFile(base, "w", zipfile.ZIP_DEFLATED) as z:
