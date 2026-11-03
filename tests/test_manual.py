@@ -150,3 +150,41 @@ def test_section_numbers_cited_elsewhere_stay_put() -> None:
         text = MANUALS[lang].read_text(encoding="utf-8")
         missing = [h.strip() for h in headings if h not in text]
         assert not missing, f"{lang} 手册缺了对外引用的章节编号：{missing}"
+
+
+def test_every_flag_is_documented_somewhere() -> None:
+    """加了参数却没人写进文档，用户看 `--help` 也只有一行，出了事只能来问。
+
+    这条把「文档跟上代码」变成红灯，而不是指望每次收尾都有人通读四份文档。
+    真有故意不写的，加进 DELIBERATELY_HIDDEN 并写清理由。
+    """
+    import re
+
+    from md_to_word.cli import build_parser
+
+    # 逃生舱：写进文档等于推荐绕过门禁。旧别名：不该再有人学着用。
+    DELIBERATELY_HIDDEN = {"--no-audit", "--no-postflight", "--requirements"}
+    # 文档里用缩写形式写的那几个
+    SHORT_FORM = {"--format": "-f", "--output": "-o"}
+
+    repo_root = Path(md_to_word.__file__).resolve().parents[2]
+    corpus = "\n".join([
+        (repo_root / "SKILL.md").read_text(encoding="utf-8"),
+        (RESOURCES / "manual.md").read_text(encoding="utf-8"),
+        (RESOURCES / "manual_en.md").read_text(encoding="utf-8"),
+        (RESOURCES / "manual-thesis.md").read_text(encoding="utf-8"),
+        (RESOURCES / "manual-thesis_en.md").read_text(encoding="utf-8"),
+    ])
+
+    flags = sorted({
+        opt
+        for action in build_parser("zh")._actions
+        for opt in action.option_strings
+        if opt.startswith("--")
+    } - {"--help"} - DELIBERATELY_HIDDEN)
+
+    missing = [
+        flag for flag in flags
+        if not re.search(re.escape(SHORT_FORM.get(flag, flag)) + r"\b", corpus)
+    ]
+    assert not missing, f"这些参数没有任何文档提到：{missing}"
