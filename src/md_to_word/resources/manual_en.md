@@ -214,6 +214,12 @@ Only three are recognised, **each on its own line** and separated from body text
 | `{{< toc >}}` / `{{< toc 2 >}}` | table-of-contents field; the depth follows the `TOC 1/2/3` styles declared in the format file, or is given directly by the number |
 | `{{< section page_number=lowerRoman start=1 >}}` | section break that closes **the section above it** |
 
+Headers and footers on sections: **every section gets them by default** (if the format file
+declares header content, every page should show it). To opt a section out, write `header=none` /
+`footer=none` on that marker — the usual cover reads
+`{{< section page_number=lowerRoman start=1 header=none footer=none >}}`. A `start` value belongs to
+the section that declares it; the last section of the document just continues, it never restarts.
+
 - All three write OOXML nodes (the `w:sdt` TOC field, `sectPr`) and are valid only in this tool.
 - `\newpage` / `\pagebreak` / `\clearpage` have no effect in docx.
 - The TOC uses a **field**, not a static list: page numbers must be computed by Word. It updates

@@ -197,6 +197,7 @@ class _Writer:
         self._eq_numbers: dict[str, tuple[str, int, bool]] = {}  # 标签 → (章号/附录标识, 序号, 是否附录)
         self._last_paragraph = None  # 最近写入的段落，keepNext 要往上补
         self._bibliography_written = False  # 文献表只在「参考文献标题」后写一次
+        self._sections = 0  # 已插入的分节符数量
         self.no_row_split = no_row_split  # 表格行是否禁止跨页断开（要求文件写「行不跨页」）
         self.repeat_header = repeat_header  # 表头跨页重复（要求文件写「跨页重复」）
         chinese = looks_chinese(self._prose_text())
@@ -384,8 +385,20 @@ class _Writer:
             params["fmt"] = fmt
         if block.start:
             params["start"] = block.start
+        if block.no_header:
+            params["no_header"] = True
+        if block.no_footer:
+            params["no_footer"] = True
 
         template_sect = self._body_sectpr()
+        if template_sect is not None and not self._sections:
+            # 格式文件写的「页码：… 起始N」落在**最后一节**的 sectPr 上。没有分节符时
+            # 它等于整份文档的起点；一旦有分节符，它就成了「最后一节从 1 重新编号」——
+            # 作者没这么说过。起始值由前面的分节标记各自声明。
+            pg = template_sect.find(qn("w:pgNumType"))
+            if pg is not None and pg.get(qn("w:start")) is not None:
+                del pg.attrib[qn("w:start")]
+        self._sections += 1
         xml = section_paragraph_xml(params, copy.deepcopy(template_sect) if template_sect is not None else None)
         self._insert_before_sectpr(parse_xml(xml))
 

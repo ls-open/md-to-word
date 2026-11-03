@@ -475,9 +475,12 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                                  t('audit.msg.page_number_format', lang,
                                    want=want_fmt, got=got_fmt)))
             if want_start is not None and str(got_start) != str(want_start):
-                problems.append((t('audit.cat.page_number', lang),
-                                 t('audit.msg.page_number_start', lang,
-                                   want=want_start, got=got_start)))
+                # 有分节符时「起始」由各分节标记各自声明，最后一节只是接着上一节编；
+                # 拿格式文件那个值去核对，会把这个正确行为判成不符。
+                if len(list(doc.iter(W + 'sectPr'))) < 2:
+                    problems.append((t('audit.cat.page_number', lang),
+                                     t('audit.msg.page_number_start', lang,
+                                       want=want_start, got=got_start)))
         # 只有要求文件写了「首页页眉/页脚内容」时 titlePg 才有意义：整篇不加页眉页脚的
         # 文档（要求里一条页眉页脚行都没有）根本谈不上「首页带出页眉页脚」。
         if any(which == 'first' for _, which in spec.decor) and sect.find(W + 'titlePg') is None:

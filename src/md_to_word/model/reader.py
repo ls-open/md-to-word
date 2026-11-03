@@ -38,7 +38,11 @@ _TABLE_SEP_RE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 _SECTION_PARAM_RE = re.compile(r"(\S+?)=(\S+)")
 _QUOTE_LINE_RE = re.compile(r"^\s*>\s?")
 _SECTION_ALIAS = {"页码": "page_format", "page_number": "page_format", "format": "page_format",
-                  "起始": "start", "start": "start"}
+                  "起始": "start", "start": "start",
+                  "页眉": "no_header", "header": "no_header",
+                  "页脚": "no_footer", "footer": "no_footer"}
+# 只有「不要」需要写出来；默认就是有（格式文件写了页眉内容，就该每节都有）
+_SECTION_OFF = {"无", "none", "no", "false", "不要"}
 
 
 def _indent_width(indent: str) -> int:
@@ -370,6 +374,8 @@ def _parse_section_params(rest: str) -> SectionBreak:
             kwargs["start"] = int(value) if value.isdigit() else 1
         elif field == "page_format":
             kwargs["page_format"] = value
+        elif field in ("no_header", "no_footer") and value.strip().lower() in _SECTION_OFF:
+            kwargs[field] = True
     return SectionBreak(**kwargs)
 
 
