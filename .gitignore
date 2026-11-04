@@ -21,3 +21,6 @@ video_build/
 demo/cinematic_*.html
 demo/gsap.min.js
 demo/opus_video_preview.html
+
+# 演示站运行时缓存（服务器上生成，不进仓库）
+web/cache/

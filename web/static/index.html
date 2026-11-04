@@ -369,8 +369,9 @@
           <div class="flex items-center space-x-2">
             <span class="text-xs font-semibold text-slate-800 flex items-center space-x-1.5">
               <i data-lucide="file-check-2" class="w-3.5 h-3.5 text-slate-500"></i>
-              <span id="txtViewerTitle">3. 真实排版效果（1 页）</span>
+              <span id="txtViewerTitle">3. 排版预览</span>
             </span>
+            <span id="txtPreviewHint" class="text-[10px] text-slate-400">由 LibreOffice 渲染，字体替换为思源系列；分页以 Word 打开为准</span>
             <span id="compileStatusBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
               ⚡️ 秒级就绪 (缓存命中)
             </span>
@@ -780,7 +781,10 @@
       document.getElementById('txtTabSpecs').textContent = isEn ? 'Specs' : '规范清单';
       document.getElementById('btnReset').textContent = isEn ? 'Reset' : '重置';
       document.getElementById('txtBtnCompile').textContent = isEn ? '⚡️ Compile & Refresh Preview' : '⚡️ 实时排版并刷新右侧预览';
-      document.getElementById('txtViewerTitle').textContent = isEn ? '3. Document View (1 Page)' : '3. 真实排版效果（1 页）';
+      document.getElementById('txtViewerTitle').textContent = isEn ? '3. Document Preview' : '3. 排版预览';
+      document.getElementById('txtPreviewHint').textContent = isEn
+        ? 'Rendered by LibreOffice with substituted fonts; pagination is authoritative in Word'
+        : '由 LibreOffice 渲染，字体替换为思源系列；分页以 Word 打开为准';
       document.getElementById('btnFullscreen').textContent = isEn ? 'Fullscreen' : '全屏查看';
       document.getElementById('txtBtnDownload').textContent = isEn ? 'Download Word (.docx)' : '下载此 Word (.docx)';
       document.getElementById('txtLoadingText').textContent = isEn ? 'Compiling the manuscript into a Word document...' : '正在调用底层引擎编译并生成真实排版……';
