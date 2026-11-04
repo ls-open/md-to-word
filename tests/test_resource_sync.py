@@ -66,6 +66,19 @@ def test_packaged_guide_is_the_skill_entry() -> None:
     assert guide == body, "SKILL.md 正文与包内 guide.md 不一致：改了一处要同步另一处"
 
 
+def test_plugin_skill_entry_is_the_same_file() -> None:
+    """插件按 `skills/<名>/SKILL.md` 的目录形态分发，仓库根那份是技能入口。
+
+    同一份事实存两处，改一处忘另一处，装进插件市场的那份就会落后于包内流程——而它恰恰
+    是用户最先读到的那一份。
+    """
+    root = (REPO_ROOT / "SKILL.md").read_bytes()
+    plugin = (REPO_ROOT / "skills" / "md-to-word" / "SKILL.md").read_bytes()
+    assert plugin == root, (
+        "skills/md-to-word/SKILL.md 与根 SKILL.md 不一致：改了一处要同步另一处"
+    )
+
+
 def test_skill_frozen_surface_exists_in_the_code() -> None:
     """技能文件里的「版本契约」必须兑现：写了要冻结的东西，代码里就得真有。
 
