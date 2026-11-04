@@ -1,6 +1,6 @@
 """Model Context Protocol (MCP) server for md-to-word.
 
-Exposes publication-grade deterministic Word compilation, style inspection,
+Exposes deterministic Word compilation, style inspection,
 and preflight manuscript validation to AI agents (Claude Desktop, Claude Code,
 Cursor, LibreChat, Antigravity, etc.).
 

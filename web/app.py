@@ -77,7 +77,7 @@ def check_rate_limit(client_ip: str):
     IP_REQUESTS[client_ip] = valid_timestamps
 
 
-# 三套精挑细选的标准场景模板（严谨学术/技术内容，篇幅精准控制在 1~2 页，彻底中立不侵犯第三方实体）
+# 三套示例场景模板（学术/技术内容，控制在 1~2 页，内容为虚构，不涉及第三方实体）
 TEMPLATES = {
     "zh-journal": {
         "id": "zh-journal",
@@ -148,11 +148,11 @@ TEMPLATES = {
         "abstract": "【摘要】本白皮书梳理自主智能体在企业数字化场景落地实践，提出基于版本化约束文件的确定性排版架构。",
         "keywords": "智能体；数字化交付；技术白皮书；确定性排版",
         "intro_heading": "一、核心架构与效能评估",
-        "intro_body": "自主智能体深入企业生产业务，传统的“起草-排版-核验”流程面临全面重塑。将品牌规范抽象为声明式配置，可在数十毫秒内交付出版级技术报告。",
+        "intro_body": "自主智能体承担了越来越多文档起草工作，传统的“起草-排版-核验”流程面临重塑。把排版规范抽象成一份随稿件入库的声明式配置后，编译一次即可得到符合该规范的 Word 文档。",
         "equation": r"\mathbf{x}_{k+1} = \mathbf{A}\mathbf{x}_k + \mathbf{B}\mathbf{u}_k + \mathbf{w}_k, \quad \min_{\{\mathbf{u}_k\}} \sum_{k=0}^{K-1} \left( \mathbf{x}_k^T \mathbf{Q} \mathbf{x}_k + \mathbf{u}_k^T \mathbf{R} \mathbf{u}_k \right)",
-        "table_caption": "**表 1** 核心环节效率提升测算（人天）",
-        "table_content": "| 交付环节 | 传统人工 | 智能体底座 | 效能提升 |\n|:---|:---:|:---:|:---:|\n| 需求初稿 | 3.5 | 0.2 | 17.5x |\n| 版式核验 | 2.0 | 0.05 | 40.0x |\n| 最终交付 | 1.0 | 0.01 | 100.0x |",
-        "table_note": "注：基于企业真实技术交付件样本测算。",
+        "table_caption": "**表 1** 交付环节对照",
+        "table_content": "| 交付环节 | 传统人工 | 声明式编译 |\n|:---|:---|:---|\n| 版式来源 | 手工设置或套用模板 | 一份随稿件入库的 `format.txt` |\n| 核验方式 | 逐页目检 | 导出前后各一道门禁，报行号 |\n| 返工 | 改一处、查全文 | 改配置重编译，产物可逐字节比对 |",
+        "table_note": "注：本表只作流程对照，不含实测数据。",
         "conclusion_heading": "二、交付建议",
         "conclusion_body": "建议将排版规范纳入企业版本控制，生成内容经双向门禁拦截后分发。",
         "references": "[1] 数字化智能交付技术联盟. 企业智能体交付标准规范[R]. 2025.\n[2] Agent Skills. Declarative Typography Specification[R]. 2025.",
@@ -199,14 +199,14 @@ TEMPLATES = {
         "preset_name": "en-nature",
         "header_content": "NATURE COMPUTATIONAL SCIENCE | RESEARCH ARTICLE",
         "doc_title": "Deterministic Compilation of Markdown Manuscripts into Compliant Word Documents",
-        "abstract": "Automating publication-grade document preparation has long been challenged by non-deterministic large language models. Here, we demonstrate a declarative document compiler that maps standard Markdown to strictly compliant Word (.docx) documents with byte-identical reproducibility and bidirectional quality gates.",
+        "abstract": "Preparing document submission formats programmatically is often undermined by non-deterministic large language models. Here we demonstrate a declarative compiler that maps standard Markdown to Word (.docx) documents that follow a declared format, with byte-identical reproducibility and pre- and post-export quality gates.",
         "keywords": "Document compilation; Agent Skills; Deterministic typography; Native OMML; Quality gates",
         "intro_heading": "1. Introduction",
         "intro_body": "Scientific manuscripts require rigorous typographic consistency. Equations must align centrally with numbering pinned hard to the right margin, while tables demand standard three-line borders with repeating header rows across page splits.",
         "equation": r"i\hbar \frac{\partial}{\partial t} \Psi(\mathbf{r}, t) = \left[ -\frac{\hbar^2}{2m} \nabla^2 + V(\mathbf{r}, t) \right] \Psi(\mathbf{r}, t) \quad \Longleftrightarrow \quad \mathcal{H} = \sum_{k} \varepsilon_k c_k^\dagger c_k + \frac{1}{2} \sum_{ijkl} V_{ijkl} c_i^\dagger c_j^\dagger c_l c_k",
-        "table_caption": "**Table 1** Benchmark of Manuscript Compilation Methods",
-        "table_content": "| Method | Compile Time | Native OMML | Repeating Header | Quality Gates |\n|:---|:---:|:---:|:---:|:---:|\n| Manual Word | > 120 min | Yes | Manual Setup | Manual |\n| Standard Pandoc | ~ 1.2 s | Partial | Filter Required | Silent Failure |\n| **md-to-word (Ours)** | **~ 0.2 s** | **Yes (Vector)** | **Fully Automatic** | **Line-accurate** |",
-        "table_note": "Note: Measured on an IEEE-style paper across 10 repeated trials.",
+        "table_caption": "**Table 1** Where each declared setting ends up",
+        "table_content": "| Aspect | Declared in `format.txt` | Checked after export |\n|:---|:---|:---:|\n| Typography | font, size, spacing, indent per style | yes |\n| Equations | numbering and cross-references | yes |\n| Tables | three-line or grid, repeating header | yes |",
+        "table_note": "Note: this table describes the declared format, not benchmark results.",
         "conclusion_heading": "2. Conclusion",
         "conclusion_body": "Decoupling style contracts from manuscript content bridges the last mile of autonomous AI delivery.",
         "references": "[1] Knuth D E. The TeXbook[M]. Addison-Wesley, 1984.\n[2] Lamport L. LaTeX: a document preparation system[M]. Addison-Wesley, 1994.",

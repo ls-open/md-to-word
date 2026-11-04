@@ -11,7 +11,7 @@
 
 把 Markdown 确定性编译为规范 Word（`.docx`）。专为学位论文、技术报告、学术论文、公文打造，**也是面向 AI Agent 设计的确定性 Word 格式编译底座**。
 
-> 🌐 **零门槛免安装试玩**：[点击访问官方在线体验站 (Web Playground)](https://ls-open.github.io/md-to-word/)，按表单填入内容，用三套内置模板实时预览公式、三线表与页眉，秒级下载成品 `.docx`。
+> 🌐 **免安装试用**：[点击访问官方在线体验站 (Web Playground)](https://ls-open.github.io/md-to-word/)，按表单填入内容，用三套内置模板实时预览公式、三线表与页眉，直接下载成品 `.docx`。
 
 ---
 
@@ -30,17 +30,17 @@
 ## 架构认知：自包含核心与多形态接入
 
 > 💡 **核心设计哲学**：
-> 本项目的底层是纯净、确定性的 Python 编译引擎（`md-to-word-docx`），内置了完整的排版契约规范与自检逻辑。为了解决“排版契约一旦升级、外部 Prompt/技能文档就失效不同步”的痛点，项目采用**规范内置自包含**设计（运行 `md-to-word --guide` 即可输出与最新代码 100% 同步的完整指南）。
+> 本项目的底层是纯净、确定性的 Python 编译引擎（`md-to-word-docx`），内置了完整的排版契约规范与自检逻辑。为了解决“排版契约一旦升级、外部 Prompt/技能文档就失效不同步”的痛点，项目采用**规范内置自包含**设计（运行 `md-to-word --guide` 即可输出与代码同步的完整指南）。
 > 无论你是想在网页上免安装试玩、在桌面端挂载为原生 AI 工具（MCP）、在智能体中作为技能（Skill）调用，还是在终端执行 CLI 批处理，底层运行的都是同一套严格对账的编译逻辑。
 
 ### 选型对比与使用全景
 
-| 使用形态 | 适用客户端 / 场景 | 本地环境依赖 | 一键接入 / 启动方式 | 核心特点与适用建议 |
+| 使用形态 | 适用客户端 / 场景 | 本地环境依赖 | 接入方式 | 核心特点与适用建议 |
 | :--- | :--- | :---: | :--- | :--- |
-| **🌐 Web 在线体验站** | 浏览器直接试玩、零门槛体验、快速排版预览 | ❌ 无需安装任何环境 | 直接访问 [官方体验站](https://ls-open.github.io/md-to-word/) | **免配置试玩**：按表单填入标题/摘要/正文/公式/表格，用三套内置模板分屏预览 PDF、下载 `.docx`。 |
-| **🤖 MCP 原生外设** *(格式确定后最快)* | **Claude Desktop**、**Cursor**、**Windsurf** 等支持 MCP 协议的 AI 桌面端 | ❌ 无需手动配 Python（`uvx` 自动拉取） | 在客户端配置中声明 `uvx` 命令（见下文） | **最原生**：已经拿到 `format.txt` 后，让 AI 直接编译；环境全自动隔离。 |
-| **🧠 Agent Skill 技能** *(推荐)* | **Claude Code**、**终端 Agent**、**Nature Skills** | ⚠️ 依赖宿主 Agent 执行环境 | `npx skills add ls-open/md-to-word` 或呼叫 `$nature-paper2word` | **最智能**：AI 先读规范、按用户模板/要求定格式，遇门禁读行号自愈重跑。 |
-| **💻 本地 CLI 与 SDK** | 终端命令行批处理、CI/CD 自动化流水线、Python 脚本开发 | 需 Python >= 3.10 | `pip install md-to-word-docx` 然后运行 `md-to-word 稿.md` | **最确定**：纯本地编译，不依赖任何大模型 API，支持模板样式反推与逐字节回归测试。 |
+| **🌐 Web 在线体验站** | 浏览器里直接试玩、快速预览排版 | ❌ 无需安装任何环境 | 直接访问 [官方体验站](https://ls-open.github.io/md-to-word/) | **免安装**：按表单填入标题/摘要/正文/公式/表格，用三套内置模板分屏预览 PDF、下载 `.docx`。 |
+| **🤖 MCP 原生外设** *(格式确定之后)* | **Claude Desktop**、**Cursor**、**Windsurf** 等支持 MCP 协议的 AI 桌面端 | ❌ 无需手动配 Python（`uvx` 自动拉取） | 在客户端配置中声明 `uvx` 命令（见下文） | **原生**：已经拿到 `format.txt` 后，让 AI 直接编译；环境在独立虚拟环境里。 |
+| **🧠 Agent Skill 技能** *(推荐)* | **Claude Code**、**终端 Agent**、**Nature Skills** | ⚠️ 依赖宿主 Agent 执行环境 | `npx skills add ls-open/md-to-word` 或呼叫 `$nature-paper2word` | **按规范排**：AI 先读规范、按用户模板/要求定格式，遇门禁读行号自愈重跑。 |
+| **💻 本地 CLI 与 SDK** | 终端命令行批处理、CI/CD 自动化流水线、Python 脚本开发 | 需 Python >= 3.10 | `pip install md-to-word-docx` 然后运行 `md-to-word 稿.md` | **纯本地**：不依赖任何大模型 API，支持模板样式反推与逐字节回归测试。 |
 
 ---
 
@@ -73,7 +73,7 @@ MCP（Model Context Protocol）是 Anthropic 开源的标准模型上下文协�
 - `validate_manuscript`：在生成前执行预检，自动检测未闭合的数学公式、缺线的表格或格式错误；
 - `get_guide` / `get_manual`：读取包内的工作流指南与完整词表；
 - `extract_format_from_docx`：从学校/期刊模板反推 `format.txt` 草稿；
-- `list_presets`：按需选择中文核心期刊、白皮书或 Nature 顶级英文规范；
+- `list_presets`：按需选择中文核心期刊、白皮书或英文期刊预设；
 - `inspect_preset`：透明查阅任意预设的完整字体、行距与排版规则（`format.txt`）。
 
 **使用顺序**：先让 Agent 调用 `get_guide`，若有具体模板或格式要求则提取或编写 `format.txt`，无特殊要求则直接选用内置预设。可以直接给 Agent 这条提示：
@@ -84,7 +84,7 @@ MCP（Model Context Protocol）是 Anthropic 开源的标准模型上下文协�
 
 如果你在命令行或具备 Shell 权限的 Agent（如 Claude Code、OpenCode）中使用：
 
-- **自动化一键挂载**：
+- **npx 安装**：
   ```bash
   npx skills add ls-open/md-to-word
   ```
@@ -164,7 +164,7 @@ md-to-word 论文.md -f format.txt --base-template 学校模板.docx --cover-sec
 - **页面与正文**：纸张、页边距、装订线、文档网格、中西文字体、字号、行距、缩进、段距、对齐、颜色
 - **标题与页眉页脚**：六级标题、奇偶页与首页不同、分节、页码格式与起始、`{页码}` `{总页数}` `{样式标题}` 域
 - **表格**：三线表、全网格线、顶底线、无边框，线宽、跨页重复表头、单元格垂直水平对齐、列宽比例
-- **公式**：原生 OMML 公式对象（Word 内可直接双击二次编辑，绝非位图或文本伪造），居中、编号靠右、按章编号、`@eq-` 交叉引用
+- **公式**：原生 OMML 公式对象（Word 内可直接双击二次编辑，不是位图），居中、编号靠右、按章编号、`@eq-` 交叉引用
 - **图与题注**：图片宽度按版心智能钳制，题注与图同页绑定防掉页，直接支持矢量 PDF 插图（导出时自动 300 dpi 高清栅格化）
 - **文献与引用**：`.bib` + CSL 样式体系，内置 29 份常用期刊与国家标准样式（GB/T 7714、APA、Nature、IEEE 等），支持自定义 CSL
 - **行内样式**：加粗、斜体、删除线、下划线、上下标、行内代码、行内公式、超链接、脚注

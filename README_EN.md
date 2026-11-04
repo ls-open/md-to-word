@@ -37,10 +37,10 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 
 | Mode | Target Clients & Use Cases | Local Environment | Quick Start / Launch Command | Key Strengths |
 | :--- | :--- | :---: | :--- | :--- |
-| **🌐 Web Playground** | Browser testing, instant preview, zero-install export | ❌ None needed | Visit [Official Playground](https://ls-open.github.io/md-to-word/) | **Instant trial**: fill in a form and preview with three built-in templates; download `.docx`. |
-| **🤖 MCP Native Server** *(fastest once the format is fixed)* | **Claude Desktop**, **Cursor**, **Windsurf**, and any MCP client | ❌ Handled automatically (`uvx` pulls isolated venv) | Add `uvx` configuration (see below) | **Most Native**: once a `format.txt` exists, the AI compiles directly; the environment is isolated automatically. |
-| **🧠 Agent Skill** *(Recommended)* | **Claude Code**, terminal agents, **Nature Skills** | ⚠️ Requires host agent environment | `npx skills add ls-open/md-to-word` or `$nature-paper2word` | **Most Autonomous**: reads the guide, derives the format from the user's template/spec, and self-heals on gate errors. |
-| **💻 Local CLI & SDK** | Terminal batch processing, CI/CD pipelines, Python scripts | Requires Python >= 3.10 | `pip install md-to-word-docx` then `md-to-word paper.md` | **Most Deterministic**: 100% offline, zero LLM API dependency, supports reverse template extraction and byte-level diffs. |
+| **🌐 Web Playground** | Browser preview, no install needed | ❌ None needed | Visit [Official Playground](https://ls-open.github.io/md-to-word/) | **Try it**: fill in a form and preview with three built-in templates; download `.docx`. |
+| **🤖 MCP Native Server** *(once the format is fixed)* | **Claude Desktop**, **Cursor**, **Windsurf**, and any MCP client | ❌ Handled automatically (`uvx` pulls isolated venv) | Add `uvx` configuration (see below) | **Native**: once a `format.txt` exists, the AI compiles directly; the environment runs in an isolated venv. |
+| **🧠 Agent Skill** *(Recommended)* | **Claude Code**, terminal agents, **Nature Skills** | ⚠️ Requires host agent environment | `npx skills add ls-open/md-to-word` or `$nature-paper2word` | **Format-driven**: reads the guide, derives the format from the user's template/spec, and self-heals on gate errors. |
+| **💻 Local CLI & SDK** | Terminal batch processing, CI/CD pipelines, Python scripts | Requires Python >= 3.10 | `pip install md-to-word-docx` then `md-to-word paper.md` | **Fully local**: no LLM API dependency, supports reverse template extraction and byte-level diffs. |
 
 ---
 
@@ -120,7 +120,7 @@ If you prefer direct Python CLI usage or operate in a local terminal / editor Ag
    *(Note: The PyPI package name is `md-to-word-docx`, while the installed command remains `md-to-word`. Use `pipx install md-to-word-docx` for isolated environments, and update via `pip install -U md-to-word-docx`)*
 
 2. **Core Principle & Prompting AI**:  
-   The package includes a comprehensive guide identical to `SKILL.md`. When interacting with an Agent, **prompt it to read the guide first**:
+   The package includes a complete guide identical to `SKILL.md`. When interacting with an Agent, **prompt it to read the guide first**:
 
    > 💬 **Standard Prompt Template (Ready to copy):**  
    > "I have installed `md-to-word-docx`. Please first run `md-to-word --guide` to understand its formatting rules and contracts, then help me format the manuscript in this directory into a compliant Word document (if a template Word file is available, run `md-to-word-template` first to deduce the format file)."
@@ -194,7 +194,7 @@ There is also a [template library](https://github.com/ls-open/md-to-word-templat
 - **Page & Prose**: Paper size, margins, gutters, document grid, Chinese/Western fonts, sizes, line spacing, indents, paragraph spacing, alignments, colors.
 - **Headings & Headers/Footers**: 6 heading levels, odd/even/first-page distinctions, sectional pagination, `{page}` `{numpages}` `{title}` fields.
 - **Tables**: Three-line tables, full grid, top/bottom rules, custom borders, repeating header rows, vertical/horizontal alignment, column width ratios.
-- **Equations**: Native OMML equation objects (double-click editable in Word, never bitmapped), centered, right-aligned numbering, chapter numbering, `@eq-` cross-references.
+- **Equations**: Native OMML equation objects (double-click editable in Word; not images), centered, right-aligned numbering, chapter numbering, `@eq-` cross-references.
 - **Figures & Captions**: Width clamped to body margins, keep-with-next binding to avoid orphan captions, native vector PDF image support (auto-rasterized to 300 dpi on export).
 - **Citations & Bibliography**: `.bib` + CSL system with 29 built-in standard styles (GB/T 7714, APA, Nature, IEEE), custom CSL support.
 - **Inline Formatting**: Bold, italic, strikethrough, underline, sub/superscript, inline code, inline math, hyperlinks, footnotes.
