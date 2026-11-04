@@ -79,6 +79,31 @@ def test_plugin_skill_entry_is_the_same_file() -> None:
     )
 
 
+def test_marketplace_entry_matches_the_plugin_manifest() -> None:
+    """仓库同时当插件和当市场：市场条目是 plugin.json 的摘要，两处不能分叉。
+
+    `/plugin marketplace add ls-open/md-to-word` 读的是市场清单，装下来的却是 plugin.json
+    描述的插件。摘要写旧了，用户在列表里看到的就不是装进去的那个。
+    """
+    import json
+
+    manifest = json.loads((REPO_ROOT / ".codebuddy-plugin" / "plugin.json").read_text(encoding="utf-8"))
+    market = json.loads((REPO_ROOT / ".codebuddy-plugin" / "marketplace.json").read_text(encoding="utf-8"))
+
+    entries = {plugin.get("name"): plugin for plugin in market["plugins"]}
+    assert manifest["name"] in entries, f"市场清单里没有 {manifest['name']}"
+    entry = entries[manifest["name"]]
+
+    for key in ("description", "description_en", "version", "category",
+                "author", "homepage", "repository", "license"):
+        assert entry.get(key, manifest.get(key)) == manifest.get(key), (
+            f"市场条目与 plugin.json 的 {key} 不一致：改了一处要同步另一处"
+        )
+
+    for rel in manifest.get("skills", []):
+        assert (REPO_ROOT / rel).is_dir(), f"plugin.json 指向的技能目录不存在：{rel}"
+
+
 def test_skill_frozen_surface_exists_in_the_code() -> None:
     """技能文件里的「版本契约」必须兑现：写了要冻结的东西，代码里就得真有。
 

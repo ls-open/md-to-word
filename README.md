@@ -92,6 +92,11 @@ MCP（Model Context Protocol）是 Anthropic 开源的标准模型上下文协�
   本项目的技能版已合并入 [Nature Skills](https://github.com/Yuan1z0825/nature-skills)，已安装环境直接输入 `$nature-paper2word` 即可唤起。
 - **手动导入**：
   将仓库中的 [`SKILL.md`](https://github.com/ls-open/md-to-word/blob/main/SKILL.md) 复制到你项目的技能目录（如 `.claude/skills/`）即可。
+- **CodeBuddy 插件市场**：
+  ```bash
+  /plugin marketplace add ls-open/md-to-word
+  /plugin install md-to-word@md-to-word-marketplace
+  ```
 
 #### 3. 💻 本地 pip 安装与命令行直接运行
 
