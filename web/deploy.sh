@@ -44,18 +44,23 @@ source .venv/bin/activate
 pip install --upgrade pip -q
 
 echo "安装排版核心引擎与 Web 服务依赖..."
+# 每一条都要加引号：不加引号时 bash 把 `>=` 当成重定向，包名进得了 pip，
+# 版本下限却被吃掉，还会在工作目录里留下一堆叫 `=1.1.0` 的空文件。
 pip install -i https://pypi.tuna.tsinghua.edu.cn/simple \
-  python-docx>=1.1.0 \
-  lxml>=4.9.0 \
-  PyYAML>=6.0 \
-  latex2mathml>=3.0 \
-  citeproc-py>=0.6 \
-  pypdfium2>=4.30 \
-  fastapi>=0.100.0 \
-  uvicorn>=0.22.0 \
-  python-multipart>=0.0.6 \
-  requests>=2.28.0 \
+  "python-docx>=1.1.0" \
+  "lxml>=4.9.0" \
+  "PyYAML>=6.0" \
+  "latex2mathml>=3.0" \
+  "citeproc-py>=0.6" \
+  "pypdfium2>=4.30" \
+  "fastapi>=0.100.0" \
+  "uvicorn>=0.22.0" \
+  "python-multipart>=0.0.6" \
+  "requests>=2.28.0" \
   -q
+
+# 早先没加引号留下的 `=x.y.z` 空文件，顺手清掉
+rm -f /opt/md-to-word/=*
 
 echo "安装 md_to_word 本地可编辑包..."
 pip install -e . --no-deps -q

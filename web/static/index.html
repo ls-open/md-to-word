@@ -83,7 +83,7 @@
             <span class="font-bold text-slate-900 tracking-tight text-lg">md-to-word</span>
             <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200 font-mono">Playground</span>
           </div>
-          <p class="text-xs text-slate-500 hidden sm:block" id="subHeaderDesc">确定性 Word 编译引擎 · 真实 1 页出版级排版展示</p>
+          <p class="text-xs text-slate-500 hidden sm:block" id="subHeaderDesc">确定性 Word 编译引擎 · 真实 1 页排版效果</p>
         </div>
       </div>
 
@@ -134,7 +134,7 @@
         <div onclick="selectTemplate('zh-report')" id="card-zh-report" class="tpl-card cursor-pointer p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all flex flex-col justify-between">
           <div class="flex items-center justify-between mb-1.5">
             <span class="text-xs font-bold text-slate-900" id="cardTitle-zh-report">📄 现代技术白皮书</span>
-            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium" id="cardBadge-zh-report">企业级技术报告</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium" id="cardBadge-zh-report">技术报告</span>
           </div>
           <p class="text-[11px] text-slate-500 leading-relaxed" id="cardDesc-zh-report">
             彩色标题(#1F4E79) · 全网格商务表 · 首行不缩进 · 单线企业页眉 · 极简1页
@@ -369,7 +369,7 @@
           <div class="flex items-center space-x-2">
             <span class="text-xs font-semibold text-slate-800 flex items-center space-x-1.5">
               <i data-lucide="file-check-2" class="w-3.5 h-3.5 text-slate-500"></i>
-              <span id="txtViewerTitle">3. 真实出版级高保真排版视图 (整整 1 页)</span>
+              <span id="txtViewerTitle">3. 真实排版效果（1 页）</span>
             </span>
             <span id="compileStatusBadge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-medium">
               ⚡️ 秒级就绪 (缓存命中)
@@ -410,7 +410,7 @@
   <footer class="bg-white border-t border-slate-200 py-6 mt-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-2">
       <p class="text-xs text-slate-600" id="txtFooter1">
-        本项目 100% 开源免费遵循 MIT 协议 · 由 <strong class="text-slate-900 font-mono">md-to-word</strong> 确定性编译引擎驱动
+        本项目开源，遵循 MIT 协议 · 由 <strong class="text-slate-900 font-mono">md-to-word</strong> 确定性编译引擎驱动
       </p>
       <p class="text-xs text-slate-400" id="txtFooter2">
         不仅支持在线演示，更推荐在 AI Agent（Claude Code, Cursor, Nature Skills）中作为技能直接自动化调用。
@@ -771,8 +771,8 @@
       const isEn = currentLang === 'en';
 
       document.getElementById('langToggleBtn').textContent = isEn ? 'EN / 中' : '中 / EN';
-      document.getElementById('subHeaderDesc').textContent = isEn ? 'Deterministic Word Compiler · Multi-page Publication Preview' : '确定性 Word 编译引擎 · 真实 1 页出版级排版展示';
-      document.getElementById('txtPresetTitle').textContent = isEn ? '1. Select Publication Preset Specification' : '1. 选择官方出版标准格式规范';
+      document.getElementById('subHeaderDesc').textContent = isEn ? 'Deterministic Word Compiler · Multi-page Preview' : '确定性 Word 编译引擎 · 真实 1 页排版效果';
+      document.getElementById('txtPresetTitle').textContent = isEn ? '1. Select a Format Specification' : '1. 选择格式规范（预设）';
       document.getElementById('txtPresetHint').textContent = isEn ? 'All presets are strictly budgeted to a neat 1-page layout' : '所有样式统一精准控制在整整 1 页，无跨页冗余';
       document.getElementById('txtFormTitle').textContent = isEn ? '2. Customize Manuscript Content' : '2. 自定义文稿内容';
       document.getElementById('txtFormHint').textContent = isEn ? 'Edit content in real-time; badges indicate typographic specs' : '修改内容实时编译，右侧角标轻量提示底层排版规则';
@@ -780,10 +780,10 @@
       document.getElementById('txtTabSpecs').textContent = isEn ? 'Specs' : '规范清单';
       document.getElementById('btnReset').textContent = isEn ? 'Reset' : '重置';
       document.getElementById('txtBtnCompile').textContent = isEn ? '⚡️ Compile & Refresh Preview' : '⚡️ 实时排版并刷新右侧预览';
-      document.getElementById('txtViewerTitle').textContent = isEn ? '3. Publication Document View (1 Page)' : '3. 真实出版级高保真排版视图 (整整 1 页)';
+      document.getElementById('txtViewerTitle').textContent = isEn ? '3. Document View (1 Page)' : '3. 真实排版效果（1 页）';
       document.getElementById('btnFullscreen').textContent = isEn ? 'Fullscreen' : '全屏查看';
       document.getElementById('txtBtnDownload').textContent = isEn ? 'Download Word (.docx)' : '下载此 Word (.docx)';
-      document.getElementById('txtLoadingText').textContent = isEn ? 'Compiling manuscript into publication-grade document...' : '正在调用底层引擎编译并生成真实排版……';
+      document.getElementById('txtLoadingText').textContent = isEn ? 'Compiling the manuscript into a Word document...' : '正在调用底层引擎编译并生成真实排版……';
 
       // 卡片分组标签
       document.getElementById('grpTitleHeader').textContent = isEn ? 'Title & Running Header' : '标题与页眉';
@@ -806,13 +806,13 @@
       document.getElementById('labelConclusionHeading').textContent = isEn ? 'Conclusion Heading:' : '结论标题:';
       document.getElementById('labelReferences').textContent = isEn ? 'References List:' : '参考文献列表:';
 
-      document.getElementById('txtSpecsIntroTitle').textContent = isEn ? '📋 Publication Typographic Contract' : '📋 当前模板出版排版契约';
+      document.getElementById('txtSpecsIntroTitle').textContent = isEn ? '📋 Typographic Contract' : '📋 当前模板出版排版契约';
       document.getElementById('txtSpecsIntroDesc').textContent = isEn ? 'Strictly enforced by declarative base and quality gates:' : '由底模与规则文件严格把关，导出前执行双向门禁对账：';
 
       // 页脚国际化
       document.getElementById('txtFooter1').innerHTML = isEn 
-        ? '100% Open-source & Free under MIT License · Powered by <strong class="text-slate-900 font-mono">md-to-word</strong> compilation engine' 
-        : '本项目 100% 开源免费遵循 MIT 协议 · 由 <strong class="text-slate-900 font-mono">md-to-word</strong> 确定性编译引擎驱动';
+        ? 'Open source under the MIT License · Powered by <strong class="text-slate-900 font-mono">md-to-word</strong> compilation engine' 
+        : '本项目开源，遵循 MIT 协议 · 由 <strong class="text-slate-900 font-mono">md-to-word</strong> 确定性编译引擎驱动';
       document.getElementById('txtFooter2').textContent = isEn 
         ? 'Not only an online playground, but also designed to be called natively by AI Agents (Claude Code, Cursor, Nature Skills).'
         : '不仅支持在线演示，更推荐在 AI Agent（Claude Code, Cursor, Nature Skills）中作为技能直接自动化调用。';

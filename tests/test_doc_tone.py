@@ -30,6 +30,9 @@ DOCS = (
     RESOURCES / "manual_en.md",
     RESOURCES / "manual-thesis.md",
     RESOURCES / "manual-thesis_en.md",
+    # 演示站的页面是**另一份**文案，和 app.py 里的模板数据不共源：改了 app.py，
+    # 页面上那句「企业级技术报告」照样在。所以它也得进这张网。
+    REPO / "web" / "static" / "index.html",
 )
 
 # 只收「给产品加等级 / 加称号」的说法。比较级如实取舍（「三条路里最费手工的那条」）
