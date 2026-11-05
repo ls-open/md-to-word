@@ -628,7 +628,8 @@ is added), so three chapter names are never mistaken for three kinds of header. 
 
 Reminders do not block export: the author may have meant it, or may intend to finish the job in
 Word. If they blocked, the only way out would be `--no-check`, which would also switch off the real
-blockers.
+blockers. `--no-postflight` (number integrity) and `--no-audit` (the post-export audit) are the same
+kind of switch; all three exist for debugging the tool itself, not for delivery.
 
 Reminders of one kind are **merged into a single line** listing up to eight line numbers, rather than one
 line per occurrence; they are also carried in `--json` `messages`, so skills and scripts can relay
