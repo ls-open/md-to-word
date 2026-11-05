@@ -906,6 +906,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.tag.table": ("表格格式异常", "malformed table"),
     "gate.tag.caption_adjacency": ("图表题注邻近性", "caption adjacency"),
     "gate.tag.soft_wrap": ("折行段落", "wrapped paragraph"),
+    "gate.tag.literal_asterisk": ("星号未解析", "asterisk not parsed"),
     "gate.tag.equation_brace": ("公式括号不配对", "unbalanced equation braces"),
     "gate.equation.brace": (
         "公式里的花括号不配对（「{snippet}」）：转换器不会报错，只会静默丢掉内容"
@@ -1226,6 +1227,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "empty or give it a one-line alt text",
     ),
     # ── 折行与方言 ──
+    "gate.literal_asterisk": (
+        "这里的星号没被当作强调（「{snippet}」），会原样印进正文。本意是斜体，就让星号与"
+        "相邻字符之间留出空白，或挪到行内公式里；本意是乘号或字面星号，写成 `\\*` 即可消掉本条",
+        "these asterisks were not read as emphasis (\"{snippet}\") and will print literally. For "
+        "italics, put a space between the asterisk and the neighbouring character; for multiplication "
+        "or a literal asterisk, write `\\*` to clear this reminder",
+    ),
     "gate.soft_wrap": (
         "上一行没有句末标点而本行紧随其后（「{snippet}」）。本引擎按「一行一段」读取，"
         "这两行会拆成两段、各吃一次首行缩进。若本意是同一段落内换行，把上一行行尾加一个 `\\`；"

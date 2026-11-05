@@ -19,6 +19,8 @@ import yaml
 
 from md_to_word.config import get_csl_dir
 from md_to_word.i18n import t
+# 残符提醒与解析器共用同一条行内判据：预检另写一套，迟早对不上。
+from md_to_word.model.reader import inline_residue
 from md_to_word.spec.constants import PAGE_NUMBER_FMT, ROW_NAME_EN
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_format
@@ -155,6 +157,54 @@ def latex_tag_issues(md_text: str) -> list[tuple[int, str]]:
     for i, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         if re.search(r"\\tag\s*\{", line):
             issues.append((i, line.strip()[:80]))
+    return issues
+
+
+# 「像强调、却没解析成强调」的配对：`*` 后不是空白、`*` 前不是空白，中间也不带空白——
+# 与解析器的开/闭符规则同形，所以落成字面才可疑。加粗那一条同理。
+_RESIDUE_EMPHASIS_RE = re.compile(
+    r"\*(?=[^\s*])[^\s*]+?(?<=[^\s*])\*"
+    r"|\*\*(?=[^\s*])[^\s*]+?(?<=[^\s*])\*\*"
+)
+
+
+def _residue_hit(residue: str, spans: list[tuple[int, int]]) -> Optional[tuple[int, int]]:
+    """残符里可疑的星号区间：形态像强调的配对，或紧贴着已解析标记的孤星。
+
+    孤星那一条专治「三颗星连写切不开」：`*a **b***` 里解析器吃掉 `**b**`，剩下的星号贴在
+    它两侧——形态上就是没解析完的标记，不能无声印出去。
+    """
+    hit = _RESIDUE_EMPHASIS_RE.search(residue)
+    if hit:
+        return hit.span()
+    for i, ch in enumerate(residue):
+        if ch == "*" and any(i == end or i + 1 == start for start, end in spans):
+            return (i, i + 1)
+    return None
+
+
+def literal_asterisk_issues(md_text: str) -> list[tuple[int, str]]:
+    """形态像强调、却没被解析成强调的星号 → [(行号, 片段)]。
+
+    这些星号会原样印进正文。判据只用解析器自己那份（`unparsed_stars`）：已经被当作语法
+    的星号、`\\*` 转义、代码与公式里的星号都留不下来。所以符号注 `* P<0.05，** P<0.01`
+    （开符后就是空格）与 `3*4` 这种孤立星号不会被报；报的是 `2*3*4`、`a*b*c` 这类词内
+    乘号，以及历史上 `(1*S*,2*R*)` 那类漏解析。
+
+    只提醒、不阻断：词内乘号的本意就是字面星号，写成 `\\*` 即可消掉本条。
+    """
+    issues: list[tuple[int, str]] = []
+    masked = mask_code_fences(md_text)
+    masked = re.sub(r"<!--.*?-->", lambda m: "\n" * m.group(0).count("\n"), masked, flags=re.DOTALL)
+    for line_no, line in enumerate(masked.split("\n"), 1):
+        if "*" not in line:
+            continue
+        hit = _residue_hit(*inline_residue(line))
+        if hit:
+            # 片段回原行取（残符与 `spans` 都按原行下标）：残符里被吃掉的位置是空格，
+            # 拿它当片段会出现「与 (1 ,」这种半截字。
+            snippet = re.sub(r"\s+", " ", line[max(0, hit[0] - 6) : hit[1] + 6]).strip()
+            issues.append((line_no, snippet))
     return issues
 
 
@@ -578,6 +628,12 @@ def validate_manuscript(
               tag=t("gate.tag.equation_brace", lang),
               why=t("gate.equation.brace", lang, snippet=snippet))
         )
+
+    # 11d. 星号形态像强调、却没被解析成强调：这些星号会原样印出。词内乘号本来就是字面
+    # 星号，只提醒不阻断，并给出去路
+    _group_warn(report, t("gate.tag.literal_asterisk", lang),
+                [(line_no, t("gate.literal_asterisk", lang, snippet=snippet))
+                 for line_no, snippet in literal_asterisk_issues(md_text)], lang)
 
     # 12. `\tag{}` 公式编号（不认这个写法，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):

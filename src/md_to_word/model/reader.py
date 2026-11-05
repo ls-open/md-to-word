@@ -55,12 +55,36 @@ def _indent_width(indent: str) -> int:
 # 强调符号的边界：开符后面不能是空白（`注：* P<0.05` 里的 `*` 是星号，不是斜体开头），
 # 闭符前面不能是空白。少了这两条，`注：* P<0.05，** P<0.01，*** P<0.001。` 会被配成
 # 一段强调，把显著性星号当格式标记吃掉——这是静默丢字，比报错难查得多。
+#
+# 词内的 `*` 还要看**闭符右侧**：两头都紧挨字母数字才算乘号（`2*3*4`、`a*b*c`）。
+# 只看开符左侧是不够的——化学立体描述符 `(1*S*,2*R*)` 与回归式 `y = 4054.1*x*` 的开符
+# 左边同样是数字，按左侧一条判，同一篇稿里同一种记法一半斜体、一半落成字面星号。
+# CommonMark 允许词内 `*`（`5*6*78` 是 `5<em>6</em>78`），本工具**故意**不跟：乘号被吃成
+# 斜体是产物上看不出来的静默错；落成字面星号至少看得见，再由预检的残符提醒给出路
+# （见 `unparsed_stars` 与 `literal_asterisk_issues`）。
+def _emphasis(name: str, delim: str, body: str, single: bool = False) -> str:
+    """一条强调分支：正常边界 + 词内边界（见上）。
+
+    词内那半的正文把 `*` 排除在外：`(.+?)` 在「闭符右边紧挨字母数字」判失败后会继续往右
+    找闭符，一路把整行吞成一段强调。
+
+    `single=True`（斜体）时开闭符都不许挨着另一个星号：`**粗**` 的星号是加粗的语法，
+    从第二个星号起配对会得到「星号照印 + 中间变斜体」（`x**B**y`），两头都错。
+    """
+    no_open = r"(?<!\*)" if single else ""
+    no_close = r"(?!\*)" if single else ""
+    return (
+        r"|(?P<%s>%s(?<![A-Za-z0-9_])%s(?=[^\s*])(%s)(?<=[^\s*])%s%s"
+        r"|(?<=[A-Za-z0-9_])%s(?=[^\s*])([^*\n]+?)(?<=[^\s*])%s(?![A-Za-z0-9_])%s)"
+    ) % (name, no_open, delim, body, delim, no_close, delim, delim, no_close)
+
+
 _INLINE_RE = re.compile(
     r"(?P<code>``[^`]*(?:`[^`]*)*``|`[^`]+`)"
     r"|(?P<math>\$(?=\S)[^$\n]*\S\$)"
-    r"|(?P<strongem>(?<![A-Za-z0-9_])\*\*\*(?=[^\s*])(.+?)(?<=[^\s*])\*\*\*)"
-    r"|(?P<strong>(?<![A-Za-z0-9_])\*\*(?=[^\s*])(.+?)(?<=[^\s*])\*\*)"
-    r"|(?P<del>~~(?=[^\s~])(.+?)(?<=[^\s~])~~)"
+    + _emphasis("strongem", r"\*\*\*", r".+?")
+    + _emphasis("strong", r"\*\*", r".+?")
+    + r"|(?P<del>~~(?=[^\s~])(.+?)(?<=[^\s~])~~)"
     r"|(?P<underline>\[[^\]]+\]\{\.underline\})"
     r"|(?P<link>\[[^\]]*\]\((?:[^()\s]|\([^()\s]*\))*\))"
     r"|(?P<footnote>\[\^[^\]]+\])"
@@ -68,11 +92,12 @@ _INLINE_RE = re.compile(
     r"|(?P<crossref>(?<![\w@])@[\w:.\-]+)"
     r"|(?P<sup>\^[^^\s][^^\n]*\^)"
     r"|(?P<sub>~[^~\s][^~\n]*~)"
-    r"|(?P<em>(?<![A-Za-z0-9_])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*)"
+    + _emphasis("em", r"\*", r".+?", single=True)
 )
 
 # 反斜杠转义：`\*` 要出字面星号而不是被当成强调符号。CommonMark 只对 ASCII 标点生效。
 _ESCAPE_RE = re.compile(r"\\([%s])|\\text(asciitilde|less|greater|backslash)" % re.escape("".join(string.punctuation)))
+_ESCAPED_STAR_RE = re.compile(r"\\\*")
 _TEXT_ESCAPES = {
     "asciitilde": "~",
     "less": "<",
@@ -118,6 +143,27 @@ def _restore(text: str, hold: dict[str, str]) -> str:
     if not hold:
         return text
     return "".join(hold.get(ch, ch) for ch in text)
+
+
+def inline_residue(line: str) -> tuple[str, list[tuple[int, int]]]:
+    """(没被行内语法吃掉的字符, 被吃掉的区间)。
+
+    残符串长度与原行一致，被吃掉的字符换成空格。预检的残符提醒拿它找「形态像强调、
+    却没解析成强调」的星号：已经被当作语法的星号、`\\*` 转义、代码与公式里的星号都不会
+    留在残符里。判据就是 `parse_inlines` 那一条正则——预检另写一套，迟早对不上。
+    """
+    guarded = _ESCAPED_STAR_RE.sub("  ", line)  # 两个非星号字符顶替 `\*`，位置不挪
+    blank = list(guarded)
+    spans = [match.span() for match in _INLINE_RE.finditer(guarded)]
+    for start, end in spans:
+        for i in range(start, end):
+            blank[i] = " "
+    return "".join(blank), spans
+
+
+def unparsed_stars(line: str) -> str:
+    """只取残符串（见 `inline_residue`）。"""
+    return inline_residue(line)[0]
 
 # 定位符：`,` 之后写 `p. 33`、`chap. 3`、`3, 7` 都认。标签换成 CSL 的变量名，
 # 单复数由 CSL 自己生成，所以 `p.` / `pp.` 一律按 page 传。

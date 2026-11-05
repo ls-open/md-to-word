@@ -284,6 +284,11 @@ decimal, so references after the body never fall back to 1.
   `~~strikethrough~~`, `[underline]{.underline}`, `H~2~O`, `x^2^` — the renderer writes them
   straight as character properties; no declaration in the format file is needed and they do
   not conflict with style-level settings.
+- **Asterisks are read on both ends**: `(1*S*,2*R*)` and `y = 4054.1*x*` are italic; only when
+  **both** runs touch a letter or digit is it multiplication and printed literally (`2*3*4`,
+  `a*b*c`) — CommonMark reads that as italics, this engine deliberately does not. Write `\*` (a
+  backslash escape, available for any ASCII punctuation) for a literal asterisk; an asterisk that
+  looks like emphasis but is not parsed draws a reminder.
 - **Fonts are free**: any font installed locally (`SimSun`/`宋体`, `FangSong`/`仿宋`,
   `仿宋_GB2312`, `方正小标宋简体`, `Microsoft YaHei`/`微软雅黑`, `KaiTi`/`楷体`).
 
@@ -619,7 +624,7 @@ is added), so three chapter names are never mistaken for three kinds of header. 
 | Level | Criterion | Examples |
 |:--|:--|:--|
 | **Blocking** | A silent error you cannot see afterwards | Lost characters (a table row with the wrong column count), degradation to literal text (`\tag{}`, undefined cross-references), formatting that never takes effect (a style name missing from the template, a table style missing from the format file), an abstract or keywords written in YAML, a caption written into the image's square brackets |
-| **Reminder** | Visible, just non-compliant | An over-wide image (it gets clamped), a caption too far from its figure or table, skipped heading levels, an extra page break after a section break, a wrapped paragraph |
+| **Reminder** | Visible, just non-compliant | An over-wide image (it gets clamped), a caption too far from its figure or table, skipped heading levels, an extra page break after a section break, a wrapped paragraph, a word-internal asterisk printed literally |
 
 Reminders do not block export: the author may have meant it, or may intend to finish the job in
 Word. If they blocked, the only way out would be `--no-check`, which would also switch off the real
