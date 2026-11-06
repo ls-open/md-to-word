@@ -600,9 +600,51 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "the table borders are not one of the four standard styles; a three-line table was assumed",
     ),
     "extractor.note.table_border_undefined": (
-        "参考文件的 Table 样式没有边框定义（表格样式可能靠直接格式做的）",
-        "the Table style in the reference file defines no borders (the table may be styled with "
-        "direct formatting)",
+        "参考文件的表格样式「{name}」没有边框定义（表格可能靠直接格式描的）",
+        'the table style "{name}" in the reference file defines no borders (the table may be '
+        "styled with direct formatting)",
+    ),
+    "extractor.note.decor_distance_negative": (
+        "参考文件的页眉/页脚距边界是负值（{value}cm）——格式文件表达不了负值，"
+        "草稿已跳过这一行，需在 Word 里核对",
+        "the header/footer distance in the reference file is negative ({value}cm) — the format "
+        "file cannot express a negative value; the draft skipped this row, check it in Word",
+    ),
+    "extractor.note.table_style_undefined": (
+        "文档里的表格引用了样式「{names}」，但参考文件里没有它的定义——表格行没读出来，"
+        "表格样式可能靠直接格式做的",
+        'the tables in the document reference the style "{names}", but the reference file does '
+        "not define it, so table rows were not read (the table may be styled with direct "
+        "formatting)",
+    ),
+    "extractor.note.table_no_style": (
+        "文档里的表格没有挂样式（边框可能是直接格式描的）——本工具只读样式，"
+        "表格行没法读出，需按学校要求自己写",
+        "the tables in the document carry no style (their borders may be direct formatting) — "
+        "this tool reads styles only, so table rows cannot be read; write them yourself",
+    ),
+    "extractor.note.table_styles_multiple": (
+        "文档里用了不止一种表格样式（{names}）——表格行按「{chosen}」读的，其余的自己核对",
+        "the document uses more than one table style ({names}) — table rows were read from "
+        '"{chosen}"; check the others yourself',
+    ),
+    "extractor.note.border_sides_limited": (
+        "参考文件里这些样式用了下边框以外的边框：{sides}——本工具的格式文件只能表达"
+        "「下边框」，其余几边表达不了，需在 Word 里手工设",
+        "these styles use borders other than the bottom one: {sides} — the format file can only "
+        "express a bottom border, so the other sides must be set by hand in Word",
+    ),
+    "extractor.note.shading_not_supported": (
+        "参考文件里这些样式用了底纹（段落底色 / 表头灰底）：{names}——本工具不表达底纹，"
+        "草稿里没有这一项",
+        "these styles use shading (paragraph fill / table-header grey): {names} — this tool does "
+        "not express shading, so the draft has no row for it",
+    ),
+    "extractor.note.decor_drawing": (
+        "{where}里有 {count} 处图片或图形（学校 logo、横线等）——这部分没有读出，"
+        "草稿里不会出现，需在 Word 里自己补",
+        "{where} contains {count} picture(s) or shape(s) (logo, rule line, …); they were not read "
+        "and do not appear in the draft — add them by hand in Word",
     ),
     "extractor.note.multi_section": (
         "参考文件是 {count} 节的，页面设置只读了**正文节**那一份"

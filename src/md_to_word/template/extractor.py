@@ -47,6 +47,12 @@ ALIGN = {'both': '两端对齐', 'justify': '两端对齐', 'center': '居中',
 PAPER = {(21.0, 29.7): 'A4', (21.59, 27.94): 'Letter'}
 BORDER_STYLE = {'single': '单线', 'double': '双线', 'thinThickMediumGap': '双线',
                 'none': '无', 'nil': '无'}
+# 段落边框除下边框外的四边：格式文件表达不了，读到就要报出来（标签跟消息语言走）
+_P_BORDER_SIDES = (('top', '上边框', 'top border'), ('left', '左边框', 'left border'),
+                   ('right', '右边框', 'right border'), ('between', '段间横线', 'between border'),
+                   ('bar', '侧边竖线', 'paragraph bar'))
+# 底纹的「等于没有」取值：auto 与纯白都算没上色
+_NO_FILL = {'auto', 'ffffff', ''}
 
 
 def q(tag: str) -> str:
@@ -83,6 +89,7 @@ class Ref:
         # fix_docx_equations 同一口径。多节文档里第一个 sectPr 是**前置节**（目录、摘要），
         # 按"第一个"取会把前置节的小写罗马页码当成正文的页码读出来。
         doc_root = etree.fromstring(self.parts['word/document.xml'])
+        self.document = doc_root      # 正文 XML：表格用的是哪个样式，只能从这儿看
         body = doc_root.find(q('body'))
         self.all_sects = doc_root.findall(f'.//{q("sectPr")}')
         self.sect = (body.find(q('sectPr')) if body is not None
@@ -117,7 +124,7 @@ class Ref:
                     out.add(sid)
                     break
                 b = st.find(q('basedOn'))
-                cur = (b.get(q('val')) if b is not None else '') or ''
+                cur = ((b.get(q('val')) if b is not None else '') or '').replace(' ', '').lower()
         return out
 
     # ── 继承链：样式 → basedOn… → docDefaults ──
@@ -131,7 +138,10 @@ class Ref:
                 break
             out.append(st)
             based = st.find(q('basedOn'))
-            sid = (based.get(q('val')) if based is not None else '') or ''
+            # `basedOn` 的值也是样式 ID，同样要归一化：`by_id` 的键是小写去空格的，
+            # 直接拿原值去查会在这条链的第一步就断掉——派生样式于是"没有属性"，
+            # 与 `by_id` 里明明有它这件事矛盾（表样式 basedOn 基础三线样式就撞这条）。
+            sid = ((based.get(q('val')) if based is not None else '') or '').replace(' ', '').lower()
         if self.doc_defaults is not None:
             out.append(self.doc_defaults)
         return out
@@ -139,14 +149,18 @@ class Ref:
     def eff(self, chain: list, sub: str):
         """取链上第一个设置了 `sub`（如 'pPr/ind'）的元素。
 
-        注意 docDefaults 的元素结构不同（属性在 `rPrDefault/rPr/...` 下），
-        故对它多试一层——`docDefaults` 是继承链的终点，漏了它会导致"读不出来"。
+        `docDefaults` 是继承链的终点，但它的属性分两个桶：`rPrDefault/rPr/…` 与
+        `pPrDefault/pPr/…`。按 `sub` 头一段选桶——只认 rPr 那个桶，行距、段前段后、
+        缩进、对齐这些 pPr 属性就永远读不到；读不到会被下面各处的兜底当成"没设置"，
+        于是 Word 里明明是 1.15 倍 / 段后 10 磅的段落，草稿写成"行距1.0倍"，还附一句
+        "未显式设置，按单倍"的说明——用户照草稿生成，模板就跟参考文件不一样了。
         """
         path = '/'.join(q(p) for p in sub.split('/'))
+        bucket = 'rPrDefault' if sub.startswith('rPr/') else 'pPrDefault'
         for el in chain:
             found = el.find(path)
             if found is None and el is self.doc_defaults:
-                found = el.find('/'.join([q('rPrDefault'), path]))
+                found = el.find(f'{q(bucket)}/{path}')
             if found is not None:
                 return found
         return None
@@ -177,8 +191,8 @@ class Ref:
             v = rf.get(q(name))
             if v:
                 return v
-            t = rf.get(q(theme_name))
-            return self.theme.get(t) if t else None
+            theme_key = rf.get(q(theme_name))
+            return self.theme.get(theme_key) if theme_key else None
         return pick('eastAsia', 'eastAsiaTheme'), (pick('ascii', 'asciiTheme')
                                                   or pick('hAnsi', 'hAnsiTheme'))
 
@@ -257,13 +271,18 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
 
     def twips_to_pt(name, lines_name, label):
         if sp is None:
+            # 整条链上都没有 spacing：段距的生效值就是 0。**不能跳过不写**——少一个
+            # 「段前」/「段后」就是必填字段缺失，这份草稿喂回去直接被生成器拒掉。
+            out.append(f'{label}0磅')
             return
         if sp.get(q(name)) is not None:
             out.append(f'{label}{int(sp.get(q(name))) / 20:g}磅')
         elif sp.get(q(lines_name)) is not None:
             n = int(sp.get(q(lines_name))) / 100
             doubt.append(t('extractor.note.line_unit_converted', ref.lang, label=label, lines=n))
-            out.append(f'{label}{n * (int(sz.get(q("val"))) / 2 if sz is not None else 12):g}磅')
+            # `sz` 存在却没有 `@w:val` 是可能的（手改过的模板），别在这里抛 TypeError
+            base = int(sz.get(q('val'))) / 2 if sz is not None and sz.get(q('val')) else 12
+            out.append(f'{label}{n * base:g}磅')
         else:
             out.append(f'{label}0磅')
     twips_to_pt('before', 'beforeLines', '段前')
@@ -319,6 +338,10 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         if kind != '无' and bottom.get(q('sz')):
             out.append(f'边框粗{int(bottom.get(q("sz"))) / 8:g}磅')
 
+    # 其余三边与底纹不在这里报：它们顺着 basedOn 会在每个派生样式上重复一遍（一条写在
+    # 「正文」上的底纹能刷出二十几条一样的提示，把真正要看的那几条淹掉）。由
+    # `read_limitations()` 按文档汇总一次。
+
     # 制表位：本工具只能声明**一种**（`点线制表位`，右对齐 + 点线、落在版心右边界，
     # 目录条目靠它顶页码）。参考文件里别的制表位表达不了——**要说出来**，不能静默丢：
     # 用户拿学校模板来读，草稿少一条却毫无提示，正是这套实现一直在防的那种失败。
@@ -333,10 +356,10 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         if canonical:
             out.append('点线制表位')
         else:
-            where = '、'.join(f"{t.get(q('val')) or 'left'} "
-                              f"{int(t.get(q('pos')) or 0) / TWIPS_PER_CM:.2f}cm"
-                              f"{'点线' if t.get(q('leader')) == 'dot' else ''}"
-                              for t in tab_list)
+            where = '、'.join(f"{stop.get(q('val')) or 'left'} "
+                              f"{int(stop.get(q('pos')) or 0) / TWIPS_PER_CM:.2f}cm"
+                              f"{'点线' if stop.get(q('leader')) == 'dot' else ''}"
+                              for stop in tab_list)
             doubt.append(t('extractor.note.tabs_limited', ref.lang,
                            count=len(tab_list), where=where))
 
@@ -350,13 +373,148 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
     return out, doubt, defined
 
 
+def _used_style_ids(ref: Ref) -> set:
+    """文档里**实际引用到**的样式 ID：正文、页眉页脚，外加默认段落样式。
+
+    只看 `document.xml` 会漏掉页眉/页脚样式——学校模板常把底纹、上边框写在「页眉」上，
+    而那条样式只在 `header1.xml` 里被引用。
+    样式表里躺着几十条内置表格样式（Medium Grid 1、Colorful Shading…），每条都带底纹；
+    不按"用没用"过滤，一条提示能把这些名字全列出来——比不提示还糟。
+    """
+    roots = [ref.document]
+    for name, raw in ref.parts.items():
+        if name.startswith(('word/header', 'word/footer')) and name.endswith('.xml'):
+            roots.append(etree.fromstring(raw))
+    used = set()
+    for root in roots:
+        for tag in ('pStyle', 'rStyle', 'tblStyle'):
+            for el in root.iter(q(tag)):
+                sid = (el.get(q('val')) or '').replace(' ', '').lower()
+                if sid:
+                    used.add(sid)
+    for sid, style in ref.by_id.items():
+        if style.get(q('type')) == 'paragraph' and style.get(q('default')) in ('1', 'true'):
+            used.add(sid)          # 没写 pStyle 的段落用的就是它
+    return used
+
+
+def read_limitations(ref: Ref) -> tuple:
+    """参考文件里用了、而格式文件表达不了的属性 —— **按文档汇总一次**。
+
+    段落边框本工具只写「下边框」，底纹一个字都写不了。表达不了就得说出来：静默丢的话，
+    用户照草稿排完版才发现学校模板上的方框、表头灰底不见了，而草稿里一个字都没提。
+
+    沿 `basedOn` 上溯去找**声明者**，按声明者去重：既不会漏掉"派生样式在用、属性写在
+    基础样式上"这种最常见形态，也不会因为派生样式各自报一遍而刷屏。去重的依据是
+    "哪个样式写的"（元素身份），不是"哪个样式在用"。
+    """
+    sides, shaded = [], []
+    voted_sides, voted_shading = set(), set()
+    for sid in sorted(_used_style_ids(ref)):
+        for style in ref.chain(sid):
+            if style is ref.doc_defaults:
+                continue
+            mark = id(style)
+            if mark not in voted_sides:
+                borders = style.find(f'{q("pPr")}/{q("pBdr")}')
+                labels = [(zh if ref.lang != 'en' else en)
+                          for tag, zh, en in _P_BORDER_SIDES
+                          if borders is not None and borders.find(q(tag)) is not None
+                          and borders.find(q(tag)).get(q('val')) not in ('none', 'nil')]
+                if labels:
+                    voted_sides.add(mark)
+                    sides.append(f'{_style_label(style)}（{"、".join(labels)}）')
+            if mark not in voted_shading and _has_shading(style):
+                voted_shading.add(mark)
+                shaded.append(_style_label(style))
+    doubt = []
+    if sides:
+        doubt.append(t('extractor.note.border_sides_limited', ref.lang, sides='；'.join(sides)))
+    if shaded:
+        doubt.append(t('extractor.note.shading_not_supported', ref.lang,
+                       names='、'.join(shaded)))
+    return [], doubt
+
+
+def _style_label(style) -> str:
+    name = style.find(q('name'))
+    return (name.get(q('val')) if name is not None else '') or style.get(q('styleId')) or '?'
+
+
+def _filled(shading) -> bool:
+    """这条 `w:shd` 是不是真的上了色（auto 与纯白都等于没上）。"""
+    return shading is not None and (shading.get(q('fill')) or '').lower() not in _NO_FILL
+
+
+def _has_shading(style) -> bool:
+    """样式上有没有真正上了色的底纹。
+
+    「表头灰底」这一种最常见，而 Word 把它写在**条件格式**里
+    （`tblStylePr[@w:type="firstRow"]/tcPr/shd`），不在 `pPr`/`tblPr`/`tcPr` 任何一个
+    直挂位置上——只查那三处的话，学校三线表的表头底色一律读不出来也报不出来。
+    字符底纹（`rPr/shd`，灰底字）同理。
+    """
+    for path in (('pPr', 'shd'), ('rPr', 'shd'), ('tblPr', 'shd'), ('tcPr', 'shd')):
+        if _filled(style.find('/'.join(q(p) for p in path))):
+            return True
+    return any(_filled(conditional.find('/'.join(q(p) for p in (bucket, 'shd'))))
+               for conditional in style.findall(q('tblStylePr'))
+               for bucket in ('tcPr', 'tblPr'))
+
+
 def read_table(ref: Ref) -> tuple:
-    """Table 样式 → 表格行 / 表头行 / 单元格垂直对齐"""
+    """文档里表格实际引用的样式 → 表格行 / 表头行 / 单元格垂直对齐"""
     out, doubt = [], []
-    tbl = ref.by_id.get('table')
-    if tbl is None:
+    # **按文档里表格实际引用的样式取**，不是按"样式 ID 恰好叫 table"。学校/期刊模板的
+    # 表格样式各有各的名字（Table Grid、三线表A…），只认 `table` 的话，这类文件读出来
+    # 既没有表格行、也没有任何提示——最坏的一种失败。样式名从 `w:tblStyle` 拿，是文档
+    # 自己写下来的事实，不是猜。
+    used = []          # [(归一化 ID, 文档里写的原名)]，报给用户时用原名
+    for el in ref.document.iter(q('tblStyle')):
+        raw = el.get(q('val')) or ''
+        sid = raw.replace(' ', '').lower()
+        if sid and all(sid != seen for seen, _ in used):
+            used.append((sid, raw))
+    chosen = next((sid for sid, _ in used if sid in ref.by_id), None)
+    if chosen is None and not used:
+        # 文档里没有表格，或表格没挂样式：这时"没读到"是正常的，不用打扰用户
+        chosen = 'table' if 'table' in ref.by_id else None
+    if chosen is None:
+        if used:      # 有表格却找不到样式定义：这才是要报的那种"没读到"
+            doubt.append(t('extractor.note.table_style_undefined', ref.lang,
+                           names='、'.join(raw for _, raw in used)))
+        elif any(True for _ in ref.document.iter(q('tbl'))):
+            # 表格没挂样式：边框可能是直接格式描上去的，本工具读的是样式，这一项读不出来
+            doubt.append(t('extractor.note.table_no_style', ref.lang))
         return out, doubt
-    pr = tbl.find(f'{q("tblPr")}/{q("tblBorders")}')
+    if len(used) > 1:
+        # 说清**读的是哪一个**：`chosen` 是第一个有定义的，未必是文档里第一个
+        described = []
+        for sid, raw in used:
+            style = ref.by_id.get(sid)
+            described.append(_style_label(style) if style is not None
+                             else f'{raw}（样式表里没有定义）')
+        doubt.append(t('extractor.note.table_styles_multiple', ref.lang,
+                       names='、'.join(described), chosen=_style_label(ref.by_id[chosen])))
+    tbl = ref.by_id[chosen]
+
+    def inherited(sub):
+        """表样式也能 `basedOn`（学校模板常是「基于表格网格改两笔」），沿链找第一处设置。
+
+        只看最外面那层的话，派生样式的边框会被判成"没定义"，草稿少一行、用户拿到的
+        模板表格就没线了；这类静默丢失正是这套实现一直在防的。
+        """
+        path = '/'.join(q(p) for p in sub.split('/'))
+        for st in ref.chain(chosen):
+            found = st.find(path)
+            if found is not None:
+                return found
+        return None
+
+
+    first_row = [e for e in tbl.findall(q('tblStylePr')) if e.get(q('type')) == 'firstRow']
+
+    pr = inherited('tblPr/tblBorders')
     if pr is not None:
         def side(name):
             el = pr.find(q(name))
@@ -377,16 +535,15 @@ def read_table(ref: Ref) -> tuple:
         else:
             style = '三线表'
             doubt.append(t('extractor.note.table_border_default', ref.lang))
-        jc = tbl.find(f'{q("tblPr")}/{q("jc")}')
+        jc = inherited('tblPr/jc')
         align = ALIGN.get(jc.get(q('val')) if jc is not None else 'center', '居中')
         line = [f'表格：{align} {style}']
         for label, v in (('线宽上', top), ('线宽底', bottom)):
             if v:
                 line.append(f'{label}{v:g}磅')
-        fr = [e for e in tbl.findall(q('tblStylePr')) if e.get(q('type')) == 'firstRow']
         hb = None
-        if fr:
-            e = fr[0].find(f'{q("tcPr")}/{q("tcBorders")}/{q("bottom")}')
+        if first_row:
+            e = first_row[0].find(f'{q("tcPr")}/{q("tcBorders")}/{q("bottom")}')
             if e is not None and e.get(q('sz')):
                 hb = int(e.get(q('sz'))) / 8
         if hb:
@@ -399,19 +556,20 @@ def read_table(ref: Ref) -> tuple:
                              'bottom': '单元格垂直底端'}[va.get(q('val'))])
         out.append(' '.join(line))
     else:
-        doubt.append(t('extractor.note.table_border_undefined', ref.lang))
+        doubt.append(t('extractor.note.table_border_undefined', ref.lang,
+                       name=_style_label(tbl)))
 
     # 表头行样式（firstRow 条件格式）
-    fr = [e for e in tbl.findall(q('tblStylePr')) if e.get(q('type')) == 'firstRow']
-    if fr and (fr[0].find(q('rPr')) is not None or fr[0].find(q('pPr')) is not None):
-        ref.by_id['__firstrow__'] = fr[0]
+    if first_row and (first_row[0].find(q('rPr')) is not None
+                      or first_row[0].find(q('pPr')) is not None):
+        ref.by_id['__firstrow__'] = first_row[0]
         try:
             head, hd, _ = clauses_for(ref, '__firstrow__')
         except Exception:
             head, hd = [], ['第一行（表头）样式读取失败']
         out.append('表头：' + ' '.join(head) + (' 跨页重复'
-                                                if fr[0].find(f'{q("rPr")}') is not None
-                                                and fr[0].find(f'{q("trPr")}/{q("tblHeader")}') is not None
+                                                if first_row[0].find(f'{q("rPr")}') is not None
+                                                and first_row[0].find(f'{q("trPr")}/{q("tblHeader")}') is not None
                                                 else ''))
         doubt += [f'表头行：{d}' for d in hd]
         ref.by_id.pop('__firstrow__', None)     # 只在真的塞进去过时才清
@@ -465,8 +623,13 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
             out.append(f'页边距：上{top:g}cm 下{bottom:g}cm 左{left:g}cm 右{right:g}cm')
         for name, label in (('header', '页眉距边界'), ('footer', '页脚距边界')):
             v = cm_of(name)
-            if v:
-                out.append(f'{label}：{v:g}cm')
+            if v is None:
+                continue
+            if v < 0:
+                # OOXML 允许负值，格式文件的词表不允许：照写会得到一份生成器拒收的草稿
+                doubt.append(t('extractor.note.decor_distance_negative', ref.lang, value=v))
+                continue
+            out.append(f'{label}：{v:g}cm')   # 显式写 0cm 也要照写：0 是值，不是"没设置"
         # 装订线（pgMar/@w:gutter）。本工具自己的产物里不会有它——写入时是**折进左边距**
         # 写的（理由见 design.md §1.5），故这里读的只可能是别人模板里的。
         gut = cm_of('gutter')
@@ -495,7 +658,7 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
                                                           left=left, right=right))
             out.append(f'文档网格：每页{n}行')
 
-    lang = ref.eff([ref.doc_defaults] if ref.doc_defaults is not None else [], 'rPrDefault/rPr/lang')
+    lang = ref.eff([ref.doc_defaults] if ref.doc_defaults is not None else [], 'rPr/lang')
     if lang is not None and lang.get(q('eastAsia')):
         out.append(f'校对语言：{lang.get(q("eastAsia"))}')
     return out, doubt
@@ -510,6 +673,15 @@ _DECOR_LABELS = {
     ("footer", "default"): "页脚内容",
     ("footer", "even"): "偶数页页脚内容",
     ("footer", "first"): "首页页脚内容",
+}
+# 只有"需人工确认"里的指代跟语言走；草稿正文那几行永远是格式文件的词表写法
+_DECOR_LABELS_EN = {
+    ("header", "default"): "the default header",
+    ("header", "even"): "the even-page header",
+    ("header", "first"): "the first-page header",
+    ("footer", "default"): "the default footer",
+    ("footer", "even"): "the even-page footer",
+    ("footer", "first"): "the first-page footer",
 }
 
 
@@ -559,8 +731,11 @@ def read_decor(ref: Ref) -> tuple:
             continue
         root = etree.fromstring(raw)
         pieces = []
+        drawings = 0
         for el in root.iter():
-            if el.tag == q('t') and el.text:
+            if el.tag in (q('drawing'), q('pict'), q('object')):
+                drawings += 1          # 学校 logo、页眉横线常在这里：读不出也表达不了
+            elif el.tag == q('t') and el.text:
                 pieces.append(el.text)
             elif el.tag == q('instrText') and el.text:
                 instr = el.text.strip()
@@ -575,6 +750,10 @@ def read_decor(ref: Ref) -> tuple:
         content = ' '.join(p for p in pieces if p).strip()
         if content:
             out.append(f'{name}：{content}')
+        if drawings:
+            where = _DECOR_LABELS_EN[(kind, which)] if ref.lang == 'en' else name
+            doubt.append(t('extractor.note.decor_drawing', ref.lang,
+                           where=where, count=drawings))
     if conflicting:
         doubt.append(t("extractor.note.sections_differ", ref.lang))
     return out, doubt
@@ -590,7 +769,7 @@ def _auto_lang(docx: Path) -> str:
     except (OSError, KeyError, ValueError, zipfile.BadZipFile):
         return 'zh'
     lang_el = probe.eff([probe.doc_defaults] if probe.doc_defaults is not None else [],
-                        'rPrDefault/rPr/lang')
+                        'rPr/lang')
     east = lang_el.get(q('eastAsia')) if lang_el is not None else None
     if east:
         return 'zh' if east.lower().startswith('zh') else 'en'
@@ -637,7 +816,8 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
     word_to_cn = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
     lines = ['# 由 md-to-word-template 从参考文件读出的草稿，**请核对**',
              f'# 来源: {ref.path.name}']
-    for part in (read_page(ref, body_line_multiple(ref)), read_table(ref), read_decor(ref)):
+    for part in (read_page(ref, body_line_multiple(ref)), read_table(ref), read_decor(ref),
+                 read_limitations(ref)):
         lines += part[0]
         ref.notes += part[1]
 
@@ -649,7 +829,10 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
         cs, doubt, defined = clauses_for(ref, sid_norm)
         if not defined and cn not in required_cn:
             # 参考文件没给这条样式定义属性 → 整条跳过。硬凑一份"字体=?"的行去生成模板，
-            # 只会得到一份必填校验不过、或格式凭空的草稿
+            # 只会得到一份必填校验不过、或格式凭空的草稿。
+            # 它带的边框、底纹这类"表达不了"的东西归 `read_limitations()` 汇总，不在这里报：
+            # 这里能把 `doubt` 放出来的只有行距/制表位/对齐，而这几条对一条已经跳过的样式
+            # 没有意义（下面那句"这些样式已跳过"已经说完了）。
             skipped.append(cn)
             continue
         lines.append(f'{cn}：' + ' '.join(cs))
@@ -658,7 +841,7 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
     if skipped:
         ref.notes.append(t('extractor.note.styles_skipped', ref.lang, names='、'.join(skipped)))
     used = {(st.get(q('val')) or '').replace(' ', '').lower()
-            for st in etree.fromstring(ref.parts['word/document.xml']).iter(q('pStyle'))}
+            for st in ref.document.iter(q('pStyle'))}
     leftover = sorted(k for k in ref.by_id
                       if k in used and k not in word_to_cn and not k.startswith('_'))
     if leftover:
