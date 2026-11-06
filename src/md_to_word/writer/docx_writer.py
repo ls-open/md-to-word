@@ -85,6 +85,12 @@ def _plain_text(nodes: Iterable[Inline]) -> str:
     return "".join(out)
 
 
+def _snippet(latex: str, limit: int) -> str:
+    """报错里引一段公式：超长就截断并补省略号，切口才不会被误读成公式本身少了东西。"""
+    flat = " ".join(latex.split())
+    return flat if len(flat) <= limit else flat[:limit].rstrip() + "…"
+
+
 def _ends_with_cjk(text: str) -> bool:
     """行尾是中文——汉字、或中文句末引号/括号都算（`满意” [13]` 里那个空格同样是语法）。"""
     stripped = text.rstrip()
@@ -433,7 +439,7 @@ class _Writer:
         try:
             maths = latex_to_omml(block.latex, self.lang)
         except UnsupportedMath as exc:
-            snippet = block.latex.strip().replace("\n", " ")[:40]
+            snippet = _snippet(block.latex, 40)
             raise UnsupportedFeature(t("writer.equation_failed", self.lang,
                                        snippet=snippet, err=exc)) from exc
 
@@ -1040,7 +1046,7 @@ class _Writer:
             try:
                 nodes = latex_to_omml(node.latex, self.lang)
             except UnsupportedMath as exc:
-                snippet = node.latex.strip()[:30]
+                snippet = _snippet(node.latex, 30)
                 raise UnsupportedFeature(t("writer.inline_equation_failed", self.lang,
                                            snippet=snippet, err=exc)) from exc
             paragraph._p.append(self._omath(nodes))

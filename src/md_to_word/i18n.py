@@ -949,6 +949,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.tag.caption_adjacency": ("图表题注邻近性", "caption adjacency"),
     "gate.tag.soft_wrap": ("折行段落", "wrapped paragraph"),
     "gate.tag.literal_asterisk": ("星号未解析", "asterisk not parsed"),
+    "gate.tag.math_comment": ("公式里的百分号", "percent sign inside math"),
+    "gate.math.comment": (
+        "公式里的 `%` 是 LaTeX 的注释起始符，它**后面整段内容都会被丢掉**（「{snippet}」）："
+        "字面百分号写成 `\\%`",
+        "`%` starts a LaTeX comment inside math, so **everything after it is dropped** "
+        '("{snippet}"): write a literal percent as `\\%`',
+    ),
     "gate.tag.equation_brace": ("公式括号不配对", "unbalanced equation braces"),
     "gate.equation.brace": (
         "公式里的花括号不配对（「{snippet}」）：转换器不会报错，只会静默丢掉内容"
@@ -1010,6 +1017,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.citation.unknown_key": (
         "引用了 {key}，但文献库里没有这个条目",
         "cited {key}, but the bibliography has no such entry",
+    ),
+    "gate.key.cjk_swallowed": (
+        "——`@` 后面要留一个空格或标点：紧跟着的汉字会被并进 key 里",
+        " — leave a space or punctuation after `@`; the Chinese characters that follow "
+        "were swallowed into the key",
     ),
     "gate.citation.no_bibliography": (
         "正文有 {count} 处 `[@key]` 引用语法，但稿件未声明 `bibliography:`（{shown}）；"

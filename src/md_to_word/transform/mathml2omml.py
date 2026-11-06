@@ -616,5 +616,8 @@ def latex_to_omml(latex: str, lang: str = "zh") -> list:
     try:
         mathml = latex_to_mathml(latex)
     except Exception as exc:
-        raise UnsupportedMath(t("mathml.latex_failed", lang, err=exc)) from exc
+        # latex2mathml 的异常 `str()` 可能为空，直接插值只剩一对空括号；类名本身可读。
+        raise UnsupportedMath(
+            t("mathml.latex_failed", lang, err=str(exc) or type(exc).__name__)
+        ) from exc
     return mathml_to_omml(mathml, lang)

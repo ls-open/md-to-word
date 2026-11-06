@@ -52,16 +52,13 @@ def _indent_width(indent: str) -> int:
 
 # ── 内联 ────────────────────────────────────────────────────────────────
 
-# 强调符号的边界：开符后面不能是空白（`注：* P<0.05` 里的 `*` 是星号，不是斜体开头），
-# 闭符前面不能是空白。少了这两条，`注：* P<0.05，** P<0.01，*** P<0.001。` 会被配成
-# 一段强调，把显著性星号当格式标记吃掉——这是静默丢字，比报错难查得多。
+# 强调符号的边界：开符后不能是空白、闭符前不能是空白——否则 `注：* P<0.05，** P<0.01`
+# 会被配成一段强调，把显著性星号当格式标记吃掉。
 #
-# 词内的 `*` 还要看**闭符右侧**：两头都紧挨字母数字才算乘号（`2*3*4`、`a*b*c`）。
-# 只看开符左侧是不够的——化学立体描述符 `(1*S*,2*R*)` 与回归式 `y = 4054.1*x*` 的开符
-# 左边同样是数字，按左侧一条判，同一篇稿里同一种记法一半斜体、一半落成字面星号。
-# CommonMark 允许词内 `*`（`5*6*78` 是 `5<em>6</em>78`），本工具**故意**不跟：乘号被吃成
-# 斜体是产物上看不出来的静默错；落成字面星号至少看得见，再由预检的残符提醒给出路
-# （见 `unparsed_stars` 与 `literal_asterisk_issues`）。
+# 词内 `*` 还要看**闭符右侧**：两头都紧挨字母数字才算乘号（`a*b*c`）。只看左侧会把
+# 化学描述符 `(1*S*,2*R*)` 与回归式 `y = 4054.1*x*` 判成乘号。CommonMark 允许词内强调，
+# 本工具故意不跟：斜体化在产物上看不出来，落成字面星号至少看得见，再由预检提醒
+# （`unparsed_stars` / `literal_asterisk_issues`）。
 def _emphasis(name: str, delim: str, body: str, single: bool = False) -> str:
     """一条强调分支：正常边界 + 词内边界（见上）。
 
@@ -81,7 +78,8 @@ def _emphasis(name: str, delim: str, body: str, single: bool = False) -> str:
 
 _INLINE_RE = re.compile(
     r"(?P<code>``[^`]*(?:`[^`]*)*``|`[^`]+`)"
-    r"|(?P<math>\$(?=\S)[^$\n]*\S\$)"
+    # 收尾的 `$` 不能是被转义的：`$a\$b$` 里的 `\$` 是字面美元号。
+    r"|(?P<math>\$(?=\S)(?:\\.|[^$\\\n])*\S\$)"
     + _emphasis("strongem", r"\*\*\*", r".+?")
     + _emphasis("strong", r"\*\*", r".+?")
     + r"|(?P<del>~~(?=[^\s~])(.+?)(?<=[^\s~])~~)"
@@ -89,7 +87,8 @@ _INLINE_RE = re.compile(
     r"|(?P<link>\[[^\]]*\]\((?:[^()\s]|\([^()\s]*\))*\))"
     r"|(?P<footnote>\[\^[^\]]+\])"
     r"|(?P<citation>\[[^\]]*@[^\]]*\])"
-    r"|(?P<crossref>(?<![\w@])@[\w:.\-]+)"
+    # `@` 前是 ASCII 字母数字才算"词内"（`a@b` 是邮箱式写法）；汉字不算——「由@eq-1可知」是自然写法。
+    r"|(?P<crossref>(?<![A-Za-z0-9_@])@[\w:.\-]+)"
     r"|(?P<sup>\^[^^\s][^^\n]*\^)"
     r"|(?P<sub>~[^~\s][^~\n]*~)"
     + _emphasis("em", r"\*", r".+?", single=True)
@@ -126,6 +125,16 @@ def _protect_escapes(text: str, taken: int = 0) -> tuple[str, dict[str, str]]:
             out.append(text[i:end])
             i = end
             continue
+        if ch == "$":
+            # 公式段是逐字内容，反斜杠留给 LaTeX：换成占位符再还原会出裸 `%`，
+            # latex2mathml 当注释、把后面整段吃掉。
+            end = i + 1
+            while (end := text.find("$", end)) != -1 and text[end - 1] == "\\":
+                end += 1          # `\$` 是字面美元号，不是公式结束符
+            if end != -1:
+                out.append(text[i:end + 1])
+                i = end + 1
+                continue
         m = _ESCAPE_RE.match(text, i)
         if m:
             literal = _TEXT_ESCAPES[m.group(2)] if m.group(2) else m.group(1)
@@ -243,6 +252,7 @@ def parse_inlines(
             tick = 2 if raw.startswith("``") and raw.endswith("``") and len(raw) > 4 else 1
             nodes.append(Code(_restore(raw[tick:-tick], hold)))
         elif kind == "math":
+            # 公式段在 `_protect_escapes` 里整段跳过，不含占位符；反斜杠原样交给 LaTeX。
             nodes.append(Math(raw[1:-1]))
         elif kind == "strongem":
             nodes.append(Strong(children=(Emphasis(children=sub(raw[3:-3])),)))

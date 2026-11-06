@@ -354,9 +354,9 @@ def section_pagebreak_issues(text: str, lang: str = "zh") -> list[tuple[int, str
 # ── 引文 key（`[@key]` / `@key`）──
 # 字符集实测而来：首字符是字母数字或 `_`，其后允许 `: . - _ + / % &`（k1:2 / k-2 / k_3 /
 # k.4 / k+5 / k%7 / k/7 / k&7 都被 citeproc 认作引文并能在 .bib 里命中）。
-# `@` 前是词字符则不算引文——正文里的 `user@example.com` 原样输出（实测）。
+# `@` 前是 ASCII 字母数字则不算引文（`user@example.com` 原样输出）；汉字不算——「见@smith2020」是自然写法。
 # `-@key`（抑制作者）的 `@` 前是 `-`，故 `-` 不能进排除集，否则那种写法会被整条漏掉。
-_CITE_KEY_RE = re.compile(r'(?<![\w@])@(\w[\w:.\-+/%&]*)')
+_CITE_KEY_RE = re.compile(r'(?<![A-Za-z0-9_@])@(\w[\w:.\-+/%&]*)')
 # .bib 条目头：`@article{key,` / `@book{key,`
 _BIB_ENTRY_RE = re.compile(r'@\w+\s*\{\s*([^,\s}]+)\s*,')
 # 行内代码 `` `...` `` —— mask_code_fences 只管围栏块，行内代码得在这里单独遮掉
@@ -417,6 +417,27 @@ def unbalanced_math_issues(text: str) -> list[tuple[int, str]]:
     return issues
 
 
+def math_comment_issues(text: str) -> list[tuple[int, str]]:
+    """公式里的裸 `%` → [(行号, 片段)]。
+
+    LaTeX 里 `%` 是注释起始：`$a%b$` 转换出来只剩 `a`，后半截静默消失，退出码 0。
+    字面百分号必须写 `\\%`——不改解析（LaTeX 语义本就如此），只把后果说清楚。
+    """
+    issues: list[tuple[int, str]] = []
+    in_display = False
+    for i, line in enumerate(mask_code_fences(text).split("\n"), 1):
+        stripped = line.strip()
+        if stripped == "$$":
+            in_display = not in_display
+            continue
+        segments = [line] if in_display or "$$" in line else re.findall(r"(?<!\$)\$[^$\n]+\$", line)
+        for seg in segments:
+            if re.search(r"(?<!\\)%", seg):
+                issues.append((i, stripped[:80]))
+                break
+    return issues
+
+
 def citation_key_issues(
     text: str, known_keys: set, line_offset: int = 0, lang: str = "zh"
 ) -> list[tuple[int, str]]:
@@ -445,8 +466,21 @@ def citation_key_issues(
         if key in reported:
             continue
         reported.add(key)
-        issues.append((line_no, t("gate.citation.unknown_key", lang, key=key)))
+        issues.append((line_no,
+                       t("gate.citation.unknown_key", lang, key=key)
+                       + _cjk_key_hint(key, lang)))
     return issues
+
+
+_CJK_RE = re.compile(r"[㐀-䶿一-鿿]")
+
+
+def _cjk_key_hint(key: str, lang: str) -> str:
+    """key 里混进汉字时补一句"`@` 后要留空格"。
+
+    汉字也可能是合法 key（`{#eq-甲}`），所以不改解析，只把话说清。
+    """
+    return t("gate.key.cjk_swallowed", lang) if _CJK_RE.search(key) else ""
 
 
 def undefined_crossref_issues(
@@ -463,7 +497,9 @@ def undefined_crossref_issues(
         if not _CROSSREF_PREFIX_RE.match(key) or key in labels or key in reported:
             continue
         reported.add(key)
-        issues.append((line_no, t("gate.crossref.undefined", lang, key=key)))
+        issues.append((line_no,
+                       t("gate.crossref.undefined", lang, key=key)
+                       + _cjk_key_hint(key, lang)))
     return issues
 
 

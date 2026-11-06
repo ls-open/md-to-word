@@ -46,6 +46,7 @@ from md_to_word.utils.skill_utils import (
     section_pagebreak_issues,
     split_frontmatter,
     unbalanced_math_issues,
+    math_comment_issues,
     undefined_crossref_issues,
     unknown_shortcode_issues,
 )
@@ -620,7 +621,16 @@ def validate_manuscript(
                 [(line_no, t("gate.soft_wrap", lang, snippet=snippet))
                  for line_no, snippet in soft_wrap_issues(md_text)], lang)
 
-    # 11c. 公式花括号不配对：转换器不报错，只会静默丢内容
+    # 11c. 公式里的裸 `%`：LaTeX 当注释起始，后面整段静默消失
+    for line_no, snippet in math_comment_issues(md_text):
+        report.valid = False
+        report.errors.append(
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.math_comment", lang),
+              why=t("gate.math.comment", lang, snippet=snippet))
+        )
+
+    # 11d. 公式花括号不配对：转换器不报错，只会静默丢内容
     for line_no, snippet in unbalanced_math_issues(md_text):
         report.valid = False
         report.errors.append(
