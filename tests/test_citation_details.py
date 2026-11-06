@@ -273,3 +273,23 @@ def test_author_date_entries_get_no_tab() -> None:
     engine = _apa()
     engine.cite([("adams2019", "")])
     assert "\t" not in engine.bibliography()[0], engine.bibliography()
+
+
+def test_the_number_column_is_cut_at_the_style_declared_marker() -> None:
+    """序号那一栏的边界只认 CSL 声明的前后缀，不认 citeproc 的分片。
+
+    citeproc-py 的分片是按文本节点切的：IEEE 给出的是 `'[1]J. Doe and J. Roe, '`，
+    序号和作者在同一个分片里。按分片切会把制表符插到作者后面（3.4.2 的回归）。
+    """
+    engine = CitationEngine(BIB, CSL / "chinese-gb7714-2015-numeric.csl", lang="zh")
+    engine._first_field_column = True
+    engine._number_prefix, engine._number_suffix = "[", "]"
+    assert engine._separate_first_field(["[1]J. Doe and J. Roe, ", "“T”"], 1) == (
+        "[1]\tJ. Doe and J. Roe, “T”")
+
+
+def test_no_separator_when_the_number_is_not_where_the_style_says() -> None:
+    engine = CitationEngine(BIB, CSL / "chinese-gb7714-2015-numeric.csl", lang="zh")
+    engine._first_field_column = True
+    engine._number_prefix, engine._number_suffix = "[", "]"
+    assert engine._separate_first_field(["Doe, J. A study."], 3) == "Doe, J. A study."

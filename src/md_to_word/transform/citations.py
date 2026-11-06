@@ -56,6 +56,7 @@ class CitationEngine:
         style_text = Path(csl_path).read_text(encoding="utf-8")
         tag = re.search(r"<bibliography\b[^>]*>", style_text)
         self._first_field_column = bool(tag and 'second-field-align' in tag.group(0))
+        self._number_prefix, self._number_suffix = _number_affixes(style_text)
         self._sort_by_initials = _sort_names_initialized(style_text)
         self._sort_order = _declared_sort_keys(style_text)
         self._sorted = bool(self._sort_order)
@@ -368,9 +369,11 @@ class CitationEngine:
         """
         rendered = [
             _merge_duplicate_period(
-                _with_year_suffix(self._separate_first_field(entry), self._by_key.get(key, {}))
+                _with_year_suffix(self._separate_first_field(entry, number),
+                                  self._by_key.get(key, {}))
             )
-            for key, entry in zip(self._order, self._bibliography.bibliography())
+            for number, (key, entry)
+            in enumerate(zip(self._order, self._bibliography.bibliography()), start=1)
         ]
         if not self._sorted or len(rendered) != len(self._order):
             return rendered
@@ -378,20 +381,35 @@ class CitationEngine:
         text_by_key = dict(zip(self._order, rendered))
         return [text_by_key[key] for key in self._sorted_keys(self._order)]
 
-    def _separate_first_field(self, entry) -> str:
-        """`second-field-align` 声明了「首个字段自成一栏」：在字段边界补一个制表符。
+    def _separate_first_field(self, entry, number: int) -> str:
+        """`second-field-align` 声明了「首个字段自成一栏」：在序号后面补一个制表符。
 
-        `citeproc-py` 把 `<bibliography>` 的每个子元素渲染成一个分片，但从不落实这个
-        属性，分片会原样接上——`[1]` 就贴住了条目正文。GB/T 7714 的 `<layout>` 里序号
-        后面**故意不写空格**，正是靠这一栏隔开，所以这个分隔必须补。
+        `citeproc-py` 从不落实这个属性，序号会直接贴住条目正文。而它的分片**不是**按
+        字段切的（IEEE 给出的是 `'[1]J. Doe and J. Roe, '`，序号和作者在同一个分片里），
+        所以边界只能从 CSL 自己写的序号前后缀来：样式里那只 `citation-number` 长什么样，
+        产物里序号就长什么样。
 
-        边界取自 citeproc 自己的分片，不靠正则猜：`entry[0]` 就是第一个字段。用制表符
-        而非空格——`参考文献` 样式带悬挂缩进时，制表位正落在缩进处，首行与折行对齐成一列。
+        用制表符而非空格——`参考文献` 带悬挂缩进时，制表位正落在缩进处，首行与折行对齐。
         """
-        chunks = [str(chunk) for chunk in entry]
-        if not self._first_field_column or len(chunks) < 2:
-            return "".join(chunks)
-        return chunks[0] + "\t" + "".join(chunks[1:])
+        text = "".join(str(chunk) for chunk in entry)
+        marker = f"{self._number_prefix}{number}{self._number_suffix}"
+        if not self._first_field_column or not text.startswith(marker):
+            return text
+        return marker + "\t" + text[len(marker):]
+
+
+def _number_affixes(style_text: str) -> tuple[str, str]:
+    """`<bibliography>` 里 `citation-number` 的前后缀：序号那一栏实际印成什么样。"""
+    block = re.search(r"<bibliography\b.*?</bibliography>", style_text, re.DOTALL)
+    tag = block and re.search(r'<text\b[^>]*variable="citation-number"[^>]*>', block.group(0))
+    if not tag:
+        return "", ""
+
+    def attr(name: str) -> str:
+        found = re.search(rf'{name}="([^"]*)"', tag.group(0))
+        return found.group(1) if found else ""
+
+    return attr("prefix"), attr("suffix")
 
 
 _NUMERIC_CITE_RE = re.compile(r"\[(\d+(?:\s*[,\-–]\s*\d+)+)\]")
