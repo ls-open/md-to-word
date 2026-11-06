@@ -78,8 +78,8 @@ def _style_line(style: dict) -> str:
         parts.append("跨页重复")
     if style.get("keep_next"):
         parts.append("与下段同页")
-    # 下面这几项曾经被漏掉：`build_template(spec)` 是先序列化再解析的，漏一项就等于
-    # 用 Python API 传进来的规格被悄悄改了——边框、颜色、字距都会丢。
+    # `build_template(spec)` 是先序列化再解析的，这里漏一项，Python API 传进来的那份
+    # 规约就被悄悄改了（边框、颜色、字距都会丢）。
     if style.get("no_border"):
         parts.append("无边框")
     if style.get("bottom_border"):
