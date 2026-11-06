@@ -1266,21 +1266,18 @@ def apply_table_format(doc, spec, default_latin=None, lang: str = "zh"):
         tsp = _get_tbl_style_pr(style_el, 'firstRow')
         write_run_props(ensure_ordered_child(tsp, 'rPr', _TBLSTYLEPR_ORDER), props, cjk=cjk, latin=latin)
         write_para_props(ensure_ordered_child(tsp, 'pPr', _TBLSTYLEPR_ORDER), props)
-        if props.get('repeat_header'):
-            tr_pr = ensure_ordered_child(tsp, 'trPr', _TBLSTYLEPR_ORDER)
-            ensure_ordered_child(tr_pr, 'tblHeader', _TRPR_ORDER)
-        logger.debug(' ✓ Table: 已设置表头行格式'
-              + ('（含跨页重复标题行）' if props.get('repeat_header') else ''))
+        # 「跨页重复」不在这里写：`w:tblHeader` 是行属性，Word 只认正文第一行上的那份
+        # （写出器按 spec.table_header.repeat_header 补）。
+        logger.debug(' ✓ Table: 已设置表头行格式')
 
-    # 单元格内边距：要求文件写「单元格内边距Ncm」才生效，不写用 0。四种表格样式都适用。
+    # 单元格内边距：四周同一个值，要求文件写「单元格内边距Ncm」才生效，不写用 0。
     # 无论声明与否都要**写进产物**：底模的 Table→Normal Table 继承链里有 0.19cm，
     # 不写就等于默认被它决定（见 TABLE_CELL_MARGIN_DEFAULT_CM）。
     margin_twips = int(round(table.get('cell_margin_cm', TABLE_CELL_MARGIN_DEFAULT_CM) * _TWIPS_PER_CM))
     cell_mar = ensure_ordered_child(tbl_pr, 'tblCellMar', _TBLPR_ORDER)
-    for side, twips in (('top', 0), ('left', margin_twips),
-                        ('bottom', 0), ('right', margin_twips)):
+    for side in ('top', 'left', 'bottom', 'right'):
         el = ensure_ordered_child(cell_mar, side, ('top', 'left', 'bottom', 'right'))
-        el.set(W('w'), str(twips))
+        el.set(W('w'), str(margin_twips))
         el.set(W('type'), 'dxa')
     if 'cell_margin_cm' in table:
         logger.debug(f' ✓ Table: 单元格内边距={table["cell_margin_cm"]}cm')

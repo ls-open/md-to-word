@@ -117,6 +117,10 @@ def _table_line(table: dict) -> str:
         parts.append("行不跨页")
     if table.get("valign"):
         parts.append(_TABLE_VALIGN.get(table["valign"], "单元格垂直居中"))
+    if "cell_margin_cm" in table:  # 0 也是显式声明
+        parts.append(f"单元格内边距{float(table['cell_margin_cm']):g}cm")
+    if table.get("space_after_pt") is not None:
+        parts.append(f"表后间距{float(table['space_after_pt']):g}磅")
     return "表格：" + " ".join(parts)
 
 

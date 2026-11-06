@@ -349,7 +349,11 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 ),
                 equation_number_placement=spec.equation_number if spec else "right",
                 no_row_split=bool(spec and spec.table.get("no_row_split")),
-                repeat_header=bool(spec and spec.table.get("repeat_header")),
+                # 「跨页重复」写在「表头：」那一行，落在 spec.table_header，不是 spec.table
+                repeat_header=bool(spec and spec.table_header
+                                  and spec.table_header.get("repeat_header")),
+                # 「表后间距」写在「表格：」那一行：表格没有段前段后，留白由垫片撑
+                table_space_after=float(spec.table.get("space_after_pt") or 0) if spec else 0.0,
                 lang=res.lang,
             )
         except UnsupportedFeature as exc:

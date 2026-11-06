@@ -553,14 +553,13 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                                      t('audit.msg.table_valign', lang,
                                        want=want_va, got=got_va)))
 
-            # 单元格内边距：左右两栏由 `单元格内边距Ncm` 定，上下恒为 0。
+            # 单元格内边距：四周同值，由 `单元格内边距Ncm` 定。
             # **不写也要对账**——底模的继承链里有个默认值，它不落进 Table 样式就等于由
             # 继承链说了算，而要求文件里写着"不写即 0"。
             want_cm = spec.table.get('cell_margin_cm', TABLE_CELL_MARGIN_DEFAULT_CM)
-            want_lr = str(int(round(want_cm * _TWIPS_PER_CM)))
+            want_w = str(int(round(want_cm * _TWIPS_PER_CM)))
             cell_mar = tbl_pr.find(W + 'tblCellMar') if tbl_pr is not None else None
-            for side, want_w in (('top', '0'), ('left', want_lr),
-                                 ('bottom', '0'), ('right', want_lr)):
+            for side in ('top', 'left', 'bottom', 'right'):
                 e = cell_mar.find(W + side) if cell_mar is not None else None
                 got_w = e.get(W + 'w') if e is not None else None
                 if got_w != want_w:
@@ -569,14 +568,41 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                                        want=want_w, got=got_w)))
 
     # ── 5. 表头跨页重复 ──
+    # `w:tblHeader` 是**行属性**，要写在正文第一行的 `<w:tr>` 上；写进表样式的
+    # tblStylePr 里 Word 不认。从前生成器和对账看的是同一个错位置，等于自己出题自己答。
     if (spec.table_header or {}).get('repeat_header'):
-        fr = _tbl_cond(styles, 'firstRow')
-        trpr = fr.find(W + 'trPr') if fr is not None else None
-        if trpr is None or trpr.find(W + 'tblHeader') is None:
+        first_row = doc.find(f'.//{W}tbl/{W}tr')
+        trpr = first_row.find(W + 'trPr') if first_row is not None else None
+        # 没有表格就没什么可重复的，不报
+        if first_row is not None and (trpr is None or trpr.find(W + 'tblHeader') is None):
             problems.append((t('audit.cat.table', lang),
                              t('audit.msg.repeat_header', lang)))
 
-    # ── 6. 奇偶页不同 ──
+    # ── 6. 表后间距 ──
+    # 表格没有段前段后，留白由表格之后（跨过它自己的表注）那个定高空段落撑出来：
+    # `w:line` 是二十分之一磅，`lineRule=exact` 才让高度与字号无关。
+    want_gap = (spec.table or {}).get('space_after_pt')
+    body = doc.find(W + 'body')
+    if want_gap and body is not None:
+        note = styles.get('table note')
+        note_id = note.get(W + 'styleId') if note is not None else None
+        want_line = str(int(round(float(want_gap) * 20)))
+        for tbl in body.findall(W + 'tbl'):
+            nxt = tbl.getnext()
+            while nxt is not None and nxt.tag == W + 'p' and note_id:
+                ps = nxt.find(f'{W}pPr/{W}pStyle')
+                if ps is None or ps.get(W + 'val') != note_id:
+                    break
+                nxt = nxt.getnext()          # 表注属于这条表格，留白在它之后
+            if nxt is None or nxt.tag == W + 'sectPr':
+                continue                     # 文档以表格收尾，没有「之后」
+            sp = nxt.find(f'{W}pPr/{W}spacing') if nxt.tag == W + 'p' else None
+            if (sp is None or sp.get(W + 'lineRule') != 'exact'
+                    or sp.get(W + 'line') != want_line):
+                problems.append((t('audit.cat.table', lang),
+                                 t('audit.msg.table_space_after', lang, want=want_gap)))
+
+    # ── 7. 奇偶页不同 ──
     settings = etree.fromstring(z.read('word/settings.xml'))
     wants_even = any(k[1] == 'even' for k in spec.decor)
     has_even = settings.find(W + 'evenAndOddHeaders') is not None

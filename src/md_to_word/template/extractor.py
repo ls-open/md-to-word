@@ -33,7 +33,7 @@ from lxml import etree
 
 from md_to_word.i18n import t
 
-from md_to_word.template.generator import CJK_FONTS
+from md_to_word.template.generator import CJK_FONTS, _TWIPS_PER_CM
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
@@ -554,6 +554,19 @@ def read_table(ref: Ref) -> tuple:
             if va is not None and va.get(q('val')):
                 line.append({'center': '单元格垂直居中', 'top': '单元格垂直顶端',
                              'bottom': '单元格垂直底端'}[va.get(q('val'))])
+        mar = inherited('tblPr/tblCellMar')
+        if mar is not None:
+            twips = []
+            for side in ('top', 'left', 'bottom', 'right'):
+                e = mar.find(q(side))
+                raw = (e.get(q('w')) or '').strip() if e is not None else ''
+                twips.append(int(raw) if raw.isdigit() else None)
+            if len(set(twips)) == 1 and twips[0] is not None:
+                line.append(f'单元格内边距{round(twips[0] / _TWIPS_PER_CM, 2):g}cm')
+            else:
+                # 四边不同值：格式文件只有一个数，读不出来就要说，不能挑一边写上去
+                doubt.append(t('extractor.note.table_cell_margin_uneven', ref.lang,
+                               name=_style_label(tbl)))
         out.append(' '.join(line))
     else:
         doubt.append(t('extractor.note.table_border_undefined', ref.lang,

@@ -144,6 +144,13 @@ def _serial_label(serial: int) -> str:
     return str(serial)
 
 
+def _is_table_note(block: Block) -> bool:
+    """表注是表格的一部分：`%% 表注 …` 那一段紧跟在表格下面，算表格的尾巴。"""
+    if not isinstance(block, Paragraph):
+        return False
+    return (block.style or "").replace(" ", "").lower() == "tablenote"
+
+
 def _trim_citation_gap(nodes: Iterable[Inline]) -> list:
     """中文正文与数字制引文之间的那个空格不该印出来：`认知负荷 [9]` → `认知负荷[9]`。
 
@@ -195,6 +202,7 @@ class _Writer:
         appendix_equation_number_format="",
         no_row_split: bool = False,
         repeat_header: bool = False,
+        table_space_after: float = 0.0,
         lang: Optional[str] = None,
     ) -> None:
         self.model = document
@@ -215,6 +223,8 @@ class _Writer:
         self._bibliography_written = False  # 文献表只在「参考文献标题」后写一次
         self.no_row_split = no_row_split  # 表格行是否禁止跨页断开（要求文件写「行不跨页」）
         self.repeat_header = repeat_header  # 表头跨页重复（要求文件写「跨页重复」）
+        self.table_space_after = table_space_after  # 表后留白磅数（要求文件写「表后间距」）
+        self._table_gap_pending = False  # 上一块是表格：下一块开写前补那个垫片
         chinese = looks_chinese(self._prose_text())
         # 报错语言：流水线按 `--lang`/稿件语种传进来；直接调库时按正文自己判
         self.lang = lang or ("zh" if chinese else "en")
@@ -253,6 +263,8 @@ class _Writer:
         """任何非段落块之后，下一段正文都算「首段」——这是 Word 里 First Paragraph 的用法：
         公式、图、表、列表之后的那一段，与标题之后一样换样式。"""
         prev = self._after_heading
+        if self._table_gap_pending and not _is_table_note(block):
+            self._flush_table_gap()
         if isinstance(block, Heading):
             self._heading(block)
         elif isinstance(block, Paragraph):
@@ -730,6 +742,20 @@ class _Writer:
             self._mark_header_row(table)
         if block.widths:
             self._apply_column_widths(table, block.widths)
+        self._table_gap_pending = self.table_space_after > 0
+
+    def _flush_table_gap(self) -> None:
+        """表格之后垫一个定高空段落。
+
+        表格在 Word 里没有段前段后：留白只能靠一个空段落撑，`lineRule=exact` 让它与字号
+        无关，高度就是声明的那几磅。表注属于表格，垫片落在它之后（见 `_is_table_note`）。
+        """
+        self._table_gap_pending = False
+        self._insert_before_sectpr(parse_xml(
+            f'<w:p {nsdecls("w")}><w:pPr><w:spacing w:before="0" w:after="0" '
+            f'w:line="{int(round(self.table_space_after * 20))}" w:lineRule="exact"/>'
+            f'<w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>'
+        ))
 
     def _separate_from_previous_table(self) -> None:
         """两张表紧挨着时垫一个空段落。
@@ -1216,6 +1242,7 @@ def write_docx(
     appendix_equation_number_format: str = "",
     no_row_split: bool = False,
     repeat_header: bool = False,
+    table_space_after: float = 0.0,
     lang: Optional[str] = None,
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
@@ -1239,6 +1266,7 @@ def write_docx(
         appendix_equation_number_format=appendix_equation_number_format,
         no_row_split=no_row_split,
         repeat_header=repeat_header,
+        table_space_after=table_space_after,
         lang=lang,
     )
     writer.write()

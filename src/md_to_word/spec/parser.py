@@ -254,6 +254,13 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
         re.compile(r"(?:单元格内边距|cell-margin)(?P<v>\d+(?:\.\d+)?)cm", re.I),
         lambda p, m, d: _set_once(p, "cell_margin_cm", float(m.group("v")), "单元格内边距", d),
     ),
+    (
+        # 表后间距：表格没有段前段后，留白只能靠表格之后的空段落撑出来。
+        # 表前不留这个口子——上面那段通常是表题，它的「段后」本来就能改。
+        _T,
+        re.compile(r"(?:表后间距|space-after)(?P<v>\d+(?:\.\d+)?)(?:磅|pt)?", re.I),
+        lambda p, m, d: _set_once(p, "space_after_pt", float(m.group("v")), "表后间距", d),
+    ),
 ]
 
 def _english(desc: str) -> bool:
@@ -358,6 +365,7 @@ _COMPOUND_PREFIXES = {
     "表格对齐",
     "单元格垂直",
     "单元格内边距",
+    "表后间距",
 }
 
 
