@@ -345,7 +345,7 @@ other than `width` on an image line (such as `{align=right}`), percentage image 
 (`{width=60%}` — write an absolute length such as `{width=14cm}`), image formats Word cannot hold
 (`.svg`, `.webp`, `.eps` — save them as PNG, or reference a PDF), `==highlight==`,
 `[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`), `\[...\]` display
-maths (write `$$...$$`).
+maths (write `$$...$$`), reference-style links `[text][ref]` with `[ref]: url` (write `[text](url)`).
 
 ---
 

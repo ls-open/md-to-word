@@ -318,13 +318,16 @@ def validate_manuscript(
 
     if isinstance(fm_data, dict):
         # 1a. bibliography 路径
-        if fm_data.get("bibliography"):
-            bib_path, how = resolve_manuscript_path(str(fm_data["bibliography"]), md_path)
+        bib_value = fm_data.get("bibliography")
+        if isinstance(bib_value, list) and len(bib_value) > 1:
+            report.valid = False
+            report.errors.append(t("gate.bib.multiple", lang, count=len(bib_value)))
+        elif bib_value:
+            single = bib_value[0] if isinstance(bib_value, list) else bib_value
+            bib_path, how = resolve_manuscript_path(str(single), md_path)
             if not how:
                 report.valid = False
-                report.errors.append(
-                    t("gate.bib.missing", lang, path=fm_data["bibliography"])
-                )
+                report.errors.append(t("gate.bib.missing", lang, path=single))
 
         # 1b. csl 路径
         if fm_data.get("csl"):
@@ -449,8 +452,10 @@ def validate_manuscript(
             continue
         for m in re.finditer(r"!\[(.*?)\]\((.*?)\)", line):
             raw_path = m.group(2).strip()
-            # 过滤网络链接
+            # 远程图片本引擎不下载：放过去只会在写出阶段把它当本地路径，报成"磁盘满"
             if raw_path.startswith(("http://", "https://", "data:")):
+                report.valid = False
+                report.errors.append(t("gate.image.remote", lang, line=i, path=raw_path[:60]))
                 continue
             # 空格检查
             if " " in raw_path and not raw_path.startswith("<") and not re.search(r'["\'].*["\']', raw_path):
@@ -532,15 +537,12 @@ def validate_manuscript(
                 report.valid = False
                 report.errors.append(t("gate.section.start", lang, line=i, value=value))
 
-    # 3. Obsidian WikiLinks
-    for i, line in enumerate(md_text.split("\n"), 1):
+    # 3. Obsidian WikiLinks 与 4. LaTeX 分页符：代码块里是数据，不是写法
+    for i, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         if re.search(r"!\[\[.*?\]\]|\[\[.*?\]\]", line):
             report.valid = False
             report.errors.append(t("gate.wikilink", lang, line=i))
-
-    # 4. LaTeX 分页符
-    for i, line in enumerate(md_text.split("\n"), 1):
-        if re.search(r"\\(?:newpage|pagebreak|clearpage)", line):
+        elif re.search(r"\\(?:newpage|pagebreak|clearpage)", line):
             report.valid = False
             report.errors.append(t("gate.latex.pagebreak", lang, line=i))
 

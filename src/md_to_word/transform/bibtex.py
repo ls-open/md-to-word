@@ -53,7 +53,9 @@ def _read_field_value(body: str, start: int) -> tuple[str, int]:
     closer = {"{": "}", "(": ")", '"': '"'}.get(opener)
     if closer is None:  # 裸值：数字或宏名
         j = i
-        while j < n and body[j] not in ",\n}":
+        # `#` 也要断：`journal = jstat # " (Online)"` 里前半是宏名、后半是字符串，
+        # 不停在这里就会整段当一个值，拼接分支永远轮不到
+        while j < n and body[j] not in ",\n}#":
             j += 1
         return body[i:j].strip(), j
     if opener == closer:

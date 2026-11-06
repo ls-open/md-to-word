@@ -13,7 +13,9 @@ import string
 from typing import Optional
 
 import yaml
+from html import unescape
 
+from md_to_word.utils.skill_utils import split_frontmatter
 from md_to_word.model.document import (
     Block, Citation, CitationItem, Code, CodeBlock, CrossRef, Document, Emphasis, Equation,
     Figure, Footnote, FootnoteRef, Heading, LineBreak, Link, ListBlock, ListItem, Math, Metadata,
@@ -84,7 +86,8 @@ _INLINE_RE = re.compile(
     + _emphasis("strong", r"\*\*", r".+?")
     + r"|(?P<del>~~(?=[^\s~])(.+?)(?<=[^\s~])~~)"
     r"|(?P<underline>\[[^\]]+\]\{\.underline\})"
-    r"|(?P<link>\[[^\]]*\]\((?:[^()\s]|\([^()\s]*\))*\))"
+    # 目标后面可以跟一个 `"标题"`（CommonMark 的 title）：不认的话整串会印成字面量
+    r"|(?P<link>\[[^\]]*\]\((?:[^()\s]|\([^()\s]*\)|\s+\"[^\"]*\")*\))"
     r"|(?P<footnote>\[\^[^\]]+\])"
     r"|(?P<citation>\[[^\]]*@[^\]]*\])"
     # `@` 前是 ASCII 字母数字才算"词内"（`a@b` 是邮箱式写法）；汉字不算——「由@eq-1可知」是自然写法。
@@ -266,7 +269,7 @@ def parse_inlines(
             nodes.append(Underline(children=sub(raw[1 : raw.index("]")])))
         elif kind == "link":
             label, url = raw[1:-1].split("](", 1)
-            nodes.append(Link(children=sub(label), url=url))
+            nodes.append(Link(children=sub(label), url=_without_title(url)))
         elif kind == "footnote":
             nodes.append(FootnoteRef(label=raw[2:-1]))
         elif kind == "citation":
@@ -301,22 +304,20 @@ def parse_inlines(
             nodes.append(Subscript(children=sub(raw[1:-1])))
         pos = m.end()
     if pos < len(guarded):
-        nodes.append(Text(smart_quotes(_restore(guarded[pos:], hold))))
+        # 实体解码只作用于正文：代码与公式在 `_protect_escapes` 里已被挖走，不在这里
+        nodes.append(Text(smart_quotes(unescape(_restore(guarded[pos:], hold)))))
     return nodes
 
 
 # ── 块级 ────────────────────────────────────────────────────────────────
 
-def _split_frontmatter(text: str) -> tuple[str, str]:
-    if not text.startswith("---\n"):
-        return "", text
-    # 从第 3 个字符找起：空的 YAML 块收尾符就紧接在开头那行后面，从 4 找会跳过它，
-    # 两行 `---` 于是落进正文印出来。
-    end = text.find("\n---", 3)
-    if end == -1:
-        return "", text
-    after = text.find("\n", end + 4)
-    return text[4:end], text[after + 1 :] if after != -1 else ""
+_RE_LINK_TITLE = re.compile(r"^(.*?)\s+\"[^\"]*\"$")
+
+
+def _without_title(target: str) -> str:
+    """`https://x "标题"` → `https://x`。Word 里没有悬浮提示，title 不落产物。"""
+    found = _RE_LINK_TITLE.match(target)
+    return found.group(1) if found else target
 
 
 def _metadata(raw: str) -> Metadata:
@@ -328,7 +329,9 @@ def _metadata(raw: str) -> Metadata:
         data = {}
     crossref = data.get("crossref") if isinstance(data.get("crossref"), dict) else {}
     return Metadata(
-        bibliography=data.get("bibliography"),
+        # 预检已经对多路径报过错；这里只保证单元素列表也能用
+        bibliography=(raw_bib[0] if isinstance(raw_bib := data.get("bibliography"), list)
+                      and raw_bib else raw_bib),
         csl=data.get("csl"),
         crossref=crossref,
         chapters=bool(crossref.get("chapters")),
@@ -776,7 +779,7 @@ def read_markdown(text: str, citation_keys: Optional[set[str]] = None) -> Docume
 
     `citation_keys` 传入文献库 key 时，`@key` 能正确区分「叙述式文献引用」与「稿内交叉引用」。
     """
-    front, body = _split_frontmatter(text)
+    front, body = split_frontmatter(text)
     reader = _Reader(body, citation_keys)
     doc = reader.read()
     doc.meta = _metadata(front)

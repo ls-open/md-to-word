@@ -168,6 +168,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "产物完整性检查未通过：原稿中 {count} 处数值未在产物中找到（{sample}）。",
         "Numeric integrity check failed: {count} value(s) from the manuscript are missing ({sample}).",
     ),
+    "pipeline.chinese_failed": (
+        "产物完整性检查未通过：原稿中有 {count} 个汉字没出现在产物里（{sample}）。"
+        "确认无误时可用 --no-postflight 跳过这一查。",
+        "Content integrity check failed: {count} Chinese character(s) from the manuscript "
+        "never reached the output ({sample}). Use --no-postflight to skip this check.",
+    ),
     "pipeline.audit_ok": ("产物与格式要求逐条对账通过。", "Post-export audit against the format file passed."),
     "pipeline.audit_failed": (
         "导出后抽查未通过：产物与格式要求存在 {count} 处不符。",
@@ -703,6 +709,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "audit.cat.style": ("样式", "style"),
     "audit.cat.font": ("字体", "font"),
     "audit.cat.font_size": ("字号", "font size"),
+    "audit.cat.color": ("颜色", "color"),
     "audit.cat.bold": ("加粗", "bold"),
     "audit.cat.italic": ("倾斜", "italic"),
     "audit.cat.alignment": ("对齐", "alignment"),
@@ -755,6 +762,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "audit.msg.font_size": (
         "{name}：要求 {want}(半磅)，产物 {got}",
         "{name}: expected {want} (half-points), but the output is {got}",
+    ),
+    "audit.msg.color": (
+        "{name}：要求颜色 #{want}，产物是 #{got}",
+        "{name}: color #{want} was required, but the output is #{got}",
     ),
     "audit.msg.bold_missing": (
         "{name}：要求加粗，产物没加粗（链上 b={src}）",
@@ -915,6 +926,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "表后间距：要求 {want} 磅，表格之后没有对应高度的空段落",
         "space after table: expected {want} pt, but no empty paragraph of that "
         "height follows the table",
+    ),
+    "audit.msg.no_row_split": (
+        "要求了「行不跨页」，产物里有表格行没写 cantSplit",
+        "row splitting was disallowed, but some table rows lack cantSplit",
     ),
     "audit.msg.repeat_header": (
         "要求表头跨页重复（tblHeader），产物没有",
@@ -1103,6 +1118,15 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.image.path_space": (
         "行 {line}: 图片路径含未转义空格「{path}」",
         "Line {line}: image path contains an unescaped space: {path}",
+    ),
+    "gate.image.remote": (
+        "行 {line}: 远程图片不支持（{path}），请先下载到稿件目录再引用",
+        "line {line}: remote images are not supported ({path}); download it next to the "
+        "manuscript and reference it locally",
+    ),
+    "gate.bib.multiple": (
+        "`bibliography:` 只接受一个路径，这里写了 {count} 个",
+        "`bibliography:` accepts a single path, but {count} were given",
     ),
     "gate.image.missing": (
         "行 {line}: 图片文件不存在「{path}」",
@@ -1336,6 +1360,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "网址直接写或写成 `[文字](网址)`",
         "HTML tags are not supported; for a line break end the line with two spaces, for a page break "
         "use `{{< pagebreak >}}`, and write URLs bare or as `[text](url)`",
+    ),
+    "gate.dialect.ref_link": (
+        "引用式链接（`[文字][ref]` 与 `[ref]: url`）不支持，请写成 `[文字](url)`",
+        "reference-style links (`[text][ref]` and `[ref]: url`) are not supported; "
+        "write `[text](url)` instead",
     ),
     "gate.dialect.hr": (
         "不支持横向分隔线；需要分页用 `{{< pagebreak >}}`，需要分段用空行",

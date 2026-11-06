@@ -120,7 +120,8 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     # 收尾的 `---` 必须**行首那一条**。少写 MULTILINE、让它随便找一条 `---`，
     # 正文里的横向分隔线就会被当成前置区的结束符——它之前的内容整段被当成 YAML
     # 吃掉，而 YAML 允许纯注释，于是连报错都没有。
-    m = re.match(r"^---[ \t]*\r?\n(.*?)^---[ \t]*(?:\r?\n|$)", text, re.DOTALL | re.M)
+    # 收尾也认 `...`：Pandoc 与 CommonMark 都用它结束 YAML 前置区
+    m = re.match(r"^---[ \t]*\r?\n(.*?)^(?:---|\.\.\.)[ \t]*(?:\r?\n|$)", text, re.DOTALL | re.M)
     if not m:
         return "", text
     return m.group(1) or "", text[m.end():]
@@ -356,6 +357,8 @@ def section_pagebreak_issues(text: str, lang: str = "zh") -> list[tuple[int, str
 # k.4 / k+5 / k%7 / k/7 / k&7 都被 citeproc 认作引文并能在 .bib 里命中）。
 # `@` 前是 ASCII 字母数字则不算引文（`user@example.com` 原样输出）；汉字不算——「见@smith2020」是自然写法。
 # `-@key`（抑制作者）的 `@` 前是 `-`，故 `-` 不能进排除集，否则那种写法会被整条漏掉。
+# 尖括号里带 `@` 或 `://` 的整段：自动链接与邮箱，里面的 `@` 不是引文
+_ANGLE_RE = re.compile(r"<[^>\s]*(?:@|://)[^>\s]*>")
 _CITE_KEY_RE = re.compile(r'(?<![A-Za-z0-9_@])@(\w[\w:.\-+/%&]*)')
 # .bib 条目头：`@article{key,` / `@book{key,`
 _BIB_ENTRY_RE = re.compile(r'@\w+\s*\{\s*([^,\s}]+)\s*,')
@@ -386,7 +389,9 @@ def cited_keys(text: str, line_offset: int = 0):
     不补，报出来的行号会比稿件实际行号少掉 frontmatter 的行数，用户照着找必然错位。
     """
     for i, raw in enumerate(mask_code_fences(text or '').split("\n"), 1):
-        for m in _CITE_KEY_RE.finditer(_INLINE_CODE_RE.sub(' ', raw)):
+        # `<https://…>` 与 `<foo@bar>` 是自动链接，里面的 `@` 不是引文
+        line = _ANGLE_RE.sub(" ", _INLINE_CODE_RE.sub(" ", raw))
+        for m in _CITE_KEY_RE.finditer(line):
             key = m.group(1).rstrip('.')
             if key:
                 yield i + line_offset, key
@@ -675,7 +680,8 @@ _HTML_TAG_RE = re.compile(
     r"</?(?:a|b|br|center|div|em|font|hr|i|img|p|span|strong|sub|sup|table|td|th|tr|u)\b[^>]*>",
     re.I,
 )
-_AUTOLINK_RE = re.compile(r"<https?://[^>\s]+>")
+# 自动链接：`<https://…>` 与 `<foo@bar>` 两种形态，正文里都不支持
+_AUTOLINK_RE = re.compile(r"<[^<>\s]*(?:://|@)[^<>\s]*>")
 _HR_RE = re.compile(r"^\s{0,3}(?:\*\s*){3,}$|^\s{0,3}(?:-\s*){3,}$|^\s{0,3}(?:_\s*){3,}$")
 _SETEXT_RE = re.compile(r"^\s{0,3}=+\s*$")
 _DEF_LIST_RE = re.compile(r"^\s{0,3}:\s+\S")
@@ -683,6 +689,10 @@ _TASK_ITEM_RE = re.compile(r"^\s*[-*+]\s+\[[ xX]\]\s")
 _NOEDGE_TABLE_RE = re.compile(r"^\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+$")
 _NESTED_QUOTE_RE = re.compile(r"^\s*>\s*>")
 _WIDE_STYLE_RE = re.compile(r"^\s*％％")
+# 引用式链接：`[文字][ref]` 与定义行 `[ref]: url`。本引擎只认内联式，不拦就印成字面量。
+# `[^1]` 是脚注，不是链接标签
+_REF_LINK_RE = re.compile(r"\[(?!\^)[^\]]+\]\[[^\]]*\]")
+_REF_LINK_DEF_RE = re.compile(r"^\s{0,3}\[(?!\^)[^\]]+\]:\s*\S")
 _EMPTY_HEADING_RE = re.compile(r"^\s*#{1,6}\s*$")
 _HIGHLIGHT_RE = re.compile(r"==[^=\s][^=]*?==")
 _SPAN_ATTR_RE = re.compile(r"\[[^\]]*\]\{\s*(?P<attr>[.#][^}]*)\}")
@@ -744,6 +754,9 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
 
         if _HTML_TAG_RE.search(code_free) or _AUTOLINK_RE.search(code_free):
             issues.append((line_no, t("gate.dialect.html", lang)))
+            continue
+        if _REF_LINK_RE.search(code_free) or _REF_LINK_DEF_RE.match(code_free):
+            issues.append((line_no, t("gate.dialect.ref_link", lang)))
             continue
         if _HR_RE.match(code_free):
             issues.append((line_no, t("gate.dialect.hr", lang)))
