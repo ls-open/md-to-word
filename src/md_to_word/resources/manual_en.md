@@ -608,13 +608,27 @@ md-to-word-template template.docx -o format.txt   # reverse-engineered draft; ch
 md-to-word paper.md -f format.txt -o paper.docx
 ```
 
-Only format data is read (paper size, margins, header/footer text and page numbers, fonts, sizes and
-spacing of each style); the export still builds its own template. Multi-section templates (cover, TOC,
-body) work the same way — section breaks are marked in the manuscript with `{{< section >}}`.
+Only format data is read: paper size, margins, header/footer distance from the edge, page-number
+format, document grid, proofing language, header/footer text and fields, tables (read from the style
+the document's tables **actually reference** — it need not be called Table), and each style's fonts,
+size, line spacing, paragraph spacing and indent. The export still builds its own template.
+Multi-section templates (cover, TOC, body) work the same way — section breaks are marked in the
+manuscript with `{{< section >}}`.
 
-**Where reverse-engineering stops**: it reads values Word actually stored. Anything a reference file
-expresses through direct paragraph formatting, or through a long style-inheritance chain, comes out
-empty or default — the more real formatting a document carries, the lower the share that can be read.
+Properties are read at their **effective** value: whatever a style does not set itself is looked up
+along the `basedOn` chain and in `docDefaults`, so the most common shape — a derived style whose
+properties live on the base style — is read correctly instead of falling back to empty or default.
+
+**Where reverse-engineering stops** — two kinds, both listed at the end of the draft, neither guessed:
+
+- **Cannot be read**: anything a reference file expresses through **direct paragraph formatting**
+  (hand-tuned spacing, manual indents, a single bold word), and tables that carry no style. This tool
+  reads the styles part; that layer is invisible to it.
+- **Read, but not expressible in a format file**: borders other than the bottom one (top/left/right,
+  full boxes), shading (paragraph fill, table-header grey, highlighted text), and pictures or shapes
+  in headers and footers (a school logo, a rule line). These are summarised as one note naming the
+  styles involved; add them in Word after export.
+
 Headers and footers are resolved **by reference** (when sections differ, the body's is taken and a note
 is added), so three chapter names are never mistaken for three kinds of header. The result is a
 **draft**: unread items are listed at its end — check them one by one before typesetting.

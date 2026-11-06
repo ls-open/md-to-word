@@ -175,7 +175,7 @@ No need to transcribe guidelines manually from `.docx` files issued by publisher
 md-to-word-template university_template.docx -o format.txt
 ```
 
-It automatically extracts page dimensions, margins, header/footer spacing, pagination, fonts, sizes, line spacing, paragraph before/after spacing, indentations, and table borders into a clean `format.txt`.
+It automatically extracts page dimensions, margins, header/footer spacing, pagination, fonts, sizes, line spacing, paragraph before/after spacing, indentations, and table borders into a `format.txt`. **Anything it could not determine — or could read but cannot express — is collected into an item-by-item checklist at the end of that file**, and is never guessed.
 
 If the cover page and originality statement must survive **untouched**, don't reverse-engineer — use that `.docx` as the base and pour the body in:
 
