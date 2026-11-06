@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 from lxml import etree
 
 from md_to_word.i18n import t
@@ -51,6 +53,69 @@ def _run(text: str, upright: bool = False):
     t.text = text
     t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
     return run
+
+
+def _space_text(width: str) -> str:
+    r"""`<mspace width>` → 宽度相当的空格字符。
+
+    OOXML 没有间距元素，`\,` `\;` `\quad` 只能落成一个字符：细空格（1/6 em）、
+    四分之一全角（1/4 em）、全身空格（1 em），够不到更多档。负间距（`\!`）没有对应
+    字符，返回空串——它只是让排版更紧，不是丢字。
+    """
+    if width.startswith("negative"):
+        return ""
+    try:
+        em = float(width[:-2]) if width.endswith("em") else 0.0
+    except ValueError:
+        return ""
+    if em <= 0:
+        return ""
+    if em < 0.2:
+        return "\u2009"          # 细空格：`\,`
+    if em < 0.4:
+        return "\u2005"          # 四分之一全角：`\:` `\;`
+    return "\u2001" * max(1, round(em))   # 全身空格：`\quad` `\qquad`
+
+
+_TEXT_ATOMS = {"mi", "mn", "mo", "mtext"}
+
+
+def _source_facts(root) -> tuple:
+    """MathML 里的守恒量：字母数字的多重集，与「声明了间距」的处数。"""
+    chars = Counter(ch for ch in "".join(root.itertext()) if ch.isalnum())
+    spaces = 0
+    for element in root.iter():
+        name = _local(element)
+        text = element.text or ""
+        if name in _TEXT_ATOMS and text and not text.strip():
+            spaces += 1
+        elif name == "mspace" and not (element.get("width") or "").startswith("negative"):
+            spaces += 1
+    return chars, spaces
+
+
+def _output_facts(nodes: list) -> tuple:
+    """OMML 侧的同一个量：`m:t` 里的字母数字，与纯空白的 run。"""
+    texts = [t.text or "" for n in nodes for t in n.iter(_m("t"))]
+    chars = Counter(ch for text in texts for ch in text if ch.isalnum())
+    spaces = sum(1 for text in texts if text and not text.strip())
+    return chars, spaces
+
+
+def _check_conserved(root, nodes: list, lang: str) -> None:
+    """转换后对账：字母数字一个不能少，声明的间距一处不能丢。
+
+    逐个元素核对做不了——括号落成 `m:d` 的 `begChr`、求和号落成 `m:nary` 的 `m:chr`、
+    重音变成组合字符，元素与输出从来不是一对一。能守恒的只有「字」和「间距」两样，
+    也只比这两样：丢一个变量、少一个空格都算，换个写法保存不算。
+    """
+    want_chars, want_spaces = _source_facts(root)
+    got_chars, got_spaces = _output_facts(nodes)
+    if want_chars != got_chars:
+        missing = "".join(sorted((want_chars - got_chars).elements()))[:8]
+        raise UnsupportedMath(t("mathml.lost_chars", lang, chars=missing))
+    if want_spaces != got_spaces:
+        raise UnsupportedMath(t("mathml.lost_spacing", lang))
 
 
 class _Converter:
@@ -171,8 +236,11 @@ class _Converter:
         为什么：latex2mathml 用 `<mi/>`（`&` 拆出来的空格子）、空的 `<mo/>`（`\right.`）
         表示"这里什么都没有"。照直转换会得到空 `<m:r>`，Word 里是一个看不见但占位的框，
         `aligned` 每行都会多一个。
+
+        判据只能是「元素里没有字」：`~` 变来的是**不换行空格**，`strip()` 把它当空白，
+        跟着占位符一起丢掉，`0.893~1.092` 就在 Word 里粘成 `0.8931.092`。
         """
-        if not (text or "").strip():
+        if not text:
             return []
         return [_run(text, upright=upright)]
 
@@ -193,7 +261,9 @@ class _Converter:
         return self._text_run(element.text, upright=True)
 
     def _on_mspace(self, element) -> list:
-        return []
+        """`\\,` `\\;` `\\quad` 也是一处内容：OMML 没有间距元素，落成一个空格 run。"""
+        text = _space_text(element.get("width") or "")
+        return [_run(text)] if text else []
 
     def _on_mstyle(self, element) -> list:
         return self._children(element)
@@ -599,7 +669,9 @@ def mathml_to_omml(mathml: str | bytes, lang: str = "zh"):
         # 转换器偶有产出非法 XML 的情形（`aligned` 里的 `&` 会漏成裸实体）。这类失败要
         # 一句话说清是哪条公式，不能把 lxml 的 traceback 甩给作者。
         raise UnsupportedMath(t("mathml.malformed", lang, err=exc)) from exc
-    return _Converter(lang).convert(root)
+    nodes = _Converter(lang).convert(root)
+    _check_conserved(root, nodes, lang)
+    return nodes
 
 
 # `aligned` 是 latex2mathml 唯一没吃干净的写法：`&` 对齐符会被当成 `<mi>&</mi>`，产出非法

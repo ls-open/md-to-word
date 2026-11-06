@@ -179,6 +179,8 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   body chapters stay 1–6, and an `# Acknowledgements` heading after the appendices is chapter 7.
 - An unnumbered equation is simply `$$…$$`: it gets no number and consumes none. Writing a label
   without referring to it is allowed; the number still appears.
+- Spacing commands `~` `\,` `\:` `\;` `\quad` `\qquad` are preserved (`~` and `\ ` are
+  non-breaking spaces); a plain space in math mode is not typeset, as in LaTeX.
 - **Multi-line equations** use the `cases`, `matrix` or `split` environment (`aligned` is treated as
   `split`). Unbalanced braces are not reported by the converter — it silently drops content — so the
   pre-flight check stops them by line.
@@ -753,7 +755,7 @@ examples. The tag is a stable category identifier; the text after it says which 
 | `[paragraph style]` | The name after `%%` is not in the §3.4 vocabulary; check the spelling |
 | Requirements file does not parse | A property word is not in the §3.1 vocabulary; the error gives the line number, the original word and the expected form |
 | Image is not centred | The `Figure:` style line has no indent, so it inherits the body's first-line indent |
-| An equation lost characters or structure | unbalanced braces (`\frac{a}{b`): the converter reports nothing and silently drops content; add the missing `}` at the reported line |
+| An equation reports dropped characters or incomplete structure | unbalanced braces (`\frac{a}{b`) are the usual cause; add what is missing at the reported line. Added or lost characters and spacing are both caught, never shipped silently |
 | A Chinese manuscript is underlined in red throughout | The format file has no `Proofing Language: zh-CN` |
 | References were not generated | YAML is missing `bibliography:`, the body has no `[@key]`, or the references section title line is missing |
 | TOC entry font is wrong | The TOC entry styles were not written as Word's built-in styles (`TOC 1/2/3`), or `dot-leader-tab` was written on them (no effect) |

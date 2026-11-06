@@ -235,6 +235,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "公式结构不完整（{name}）：{err}",
         "the equation structure is incomplete ({name}): {err}",
     ),
+    "mathml.lost_chars": (
+        "公式转换丢了字符：{chars}",
+        "equation conversion dropped characters: {chars}",
+    ),
+    "mathml.lost_spacing": (
+        "公式里的间距（`~` `\\,` `\\;` `\\quad`）转换后没了",
+        "spacing in the equation (`~`, `\\,`, `\\;`, `\\quad`) was lost in conversion",
+    ),
     "mathml.malformed": (
         "公式转换失败（{err}）。多行公式请用 `cases`、`matrix` 或 `split` 环境，"
         "也可以拆成多条公式分别编号。",
