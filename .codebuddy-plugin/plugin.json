@@ -1,6 +1,6 @@
 {
   "name": "md-to-word",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "description": "Markdown 转 Word 文档排版工具。将 Markdown 排版为符合期刊或学校格式要求的 Word (.docx) 文件，支持 OMML 原生矢量数学公式、三线表、CSL 引文、双册手册指引及学位论文底模灌入（实验性场景）。",
   "description_en": "Typeset Markdown manuscripts into journal- or school-compliant Word (.docx) documents. Supports native editable OMML math equations, three-line tables, CSL citations, two-volume manuals, and base template injection for theses (experimental).",
   "author": {
