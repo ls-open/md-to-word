@@ -361,6 +361,8 @@ _CITE_KEY_RE = re.compile(r'(?<![A-Za-z0-9_@])@(\w[\w:.\-+/%&]*)')
 _BIB_ENTRY_RE = re.compile(r'@\w+\s*\{\s*([^,\s}]+)\s*,')
 # 行内代码 `` `...` `` —— mask_code_fences 只管围栏块，行内代码得在这里单独遮掉
 _INLINE_CODE_RE = re.compile(r'`[^`]*`')
+# 块级公式的围栏：`$$` 单独一行，收尾行可以带标签 `$$ {#eq-a}`
+_DISPLAY_FENCE_RE = re.compile(r"^\$\$(?:\s*\{#[\w:.\-]+\})?$")
 # 稿子里定义过的标签：`{#eq-dynamics}`、`{#tbl-main}`
 _DEFINED_LABEL_RE = re.compile(r'\{#([\w:.\-]+)\}')
 # 交叉引用标签前缀——`@eq-x` 这类是**交叉引用**，不是文献 key，
@@ -405,7 +407,7 @@ def unbalanced_math_issues(text: str) -> list[tuple[int, str]]:
     in_display = False
     for i, line in enumerate(mask_code_fences(text).split("\n"), 1):
         stripped = line.strip()
-        if stripped == "$$":
+        if _DISPLAY_FENCE_RE.match(stripped):
             in_display = not in_display
             continue
         segments = [line] if in_display or "$$" in line else re.findall(r"(?<!\$)\$[^$\n]+\$", line)
@@ -414,6 +416,10 @@ def unbalanced_math_issues(text: str) -> list[tuple[int, str]]:
             if body.count("{") != body.count("}"):
                 issues.append((i, stripped[:80]))
                 break
+    if in_display:
+        # 围栏没闭合：那是「`$$` 未配对」，由方言检查单独报一次即可。顺着这个误判往下扫，
+        # 后面每一行的 `%` / 花括号都会被算成公式内容，一屏假错误把真病因淹掉。
+        return []
     return issues
 
 
@@ -427,7 +433,7 @@ def math_comment_issues(text: str) -> list[tuple[int, str]]:
     in_display = False
     for i, line in enumerate(mask_code_fences(text).split("\n"), 1):
         stripped = line.strip()
-        if stripped == "$$":
+        if _DISPLAY_FENCE_RE.match(stripped):
             in_display = not in_display
             continue
         segments = [line] if in_display or "$$" in line else re.findall(r"(?<!\$)\$[^$\n]+\$", line)
@@ -435,6 +441,10 @@ def math_comment_issues(text: str) -> list[tuple[int, str]]:
             if re.search(r"(?<!\\)%", seg):
                 issues.append((i, stripped[:80]))
                 break
+    if in_display:
+        # 围栏没闭合：那是「`$$` 未配对」，由方言检查单独报一次即可。顺着这个误判往下扫，
+        # 后面每一行的 `%` / 花括号都会被算成公式内容，一屏假错误把真病因淹掉。
+        return []
     return issues
 
 
@@ -717,14 +727,17 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
     issues: list[tuple[int, str]] = []
 
     in_display_math = False
+    opened_at = 0
     for index, line in enumerate(lines):
         line_no = index + 1 + offset
         code_free = _strip_inline_code(line)
 
         # `$$` 独占一行是块级公式的围栏，要成对切换；单行的 `$$…$$` 整行都是公式，
         # 既不切换状态、也不需要检查符号配对——两者混为一谈会让后面所有的 `$` 检查失效。
-        if code_free.strip() == "$$":
+        if _DISPLAY_FENCE_RE.match(code_free.strip()):
             in_display_math = not in_display_math
+            if in_display_math:
+                opened_at = line_no
             continue
         if code_free.strip().startswith("$$"):
             continue
@@ -798,7 +811,9 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
             continue
 
     if in_display_math:
-        issues.append((len(lines) + offset, t("gate.dialect.unclosed_display_math", lang)))
+        # 报**开围栏那一行**：报文件末尾等于让作者去猜哪一条没闭合
+        issues.append((opened_at or len(lines) + offset,
+                       t("gate.dialect.unclosed_display_math", lang)))
 
     # 首尾不带竖线的表格：连续两行都有竖线，却都不以竖线开头。按规则二维网格读不到，
     # 只会一行一段地把竖线原样印出去。

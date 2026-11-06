@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from md_to_word.utils.typography import smart_quotes
 
@@ -55,6 +56,19 @@ def _read_field_value(body: str, start: int) -> tuple[str, int]:
         while j < n and body[j] not in ",\n}":
             j += 1
         return body[i:j].strip(), j
+    if opener == closer:
+        # 引号包裹的值没有嵌套：找到下一个同样的引号就结束。走下面的配对逻辑，
+        # 开符与闭符是同一个字符，每遇到一个都算"加深"，值会一路吞到条目末尾。
+        j = i + 1
+        while j < n:
+            if body[j] == "\\":
+                j += 2
+                continue
+            if body[j] == closer:
+                return body[i : j + 1], j + 1
+            j += 1
+        return body[i:], n
+
     depth, j = 0, i
     while j < n:
         ch = body[j]
@@ -71,7 +85,50 @@ def _read_field_value(body: str, start: int) -> tuple[str, int]:
     return body[i:], n
 
 
-def _parse_fields(body: str) -> dict:
+def _parse_strings(text: str) -> dict[str, str]:
+    """`@string{acm = "ACM Press"}` → {acm: ACM Press}。
+
+    BibTeX 允许把出版社、期刊名定义成宏，字段里裸写宏名。不展开的话成稿里会印出
+    `acm` 这个标识符——实测过。
+    """
+    macros: dict[str, str] = {}
+    for match in re.finditer(r"@string", text, re.I):
+        start = text.find("{", match.end())
+        if start == -1:
+            continue
+        depth, end = 0, start
+        while end < len(text):
+            ch = text[end]
+            if ch == "\\":
+                end += 2
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            end += 1
+        for name, value in _parse_fields(text[start + 1 : end]).items():
+            if not name.startswith("raw:"):
+                macros[name] = value
+    return macros
+
+
+def _strip_delims(text: str) -> str:
+    """去掉字段值最外层的一对引号或花括号（拼接时逐段去，不能整串去）。"""
+    if text[:1] in '{(\"' and text[-1:] in '})\"':
+        return text[1:-1]
+    return text
+
+
+def _expand(value: str, macros) -> str:
+    """字段值里裸写的宏名（`publisher = acm`）展开成宏的正文。"""
+    bare = value.strip().lower()
+    return macros[bare] if macros and value[:1] not in '{(\"' and bare in macros else value
+
+
+def _parse_fields(body: str, macros: dict[str, str] | None = None) -> dict:
     fields: dict[str, str] = {}
     pos = 0
     while pos < len(body):
@@ -79,12 +136,23 @@ def _parse_fields(body: str) -> dict:
         if not m:
             break
         value, pos = _read_field_value(body, m.end())
-        if value:
+        parts = [_expand(value, macros)]
+        # BibTeX 的 `#` 是字符串拼接：`publisher = "ACM" # " Press"`。不认它，后面的
+        # `# " Press", year = …` 会被当成同一个值吞进去，整条条目跟着坏掉。
+        while True:
+            ahead = pos
+            while ahead < len(body) and body[ahead] in " \t\n\r":
+                ahead += 1
+            if ahead >= len(body) or body[ahead] != "#":
+                break
+            extra, pos = _read_field_value(body, ahead + 1)
+            parts.append(_expand(extra, macros))
+        if any(parts):
             name = m.group(1).lower()
             # 原始值另存一份：团体作者靠花括号保护（`{{World Health Organization}}`），
             # 清洗会把它和「名 姓」混成一类
-            fields[f"raw:{name}"] = value
-            fields[name] = _clean(value)
+            fields[f"raw:{name}"] = "".join(parts)
+            fields[name] = _clean("".join(_strip_delims(p) for p in parts))
         # 跳过字段间的逗号
         while pos < len(body) and body[pos] in " ,\t\n\r":
             pos += 1
@@ -102,6 +170,32 @@ _LATEX_ESCAPES = {
 _ESCAPE_SEQ_RE = re.compile(r"\\([&%$#_{}]|text[a-z]+)")
 
 
+# BibTeX 用「重音命令 + 字母」写带音标的字母：`{\^o}`、`\"u`、`{\v r}`。
+# 组合用字符经 NFC 合成单个预组合字符，作者名才不会印成 `T\^O` 这种字面量。
+_ACCENTS = {
+    "^": "\u0302", '"': "\u0308", "'": "\u0301", "`": "\u0300", "~": "\u0303",
+    "=": "\u0304", ".": "\u0307", "u": "\u0306", "v": "\u030c", "H": "\u030b",
+    "c": "\u0327", "k": "\u0328", "r": "\u030a",
+}
+_ACCENT_LETTERS = {
+    "O": "\u00d8", "o": "\u00f8", "aa": "\u00e5", "AA": "\u00c5",
+    "ss": "\u00df", "ae": "\u00e6", "AE": "\u00c6", "oe": "\u0153", "OE": "\u0152",
+    "l": "\u0142", "L": "\u0141", "i": "\u0131", "j": "\u0237",
+}
+_ACCENT_CMD = "".join(re.escape(c) for c in _ACCENTS)
+
+
+def _decode_accents(value: str) -> str:
+    def accent(m: re.Match) -> str:
+        return unicodedata.normalize("NFC", m.group(2) + _ACCENTS[m.group(1)])
+
+    # `{\v r}` / `\v{r}` / `\v r` 三种写法都要认；命令与字母之间允许一个空格
+    value = re.sub(rf"\\\s?\{{?([{_ACCENT_CMD}])\s?(\w)\}}?", accent, value)
+    value = re.sub(r"\\(O|o|aa|AA|ss|ae|AE|oe|OE|l|L|i|j)\b",
+                   lambda m: _ACCENT_LETTERS[m.group(1)], value)
+    return value
+
+
 def _unescape(value: str) -> str:
     def repl(m: re.Match) -> str:
         return _LATEX_ESCAPES.get(m.group(1), m.group(0))
@@ -113,6 +207,7 @@ def _clean(value: str) -> str:
     value = value.strip()
     if value[:1] in "{(\"" and value[-1:] in "})\"":
         value = value[1:-1]
+    value = _decode_accents(value)
     value = value.replace("{", "").replace("}", "")
     value = _unescape(value)
     value = re.sub(r"\s+", " ", value).strip()
@@ -240,13 +335,29 @@ def _iter_entries(text: str):
         pos = i
 
 
-def parse_bibtex(text: str) -> list[dict]:
-    """整份 .bib → CSL-JSON 条目列表。"""
-    entries: list[dict] = []
+def crossref_keys(text: str) -> list[str]:
+    """用了 `crossref` 的条目 key。
+
+    那是「子条目从父条目继承字段」的写法（会议论文引用同一条 proceedings，省得每条都
+    抄一遍会议名、出版社、年份）。本工具不做继承，这些条目会缺字段——要说得出来。
+    """
+    keys: list[str] = []
     for kind, key, body in _iter_entries(text or ""):
         if kind in ("comment", "string", "preamble"):
             continue
-        fields = _parse_fields(body)
+        if _parse_fields(body).get("crossref"):
+            keys.append(key)
+    return keys
+
+
+def parse_bibtex(text: str) -> list[dict]:
+    """整份 .bib → CSL-JSON 条目列表。"""
+    entries: list[dict] = []
+    macros = _parse_strings(text or "")
+    for kind, key, body in _iter_entries(text or ""):
+        if kind in ("comment", "string", "preamble"):
+            continue
+        fields = _parse_fields(body, macros)
         item: dict = {"id": key, "type": _TYPE_MAP.get(kind, "article")}
         if fields.get("author"):
             item["author"] = _parse_names(fields.get("raw:author", fields["author"]))

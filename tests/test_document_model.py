@@ -30,6 +30,12 @@ def test_frontmatter_becomes_metadata() -> None:
     assert doc.meta.crossref["eq-prefix"] == "式"
 
 
+def test_empty_frontmatter_block_does_not_leak_into_the_body() -> None:
+    """块里一条都没有时，收尾的 `---` 紧接在开头后面——它仍然是 YAML 块，不是正文。"""
+    doc = read_markdown("---\n---\n\n正文\n")
+    assert [b.inlines[0].value for b in doc.blocks if isinstance(b, Paragraph)] == ["正文"]
+
+
 def test_heading_levels() -> None:
     doc = read_markdown("# 一\n\n## 1.1\n\n### 1.1.1\n")
     assert [b.level for b in doc.headings()] == [1, 2, 3]

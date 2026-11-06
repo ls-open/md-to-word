@@ -315,6 +315,13 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             # 用户自带的 CSL：现场剥掉会覆盖模板的 direct formatting（内置样式发布前已规范化）。
             # 不这么做的话，同一份要求文件换个 CSL，悬挂缩进与行距就跟着变。
             csl_path = _normalized_csl(csl_path, Path(temp_dir), res)
+            from md_to_word.transform.bibtex import crossref_keys
+
+            inherited = crossref_keys(bib_text)
+            if inherited:
+                note = t("bib.crossref_not_inherited", res.lang, keys="、".join(inherited[:5]))
+                res.messages.append(note)
+                res.warnings.append(note)
             try:
                 engine = CitationEngine(bib_text, csl_path, res.lang)
             except (CitationError, OSError) as exc:

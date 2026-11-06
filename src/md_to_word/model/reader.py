@@ -310,7 +310,9 @@ def parse_inlines(
 def _split_frontmatter(text: str) -> tuple[str, str]:
     if not text.startswith("---\n"):
         return "", text
-    end = text.find("\n---", 4)
+    # 从第 3 个字符找起：空的 YAML 块收尾符就紧接在开头那行后面，从 4 找会跳过它，
+    # 两行 `---` 于是落进正文印出来。
+    end = text.find("\n---", 3)
     if end == -1:
         return "", text
     after = text.find("\n", end + 4)

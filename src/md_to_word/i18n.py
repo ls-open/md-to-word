@@ -242,6 +242,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "`split` environment, or split it into separate numbered equations.",
     ),
     "citations.empty_library": ("文献库里没有可用条目", "the bibliography has no usable entries"),
+    "bib.crossref_not_inherited": (
+        "这些条目用了 `crossref`（从父条目继承会议名、出版社、年份等字段）：{keys}。"
+        "本工具不做继承，文献表里这几条会缺项——把字段直接写进每个条目里",
+        "these entries use `crossref` (inheriting booktitle, publisher, year … from a parent "
+        "entry): {keys}. This tool does not inherit fields, so those references will come out "
+        "incomplete — copy the fields into each entry",
+    ),
     "citations.style_unparsable": (
         "CSL 样式无法解析：{path}（{err}）",
         "the CSL style could not be parsed: {path} ({err})",
@@ -599,6 +606,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "表格边框不是四种标准样式之一，已按三线表处理",
         "the table borders are not one of the four standard styles; a three-line table was assumed",
     ),
+    "extractor.note.table_cell_margin_uneven": (
+        "表格样式「{name}」的四边单元格内边距不同，格式文件只有一个值，草稿没写",
+        'the table style "{name}" uses different cell margins per side; the format '
+        "file has only one value, so the draft leaves cell padding out",
+    ),
     "extractor.note.table_border_undefined": (
         "参考文件的表格样式「{name}」没有边框定义（表格可能靠直接格式描的）",
         'the table style "{name}" in the reference file defines no borders (the table may be '
@@ -890,6 +902,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "audit.msg.table_cell_margin": (
         "单元格内边距{side}：要求 {want}(twips)，产物 {got}",
         "cell margin {side}: expected {want} (twips), but the output is {got}",
+    ),
+    "audit.msg.table_space_after": (
+        "表后间距：要求 {want} 磅，表格之后没有对应高度的空段落",
+        "space after table: expected {want} pt, but no empty paragraph of that "
+        "height follows the table",
     ),
     "audit.msg.repeat_header": (
         "要求表头跨页重复（tblHeader），产物没有",
