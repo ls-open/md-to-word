@@ -255,3 +255,21 @@ def test_translator_series_and_note_are_mapped() -> None:
     assert entry["translator"] == [{"family": "C", "given": "D"}]
     assert entry["note"] == "注"
     assert entry["number-of-pages"] == "123"
+
+
+def test_numeric_entries_put_the_number_in_its_own_column() -> None:
+    """`[1]` 与条目正文之间要有分隔，且是制表符：样式声明了 `second-field-align`。
+
+    GB/T 7714 的 `<layout>` 里序号后面故意不写空格，上游靠这个属性让排版器把序号
+    排成独立一栏。段落格式归要求文件管，所以这一栏由引擎按 CSL 自己的声明补。
+    """
+    engine = CitationEngine(BIB, CSL / "chinese-gb7714-2015-numeric.csl", lang="zh")
+    engine.cite([("adams2019", "")])
+    assert engine.bibliography()[0].startswith("[1]\tADAMS"), engine.bibliography()
+
+
+def test_author_date_entries_get_no_tab() -> None:
+    """作者-年份制没有序号列，不能凭空补一个制表符。"""
+    engine = _apa()
+    engine.cite([("adams2019", "")])
+    assert "\t" not in engine.bibliography()[0], engine.bibliography()

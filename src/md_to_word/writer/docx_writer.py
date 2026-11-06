@@ -1133,10 +1133,15 @@ class _Writer:
                 el.set(qn("w:val"), "subscript")
                 rpr.append(el)
             run.append(rpr)
-        t = run.makeelement(qn("w:t"), {})
-        t.text = text
-        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-        run.append(t)
+        # 制表符在 OOXML 里是 `<w:tab/>`，写进 `<w:t>` 会被 Word 当普通空白
+        for index, chunk in enumerate(text.split("\t")):
+            if index:
+                run.append(run.makeelement(qn("w:tab"), {}))
+            if chunk:
+                t = run.makeelement(qn("w:t"), {})
+                t.text = chunk
+                t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+                run.append(t)
         return run
 
     def _hyperlink(self, paragraph, node: Link) -> None:

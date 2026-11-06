@@ -1,19 +1,18 @@
 """CSL 文件的规范化：去掉会覆盖模板样式的 direct formatting。
 
-CSL 的 `<bibliography>` 标签可以带 `hanging-indent`、`second-field-align`、
-`line-spacing` 三个属性。引文处理器会把它们写成**段落级直接格式**，而直接格式的优先级
-高于样式——于是同一份 `format.txt`，换一个 CSL，悬挂缩进和行距就变了，
-「同一份稿件重跑结果一致」这个承诺当场作废。
+CSL 的 `<bibliography>` 上，`hanging-indent` 与 `line-spacing` 是**段落级直接格式**，
+优先级高于样式——同一份 `format.txt` 换个 CSL，悬挂缩进和行距就变了。判据是
+**段落格式归模板管，CSL 只管条目里写什么**，所以这两个一律去掉。
 
-判据很简单：**段落格式归模板管，CSL 只管条目里写什么**。所以这三个属性一律去掉，
-内置样式在发布前就已规范化，用户自带的在这里现剥。
+`second-field-align` 不在其中：它声明的是「首个字段自成一栏」，是结构不是格式，
+`citations` 靠它把序号和条目正文分开。
 """
 
 from __future__ import annotations
 
 import re
 
-DIRECT_FORMAT_ATTRS = ("hanging-indent", "second-field-align", "line-spacing")
+DIRECT_FORMAT_ATTRS = ("hanging-indent", "line-spacing")
 
 _BIBLIOGRAPHY_TAG_RE = re.compile(r"(<bibliography)([^>]*)(>)")
 

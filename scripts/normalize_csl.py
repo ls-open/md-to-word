@@ -3,7 +3,7 @@
 normalize_csl.py — 规范化 CSL 文件：去掉 direct formatting 属性
 
 功能：
-  去掉 CSL <bibliography> 标签上的 hanging-indent / second-field-align / line-spacing 属性。
+  去掉 CSL <bibliography> 标签上的 hanging-indent / line-spacing 属性。
   引文处理器会把它们写成段落 direct formatting，覆盖模板样式，导致同一 format.txt
   在不同 CSL 下行为不一致（违反确定性原则）。
 

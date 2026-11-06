@@ -42,8 +42,14 @@ def test_every_bundled_style_renders(style: str) -> None:
 def test_every_bundled_style_is_normalized(style: str) -> None:
     """段落格式必须由模板控制：CSL 里的 direct formatting 会盖掉要求文件的设置。"""
     text = (CSL_DIR / style).read_text(encoding="utf-8")
-    for attr in ("hanging-indent", "second-field-align", "line-spacing"):
+    for attr in ("hanging-indent", "line-spacing"):
         assert attr not in text, f"{style} 里还有 {attr}，先跑 scripts/normalize_csl.py"
+
+
+def test_the_numeric_style_declares_its_number_column() -> None:
+    """`second-field-align` 是结构不是格式：去掉它，`[1]` 就会和条目正文贴在一起。"""
+    text = (CSL_DIR / "chinese-gb7714-2015-numeric.csl").read_text(encoding="utf-8")
+    assert 'second-field-align="flush"' in text
 
 
 def test_package_copy_matches_repository_copy() -> None:

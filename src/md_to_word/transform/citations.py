@@ -54,6 +54,8 @@ class CitationEngine:
         self._order: list[str] = []          # 首次引用顺序（数字制就用它）
         self._by_key = {entry["id"]: entry for entry in self.entries}
         style_text = Path(csl_path).read_text(encoding="utf-8")
+        tag = re.search(r"<bibliography\b[^>]*>", style_text)
+        self._first_field_column = bool(tag and 'second-field-align' in tag.group(0))
         self._sort_by_initials = _sort_names_initialized(style_text)
         self._sort_order = _declared_sort_keys(style_text)
         self._sorted = bool(self._sort_order)
@@ -365,7 +367,9 @@ class CitationEngine:
         `_declared_sort_keys` 与 `_sort_names_initialized`。
         """
         rendered = [
-            _merge_duplicate_period(_with_year_suffix(str(entry), self._by_key.get(key, {})))
+            _merge_duplicate_period(
+                _with_year_suffix(self._separate_first_field(entry), self._by_key.get(key, {}))
+            )
             for key, entry in zip(self._order, self._bibliography.bibliography())
         ]
         if not self._sorted or len(rendered) != len(self._order):
@@ -373,6 +377,21 @@ class CitationEngine:
 
         text_by_key = dict(zip(self._order, rendered))
         return [text_by_key[key] for key in self._sorted_keys(self._order)]
+
+    def _separate_first_field(self, entry) -> str:
+        """`second-field-align` 声明了「首个字段自成一栏」：在字段边界补一个制表符。
+
+        `citeproc-py` 把 `<bibliography>` 的每个子元素渲染成一个分片，但从不落实这个
+        属性，分片会原样接上——`[1]` 就贴住了条目正文。GB/T 7714 的 `<layout>` 里序号
+        后面**故意不写空格**，正是靠这一栏隔开，所以这个分隔必须补。
+
+        边界取自 citeproc 自己的分片，不靠正则猜：`entry[0]` 就是第一个字段。用制表符
+        而非空格——`参考文献` 样式带悬挂缩进时，制表位正落在缩进处，首行与折行对齐成一列。
+        """
+        chunks = [str(chunk) for chunk in entry]
+        if not self._first_field_column or len(chunks) < 2:
+            return "".join(chunks)
+        return chunks[0] + "\t" + "".join(chunks[1:])
 
 
 _NUMERIC_CITE_RE = re.compile(r"\[(\d+(?:\s*[,\-–]\s*\d+)+)\]")

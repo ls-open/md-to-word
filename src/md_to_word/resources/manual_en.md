@@ -555,9 +555,10 @@ requirements, use a built-in preset instead of interrogating them about format d
   them into `references.bib`, then cite from it.
 - When `csl:` names a built-in file (such as `apa.csl`), the package looks it up automatically; it
   also accepts a path relative to the manuscript's directory or an absolute path. **A CSL you bring
-  is normalised automatically**: `hanging-indent` / `second-field-align` / `line-spacing` are
-  removed from `<bibliography>`, and one line says so — direct formatting outranks the style, and
-  without stripping it, changing CSL would change the hanging indent and line spacing.
+  is normalised automatically**: `hanging-indent` and `line-spacing` are removed from
+  `<bibliography>`, and one line says so — direct formatting outranks the style.
+- **Numeric styles**: the engine puts a tab after `[n]`, which lands on the `Bibliography`
+  hanging indent and lines the entry text up in a column.
 - **Without `csl:`**: Chinese manuscripts default to GB/T 7714-2015 numeric, everything else to
   APA 7th (the criterion is the body language). The default is defined in one place, so it cannot
   produce two different reference lists through two entry points.
