@@ -35,10 +35,12 @@ step "命令行入口"
 
 step "包内文档"
 SITE=$("$TMP/venv/bin/python" -c "import md_to_word, pathlib; print(pathlib.Path(md_to_word.__file__).parent)")
-for f in resources/guide.md resources/manual.md resources/manual_en.md; do
+for f in resources/guide.md \
+         resources/manual.md resources/manual_en.md \
+         resources/manual-thesis.md resources/manual-thesis_en.md; do
     test -f "$SITE/$f" || { echo "   缺少 $f"; exit 1; }
 done
-echo "   guide + 两份手册都在"
+echo "   guide + 两册手册（中英各一）都在"
 
 step "init → 导出"
 mkdir "$TMP/work" && cd "$TMP/work"
