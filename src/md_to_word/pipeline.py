@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional
 
 from md_to_word.audit.inspector import audit_docx_against_spec
-from md_to_word.audit.postflight import verify_numeric_integrity
+from md_to_word.audit.postflight import verify_chinese_integrity, verify_numeric_integrity
 from md_to_word.config import (
     DEFAULT_PRESET_EN, DEFAULT_PRESET_ZH, default_csl_path, get_csl_dir, resolve_preset_path,
 )
@@ -377,6 +377,14 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 )
                 return res
             logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
+            all_kept, missing = verify_chinese_integrity(in_p, render_target)
+            if not all_kept:
+                res.returncode = EXIT_ERROR
+                res.errors.append(
+                    t("pipeline.chinese_failed", res.lang,
+                      count=len(missing), sample="".join(missing[:12]))
+                )
+                return res
 
         # 9. 格式要求逐条对账 (Audit: Inspector)
         if options.audit and fmt_file:

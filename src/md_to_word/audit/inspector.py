@@ -213,6 +213,13 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                 problems.append((t('audit.cat.font_size', lang),
                                  t('audit.msg.font_size', lang, name=shown, want=want_sz, got=got_sz)))
 
+        if r.get('color'):
+            got_c = _effective(styles, name, 'color')
+            if (got_c or '').upper() != r['color'].upper():
+                problems.append((t('audit.cat.color', lang),
+                                 t('audit.msg.color', lang, name=shown,
+                                   want=r['color'], got=got_c)))
+
         want_b, want_i = r.get('bold'), r.get('italic')
         on_b, on_i = _is_on(styles, name, 'b'), _is_on(styles, name, 'i')
         src_b, src_i = _effective(styles, name, 'b'), _effective(styles, name, 'i')
@@ -578,9 +585,15 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
             problems.append((t('audit.cat.table', lang),
                              t('audit.msg.repeat_header', lang)))
 
-    # ── 6. 表后间距 ──
-    # 表格没有段前段后，留白由表格之后（跨过它自己的表注）那个定高空段落撑出来：
-    # `w:line` 是二十分之一磅，`lineRule=exact` 才让高度与字号无关。
+    # ── 6. 行不跨页 ──
+    # `w:cantSplit` 也是行属性：写在每行 `<w:tr>` 的 trPr 里，表样式管不到。
+    if (spec.table or {}).get('no_row_split'):
+        trs = doc.findall(f'.//{W}tbl/{W}tr')
+        if trs and any(tr.find(f'{W}trPr/{W}cantSplit') is None for tr in trs):
+            problems.append((t('audit.cat.table', lang),
+                             t('audit.msg.no_row_split', lang)))
+
+    # ── 7. 表后间距 ──
     want_gap = (spec.table or {}).get('space_after_pt')
     body = doc.find(W + 'body')
     if want_gap and body is not None:
@@ -602,7 +615,7 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                 problems.append((t('audit.cat.table', lang),
                                  t('audit.msg.table_space_after', lang, want=want_gap)))
 
-    # ── 7. 奇偶页不同 ──
+    # ── 8. 奇偶页不同 ──
     settings = etree.fromstring(z.read('word/settings.xml'))
     wants_even = any(k[1] == 'even' for k in spec.decor)
     has_even = settings.find(W + 'evenAndOddHeaders') is not None

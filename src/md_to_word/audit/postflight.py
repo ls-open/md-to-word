@@ -1,12 +1,14 @@
-"""md_to_word.audit.postflight — 产物数值防丢完整性检查。
+"""md_to_word.audit.postflight — 产物防丢完整性检查。
 
-确定性比对原稿中的每个三位以上小数，确保在导出的 DOCX 中完整保留。
+两样东西原稿有、产物就必须有：三位以上的小数，和每一个汉字。前者是精度，后者是内容——
+两者丢了产物都看着正常，退出码也还是 0。
 """
 
 from __future__ import annotations
 
 import re
 import zipfile
+from collections import Counter
 from pathlib import Path
 from md_to_word.utils.skill_utils import split_frontmatter
 
@@ -21,13 +23,47 @@ _RE_OPENXML_FENCE = re.compile(
 def load_source_text(md_path: Path | str) -> str:
     text = Path(md_path).read_text(encoding="utf-8")
     _, text = split_frontmatter(text)
-    text = _RE_HTML_COMMENT.sub(" ", text)
-    text = _RE_OPENXML_FENCE.sub(" ", text)
+    for pattern in (_RE_HTML_COMMENT, _RE_OPENXML_FENCE, _RE_IMAGE):
+        text = pattern.sub(" ", text)
     return text
 
 
 def extract_numbers(text: str) -> set[str]:
     return {n for n in _RE_NUMBER.findall(text) if not _RE_YEAR_LIKE.match(n)}
+
+
+_RE_CJK = re.compile(r"[㐀-䶿一-鿿]")
+# 下面几条都在**去掉对文字的硬性要求**，方向只会让检查更松，不会误报
+_RE_SHORTCODE = re.compile(r"\{\{<.*?>\}\}", re.DOTALL)   # 短码参数是指令，不落成文字
+_RE_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")           # 替代文字进 descr、路径进关系，都不在正文
+_RE_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")           # 链接留文字、丢地址
+_RE_LABEL = re.compile(r"\{#[^}]*\}")
+_RE_CITE = re.compile(r"@[\w:.\-]+")                        # 引用键渲染成 [1]
+_RE_STYLE_LINE = re.compile(r"^(\s*)%%\s*\S+", re.MULTILINE)  # `%% 表题 …` 里那个词是指令
+_RE_FENCE_INFO = re.compile(r"^\s*(?:```|~~~)[^\n]*$", re.MULTILINE)
+
+
+def verify_chinese_integrity(md_path: Path | str, docx_path: Path | str) -> tuple[bool, list[str]]:
+    """原稿里的汉字，产物里一个都不能少。返回 (是否齐全, 缺的字)。
+
+    只比汉字：字母数字在公式、文献库、URL 里本来就该变形，比不出结论；汉字是纯内容。
+    也是只查"少"不查"多"——目录、图题、编号都是引擎加上去的。
+    """
+    wanted = Counter(_RE_CJK.findall(_source_for_chinese(md_path)))
+    if not wanted:
+        return True, []
+    rendered = Counter(_RE_CJK.findall(docx_text(docx_path)))
+    missing = wanted - rendered
+    return not missing, sorted(missing.elements())
+
+
+def _source_for_chinese(md_path: Path | str) -> str:
+    text = load_source_text(md_path)
+    for pattern, repl in ((_RE_SHORTCODE, " "), (_RE_LINK, r"\1"),
+                          (_RE_LABEL, " "), (_RE_CITE, " "),
+                          (_RE_STYLE_LINE, r"\1"), (_RE_FENCE_INFO, "")):
+        text = pattern.sub(repl, text)
+    return text
 
 
 def docx_text(docx_path: Path | str) -> str:
