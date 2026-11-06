@@ -807,13 +807,18 @@ def main(argv=None):
 def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
     """参考文件 → 草稿全文与两项计数 (已写出样式数, 需确认项数)。
 
-    CLI 与库调用共用这一份：从前各写一遍，改了一边另一边就悄悄落后——同一条门规、
-    同一份输出，没有第二个理由存在。
+    CLI 与库调用共用这一份，不另写第二遍。
     """
-    from md_to_word.spec.constants import STYLE_MAP
+    from md_to_word.spec.constants import STYLE_CN, STYLE_EN, STYLE_MAP
     from md_to_word.template.generator import REQUIRED_STYLES
 
-    word_to_cn = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
+    # 草稿的样式名按**参考文件的语种**出，与对应预设一致（zh-academic 写「正文」，
+    # en-nature 写 Body Text）；两套写法都取自词表的规范映射，不在这里另立一份。
+    primary, fallback = (STYLE_EN, STYLE_CN) if lang == 'en' else (STYLE_CN, STYLE_EN)
+    word_to_cn: dict[str, str] = {}
+    for table in (fallback, primary):
+        for word, name in table.items():
+            word_to_cn[word.replace(' ', '').lower()] = name
     lines = ['# 由 md-to-word-template 从参考文件读出的草稿，**请核对**',
              f'# 来源: {ref.path.name}']
     for part in (read_page(ref, body_line_multiple(ref)), read_table(ref), read_decor(ref),

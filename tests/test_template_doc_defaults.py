@@ -119,7 +119,7 @@ def test_missing_spacing_keeps_required_fields(tmp_path):
     reference = _blank_reference(tmp_path)
 
     draft, _, _ = _build_draft(Ref(reference, "zh"), "zh")
-    line = _draft_line(draft, "Normal：")
+    line = _draft_line(draft, "普通：")
     assert "段前0磅" in line and "段后0磅" in line, line
 
 
@@ -134,7 +134,7 @@ def test_draft_without_any_spacing_generates_a_template(tmp_path):
                   lambda text: re.sub(r"<w:spacing[^/]*/>", "", text))
 
     draft, _, _ = _build_draft(Ref(stripped, "zh"), "zh")
-    for prefix in ("Body Text：", "Heading 1："):
+    for prefix in ("正文：", "一级标题："):
         line = _draft_line(draft, prefix)
         assert "段前0磅" in line and "段后0磅" in line, line
     # 不抛 TemplateError = 每条样式行都写全了必填字段
