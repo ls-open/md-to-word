@@ -83,7 +83,20 @@ class Ref:
         self.doc_defaults = self.styles.find(q('docDefaults'))
         self.by_id = {}
         for st in self.styles.findall(q('style')):
-            self.by_id[(st.get(q('styleId')) or '').replace(' ', '').lower()] = st
+            sid = (st.get(q('styleId')) or '').replace(' ', '').lower()
+            if sid:
+                self.by_id[sid] = st
+            name_el = st.find(q('name'))
+            if name_el is not None:
+                val = (name_el.get(q('val')) or '').replace(' ', '').lower()
+                if val and val not in self.by_id:
+                    self.by_id[val] = st
+            alias_el = st.find(q('aliases'))
+            if alias_el is not None:
+                for alias in (alias_el.get(q('val')) or '').split(','):
+                    aval = alias.replace(' ', '').lower()
+                    if aval and aval not in self.by_id:
+                        self.by_id[aval] = st
         self.theme = self._theme_fonts()
         # 页面设置一律取 **body 末尾那个 sectPr**（正文节），与导出后对账 / 标记展开 /
         # fix_docx_equations 同一口径。多节文档里第一个 sectPr 是**前置节**（目录、摘要），
@@ -808,10 +821,6 @@ def main(argv=None):
     if args.output:
         Path(args.output).write_text(text, encoding='utf-8')
         print(t('extractor.draft_written', lang, path=args.output, styled=styled, notes=notes))
-        # 反推完的人手上正好有一份新格式文件，是唯一"能贡献"的时刻；其余时候不打扰
-        from md_to_word.config import TEMPLATE_LIBRARY
-
-        print(t('extractor.library_hint', lang, library=TEMPLATE_LIBRARY))
     else:
         print(text, end='')
     return 0
@@ -860,8 +869,13 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
         ref.notes.append(t('extractor.note.styles_skipped', ref.lang, names='、'.join(skipped)))
     used = {(st.get(q('val')) or '').replace(' ', '').lower()
             for st in ref.document.iter(q('pStyle'))}
+    # 同一个样式在 `by_id` 里可能有好几个键（样式 ID、名称、别名），认出来一个就够了。
+    # 只按键是不是英文词判断的话，`styleId` 是 Word 自动生成的那种（`a17` 之类）会**已经**
+    # 按名称映射成「表题」了，还在这里被报成"没映射到本工具词汇"——草稿自己打自己的脸。
+    mapped = {id(ref.by_id[sid]) for sid in word_to_cn if sid in ref.by_id}
     leftover = sorted(k for k in ref.by_id
-                      if k in used and k not in word_to_cn and not k.startswith('_'))
+                      if k in used and k not in word_to_cn and not k.startswith('_')
+                      and id(ref.by_id[k]) not in mapped)
     if leftover:
         ref.notes.append(t('extractor.note.styles_unmapped', ref.lang,
                            names='、'.join(sorted(leftover))))

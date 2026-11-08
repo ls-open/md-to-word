@@ -273,3 +273,61 @@ def test_decor_note_follows_language(tmp_path):
     drawing_notes = [note for note in doubt if "picture" in note]
     assert drawing_notes and "the default header" in drawing_notes[0], doubt
     assert "页眉" not in drawing_notes[0], drawing_notes
+
+
+def test_a_style_whose_id_is_machine_generated_is_still_found(tmp_path):
+    """`styleId` 是 Word 自动生成的那种（`a17` 之类）、名字才是 `Table Caption`，也要认出来。
+
+    以前 `by_id` 只按 `styleId` 建索引，这条样式会**静默消失**：草稿里既没有「表题」那一行，
+    也不在任何一份"需确认"清单里。Word 里改过样式的模板经常长这样——样式 ID 一旦被 Word
+    重排过就不再等于名字。
+    """
+    from md_to_word.template.builder import build_template
+    from md_to_word.template.extractor import _build_draft
+
+    preset = (Path(__file__).resolve().parents[1] / "presets" / "zh-academic.txt").read_text(
+        encoding="utf-8")
+    source = tmp_path / "generated.docx"
+    build_template(preset, source)
+
+    tweaked = tmp_path / "weird.docx"
+    _rewrite(
+        source=source, target=tweaked, part="word/styles.xml",
+        transform=lambda text: text.replace(
+            'w:styleId="TableCaption"', 'w:styleId="a17"'),
+    )
+
+    text, _, _ = _build_draft(Ref(tweaked, "zh"), "zh")
+
+    assert any(line.startswith("表题：") for line in text.splitlines()), text
+
+
+def test_a_mapped_style_is_not_reported_as_unmapped(tmp_path):
+    """认出来的样式不能再报"没映射到本工具词汇"——草稿不能自己打自己的脸。"""
+    from md_to_word.template.builder import build_template
+    from md_to_word.template.extractor import _build_draft
+
+    preset = (Path(__file__).resolve().parents[1] / "presets" / "zh-academic.txt").read_text(
+        encoding="utf-8")
+    source = tmp_path / "generated.docx"
+    build_template(preset, source)
+
+    # 样式 ID 改成机器生成的样子，同时让正文真的引用它（"用到了"才进得了那条清单）
+    tweaked = tmp_path / "weird.docx"
+    _rewrite(
+        source=source, target=tweaked, part="word/styles.xml",
+        transform=lambda text: text.replace(
+            'w:styleId="TableCaption"', 'w:styleId="a17"'),
+    )
+    referenced = tmp_path / "used.docx"
+    _rewrite(
+        source=tweaked, target=referenced, part="word/document.xml",
+        transform=lambda text: text.replace(
+            "</w:body>",
+            '<w:p><w:pPr><w:pStyle w:val="a17"/></w:pPr><w:r><w:t>表 1</w:t></w:r></w:p></w:body>'),
+    )
+
+    text, _, _ = _build_draft(Ref(referenced, "zh"), "zh")
+
+    unmapped = [line for line in text.splitlines() if "没映射到本工具词汇" in line]
+    assert not unmapped, unmapped
