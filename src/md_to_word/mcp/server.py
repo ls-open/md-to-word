@@ -214,7 +214,7 @@ def create_mcp_server() -> Any:
                 (the `format.txt` file), not Python dependency requirements.
             preset: Built-in preset name ('zh-academic', 'zh-report', 'en-nature'). Only used
                 when `format` is absent. A preset is a preview baseline, not a deliverable.
-            generate_pdf: Whether to also generate a PDF (requires LibreOffice or Word).
+            generate_pdf: Whether to also generate a PDF (requires Word on macOS).
             lang: Optional message/document language ('zh' or 'en'); auto-detected if omitted.
             base_template: A school/journal .docx to pour the body into, keeping its own cover
                 and front matter (a run either verifies or writes nothing).

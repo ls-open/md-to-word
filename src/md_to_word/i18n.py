@@ -130,12 +130,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.format_missing": ("指定的格式文件不存在: {path}", "Format file not found: {path}"),
     "pipeline.preset_missing": ("未找到预设: {name}", "Preset not found: {name}"),
     "pipeline.preset_auto": (
-        "未指定格式文件，按稿件语种使用内置预设 {name}（仅预览；正式交付请用 -f 指定用户格式）。",
-        "No format file given; using the {name} preset for this manuscript's language (preview only; pass -f with the user's format for delivery).",
+        "未指定格式文件，按语种用内置预设 {name}（仅预览；交付请用 -f）。",
+        "No format file given; using the {name} preset (preview only; pass -f for delivery).",
     ),
     "pipeline.txt_named": (
-        "未指定格式文件，取同目录的 format.txt（要换一份就加 -f）。",
-        "No format file given; using the format.txt beside the manuscript (pass -f to use another).",
+        "格式文件：同目录的 format.txt（换一份用 -f）。",
+        "Format: the format.txt beside the manuscript (pass -f to use another).",
     ),
     "pipeline.txt_ignored": (
         "同目录有 {names}，但本工具只认 format.txt，未采用（要用其中一份请加 -f）。",
@@ -163,7 +163,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Amend the lines below and export again.",
     ),
     "pipeline.success": ("Word 文档导出成功: {path}", "Word document written: {path}"),
-    "pipeline.numeric_ok": ("产物数值完整性检查通过。", "Numeric integrity check passed."),
+    "pipeline.numeric_ok": ("数值完整性检查通过。", "Numeric integrity passed."),
     "pipeline.numeric_failed": (
         "产物完整性检查未通过：原稿中 {count} 处数值未在产物中找到（{sample}）。",
         "Numeric integrity check failed: {count} value(s) from the manuscript are missing ({sample}).",
@@ -174,7 +174,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Content integrity check failed: {count} Chinese character(s) from the manuscript "
         "never reached the output ({sample}). Use --no-postflight to skip this check.",
     ),
-    "pipeline.audit_ok": ("产物与格式要求逐条对账通过。", "Post-export audit against the format file passed."),
+    "pipeline.audit_ok": ("格式对账通过。", "Audit against the format file passed."),
     "pipeline.audit_failed": (
         "导出后抽查未通过：产物与格式要求存在 {count} 处不符。",
         "Post-export audit failed: {count} mismatch(es) against the format file.",
@@ -270,25 +270,16 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "citations.key_missing": ("文献库里没有条目：{key}", "the bibliography has no entry for {key}"),
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
     "pipeline.pdf_skipped": (
-        "docx 已正常生成；PDF 核对版没做成——{hint}",
-        "docx written; the review PDF was not produced — {hint}",
+        "docx 已生成；PDF 核对版未做——{hint}",
+        "docx written; no review PDF — {hint}",
     ),
     "word_pdf.not_darwin": (
-        "PDF 核对版只能由 macOS 上的 Microsoft Word 生成：目录页码、页眉章名这些是**域**，"
-        "要 Word 自己算。换成 LibreOffice 之类的转换器不会展开它们，出来的目录是空的——"
-        "那样的核对版比没有更容易看错。docx 本身没问题，用 Word 打开另存一份 PDF 就能核。",
-        "The review PDF can only be produced by Microsoft Word on macOS: the table of contents "
-        "and the chapter-name header are **fields** that Word computes itself. Other converters "
-        "(LibreOffice and the like) do not expand them, so the TOC comes out empty — that kind of "
-        "review copy is more misleading than none. The docx is fine; open it in Word and save as "
-        "PDF to check it.",
+        "需要 macOS 上的 Microsoft Word。docx 没问题：用 Word 打开另存 PDF 即可。",
+        "it needs Microsoft Word on macOS. The docx is fine — save it as PDF from Word.",
     ),
     "word_pdf.no_word": (
-        "本机没找到 Microsoft Word（或它装好后从未启动过）。PDF 核对版靠 Word 展开域，"
-        "docx 本身没问题：装好 Word、或换一台有 Word 的 macOS 再跑一次 `--pdf`。",
-        "No Microsoft Word on this machine (or it has never been launched). The review PDF relies "
-        "on Word to expand the fields; the docx itself is fine — install Word, or run `--pdf` on a "
-        "Mac that has it.",
+        "本机没有可用的 Microsoft Word（未安装，或装好后从未启动过）。docx 没问题。",
+        "No usable Microsoft Word here (not installed, or never launched). The docx is fine.",
     ),
     "word_pdf.no_script": (
         "包里缺渲染脚本（安装不完整），重装一次 md-to-word。",
@@ -367,8 +358,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "and pass --cover-sections N instead",
     ),
     "pipeline.reminder": (
-        "导出完成。版面效果仍须在 Word 中人工核验。",
-        "Export complete. The layout still requires a manual check in Word.",
+        "版面仍须在 Word 中人工核验。",
+        "The layout still needs a manual check in Word.",
     ),
     # ── 模板生成 ────────────────────────────────────────────────────
     "template.built": (
@@ -1065,10 +1056,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     # ── 文献与交叉引用 ──
     "gate.csl.default": (
-        "未写 csl:，将按默认样式排版：{name}"
-        "（中文稿 GB/T 7714 数字制，英文稿 APA）；如需其他样式请写 csl:。",
-        "No csl: given; typesetting with the default style: {name} "
-        "(GB/T 7714 numeric for Chinese manuscripts, APA for English). Write csl: to use another style.",
+        "未写 csl:，按默认样式排版：{name}（中文稿 GB/T 7714，英文稿 APA）。",
+        "No csl: given; using the default style: {name} (GB/T 7714 for Chinese, APA for English).",
     ),
     "gate.bib.empty": (
         "文献库 {name} 里一条条目都没有，但正文有 {count} 处引用",

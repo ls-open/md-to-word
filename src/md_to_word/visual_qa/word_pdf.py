@@ -31,11 +31,10 @@ def can_render_word_pdf() -> tuple[bool, str]:
 
 
 def explain_unavailable(reason: str, lang: str = "zh") -> str:
-    """把 `can_render_word_pdf` 的拒绝理由翻成一句能照着做的话。
+    """把拒绝理由翻成一句能照着做的话。
 
-    只说"PDF 未渲染"没用——用户既不知道缺什么，也不知道换条路行不行。这里把"为什么
-    非 Word 不可"一并说清楚：换 LibreOffice 之类的转换器，域不会展开（目录页码、页眉
-    章名会空着），那样的核对版比没有更容易看错。
+    不做 LibreOffice 降级：`--pdf` 的价值全在展开域（目录页码、页眉章名），而我们写 docx
+    时故意不存缓存结果；LibreOffice 不展开域，出来的目录是空的，比没有更容易看错。
     """
     from md_to_word.i18n import t
 

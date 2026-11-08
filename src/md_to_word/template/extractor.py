@@ -673,9 +673,7 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
     # 文档网格：`linePitch` 是「每行多少 twips」，本工具的写法是「每页 N 行」，
     # 中间隔着行距倍数那一步补偿——用写入侧同一个函数反推（doc_grid_lines_from_pitch）。
     grid = sect.find(q('docGrid'))
-    # `linePitch="0"` 是合法的写法（等于不设网格），而字符串 `"0"` 在 Python 里是真值——
-    # 只判 `grid.get(...)` 会让它一路走到除法，直接 ZeroDivisionError。实测的一份
-    # 《撰写规范》就是这么写的，反推器当场抛 traceback。
+    # `linePitch="0"` 合法（等于不设网格），但字符串 `"0"` 是真值，只判非空会一路走到除法。
     raw_pitch = (grid.get(q('linePitch')) if grid is not None else "") or ""
     try:
         pitch = int(raw_pitch)
@@ -777,9 +775,8 @@ def read_decor(ref: Ref) -> tuple:
             elif el.tag in (q('drawing'), q('pict'), q('object')):
                 drawings += 1          # 学校 logo、页眉横线常在这里：读不出也表达不了
             elif el.tag == q('t') and el.text:
-                # 域里那段文字是**上次算出来的缓存结果**（PAGE 停在「18」、STYLEREF 停在
-                # 旧的章名），不是内容。照抄进草稿就会变成「页脚内容：{页码} 18」——
-                # 一份模板照它生成，页脚上就永远多印一个 18。
+                # 域里那段是上次算出的缓存（PAGE 停在「18」），不是内容；照抄就成了
+                # 「页脚内容：{页码} 18」。
                 if depth or _inside_simple_field(el):
                     continue
                 pieces.append(el.text)
@@ -909,9 +906,7 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
         ref.notes.append(t('extractor.note.styles_skipped', ref.lang, names='、'.join(skipped)))
     used = {(st.get(q('val')) or '').replace(' ', '').lower()
             for st in ref.document.iter(q('pStyle'))}
-    # 同一个样式在 `by_id` 里可能有好几个键（样式 ID、名称、别名），认出来一个就够了。
-    # 只按键是不是英文词判断的话，`styleId` 是 Word 自动生成的那种（`a17` 之类）会**已经**
-    # 按名称映射成「表题」了，还在这里被报成"没映射到本工具词汇"——草稿自己打自己的脸。
+    # 一个样式在 `by_id` 里可能有好几个键（ID、名称、别名），认出一个就算认出来了。
     mapped = {id(ref.by_id[sid]) for sid in word_to_cn if sid in ref.by_id}
     leftover = sorted(k for k in ref.by_id
                       if k in used and k not in word_to_cn and not k.startswith('_')

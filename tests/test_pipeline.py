@@ -120,7 +120,7 @@ def test_export_reminds_to_open_the_result(tmp_path: Path) -> None:
         ExportOptions(input_path=tmp_path / "m.md", output_path=tmp_path / "o.docx", preset="zh-academic")
     )
     assert result.returncode == 0, result.errors
-    assert any("版面效果仍须在 Word 中人工核验" in m for m in result.messages), result.messages
+    assert any("版面仍须在 Word 中人工核验" in m for m in result.messages), result.messages
 
 
 def test_image_paths_are_relative_to_the_manuscript(tmp_path: Path, monkeypatch) -> None:
@@ -602,4 +602,4 @@ def test_a_skipped_pdf_says_why_and_what_to_do(tmp_path: Path, capsys, monkeypat
 
     assert code == 3
     assert (tmp_path / "o.docx").is_file()
-    assert "Word" in err and "LibreOffice" in err, err
+    assert "Word" in err and "另存" in err, err

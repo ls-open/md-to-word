@@ -525,10 +525,9 @@ def _carry_rel(src_part, dst_part, rid: str, counters: dict[str, int]) -> str | 
 def _rehome_rels(root, src_part, dst_part) -> None:
     """把 root 里所有关系引用改指到目标包里的对应关系。
 
-    页眉页脚引用**不在此列**：它们由 `copy_hf` 专门处理（要按改名后的样式重写域代码）。
-    在这里顺手搬走的话，部件会被原样复制一份、`STYLEREF` 里的旧样式名留在里面，页眉上
-    就会印出「错误!使用"开始"选项卡将 … 应用于要在此处显示的文字」；而且 `copy_hf` 随后
-    查 `ours.part.related_parts` 时这个 rId 已经不在了，会**静默跳过**，改写等于没做。
+    页眉页脚引用不在此列，归 `copy_hf`（要按改名后的样式重写域代码）。顺手搬走的话，
+    部件会被原样复制、`STYLEREF` 里的旧名留在里面，`copy_hf` 随后查不到这个 rId 就静默
+    跳过，页眉上印出「错误!使用"开始"选项卡…」。
     """
     counters: dict[str, int] = {}
     for el in root.iter():
@@ -740,9 +739,8 @@ def _check_theme_preserved(base: Path, result: Path) -> tuple[bool, str]:
     变化在结构比对里看不出来（前置件的段落 XML 一模一样）。文档里一直写着"主题也验过"，
     以前其实没验。
 
-    只比**部件**，不比目录项：有的模板包里带着 `word/theme/` 这个零字节的目录条目，
-    python-docx 存盘时不写它，照字面比就会把一份没动过主题的产物判成"主题被改动"。
-    实测的一份模板就是这样——白丢一次。
+    只比部件，不比目录项：有的模板带一个零字节的 `word/theme/` 目录条目，python-docx
+    存盘时不写它，照字面比会把没动过主题的产物判成"主题被改动"（实测的一份模板就是）。
     """
     def themes(path: Path) -> dict[str, bytes]:
         with zipfile.ZipFile(path) as z:
@@ -988,8 +986,7 @@ def apply_base_template(
     head = dropped_head(base, cover_sections)
     if head:
         report.notes.append(
-            f"保留前 {cover_sections} 节；底模后面那些节会被丢掉，切点之后的第一段是「{head}」，"
-            f"确认它不是你要的封面"
+            f"保留前 {cover_sections} 节；切点之后第一段是「{head}」，确认没切错"
         )
 
     staged = out.with_suffix(".base-staged.docx")

@@ -819,11 +819,8 @@ class _Writer:
     def _keep_caption_with_figure(self, blocks: list[Block], index: int) -> None:
         """题注与图表必须同页。
 
-        Word 只有「与下段同页」（keepNext）一个方向，所以只给这一对里的**前一件**补：
-        题注在上时补题注段（图片题注、表格题注都算），图片在上、题注在下时补图片段。
-
-        只有一种做不到：**表格在上、题注在下**。`keepNext` 是段落属性，挂不到表格的最后一行，
-        而 Word 里没有反方向的「与上段同页」。这种稿子得在 Word 里手工盯着，工具不假装做到了。
+        Word 只有「与下段同页」一个方向，所以只给这一对里的前一件补。表格在上、题注在下
+        做不到——keepNext 挂不到表格最后一行，工具不假装做到了。
         """
         here = self._last_paragraph
         if here is None or index + 1 >= len(blocks):
