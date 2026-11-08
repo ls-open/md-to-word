@@ -331,3 +331,28 @@ def test_a_mapped_style_is_not_reported_as_unmapped(tmp_path):
 
     unmapped = [line for line in text.splitlines() if "没映射到本工具词汇" in line]
     assert not unmapped, unmapped
+
+
+def test_a_zero_line_pitch_does_not_crash_the_reader(tmp_path):
+    """`linePitch="0"` 是合法写法（等于不设网格），不能让反推器抛 ZeroDivisionError。
+
+    字符串 `"0"` 在 Python 里是真值，只判 `grid.get(...)` 会一路走到除法。实测的一份
+    模板就是这么写的，`md-to-word-template` 当场 traceback。
+    """
+    from md_to_word.template.extractor import read_page
+
+    document = Document()
+    document.add_paragraph("正文。")
+    source = tmp_path / "reference.docx"
+    document.save(source)
+
+    import re
+
+    tweaked = tmp_path / "zero-pitch.docx"
+    _rewrite(source=source, target=tweaked, part="word/document.xml",
+             transform=lambda text: re.sub(
+                 r'(<w:docGrid\b[^>]*?)w:linePitch="\d+"', r'\1w:linePitch="0"', text))
+
+    lines, _ = read_page(Ref(tweaked, "zh"))
+
+    assert not any("文档网格" in line for line in lines), lines

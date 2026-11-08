@@ -673,13 +673,21 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
     # 文档网格：`linePitch` 是「每行多少 twips」，本工具的写法是「每页 N 行」，
     # 中间隔着行距倍数那一步补偿——用写入侧同一个函数反推（doc_grid_lines_from_pitch）。
     grid = sect.find(q('docGrid'))
-    if grid is not None and grid.get(q('linePitch')):
+    # `linePitch="0"` 是合法的写法（等于不设网格），而字符串 `"0"` 在 Python 里是真值——
+    # 只判 `grid.get(...)` 会让它一路走到除法，直接 ZeroDivisionError。实测的一份
+    # 《撰写规范》就是这么写的，反推器当场抛 traceback。
+    raw_pitch = (grid.get(q('linePitch')) if grid is not None else "") or ""
+    try:
+        pitch = int(raw_pitch)
+    except ValueError:
+        pitch = 0
+    if pitch > 0:
         from md_to_word.template.generator import PAGE_SIZE_MAP, doc_grid_lines_from_pitch
         page_size = PAGE_SIZE_MAP.get(paper) if paper else None
         if None in (top, bottom, left, right) or page_size is None:
             doubt.append(t('extractor.note.doc_grid_skipped', ref.lang))
         else:
-            n = doc_grid_lines_from_pitch(int(grid.get(q('linePitch'))), line_multiple,
+            n = doc_grid_lines_from_pitch(pitch, line_multiple,
                                           page_size, dict(top=top, bottom=bottom,
                                                           left=left, right=right))
             out.append(f'文档网格：每页{n}行')
