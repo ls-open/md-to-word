@@ -1,10 +1,7 @@
-# md-to-word Manual (volume 1: general)
+# md-to-word Manual
 
-Journal papers, course reports and technical notes need only this volume.
-
-**A thesis also needs volume 2, `manual-thesis_en.md`** — read it when the manuscript contains any of
-`{{< section >}}`, `{{< toc >}}`, `crossref: chapters`, `Appendix`, `References` or `--base-template`. Volume 2
-does not repeat this one; it covers only what is thesis-specific.
+Journal papers, course reports, technical notes and theses — all in this one file. What a thesis
+adds is in §9.
 
 Chinese edition: `manual.md`
 
@@ -34,6 +31,7 @@ One export needs two files:
 6. Capability limits
 7. Built-in CSL
 8. Error quick reference
+9. Theses
 
 ---
 
@@ -56,7 +54,7 @@ md-to-word --guide                                       # getting-started guide
 md-to-word --contract                                    # cheatsheet + guide, manual and preset paths
 md-to-word --contract --lang en                          # same, in English (canonical English style names)
 md-to-word manuscript.md -o out.docx --verbose           # per-style log, for "the format had no effect"
-md-to-word thesis.md --base-template school.docx --cover-sections 3 -o thesis.docx   # volume 2
+md-to-word thesis.md --base-template school.docx --cover-sections 3 -o thesis.docx   # see §9.3
 ```
 
 **Choosing the format file — one of three**: pass `-f`; otherwise a file named exactly
@@ -538,7 +536,7 @@ defaults.
 
 ## 4. Agent workflow
 
-**The order of work is in `--guide`; this volume holds facts.** In one sentence: ship a compliant
+**The order of work is in `--guide`; this file holds facts.** In one sentence: ship a compliant
 `.docx` first, then fine-tune from feedback — and when the user gave no explicit format
 requirements, use a built-in preset instead of interrogating them about format details.
 
@@ -592,7 +590,7 @@ A `.docx` received from a university or a journal goes one of two ways:
 - **Styles only** — read it into a format file and export as usual (below).
 - **Keep its cover too** — use that `.docx` as the base and pour the body in with `--base-template`.
   Styles still come from the format file; the base only supplies the front matter and page setup.
-  That is the thesis path — see volume 2, §2.
+  That is the thesis path — see §9.2.
 
 ```
 md-to-word-template template.docx -o format.txt   # reverse-engineered draft; check it item by item
@@ -660,12 +658,10 @@ the references page. When PDF rendering is unavailable (Windows, Word not instal
 but never launched) it is skipped automatically and does not affect the `.docx` output (exit code
 `3`).
 
-### 5.4 Theses: cover and front matter
+### 5.4 Theses
 
-Covers, originality statements and double-ruled chapter headers cannot be expressed in
-`format.txt`, and do not belong in this volume. **For a thesis, read volume 2**
-(`manual-thesis_en.md`, next to this file): front matter, and how to pour the body into the
-school's own template.
+Cover, front matter, section and page numbering, chapter-based equation numbers and double-ruled
+chapter headers are collected in §9. The `--base-template` path lives there too (§9.3).
 
 ---
 
@@ -762,3 +758,118 @@ examples. The tag is a stable category identifier; the text after it says which 
 | Header shows "Error! Reference source not found" | X in `{style-title:X}` is not a Word style name (write `Heading 1`) |
 | The font looks right but is wrong in Word | The reference template's theme attributes override the explicit font; the generator strips `asciiTheme` / `eastAsiaTheme` / `themeColor` / `themeFill` and the rest |
 | Two exports of the same manuscript differ | This should not happen: the output is byte-for-byte reproducible; if it happens, report a defect |
+
+---
+
+---
+
+## 9. Theses
+
+### 9.1 What a thesis has that a journal paper does not
+
+| Element | Where it is explained |
+|:--|:--|
+| Cover, originality statement, English cover | §9.2, §9.3 |
+| Roman numerals for front matter, body starting at 1 | §9.4; syntax in §2.5 |
+| Table of contents (field, dot leaders, depth) | §2.5; outline levels §9.7 |
+| Equations numbered by chapter `(2-1)` | §2.3; appendices §9.5 |
+| Double-ruled chapter header (`{style:Heading 1}`) | §2.5, §3.1 |
+| References in GB/T 7714 | §4, "References: only the `.bib` route" |
+| Three-line tables, repeating header rows | §2.4, §3.1 |
+
+### 9.2 Cover and front matter
+
+The cover is rarely one page: Chinese cover, English cover, originality statement, copyright
+authorisation, with blank pages in between. All of it is **layout**, and `format.txt` cannot express
+layout — Markdown gives you centring, sizes, spacing and pictures, not absolute positioning, text
+boxes or exact alignment inside a fixed line grid.
+
+Three routes, ordered by how much can be guaranteed:
+
+1. **Pour the body into the school's template (recommended)**: keep the school's `.docx` as front
+   matter and replace the rest with our typeset body. See the next section.
+2. **Text-only covers**: if the cover is plain text with no crest or fixed rules, Markdown can do it
+   (`%%` style lines, a picture, and a closing `{{< section header=none footer=none >}}`). Check
+   first whether the school allows this.
+3. **Lay it out yourself in Word**: the tool produces the body, you merge the cover by hand. Most
+   robust, most manual. **Never paste the school's cover into the output** — Word redefines
+   same-named styles and the whole body follows.
+
+### 9.3 Pour the body into the school's own template
+
+```bash
+md-to-word manuscript.md -f format.txt --base-template school.docx --keep-until "copyright authorization" -o out.docx
+```
+
+`--keep-until <text>` keeps everything through the section containing that text and reports the number;
+when it is not found it lists how each section starts. `--cover-sections N` says it in sections.
+`--keep-pages P` says it in pages and needs Word, because the conversion takes a real layout.
+
+**The contents page is never kept**: if the base has one (a field or entries typed by hand, either
+counts), the cut must stop before it — the manuscript writes `{{< toc >}}` to generate it. Cutting too
+deep is refused, and the message names the most you may keep.
+
+What the base contributes: the front-matter sections verbatim (their page setup, headers, footers, page
+numbering), the document-level settings (theme, compatibility mode, punctuation compression), and any
+style you did not declare. The body's paper size, margins, page numbering and declared styles come from
+the format file.
+
+Document-level settings are shared by the whole file, and there can be only one copy. So the body's
+**line breaks** may land slightly differently than in a standalone export; fonts, sizes, line spacing,
+indents and margins are all ours, so the format requirements are unaffected.
+
+**No file is produced unless it verifies.** The structural check runs everywhere: front matter
+node-for-node identical, none of the original's styles/numbering/theme missing, and every style the body
+references present. The layout check runs where Word is installed: both files are laid out and the
+front-matter pages compared word by word; any mismatch deletes the output. Windows gets the first layer
+only, and the export says so.
+
+Two things it cannot verify: whether the cut point is right (the export reports "the first paragraph
+after the cut is ..."), and whether fields or macro buttons in the cover need a click when opened.
+
+### 9.4 Sections and page numbers
+
+**One rule**: `{{< section … >}}` describes **the section above it**, not the one after. So "front
+matter in lower-case Roman" goes after the table of contents, before chapter one.
+
+- For a cover: `{{< section page_number=lowerRoman start=1 header=none footer=none >}}` — give all
+  three, or the cover will carry a header and a page number.
+- **The body's numbering comes from the format file's `Page Numbers:` line**: it restarts at `start`
+  when the preceding section uses another numbering style or shows no numbers at all, and keeps
+  counting when that section is already decimal (references after the body never fall back to 1).
+- A section break already starts a new page: **do not add `{{< pagebreak >}}` after it**, or you get
+  one extra page (the pre-check warns).
+
+### 9.5 Numbering equations by chapter and by appendix
+
+- By chapter: `crossref: chapters: true` in the YAML. The chapter number comes from the enclosing
+  level-1 heading, never from digits typed into the heading.
+- Appendices: a level-1 heading such as `# Appendix A Data` is treated as an appendix chapter; `{c}`
+  takes `A`, and numbering restarts at 1 inside it. Headings without an identifier get A, B, C in
+  order. Appendices **do not consume chapter numbers** — six chapters before an appendix stay 1–6,
+  and an acknowledgement after it is chapter 7.
+- For a prefix such as `(App 2-1)`, add `Appendix Equation Number Format: (App {c}-{n})`; without it
+  the body's format applies.
+
+### 9.6 Double-ruled chapter headers
+
+Write `Header Content: {Style:Heading 1}` in the format file and the header follows each chapter
+title. Two things must hold at once:
+
+- every chapter in the manuscript uses `#` (level 1); `##` will not be found;
+- the references heading must also be level 1 in the structure, or those pages keep showing the
+  previous chapter.
+
+### 9.7 Common traps
+
+All of these came from real reports. None of them fails loudly; they just come out slightly wrong:
+
+| Symptom | Cause |
+|:--|:--|
+| A table is set to centred but stays left | Only a separator row with colons makes per-column statements; the whole table follows the `Compact:` row's alignment |
+| Equations crush the lines above and below | Fixed line spacing (`line-spacing 20pt`) is shorter than the formula; use `line-spacing-min` or a larger value |
+| Declared "22 lines per page" but nothing changed | There is a ceiling: body-height ÷ line-height. Declarations beyond it do not take effect, and the pre-check says so |
+| References missing from the table of contents | The references heading is not in the TOC levels |
+| Page numbers continue from the front matter | See §3: the body restarts from the format file's `start` |
+| Appendix equations numbered (1-1) | The appendix heading has no identifier, or no appendix number format is set |
+| Front matter needs page numbers but no header | `header=none` only drops the header; page numbers ride on the footer, so do not write `footer=none` |

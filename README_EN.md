@@ -191,7 +191,7 @@ section number and reports it — no counting.
 writes `{{< toc >}}` to generate it, which is the only way its page numbers come out right. Cutting too
 deep is refused, and the message names the most you may keep.
 
-> **A run either verifies or writes nothing.** The structural check runs everywhere; the page-by-page layout comparison needs Word on macOS, and the run says which layer it reached (the log says "node-for-node" or "page-for-page"). See the thesis manual inside the package (`md-to-word --contract` prints its path).
+> **A run either verifies or writes nothing.** The structural check runs everywhere; the page-by-page layout comparison needs Word on macOS, and the run says which layer it reached (the log says "node-for-node" or "page-for-page"). See §9 of the packaged manual (`md-to-word --contract` prints its path).
 
 ---
 

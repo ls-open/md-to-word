@@ -178,16 +178,13 @@ def test_mcp_compile_can_pour_into_a_school_template(tmp_path: Path) -> None:
     asyncio.run(_run())
 
 
-def test_mcp_can_return_the_thesis_volume() -> None:
-    """第 1 册里写着「封面见第 2 册」，远端调用方读不到本地路径——第 2 册必须能单独取。"""
+def test_mcp_returns_the_whole_manual_including_the_thesis_part() -> None:
+    """手册只有一份：远端调用方拿到的那份里，学位论文那一章也得在。"""
     async def _run():
         server = create_mcp_server()
-        general = await server.call_tool("get_manual", {"lang": "zh"})
-        thesis = await server.call_tool("get_manual", {"lang": "zh", "volume": "thesis"})
-        a = general.structured_content["result"]
-        b = thesis.structured_content["result"]
-        assert "--base-template" in b
-        assert a != b
+        out = await server.call_tool("get_manual", {"lang": "zh"})
+        text = out.structured_content["result"]
+        assert "--base-template" in text and "## 9. " in text
     asyncio.run(_run())
 
 
@@ -213,11 +210,11 @@ def test_all_three_entrances_offer_the_same_options() -> None:
             f"MCP compile_markdown 缺 {name}"
 
 
-def test_the_thesis_volume_is_readable_as_a_resource() -> None:
+def test_the_manual_is_readable_as_a_resource() -> None:
     """资源模板也要能取到：工具（get_manual）和资源是两条路，只测一条等于没测。"""
     async def _run():
         server = create_mcp_server()
-        out = await server.read_resource("manual-thesis://zh")
+        out = await server.read_resource("manual://zh")
         text = out[0].content if isinstance(out, list) else str(out)
         assert "--base-template" in text
         assert "--keep-until" in text

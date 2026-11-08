@@ -89,14 +89,9 @@ def _read_resource(name: str) -> str:
     return (RESOURCES_DIR / name).read_text(encoding="utf-8")
 
 
-def _read_manual(lang: str, volume: str) -> str:
-    """手册按册取：`general` 是通用那本，`thesis` 是学位论文那本。
-
-    第 1 册里的「封面/前置件见第 2 册」对远端调用方是死链——它读不到本地文件路径，
-    所以第 2 册必须能单独取到。
-    """
-    stem = "manual-thesis" if volume == "thesis" else "manual"
-    return _read_resource(f"{stem}_en.md" if lang == "en" else f"{stem}.md")
+def _read_manual(lang: str) -> str:
+    """手册只有一份；学位论文那一部分在 §9。"""
+    return _read_resource("manual_en.md" if lang == "en" else "manual.md")
 
 
 
@@ -407,18 +402,13 @@ def create_mcp_server() -> Any:
         title="Read the Full Manual",
         description=(
             "Read the full manual when a spelling or behaviour is not certain: every style "
-            "name, YAML key, equation rule, CSL preset and known limit. Volume 1 is general; "
-            "volume 2 (thesis) covers covers, front matter, section/page numbering and "
-            "`--base-template` — read both for a degree thesis."
+            "name, YAML key, equation rule, CSL preset and known limit. A degree thesis also "
+            "needs §9: cover, front matter, section/page numbering and `--base-template`."
         ),
     )
-    def get_manual(lang: str = "zh", volume: str = "general") -> str:
-        """Return the manual; `lang` is 'zh' or 'en', `volume` is 'general' or 'thesis'.
-
-        第 2 册讲学位论文独有的事（封面、前置件、分节页码、`--base-template`）。
-        通用稿读第 1 册就够——这也是它单独成册的原因。
-        """
-        return _read_manual(lang, volume)
+    def get_manual(lang: str = "zh") -> str:
+        """Return the manual; `lang` is 'zh' or 'en'. §9 is the thesis part."""
+        return _read_manual(lang)
 
     @server.tool(
         name="extract_format_from_docx",
@@ -524,13 +514,8 @@ def create_mcp_server() -> Any:
 
     @server.resource("manual://{lang}")
     def get_manual_resource(lang: str) -> str:
-        """Access volume 1 (general): `manual://zh` or `manual://en`."""
-        return _read_manual(lang, "general")
-
-    @server.resource("manual-thesis://{lang}")
-    def get_thesis_manual_resource(lang: str) -> str:
-        """Access volume 2 (thesis): `manual-thesis://zh` or `manual-thesis://en`."""
-        return _read_manual(lang, "thesis")
+        """Access the manual: `manual://zh` or `manual://en`."""
+        return _read_manual(lang)
 
     # ------------------------------------------------------------------
     # Prompts

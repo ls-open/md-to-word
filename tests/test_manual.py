@@ -17,8 +17,6 @@ from md_to_word.spec.constants import STYLE_MAP
 
 RESOURCES = Path(md_to_word.__file__).resolve().parent / "resources"
 MANUALS = {"zh": RESOURCES / "manual.md", "en": RESOURCES / "manual_en.md"}
-# 第 2 册只讲学位论文：期刊稿读第 1 册就够，论文稿再读这本
-THESIS = {"zh": RESOURCES / "manual-thesis.md", "en": RESOURCES / "manual-thesis_en.md"}
 REPO_ONLY = ("references/", "demo/", "scripts/", "tests/")
 YAML_KEYS = ("bibliography", "csl", "crossref", "link-citations")
 BLOCK_MARKERS = ("pagebreak", "toc", "section")
@@ -56,24 +54,18 @@ def test_manual_ships_inside_the_package() -> None:
         assert len(text.splitlines()) > 200, f"{lang} 手册被削得太薄，已不足以替掉旧的参考文档"
 
 
-def test_thesis_volume_ships_and_stays_thin() -> None:
-    """第 2 册是"再读一本"，不是第二本全手册：只讲学位论文，不重复第 1 册。"""
-    for lang, path in THESIS.items():
-        assert path.is_file(), f"{lang} 学位论文手册没随包发布: {path}"
+def test_the_thesis_part_ships_in_both_manuals() -> None:
+    """学位论文那一部分在手册 §9，中英两版都得有，且小节同构。
+
+    以前它单独成册。合回一份之后，中英两版的小节数必须还对得上，否则译文会悄悄落后一版。
+    """
+    heads = {}
+    for lang, path in MANUALS.items():
         text = path.read_text(encoding="utf-8")
-        assert 60 < len(text.splitlines()) < 200, f"{lang} 第 2 册篇幅失控：{len(text.splitlines())} 行"
-        first = MANUALS[lang].read_text(encoding="utf-8")
-        assert path.name in first, f"{lang} 第 1 册没有指到第 2 册，读者不会知道它存在"
-
-
-def test_both_volumes_share_the_same_headings() -> None:
-    """中英两版第 2 册必须同构，否则译文会悄悄落后一版。"""
-    heads = {
-        lang: [l for l in path.read_text(encoding="utf-8").splitlines() if l.startswith("## ")]
-        for lang, path in THESIS.items()
-    }
+        assert "## 9. " in text, f"{lang} 手册里没有学位论文那一章"
+        heads[lang] = [l for l in text.splitlines() if l.startswith("### 9.")]
     assert heads["zh"] and len(heads["zh"]) == len(heads["en"]), (
-        f"两版章节数不同：中文 {len(heads['zh'])}，英文 {len(heads['en'])}"
+        f"§9 小节数不同：中文 {len(heads['zh'])}，英文 {len(heads['en'])}"
     )
 
 
@@ -119,7 +111,7 @@ def test_both_manuals_list_the_same_csl_inventory() -> None:
 
 
 def test_manuals_have_no_repository_only_paths() -> None:
-    for lang, path in {**MANUALS, **THESIS}.items():
+    for lang, path in MANUALS.items():
         text = path.read_text(encoding="utf-8")
         found = [p for p in REPO_ONLY if p in text]
         assert not found, f"{lang} 手册里出现了只有仓库才有的路径：{found}"
@@ -143,17 +135,16 @@ REFERENCED_SECTIONS = {
     "zh": ["### 3.1 ", "### 3.3 ", "### 3.4 ", "## 6. ", "## 7. ", "## 8. "],
     "en": ["### 3.1 ", "### 3.3 ", "### 3.4 ", "## 6. ", "## 7. ", "## 8. "],
 }
-# 第 2 册同样被外部指路：nature-paper2word 讲底模时让人「读第 2 册 §2」。那一节一旦
-# 不是「封面与前置件」，对面仓库读到的就是分节页码，而它自己发现不了。
-THESIS_SECTIONS = {"zh": ["## 2. "], "en": ["## 2. "]}
+# 学位论文那一章同样被外部指路：nature-paper2word 讲底模时让人读封面与前置件那一节。
+# 编号一旦挪位，对面仓库读到的就是别的内容，而它自己发现不了。
+THESIS_SECTIONS = {"zh": ["### 9.2 "], "en": ["### 9.2 "]}
 
 
 def test_section_numbers_cited_elsewhere_stay_put() -> None:
-    for book, cited in ((MANUALS, REFERENCED_SECTIONS), (THESIS, THESIS_SECTIONS)):
-        for lang, headings in cited.items():
-            text = book[lang].read_text(encoding="utf-8")
-            missing = [h.strip() for h in headings if h not in text]
-            assert not missing, f"{lang} 手册缺了对外引用的章节编号：{missing}"
+    for lang, headings in {**REFERENCED_SECTIONS, **THESIS_SECTIONS}.items():
+        text = MANUALS[lang].read_text(encoding="utf-8")
+        missing = [h.strip() for h in headings if h not in text]
+        assert not missing, f"{lang} 手册缺了对外引用的章节编号：{missing}"
 
 
 def test_every_flag_is_documented_somewhere() -> None:
@@ -176,8 +167,6 @@ def test_every_flag_is_documented_somewhere() -> None:
         (repo_root / "SKILL.md").read_text(encoding="utf-8"),
         (RESOURCES / "manual.md").read_text(encoding="utf-8"),
         (RESOURCES / "manual_en.md").read_text(encoding="utf-8"),
-        (RESOURCES / "manual-thesis.md").read_text(encoding="utf-8"),
-        (RESOURCES / "manual-thesis_en.md").read_text(encoding="utf-8"),
     ])
 
     flags = sorted({
