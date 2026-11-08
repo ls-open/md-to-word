@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import copy
+import posixpath
 import re
 import shutil
 import subprocess
@@ -102,10 +103,12 @@ class BaseReport:
         return not self.blocking
 
 
-def inspect_base(path: Path, cover_sections: int) -> BaseReport:
+def inspect_base(path: Path, cover_sections: int | None = None) -> BaseReport:
     """先体检再动手：改不了、验不了的文件，一开始就拒绝，不产出一个"大概能用"的。
 
     这里只拦**确定会出事**的特征。可疑但不致命的记进 notes，让人自己判断。
+    `cover_sections` 给 None 时只做文件体检——按内容/按页换算节数之前也得先知道这份
+    文件读不读得了。
     """
     report = BaseReport()
     if path.suffix.lower() != ".docx":
@@ -122,13 +125,19 @@ def inspect_base(path: Path, cover_sections: int) -> BaseReport:
     if "word/vbaProject.bin" in names:
         report.blocking.append("这是带宏的文档（vbaProject.bin），改不了也不该改")
 
+    # 关系指着包里不存在的部件：这份文件自己就是坏的，python-docx 打开时直接抛 KeyError。
+    # 学校模板经过邮件、网盘几道手，页眉部件被剥掉的情况真见过。
+    broken = _dangling_rels(path)
+    if broken:
+        report.blocking.append(f"包里的关系指向不存在的部件（{broken[0]}），这份文件本身是坏的")
+
     root = etree.fromstring(document)
     sections = list(root.iter(W + "sectPr"))
-    if len(sections) < cover_sections:
+    if cover_sections is not None and len(sections) < cover_sections:
         report.blocking.append(
             f"文件里只有 {len(sections)} 节，切不出前 {cover_sections} 节做前置件"
         )
-    elif len(sections) == cover_sections:
+    elif cover_sections is not None and len(sections) == cover_sections:
         # 全切走就没有"正文节"可替了，我们的内容会挤进最后一节，沿用它页眉页脚
         report.blocking.append(
             f"前 {cover_sections} 节已经是整份文件，切完没有正文节可换。"
@@ -139,6 +148,12 @@ def inspect_base(path: Path, cover_sections: int) -> BaseReport:
 
     if any(n.tag in (W + "ins", W + "del") for n in root.iter()):
         report.notes.append("文件里有修订痕迹，封面可能显示为“修订状态”，提交前请在 Word 里接受修订")
+    settings = _part_bytes(path, "settings.xml")
+    if settings:
+        protection = etree.fromstring(settings).find(W + "documentProtection")
+        if protection is not None and protection.get(W + "enforcement") in ("1", "true"):
+            report.notes.append(
+                "底模开着文档保护，产物也带着它——导出后在 Word 里「限制编辑 → 停止保护」再改")
     if any(n.tag == W + "commentReference" for n in root.iter()):
         report.notes.append("文件里有批注，封面会带批注气泡，提交前请删除")
 
@@ -148,6 +163,36 @@ def inspect_base(path: Path, cover_sections: int) -> BaseReport:
         # 这些是前置件自己的链接，原样保留才对——剥掉就违背了「封面一个字节不动」
         report.notes.append(f"前置件里有 {len(external)} 个外部链接，会原样保留")
     return report
+
+
+def _dangling_rels(path: Path) -> list[str]:
+    """包里每条内部关系都得有对应部件，返回断掉的那些（「哪个 .rels → 指向哪」）。"""
+    missing: list[str] = []
+    with zipfile.ZipFile(path) as z:
+        names = set(z.namelist())
+        for member in sorted(names):
+            if not member.endswith(".rels"):
+                continue
+            try:
+                root = etree.fromstring(z.read(member))
+            except etree.XMLSyntaxError:
+                missing.append(member)
+                continue
+            # `_rels/.rels` 的基准是包根，`word/_rels/document.xml.rels` 的基准是 `word/`
+            base_dir = posixpath.dirname(posixpath.dirname(member))
+            for rel in root:
+                if rel.get("TargetMode") == "External":
+                    continue
+                target = rel.get("Target") or ""
+                if not target:
+                    continue
+                resolved = (
+                    target.lstrip("/") if target.startswith("/")
+                    else posixpath.normpath(posixpath.join(base_dir, target))
+                )
+                if resolved not in names:
+                    missing.append(f"{member} → {target}")
+    return missing
 
 
 def _drop_attached_template(doc, set_part_xml) -> str | None:
@@ -839,7 +884,9 @@ def _part_bytes(path: Path, member: str) -> bytes | None:
 # ── 验收二：版面得和原件一样（要有 Word，macOS） ────────────────────────
 
 
-def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> tuple[bool, str]:
+def verify_cover_pages(
+    base: Path, result: Path, sentinels: str | list[str]
+) -> tuple[bool, str, list[str]]:
     """拿原件和产物逐词比坐标，比到我们的正文出现为止。
 
     比对基准**不能**是「把前置件单独切出来」——实测切出来的那份会多出一页：前置件最后
@@ -850,15 +897,18 @@ def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> 
     放了一份示例目录，里面就有「第一章 绪论」，而论文稿第一段往往正是这几个字。撞上了，
     定位到的就不是正文起点——轻则少比几页，重则把正确的切点判成错的。所以候选给一串，
     先用原件自己的渲染结果把在前置件里出现过的剔掉。
+
+    目录页不比词：前置件里的目录是一个域，Word 排版时**按产物的新标题重算**，两份的字
+    当然不一样——那不是封面被改了，那正是要的效果。这几页只跳过、并在 notes 里点名。
     """
     render_pdf_via_word = word_pdf.render_pdf_via_word
 
     ok, why = word_pdf.can_render_word_pdf()
     if not ok:
-        return False, f"需要本机 Microsoft Word 才能验真（{why}）；验不了就不产出文件"
+        return False, f"需要本机 Microsoft Word 才能验真（{why}）；验不了就不产出文件", []
     for tool in ("pdftotext", "pdfinfo"):
         if shutil.which(tool) is None:
-            return False, f"需要 {tool} 才能逐词比对；验不了就不产出文件"
+            return False, f"需要 {tool} 才能逐词比对；验不了就不产出文件", []
 
     work = result.parent
     base_pdf, out_pdf = work / ".base.pdf", work / ".result.pdf"
@@ -866,7 +916,7 @@ def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> 
         for src, pdf in ((base, base_pdf), (result, out_pdf)):
             rendered, reason = render_pdf_via_word(src, pdf)
             if not rendered:
-                return False, f"Word 打不开 {src.name}：{reason}"
+                return False, f"Word 打不开 {src.name}：{reason}", []
 
         candidates = [sentinels] if isinstance(sentinels, str) else list(sentinels)
         candidates = [c for c in candidates if c]
@@ -876,7 +926,7 @@ def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> 
             return False, (
                 "正文前几句话在底模的前置件里也出现过（模板里常带示例目录），"
                 "没法用它定位正文从哪一页开始。请人工核对前置件页数"
-            )
+            ), []
         sentinel, start = "", None
         for cand in usable:
             start = _first_page_with(out_pdf, cand)
@@ -884,23 +934,68 @@ def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> 
                 sentinel = cand
                 break
         if start is None:
-            return False, f"产物里找不到正文首句「{usable[0]}」，没法定位前置件到哪一页"
+            return False, f"产物里找不到正文首句「{usable[0]}」，没法定位前置件到哪一页", []
         cover_pages = start - 1
         if cover_pages < 1:
-            return False, "前置件在产物里只有 0 页，说明切点不对"
+            return False, "前置件在产物里只有 0 页，说明切点不对", []
 
+        # 两份都算一遍：目录重排后条数变了，页数可能跟着变，取并集才不会错位
+        toc_pages = _toc_like_pages(base_pdf) | _toc_like_pages(out_pdf)
+        skipped = []
         for page in range(1, cover_pages + 1):
+            if page in toc_pages:
+                skipped.append(page)
+                continue
             want, got = _words(base_pdf, page), _words(out_pdf, page)
             if len(want) != len(got):
-                return False, f"第 {page} 页对不上：原件 {len(want)} 个词，产物 {len(got)} 个"
+                return False, f"第 {page} 页对不上：原件 {len(want)} 个词，产物 {len(got)} 个", []
             for (x, y, word), (x2, y2, word2) in zip(want, got):
                 if word != word2 or abs(float(x) - float(x2)) > _TOL \
                         or abs(float(y) - float(y2)) > _TOL:
-                    return False, f"第 {page} 页位置对不上：「{word}」"
-        return True, ""
+                    return False, f"第 {page} 页位置对不上：「{word}」", []
+        return True, "", _toc_notes(base, cover_pages, skipped)
     finally:
         for pdf in (base_pdf, out_pdf):
             pdf.unlink(missing_ok=True)
+
+
+def _toc_like_pages(pdf: Path) -> set[int]:
+    """目录页：整页文字里有一长串点线（`第一章 绪论………1`）。"""
+    return {
+        i for i, text in enumerate(_page_texts(pdf), 1) if re.search(r"\.{10,}", text)
+    }
+
+
+def _toc_notes(base: Path, cover_pages: int, skipped: list[int]) -> list[str]:
+    """跳过的目录页要说出来，并分清「域」和「手工排的」——后者不会跟着正文更新。"""
+    if not skipped:
+        return []
+    span = f"{skipped[0]}–{skipped[-1]}" if len(skipped) > 1 else str(skipped[0])
+    try:
+        from docx import Document
+
+        has_field = _front_has_toc_field(Document(str(base)), cover_pages)
+    except Exception:  # noqa: BLE001 - 判不出来就按"手工"提醒，宁可多说一句
+        has_field = False
+    if has_field:
+        return [f"前置件里的目录是域，已按新正文重算；第 {span} 页没有逐词比对"]
+    return [f"前置件里的目录是手工排的（不是域），不会跟着正文更新——第 {span} 页请自己核对页码"]
+
+
+def _front_has_toc_field(doc, cover_sections: int) -> bool:
+    """前置件里有没有目录域。只看域代码，不认正文里出现的「TOC」三个字母。"""
+    nodes, _ = _front_signature(doc, cover_sections)
+    for node in nodes:
+        try:
+            root = etree.fromstring(node)
+        except etree.XMLSyntaxError:
+            continue
+        for el in root.iter():
+            if el.tag == W + "instrText" and (el.text or "").strip().upper().startswith("TOC"):
+                return True
+            if el.tag == W + "fldSimple" and (el.get(W + "instr") or "").strip().upper().startswith("TOC"):
+                return True
+    return False
 
 
 def _page_texts(pdf: Path) -> list[str]:
@@ -1001,7 +1096,8 @@ def apply_base_template(
         # 结构那一关已经保证封面一个字节没动，剩下的"排出来一样不一样"只能请人看。
         layout_verified = word_pdf.can_render_word_pdf()[0]
         if layout_verified:
-            ok, why = verify_cover_pages(base, staged, sentinels)
+            ok, why, page_notes = verify_cover_pages(base, staged, sentinels)
+            report.notes.extend(page_notes)
             if not ok:
                 raise BaseTemplateError(why, report.notes)
         else:

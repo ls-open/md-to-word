@@ -89,6 +89,12 @@ touch them. If the base's header holds a `STYLEREF` pointing at a style that doe
 prints "Error! ... apply style ... to the text to be displayed" — that is the template's own problem
 (it does it when you open the original), not something pouring the body introduced.
 
+**TOC pages are not compared word by word**: a table of contents in the front matter is a field, and
+Word recomputes it from the product's own headings — the two are *supposed* to differ. Those pages are
+skipped and named in the export log. If that contents page was typed by hand instead of inserted as a
+field, it stays as the template left it and will not follow your body; you are told to check the page
+numbers yourself.
+
 On Windows only the first layer runs, and the export says so: check the layout yourself in Word.
 (PDF rendering has only ever been implemented for macOS.)
 

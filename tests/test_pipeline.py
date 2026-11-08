@@ -603,3 +603,30 @@ def test_a_skipped_pdf_says_why_and_what_to_do(tmp_path: Path, capsys, monkeypat
     assert code == 3
     assert (tmp_path / "o.docx").is_file()
     assert "Word" in err and "另存" in err, err
+
+
+def test_an_unreadable_base_is_refused_before_sections_are_counted(tmp_path: Path) -> None:
+    """底模不是有效的 docx 时，按内容换算节数那一步不能先撞上去。
+
+    以前 `--keep-until` / `--keep-pages` 在体检之前就去读这份文件，BadZipFile 从深处抛出去，
+    CLI 兜底成「这是本工具的缺陷，请把 traceback 发给维护者」——用户拿到的是一句我们自己的
+    道歉，而不是「你给的文件打不开」。
+    """
+    manuscript = tmp_path / "m.md"
+    manuscript.write_text("# 第一章 绪论\n\n正文。\n", encoding="utf-8")
+    base = tmp_path / "base.docx"
+    base.write_bytes(b"Forbidden")          # 网盘/邮件里下坏的那种
+
+    for kwargs in ({"keep_until": "版权使用授权书"}, {"keep_pages": 2}):
+        result = run_export_pipeline(ExportOptions(
+            input_path=manuscript,
+            output_path=tmp_path / "o.docx",
+            base_template=str(base),
+            **kwargs,
+        ))
+
+        joined = " ".join(result.errors)
+        assert result.returncode != 0
+        assert "打不开" in joined, joined
+        assert "本工具的缺陷" not in joined, joined
+        assert not (tmp_path / "o.docx").exists()

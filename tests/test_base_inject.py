@@ -441,3 +441,56 @@ def test_a_zero_byte_theme_directory_does_not_fail_verification(tmp_path: Path) 
 
     ok, why = verify_structure(base, out, 1)
     assert ok, why
+
+
+def test_a_relationship_pointing_at_a_missing_part_is_refused(tmp_path: Path) -> None:
+    """关系还在、部件被剥掉了：这份文件自己就是坏的，python-docx 打开时直接抛 KeyError。
+
+    学校模板转几道手之后页眉部件丢失是见过的。以前它崩在 `Document()` 里，报出来是一句
+    traceback；现在体检就拦住，说清楚是哪条关系断了。
+    """
+    base = _school_base(tmp_path / "base.docx", sections=2)
+    with zipfile.ZipFile(base) as z:
+        members = {n: z.read(n) for n in z.namelist()}
+    members["word/_rels/document.xml.rels"] = members[
+        "word/_rels/document.xml.rels"
+    ].replace(
+        b"</Relationships>",
+        b'<Relationship Id="rIdHdr" Type="http://schemas.openxmlformats.org/officeDocument/'
+        b'2006/relationships/header" Target="header99.xml"/></Relationships>',
+    )
+    with zipfile.ZipFile(base, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in members.items():
+            z.writestr(name, blob)
+
+    report = inspect_base(base, 1)
+
+    assert not report.ok
+    assert any("header99.xml" in msg for msg in report.blocking), report.blocking
+
+
+def test_a_sound_base_is_not_reported_as_broken(tmp_path: Path) -> None:
+    """断了才算坏：正常模板（含图片、超链接这些真有关系表的）不能被这条检查误伤。"""
+    base = _school_base(tmp_path / "base.docx", sections=3)
+
+    assert inspect_base(base, 2).ok
+    assert inspect_base(base).ok
+
+
+def test_a_protected_base_says_so_instead_of_producing_a_read_only_file(tmp_path: Path) -> None:
+    """底模开着文档保护：产物照样带保护，用户在 Word 里改不了。这不是错，但得说一声。"""
+    base = _school_base(tmp_path / "base.docx", sections=2)
+    with zipfile.ZipFile(base) as z:
+        members = {n: z.read(n) for n in z.namelist()}
+    members["word/settings.xml"] = members["word/settings.xml"].replace(
+        b"</w:settings>",
+        b'<w:documentProtection w:edit="readOnly" w:enforcement="1"/></w:settings>',
+    )
+    with zipfile.ZipFile(base, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in members.items():
+            z.writestr(name, blob)
+
+    report = inspect_base(base, 1)
+
+    assert report.ok, report.blocking          # 不是拒绝，是提醒
+    assert any("文档保护" in note for note in report.notes), report.notes

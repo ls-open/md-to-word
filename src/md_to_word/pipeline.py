@@ -420,6 +420,17 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 res.returncode = EXIT_ERROR
                 res.errors.append(t("pipeline.base_missing", res.lang, path=base_p))
                 return res
+            # 按内容 / 按页换算节数都要先读这份文件。读不了要在这里说清楚，不能让它
+            # 从深处抛出去、被兜底成「本工具的缺陷」。
+            from md_to_word.template.base_inject import inspect_base
+
+            report = inspect_base(base_p)
+            if not report.ok:
+                res.returncode = EXIT_ERROR
+                res.errors.append(
+                    t("pipeline.base_failed", res.lang, reason="；".join(report.blocking)))
+                res.errors.extend(f"  {n}" for n in report.notes)
+                return res
             sentinel = _first_text(model.blocks)
             sections = options.cover_sections
             if not sections and not options.keep_pages and not options.keep_until:
