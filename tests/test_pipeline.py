@@ -579,3 +579,21 @@ def test_the_success_line_does_not_claim_a_page_check_that_never_ran(
     text = " | ".join(lines)
     assert "逐页一致" not in text, f"没排过版却说逐页一致：{text}"
     assert "逐节点一致" in text, text
+
+
+def test_the_output_says_which_version_and_format_made_it(tmp_path: Path) -> None:
+    """产物要能自证出处：哪个版本、照哪份格式文件。写进 docProps，且不能带时间戳——
+    带了的话同一份稿件重复导出就不再逐字节一致。"""
+    import hashlib
+    import zipfile
+
+    (tmp_path / "m.md").write_text("---\n---\n\n# 一\n\n正文。\n", encoding="utf-8")
+    out = tmp_path / "o.docx"
+    result = run_export_pipeline(ExportOptions(input_path=tmp_path / "m.md", output_path=out,
+                                               preset="zh-academic"))
+    assert result.returncode == 0, result.errors
+
+    core = zipfile.ZipFile(out).read("docProps/core.xml").decode("utf-8")
+    preset = Path("presets") / "zh-academic.txt"
+    digest = hashlib.sha256(preset.read_bytes()).hexdigest()[:8]
+    assert "md-to-word" in core and "zh-academic.txt" in core and digest in core, core

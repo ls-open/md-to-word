@@ -1257,6 +1257,7 @@ def write_docx(
     no_row_split: bool = False,
     repeat_header: bool = False,
     table_space_after: float = 0.0,
+    provenance: str = "",
     lang: Optional[str] = None,
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
@@ -1284,6 +1285,10 @@ def write_docx(
         lang=lang,
     )
     writer.write()
+    if provenance:
+        # 产物要能自证出处：版本与用的是哪份格式文件。只写固定字符串，不写时间戳，
+        # 否则同一份稿件重复导出就不再逐字节一致了。
+        docx.core_properties.comments = provenance
     out = Path(output)
     docx.save(str(out))
     # 时间戳钉死：同一份稿件重复导出要逐字节一致，否则 Git 里每次都是「内容没改却变了」

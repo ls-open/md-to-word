@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import shutil
@@ -131,6 +132,17 @@ def _normalized_csl(path: Path, temp_dir: Path, res: ExportResult) -> Path:
         t("pipeline.csl_normalized", res.lang, name=path.name, attrs=", ".join(removed))
     )
     return target
+
+
+def _provenance(fmt_file) -> str:
+    """产物自证的出处：哪个版本、照哪份格式文件。内容哈希而不是路径——路径换了、
+    机器换了，同一份格式文件还是同一个身份，而产物要能逐字节复现。"""
+    from md_to_word import __version__   # 延迟导入：包初始化时本模块已经在导入途中
+
+    if fmt_file is None:
+        return f"md-to-word {__version__}"
+    digest = hashlib.sha256(Path(fmt_file).read_bytes()).hexdigest()[:8]
+    return f"md-to-word {__version__} · {Path(fmt_file).name} · sha256:{digest}"
 
 
 def run_export_pipeline(options: ExportOptions) -> ExportResult:
@@ -354,6 +366,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                                   and spec.table_header.get("repeat_header")),
                 # 「表后间距」写在「表格：」那一行：表格没有段前段后，留白由垫片撑
                 table_space_after=float(spec.table.get("space_after_pt") or 0) if spec else 0.0,
+                provenance=_provenance(fmt_file),
                 lang=res.lang,
             )
         except UnsupportedFeature as exc:
