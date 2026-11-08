@@ -52,6 +52,20 @@ def test_the_numeric_style_declares_its_number_column() -> None:
     assert 'second-field-align="flush"' in text
 
 
+@pytest.mark.parametrize("style", STYLES)
+def test_numeric_styles_have_tabs_and_author_date_do_not(style: str) -> None:
+    """数字制必须自成一栏（以制表符分隔），著者-出版年制绝不带制表符。"""
+    engine = CitationEngine(BIB, CSL_DIR / style)
+    engine.cite([("a", "")])
+    entry = engine.bibliography()[0]
+    if engine._first_field_column:
+        assert "\t" in entry, f"数字制样式 {style} 参考文献未切分出制表符：{entry!r}"
+        prefix, suffix = engine._number_prefix, engine._number_suffix
+        assert entry.startswith(f"{prefix}1{suffix}".rstrip()), f"{style} 序号标记格式不符：{entry!r}"
+    else:
+        assert "\t" not in entry, f"著者年制样式 {style} 不应包含制表符：{entry!r}"
+
+
 def test_package_copy_matches_repository_copy() -> None:
     package_dir = get_csl_dir()
     assert sorted(p.name for p in package_dir.glob("*.csl")) == STYLES

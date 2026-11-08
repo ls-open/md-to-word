@@ -54,9 +54,9 @@ class CitationEngine:
         self._order: list[str] = []          # 首次引用顺序（数字制就用它）
         self._by_key = {entry["id"]: entry for entry in self.entries}
         style_text = Path(csl_path).read_text(encoding="utf-8")
+        self._number_prefix, self._number_suffix, has_citation_number = _number_affixes(style_text)
         tag = re.search(r"<bibliography\b[^>]*>", style_text)
-        self._first_field_column = bool(tag and 'second-field-align' in tag.group(0))
-        self._number_prefix, self._number_suffix = _number_affixes(style_text)
+        self._first_field_column = has_citation_number or bool(tag and 'second-field-align' in tag.group(0))
         self._sort_by_initials = _sort_names_initialized(style_text)
         self._sort_order = _declared_sort_keys(style_text)
         self._sorted = bool(self._sort_order)
@@ -382,34 +382,39 @@ class CitationEngine:
         return [text_by_key[key] for key in self._sorted_keys(self._order)]
 
     def _separate_first_field(self, entry, number: int) -> str:
-        """`second-field-align` 声明了「首个字段自成一栏」：在序号后面补一个制表符。
+        """顺序数字制或 `second-field-align` 声明了「首个字段自成一栏」：在序号后面补一个制表符。
 
-        `citeproc-py` 从不落实这个属性，序号会直接贴住条目正文。而它的分片**不是**按
-        字段切的（IEEE 给出的是 `'[1]J. Doe and J. Roe, '`，序号和作者在同一个分片里），
-        所以边界只能从 CSL 自己写的序号前后缀来：样式里那只 `citation-number` 长什么样，
-        产物里序号就长什么样。
+        `citeproc-py` 从不落实这个属性，序号会直接贴住条目正文（例如 `[1]Smith`、`1.Smith`）。
+        而它的分片**不是**按字段切的（IEEE 给出的是 `'[1]J. Doe and J. Roe, '`，序号和作者在
+        同一个分片里），所以边界只能从 CSL 自己写的序号前后缀来：样式里那只 `citation-number`
+        长什么样，产物里序号就长什么样。
 
-        用制表符而非空格——`参考文献` 带悬挂缩进时，制表位正落在缩进处，首行与折行对齐。
+        用制表符而非空格——`参考文献` 带悬挂缩进时，制表位正落在缩进处，首行文字与折行文字对齐成列。
         """
         text = "".join(str(chunk) for chunk in entry)
         marker = f"{self._number_prefix}{number}{self._number_suffix}"
         if not self._first_field_column or not text.startswith(marker):
             return text
-        return marker + "\t" + text[len(marker):]
+        marker_clean = marker.rstrip()
+        rest = text[len(marker):].lstrip()
+        return marker_clean + "\t" + rest
 
 
-def _number_affixes(style_text: str) -> tuple[str, str]:
-    """`<bibliography>` 里 `citation-number` 的前后缀：序号那一栏实际印成什么样。"""
+def _number_affixes(style_text: str) -> tuple[str, str, bool]:
+    """`<bibliography>` 里 `citation-number` 的前后缀：序号那一栏实际印成什么样。
+
+    返回 (prefix, suffix, has_citation_number)。
+    """
     block = re.search(r"<bibliography\b.*?</bibliography>", style_text, re.DOTALL)
     tag = block and re.search(r'<text\b[^>]*variable="citation-number"[^>]*>', block.group(0))
     if not tag:
-        return "", ""
+        return "", "", False
 
     def attr(name: str) -> str:
         found = re.search(rf'{name}="([^"]*)"', tag.group(0))
         return found.group(1) if found else ""
 
-    return attr("prefix"), attr("suffix")
+    return attr("prefix"), attr("suffix"), True
 
 
 _NUMERIC_CITE_RE = re.compile(r"\[(\d+(?:\s*[,\-–]\s*\d+)+)\]")
