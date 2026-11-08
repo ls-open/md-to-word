@@ -817,11 +817,13 @@ class _Writer:
             trPr.append(el)
 
     def _keep_caption_with_figure(self, blocks: list[Block], index: int) -> None:
-        """题注与图必须同页，不管题注写在上方还是下方。
+        """题注与图表必须同页。
 
-        Word 只有「与下段同页」（keepNext）一个方向：题注在上，靠样式里的这一条就够
-        （要求文件的「表格题注」就是这么写的）；题注在下，得给**图片段**补。所以按相邻
-        关系判断，谁是这一对里的前一件，就给谁加——两个方向都成立，不用作者操心。
+        Word 只有「与下段同页」（keepNext）一个方向，所以只给这一对里的**前一件**补：
+        题注在上时补题注段（图片题注、表格题注都算），图片在上、题注在下时补图片段。
+
+        只有一种做不到：**表格在上、题注在下**。`keepNext` 是段落属性，挂不到表格的最后一行，
+        而 Word 里没有反方向的「与上段同页」。这种稿子得在 Word 里手工盯着，工具不假装做到了。
         """
         here = self._last_paragraph
         if here is None or index + 1 >= len(blocks):
@@ -830,11 +832,18 @@ class _Writer:
         def is_figure(node: Block) -> bool:
             return isinstance(node, Figure)
 
+        def is_table(node: Block) -> bool:
+            return isinstance(node, Table)
+
         def is_caption(node: Block) -> bool:
-            return isinstance(node, Paragraph) and node.style == "Image Caption"
+            return isinstance(node, Paragraph) and node.style in ("Image Caption", "Table Caption")
 
         this, nxt = blocks[index], blocks[index + 1]
-        if not ((is_figure(this) and is_caption(nxt)) or (is_caption(this) and is_figure(nxt))):
+        is_pair = (
+            (is_figure(this) and is_caption(nxt))
+            or (is_caption(this) and (is_figure(nxt) or is_table(nxt)))
+        )
+        if not is_pair:
             return
         ppr = here._p.get_or_add_pPr()
         if ppr.find(qn("w:keepNext")) is None:

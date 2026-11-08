@@ -492,3 +492,41 @@ def test_a_link_inside_a_footnote_keeps_the_part_well_formed(tmp_path: Path) -> 
     blob = zipfile.ZipFile(out).read("word/footnotes.xml")
     etree.fromstring(blob)  # 不是合法 XML 就在这里抛
     assert b"hyperlink" in blob
+
+
+def test_table_caption_stays_with_its_table_without_the_declaration(tmp_path: Path) -> None:
+    """题注与表不能分页：这是版式底线，不靠「表格题注」那行写不写「与下段同页」。
+
+    Word 只有「与下段同页」一个方向，所以给这一对里的**前一件**补：表格题注在上，补题注段；
+    图片题注在下，补图片段。格式文件没声明时也得补，否则表题留在上一页、表格自己翻过去。
+    """
+    from lxml import etree
+
+    fmt = re.sub(r"(?m)^(表格题注：.*?) 与下段同页$", r"\1",
+                 PRESET.read_text(encoding="utf-8"))
+    assert "与下段同页" not in fmt.split("表格题注：")[1].splitlines()[0], "格式文件里没去掉，这条测试是空转的"
+
+    template = tmp_path / "t.docx"
+    build_template(fmt, template)
+    out = write_docx(
+        read_markdown("---\n---\n\n%% Table Caption **表 1** 示例\n\n"
+                      "| 列一 | 列二 |\n| --- | --- |\n| 甲 | 乙 |\n"),
+        template,
+        tmp_path / "o.docx",
+    )
+
+    with zipfile.ZipFile(out) as z:
+        root = etree.fromstring(z.read("word/document.xml"))
+        styles = etree.fromstring(z.read("word/styles.xml"))
+    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    caption = [
+        p for p in root.iterfind(".//w:p", ns)
+        if (p.find("w:pPr/w:pStyle", ns) is not None
+            and p.find("w:pPr/w:pStyle", ns).get(f"{{{ns['w']}}}val") == "TableCaption")
+    ]
+    assert caption, "没有找到表题段落"
+    assert caption[0].find("w:pPr/w:keepNext", ns) is not None, "表题段没有 keepNext"
+
+    style = [s for s in styles.iterfind(".//w:style", ns)
+             if s.get(f"{{{ns['w']}}}styleId") == "TableCaption"][0]
+    assert style.find("w:pPr/w:keepNext", ns) is None, "样式里本来就没有，别把结论说反了"
