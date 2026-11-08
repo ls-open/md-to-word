@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 import zipfile
 from pathlib import Path
 
@@ -210,6 +211,63 @@ def test_styleref_field_follows_the_renamed_style() -> None:
 
     assert "heading 1（模板）" in out
     assert '"Heading 1"' not in out
+
+
+def _styleref_args(blob: bytes) -> list[str]:
+    """页眉里所有 `STYLEREF "…"` 的样式名。"""
+    text = blob.decode("utf-8")
+    return [m.group(1) for m in re.finditer(r'STYLEREF\s+"([^"]*)"', text)]
+
+
+def _chapter_header_format() -> str:
+    """章名页眉：`{样式标题:Heading 1}` 会落成一个 STYLEREF 域。"""
+    return (
+        PRESET
+        + "\n页眉：宋体/Times New Roman 小五 不加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符\n"
+        + "页眉内容：{样式标题:Heading 1}\n"
+    )
+
+
+def test_a_chapter_name_header_mid_document_follows_the_renamed_style(tmp_path: Path) -> None:
+    """正文中间那一节的页眉，样式名同样要跟着改。
+
+    这条以前是漏的：`_rehome_rels` 把 `w:headerReference` 当普通关系原样搬走，页眉部件被
+    复制一份、`STYLEREF` 里的旧名留在里面；`copy_hf` 随后去 `ours` 里查这个 rId 查不到，
+    静默跳过，改写等于没做。结构验真看不出来（封面对得上、包也完整），只有真排过版才
+    看得见——页眉上印的是「错误!使用"开始"选项卡将 … 应用于要在此处显示的文字」。
+    """
+    from md_to_word.template.base_inject import inject_into_base
+
+    manuscript = (
+        "---\n---\n\n%% 摘要标题 摘要\n\n%% 摘要 本文提出一种方法。\n\n"
+        "{{< section 页码=小写罗马 起始=1 >}}\n\n# 第一章 绪论\n\n正文。\n"
+    )
+    template = tmp_path / "tpl.docx"
+    build_template(_chapter_header_format(), template)
+    rendered = write_docx(read_markdown(manuscript), template, tmp_path / "rendered.docx")
+
+    base = _school_base(tmp_path / "base.docx", sections=2)
+    out = tmp_path / "out.docx"
+    inject_into_base(base, rendered, 1, out)
+
+    with zipfile.ZipFile(base) as zb:
+        base_parts = set(zb.namelist())
+    with zipfile.ZipFile(out) as z:
+        styles = etree.fromstring(z.read("word/styles.xml"))
+        names = {
+            (s.find(qn("w:name")).get(qn("w:val")) if s.find(qn("w:name")) is not None else "")
+            for s in styles.iter(qn("w:style"))
+        }
+        # 只看**灌进来的**页眉页脚：学校模板自己那几份原样保留，里面写着什么不归我们管
+        generated = [
+            n for n in z.namelist()
+            if re.search(r"word/[^/]*(header|footer)[^/]*\.xml$", n) and n not in base_parts
+        ]
+        args = [a for n in generated for a in _styleref_args(z.read(n))]
+
+    assert args, "这份稿件应当生成带 STYLEREF 的页眉——没有的话这条测试是空转的"
+    dangling = [a for a in args if a not in names]
+    assert not dangling, f"页眉指向了不存在的样式：{dangling}（现有样式名 {sorted(names)[:5]}…）"
 
 
 def test_sentinel_reads_through_inline_wrappers() -> None:

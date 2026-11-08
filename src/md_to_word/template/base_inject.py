@@ -32,6 +32,8 @@ R_ID = R + "id"
 R_LINK = R + "link"
 # 正文里所有"指向包内别处"的属性，都要随节点一起重挂
 _R_ATTRS = (R_ID, R_EMBED, R_LINK)
+# 节属性里的页眉页脚引用例外：它们是**部件**的入口，由 copy_hf 专门处理（要重写域代码）
+_HF_REF_TAGS = (W + "headerReference", W + "footerReference")
 
 _HEADER_CT = "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"
 _FOOTER_CT = "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"
@@ -521,9 +523,17 @@ def _carry_rel(src_part, dst_part, rid: str, counters: dict[str, int]) -> str | 
 
 
 def _rehome_rels(root, src_part, dst_part) -> None:
-    """把 root 里所有关系引用改指到目标包里的对应关系。"""
+    """把 root 里所有关系引用改指到目标包里的对应关系。
+
+    页眉页脚引用**不在此列**：它们由 `copy_hf` 专门处理（要按改名后的样式重写域代码）。
+    在这里顺手搬走的话，部件会被原样复制一份、`STYLEREF` 里的旧样式名留在里面，页眉上
+    就会印出「错误!使用"开始"选项卡将 … 应用于要在此处显示的文字」；而且 `copy_hf` 随后
+    查 `ours.part.related_parts` 时这个 rId 已经不在了，会**静默跳过**，改写等于没做。
+    """
     counters: dict[str, int] = {}
     for el in root.iter():
+        if el.tag in _HF_REF_TAGS:
+            continue
         for attr in _R_ATTRS:
             rid = el.get(attr)
             if not rid:
