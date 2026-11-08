@@ -814,9 +814,11 @@ numbering), the document-level settings (theme, compatibility mode, punctuation 
 style you did not declare. The body's paper size, margins, page numbering and declared styles come from
 the format file.
 
-Document-level settings exist once and **follow the template**. So the body's line breaks — and, when
-the template mirrors margins for double-sided binding, the left/right margins on facing pages — will
-differ from a standalone export. The font, size, line-spacing, indent and margin *values* are still ours.
+Document-level settings exist once and **follow the template**: punctuation compression, compatibility
+mode, mirrored margins for double-sided binding, default font and size. So the body's line breaks — and,
+when the template mirrors margins, the left/right margins on facing pages — will differ from a
+standalone export: double-sided binding needs the binding edge to alternate, and the template is written
+for that. The font, size, line-spacing, indent and margin *values* are still ours.
 
 **No file is produced unless it verifies.** The structural check runs everywhere: front matter
 node-for-node identical, none of the original's styles/numbering/theme missing, and every style the body
