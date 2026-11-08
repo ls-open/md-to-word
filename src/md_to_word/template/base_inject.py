@@ -143,6 +143,17 @@ def inspect_base(path: Path, cover_sections: int | None = None) -> BaseReport:
             f"前 {cover_sections} 节已经是整份文件，切完没有正文节可换。"
             f"少留一节，或者换一份带正文的模板"
         )
+    if cover_sections is not None:
+        toc = _toc_section(root)
+        if toc is not None and cover_sections >= toc:
+            if toc == 1:
+                report.blocking.append(
+                    "底模的目录就在第 1 节，没有能保留的前置件——先把目录挪到正文之后再来")
+            else:
+                report.blocking.append(
+                    f"底模第 {toc} 节是目录。目录由你的稿件生成（{{{{< toc >}}}}），"
+                    f"模板那份留着只会印出模板作者的条目——最多保留前 {toc - 1} 节"
+                )
     if any(n.tag == W + "altChunk" for n in root.iter()):
         report.blocking.append("含有 altChunk（外部文档块），合并后内容会错位")
 
@@ -163,6 +174,43 @@ def inspect_base(path: Path, cover_sections: int | None = None) -> BaseReport:
         # 这些是前置件自己的链接，原样保留才对——剥掉就违背了「封面一个字节不动」
         report.notes.append(f"前置件里有 {len(external)} 个外部链接，会原样保留")
     return report
+
+
+def _toc_section(root) -> int | None:
+    """底模的目录在第几节；没有目录就返回 None。
+
+    目录**不能保留**：模板里那份是作者照着他自己的正文排的，留着只会印出和他内容对不上的
+    条目，而且它是域，Word 排版时会按我们的新标题重算——两份永远不一样，验真也就没法比。
+    用户自己写 `{{< toc >}}` 生成，页码才是对的。
+    """
+    body = root if root.tag == W + "body" else root.find(W + "body")
+    seen = 0
+    for child in (body if body is not None else []):
+        if child.tag == W + "sectPr":
+            seen += 1
+            continue
+        if child.tag != W + "p":
+            continue
+        if _is_toc_paragraph(child):
+            return seen + 1
+        if child.find(f"{W}pPr/{W}sectPr") is not None:
+            seen += 1
+    return None
+
+
+_TOC_STYLE = re.compile(r"^toc\s*\d?$", re.I)
+
+
+def _is_toc_paragraph(p) -> bool:
+    """目录条目：域代码（Word 插的）或者目录样式（手工一条条排的）。"""
+    for el in p.iter():
+        if el.tag == W + "instrText" and (el.text or "").strip().upper().startswith("TOC"):
+            return True
+        if el.tag == W + "fldSimple" \
+                and (el.get(W + "instr") or "").strip().upper().startswith("TOC"):
+            return True
+    style = p.find(f"{W}pPr/{W}pStyle")
+    return style is not None and bool(_TOC_STYLE.match(style.get(W + "val") or ""))
 
 
 def _dangling_rels(path: Path) -> list[str]:
@@ -884,9 +932,7 @@ def _part_bytes(path: Path, member: str) -> bytes | None:
 # ── 验收二：版面得和原件一样（要有 Word，macOS） ────────────────────────
 
 
-def verify_cover_pages(
-    base: Path, result: Path, sentinels: str | list[str]
-) -> tuple[bool, str, list[str]]:
+def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> tuple[bool, str]:
     """拿原件和产物逐词比坐标，比到我们的正文出现为止。
 
     比对基准**不能**是「把前置件单独切出来」——实测切出来的那份会多出一页：前置件最后
@@ -897,18 +943,15 @@ def verify_cover_pages(
     放了一份示例目录，里面就有「第一章 绪论」，而论文稿第一段往往正是这几个字。撞上了，
     定位到的就不是正文起点——轻则少比几页，重则把正确的切点判成错的。所以候选给一串，
     先用原件自己的渲染结果把在前置件里出现过的剔掉。
-
-    目录页不比词：前置件里的目录是一个域，Word 排版时**按产物的新标题重算**，两份的字
-    当然不一样——那不是封面被改了，那正是要的效果。这几页只跳过、并在 notes 里点名。
     """
     render_pdf_via_word = word_pdf.render_pdf_via_word
 
     ok, why = word_pdf.can_render_word_pdf()
     if not ok:
-        return False, f"需要本机 Microsoft Word 才能验真（{why}）；验不了就不产出文件", []
+        return False, f"需要本机 Microsoft Word 才能验真（{why}）；验不了就不产出文件"
     for tool in ("pdftotext", "pdfinfo"):
         if shutil.which(tool) is None:
-            return False, f"需要 {tool} 才能逐词比对；验不了就不产出文件", []
+            return False, f"需要 {tool} 才能逐词比对；验不了就不产出文件"
 
     work = result.parent
     base_pdf, out_pdf = work / ".base.pdf", work / ".result.pdf"
@@ -916,7 +959,7 @@ def verify_cover_pages(
         for src, pdf in ((base, base_pdf), (result, out_pdf)):
             rendered, reason = render_pdf_via_word(src, pdf)
             if not rendered:
-                return False, f"Word 打不开 {src.name}：{reason}", []
+                return False, f"Word 打不开 {src.name}：{reason}"
 
         candidates = [sentinels] if isinstance(sentinels, str) else list(sentinels)
         candidates = [c for c in candidates if c]
@@ -926,7 +969,7 @@ def verify_cover_pages(
             return False, (
                 "正文前几句话在底模的前置件里也出现过（模板里常带示例目录），"
                 "没法用它定位正文从哪一页开始。请人工核对前置件页数"
-            ), []
+            )
         sentinel, start = "", None
         for cand in usable:
             start = _first_page_with(out_pdf, cand)
@@ -934,68 +977,23 @@ def verify_cover_pages(
                 sentinel = cand
                 break
         if start is None:
-            return False, f"产物里找不到正文首句「{usable[0]}」，没法定位前置件到哪一页", []
+            return False, f"产物里找不到正文首句「{usable[0]}」，没法定位前置件到哪一页"
         cover_pages = start - 1
         if cover_pages < 1:
-            return False, "前置件在产物里只有 0 页，说明切点不对", []
+            return False, "前置件在产物里只有 0 页，说明切点不对"
 
-        # 两份都算一遍：目录重排后条数变了，页数可能跟着变，取并集才不会错位
-        toc_pages = _toc_like_pages(base_pdf) | _toc_like_pages(out_pdf)
-        skipped = []
         for page in range(1, cover_pages + 1):
-            if page in toc_pages:
-                skipped.append(page)
-                continue
             want, got = _words(base_pdf, page), _words(out_pdf, page)
             if len(want) != len(got):
-                return False, f"第 {page} 页对不上：原件 {len(want)} 个词，产物 {len(got)} 个", []
+                return False, f"第 {page} 页对不上：原件 {len(want)} 个词，产物 {len(got)} 个"
             for (x, y, word), (x2, y2, word2) in zip(want, got):
                 if word != word2 or abs(float(x) - float(x2)) > _TOL \
                         or abs(float(y) - float(y2)) > _TOL:
-                    return False, f"第 {page} 页位置对不上：「{word}」", []
-        return True, "", _toc_notes(base, cover_pages, skipped)
+                    return False, f"第 {page} 页位置对不上：「{word}」"
+        return True, ""
     finally:
         for pdf in (base_pdf, out_pdf):
             pdf.unlink(missing_ok=True)
-
-
-def _toc_like_pages(pdf: Path) -> set[int]:
-    """目录页：整页文字里有一长串点线（`第一章 绪论………1`）。"""
-    return {
-        i for i, text in enumerate(_page_texts(pdf), 1) if re.search(r"\.{10,}", text)
-    }
-
-
-def _toc_notes(base: Path, cover_pages: int, skipped: list[int]) -> list[str]:
-    """跳过的目录页要说出来，并分清「域」和「手工排的」——后者不会跟着正文更新。"""
-    if not skipped:
-        return []
-    span = f"{skipped[0]}–{skipped[-1]}" if len(skipped) > 1 else str(skipped[0])
-    try:
-        from docx import Document
-
-        has_field = _front_has_toc_field(Document(str(base)), cover_pages)
-    except Exception:  # noqa: BLE001 - 判不出来就按"手工"提醒，宁可多说一句
-        has_field = False
-    if has_field:
-        return [f"前置件里的目录是域，已按新正文重算；第 {span} 页没有逐词比对"]
-    return [f"前置件里的目录是手工排的（不是域），不会跟着正文更新——第 {span} 页请自己核对页码"]
-
-
-def _front_has_toc_field(doc, cover_sections: int) -> bool:
-    """前置件里有没有目录域。只看域代码，不认正文里出现的「TOC」三个字母。"""
-    nodes, _ = _front_signature(doc, cover_sections)
-    for node in nodes:
-        try:
-            root = etree.fromstring(node)
-        except etree.XMLSyntaxError:
-            continue
-        for el in root.iter():
-            if el.tag == W + "instrText" and (el.text or "").strip().upper().startswith("TOC"):
-                return True
-            if el.tag == W + "fldSimple" and (el.get(W + "instr") or "").strip().upper().startswith("TOC"):
-                return True
-    return False
 
 
 def _page_texts(pdf: Path) -> list[str]:
@@ -1096,8 +1094,7 @@ def apply_base_template(
         # 结构那一关已经保证封面一个字节没动，剩下的"排出来一样不一样"只能请人看。
         layout_verified = word_pdf.can_render_word_pdf()[0]
         if layout_verified:
-            ok, why, page_notes = verify_cover_pages(base, staged, sentinels)
-            report.notes.extend(page_notes)
+            ok, why = verify_cover_pages(base, staged, sentinels)
             if not ok:
                 raise BaseTemplateError(why, report.notes)
         else:

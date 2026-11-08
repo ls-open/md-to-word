@@ -494,3 +494,64 @@ def test_a_protected_base_says_so_instead_of_producing_a_read_only_file(tmp_path
 
     assert report.ok, report.blocking          # 不是拒绝，是提醒
     assert any("文档保护" in note for note in report.notes), report.notes
+
+
+_TOC_P = (
+    '<w:p {ns}><w:r><w:fldChar w:fldCharType="begin"/></w:r>'
+    '<w:r><w:instrText {ns} xml:space="preserve">TOC \\o "1-3" \\h \\z \\u</w:instrText></w:r>'
+    '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
+    '<w:r><w:t>第一章 绪论</w:t></w:r>'
+    '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
+)
+
+
+def _base_with_toc(path: Path, toc_paragraph: str) -> Path:
+    """封面 | 目录 | 正文占位：三节，目录在第 2 节。"""
+    doc = Document()
+    doc.add_paragraph("某某大学")
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.paragraphs[-1]._p.addnext(parse_xml(toc_paragraph.format(ns=nsdecls("w"))))
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.add_paragraph("正文占位")
+    doc.save(path)
+    return path
+
+
+def test_a_toc_in_the_front_matter_must_not_be_kept(tmp_path: Path) -> None:
+    """模板里的目录不能留：它是作者照着自己的正文排的，还是域，Word 会按我们的新标题重算。
+
+    留着不但印出对不上的条目，还让逐页验真永远比不平——两份的目录本来就该不一样。
+    所以切点必须停在目录之前，切深了直接拒绝，并告诉人最多能留几节。
+    """
+    base = _base_with_toc(tmp_path / "base.docx", _TOC_P)
+
+    report = inspect_base(base, 2)
+
+    assert not report.ok
+    assert any("第 2 节是目录" in msg for msg in report.blocking), report.blocking
+    assert any("最多保留前 1 节" in msg for msg in report.blocking), report.blocking
+    assert inspect_base(base, 1).ok
+
+
+def test_a_hand_typed_toc_is_caught_by_its_style(tmp_path: Path) -> None:
+    """手工一条条排的目录没有域代码，但用的是目录样式——同样不能留。"""
+    base = _base_with_toc(
+        tmp_path / "base.docx",
+        '<w:p {ns}><w:pPr><w:pStyle w:val="TOC1"/></w:pPr>'
+        "<w:r><w:t>第一章 绪论 …… 1</w:t></w:r></w:p>",
+    )
+
+    assert not inspect_base(base, 2).ok
+    assert inspect_base(base, 1).ok
+
+
+def test_a_toc_in_the_body_does_not_block_the_cover(tmp_path: Path) -> None:
+    """目录在切点之后（正文里）就不归我们管——那是要被替换掉的部分，不能因此拒收。"""
+    doc = Document()
+    doc.add_paragraph("某某大学")
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.paragraphs[-1]._p.addnext(parse_xml(_TOC_P.format(ns=nsdecls("w"))))
+    path = tmp_path / "base.docx"
+    doc.save(path)
+
+    assert inspect_base(path, 1).ok
