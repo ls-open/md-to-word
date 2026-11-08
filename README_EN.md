@@ -183,9 +183,7 @@ If the cover page and originality statement must survive **untouched**, don't re
 md-to-word thesis.md -f format.txt --base-template school.docx --cover-sections 3 -o thesis.docx
 ```
 
-> **Experimental**: a run either verifies or writes nothing. The structural check runs everywhere; the page-by-page layout comparison needs Word and the run says which layer it reached. See the thesis manual inside the package (`md-to-word --contract` prints its path).
-
-There is also a [template library](https://github.com/ls-open/md-to-word-templates) of ready-made format files by school and journal.
+> **A run either verifies or writes nothing.** The structural check runs everywhere; the page-by-page layout comparison needs Word on macOS, and the run says which layer it reached (the log says "node-for-node" or "page-for-page"). See the thesis manual inside the package (`md-to-word --contract` prints its path).
 
 ---
 

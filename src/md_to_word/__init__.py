@@ -35,7 +35,7 @@ def export(
     `requirements` 为旧版别名，推荐使用 `format`。
 
     `base_template` / `cover_sections` / `keep_pages` / `keep_until` 与命令行同名同义，
-    见手册第 2 册 §2.1（实验性）。
+    见手册第 2 册 §2.1。
     """
     format_p = format if format is not None else requirements
     return run_export_pipeline(

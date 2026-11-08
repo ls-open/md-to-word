@@ -271,8 +271,9 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
     "pipeline.pdf_skipped": ("docx 已正常生成；PDF 渲染未执行或未完成。", "docx written; the PDF step was skipped or did not finish."),
     "cli.base": (
-        "学校模板（.docx）：正文灌进它，保留它自己的封面/声明等版式（实验性，验不过就不产出）",
-        "Base template (.docx): pour the body into it, keeping its own cover pages (experimental)",
+        "学校模板（.docx）：正文灌进它，保留它自己的封面/声明等版式（验不过就不产出）",
+        "Base template (.docx): pour the body into it, keeping its own cover pages "
+        "(nothing is written if verification fails)",
     ),
     "cli.cover_sections": (
         "底模的前几节是前置件（封面、声明…），原样保留；配合 --base-template 使用",
@@ -305,11 +306,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.base_resolved": (
         "前 {pages} 页 = 底模的前 {sections} 节，记下来以后直接用 --cover-sections {sections}",
         "First {pages} pages = first {sections} sections of the base; use --cover-sections {sections} next time",
-    ),
-    "extractor.library_hint": (
-        "这份格式文件可以提到模板库，同校同刊的人就不必再反推一遍：{library}",
-        "This format file can be contributed to the template library so nobody at the same "
-        "school or journal has to reverse-engineer it again: {library}",
     ),
     "cli.legacy_r": (
         "`-r` 是旧写法，改用 `-f`（两者等价，`-r` 会在后续版本移除）",

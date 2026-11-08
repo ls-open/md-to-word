@@ -59,7 +59,6 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     给「只装了包、手上没有任何文档」的调用方一个自足入口：一份够用的速查，加上
     去哪儿读全部内容、去哪儿拿一份现成的要求文件。路径从安装位置现算，不写死。
     """
-    from md_to_word.config import TEMPLATE_LIBRARY
     from md_to_word.config import resolve_preset_path
 
     # 手册按语言各一份：中文版 manual.md，英文版 manual_en.md。两份都随包发布。
@@ -70,8 +69,6 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     # 入门文档与技能入口是同一份流程（tests/test_resource_sync.py 盯着两者不许分叉）：
     # 只装 pip 包、手上没有 SKILL.md 的 Agent 从这里读“按什么顺序做”。
     guide = resources / "guide.md"
-    library = TEMPLATE_LIBRARY
-    library_raw = TEMPLATE_LIBRARY.replace("github.com", "raw.githubusercontent.com") + "/main/index.json"
     presets = "\n".join(
         f"  {name:<12} {resolve_preset_path(name)}" for name in ("zh-academic", "en-nature")
     )
@@ -107,9 +104,6 @@ Starting from a preset is recommended: copy the file below next to the manuscrip
 Getting-started guide (identical to SKILL.md at the skill entry; one copy suffices): {guide}
 Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits): {manual}
 Thesis manual (covers, front matter, sections, `--base-template`; read it only for a thesis): {thesis}
-Template library (ready-made format files + sample manuscripts, by school or journal): {library}
-  check whether one already fits before building a format file by hand:
-  curl -s {library_raw}
 Built-in presets:
 {presets}
 """
@@ -139,8 +133,6 @@ Built-in presets:
 入门文档（与技能入口 SKILL.md 同文，读其一即可）：{guide}
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界）：{manual}
 学位论文手册（封面、前置件、分节、`--base-template`；只有写论文才需要）：{thesis}
-模板库（各校各刊现成的格式文件 + 样稿）：{library}
-  先查有没有现成的，再自己写格式文件：curl -s {library_raw}
 内置预设：
 {presets}
 """

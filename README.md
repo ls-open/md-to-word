@@ -158,9 +158,7 @@ md-to-word-template 学校模板.docx -o format.txt
 md-to-word 论文.md -f format.txt --base-template 学校模板.docx --cover-sections 3 -o 论文.docx
 ```
 
-> **实验性**：验不过就不产出文件。结构那一层跨平台必做，版面逐页比对只在装了 Word 的机器上做，届时会明确告诉你验到了哪一层。详见包内学位论文手册（`md-to-word --contract` 给出路径）。
-
-也可以先看看[模板库](https://github.com/ls-open/md-to-word-templates)里有没有同校同刊现成的格式文件。
+> **验不过就不产出文件**：结构那一层跨平台必做，版面逐页比对只在装了 Word 的 macOS 上做，届时会明确告诉你验到了哪一层（日志说「逐节点一致」还是「逐页一致」）。详见包内学位论文手册（`md-to-word --contract` 给出路径）。
 
 ---
 

@@ -217,7 +217,7 @@ def create_mcp_server() -> Any:
             generate_pdf: Whether to also generate a PDF (requires LibreOffice or Word).
             lang: Optional message/document language ('zh' or 'en'); auto-detected if omitted.
             base_template: A school/journal .docx to pour the body into, keeping its own cover
-                and front matter (experimental; a run either verifies or writes nothing).
+                and front matter (a run either verifies or writes nothing).
                 Pair it with exactly one of `keep_until` / `cover_sections` / `keep_pages`
                 to say where the front matter ends.
             cover_sections: Keep the base's first N sections as front matter.

@@ -474,22 +474,6 @@ def test_backward_compatibility_requirements_aliases(tmp_path: Path) -> None:
     assert res.ok and out_docx.exists()
 
 
-def test_reverse_engineering_points_at_the_template_library(tmp_path: Path, capsys) -> None:
-    """反推完正是"手上有一份新格式文件"的时刻，也是唯一该提一句模板库的时候。"""
-    from md_to_word.config import TEMPLATE_LIBRARY
-    from md_to_word.template.extractor import main as extract_main
-
-    source = tmp_path / "seed.docx"
-    assert run_export_pipeline(
-        ExportOptions(input_path=_write_manuscript(tmp_path), output_path=source,
-                      preset="zh-academic")
-    ).returncode == 0
-
-    assert extract_main([str(source), "-o", str(tmp_path / "fmt.txt")]) == 0
-
-    assert TEMPLATE_LIBRARY in capsys.readouterr().out
-
-
 def test_legacy_r_flag_still_works_and_says_so(tmp_path: Path, capsys) -> None:
     """老技能文件还在用 `-r`：留着别名，但每次用都要说一句该换成 `-f`——用 `-f` 的人看不到。"""
     from md_to_word.cli import main as cli_main

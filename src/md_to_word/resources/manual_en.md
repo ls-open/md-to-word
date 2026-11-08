@@ -468,7 +468,6 @@ updated when the document is opened or shown in print preview.
 | A reference `.docx` template | `md-to-word-template reference.docx -o format.txt` reverse-engineers a draft; **items it could not read are listed at the end of the draft** — check each one before using it |
 | Format instructions in text or given verbally | fill in whatever the user stated explicitly; derive and fill the unmentioned required fields of the same set per §3.5 |
 | Nothing at all | use a built-in preset, export a standard `.docx` first, then adjust from feedback |
-| Someone at the same school or journal already did | Check the template library first (`--contract` prints the address): `format.txt` fixes the look, `sample.md` fixes the structure — take both |
 
 ### 3.4 Style names (closed vocabulary)
 
