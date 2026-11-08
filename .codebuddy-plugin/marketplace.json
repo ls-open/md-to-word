@@ -12,8 +12,8 @@
         "source": "github",
         "repo": "ls-open/md-to-word"
       },
-      "description": "Markdown 转 Word 文档排版工具。将 Markdown 排版为符合期刊或学校格式要求的 Word (.docx) 文件，支持 OMML 原生矢量数学公式、三线表、CSL 引文、双册手册指引及学位论文底模灌入（实验性场景）。",
-      "description_en": "Typeset Markdown manuscripts into journal- or school-compliant Word (.docx) documents. Supports native editable OMML math equations, three-line tables, CSL citations, two-volume manuals, and base template injection for theses (experimental).",
+      "description": "Markdown 转 Word 文档排版工具。将 Markdown 排版为符合期刊或学校格式要求的 Word (.docx) 文件，支持 OMML 原生矢量数学公式、三线表、CSL 引文，以及学位论文的封面保留与底模灌入。",
+      "description_en": "Typeset Markdown manuscripts into journal- or school-compliant Word (.docx) documents. Supports native editable OMML math equations, three-line tables, CSL citations, and base-template injection for a thesis with its cover kept intact.",
       "category": "文档办公",
       "author": {
         "name": "ls-open",
