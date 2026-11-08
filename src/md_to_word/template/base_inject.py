@@ -739,10 +739,17 @@ def _check_theme_preserved(base: Path, result: Path) -> tuple[bool, str]:
     主题决定字体表与默认配色，改了它，封面上任何没显式指定字体的字都会跟着变——而这种
     变化在结构比对里看不出来（前置件的段落 XML 一模一样）。文档里一直写着"主题也验过"，
     以前其实没验。
+
+    只比**部件**，不比目录项：有的模板包里带着 `word/theme/` 这个零字节的目录条目，
+    python-docx 存盘时不写它，照字面比就会把一份没动过主题的产物判成"主题被改动"。
+    实测的一份模板就是这样——白丢一次。
     """
     def themes(path: Path) -> dict[str, bytes]:
         with zipfile.ZipFile(path) as z:
-            return {n: z.read(n) for n in z.namelist() if n.startswith("word/theme/")}
+            return {
+                n: z.read(n) for n in z.namelist()
+                if n.startswith("word/theme/") and not n.endswith("/")
+            }
 
     before, after = themes(base), themes(result)
     if before != after:

@@ -418,3 +418,26 @@ def test_ambiguous_anchor_is_refused_not_guessed(tmp_path: Path) -> None:
     doc.save(base)
 
     assert len(sections_until_text(base, "版权使用授权书")) > 1
+
+
+def test_a_zero_byte_theme_directory_does_not_fail_verification(tmp_path: Path) -> None:
+    """包里带 `word/theme/` 这个零字节目录条目的模板，不能被判成"主题被改动"。
+
+    实测的一份模板就是这样：目录项在原件里有、python-docx 存盘时不写它。照字面比字典，
+    一份根本没动过主题的产物会被拒收——用户看到的是「结构验真没通过」，白丢一次。
+    """
+    from md_to_word.template.base_inject import inject_into_base, verify_structure
+
+    base = _school_base(tmp_path / "base.docx", sections=2)
+    # 加一个零字节目录条目，模拟那种模板包
+    with zipfile.ZipFile(base, "a") as z:
+        z.writestr("word/theme/", b"")
+    with zipfile.ZipFile(base) as z:
+        assert "word/theme/" in z.namelist()
+
+    rendered = _rendered(tmp_path, "# 第一章 绪论\n\n正文。\n")
+    out = tmp_path / "out.docx"
+    inject_into_base(base, rendered, 1, out)
+
+    ok, why = verify_structure(base, out, 1)
+    assert ok, why
