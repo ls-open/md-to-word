@@ -269,7 +269,31 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "citations.key_missing": ("文献库里没有条目：{key}", "the bibliography has no entry for {key}"),
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
-    "pipeline.pdf_skipped": ("docx 已正常生成；PDF 渲染未执行或未完成。", "docx written; the PDF step was skipped or did not finish."),
+    "pipeline.pdf_skipped": (
+        "docx 已正常生成；PDF 核对版没做成——{hint}",
+        "docx written; the review PDF was not produced — {hint}",
+    ),
+    "word_pdf.not_darwin": (
+        "PDF 核对版只能由 macOS 上的 Microsoft Word 生成：目录页码、页眉章名这些是**域**，"
+        "要 Word 自己算。换成 LibreOffice 之类的转换器不会展开它们，出来的目录是空的——"
+        "那样的核对版比没有更容易看错。docx 本身没问题，用 Word 打开另存一份 PDF 就能核。",
+        "The review PDF can only be produced by Microsoft Word on macOS: the table of contents "
+        "and the chapter-name header are **fields** that Word computes itself. Other converters "
+        "(LibreOffice and the like) do not expand them, so the TOC comes out empty — that kind of "
+        "review copy is more misleading than none. The docx is fine; open it in Word and save as "
+        "PDF to check it.",
+    ),
+    "word_pdf.no_word": (
+        "本机没找到 Microsoft Word（或它装好后从未启动过）。PDF 核对版靠 Word 展开域，"
+        "docx 本身没问题：装好 Word、或换一台有 Word 的 macOS 再跑一次 `--pdf`。",
+        "No Microsoft Word on this machine (or it has never been launched). The review PDF relies "
+        "on Word to expand the fields; the docx itself is fine — install Word, or run `--pdf` on a "
+        "Mac that has it.",
+    ),
+    "word_pdf.no_script": (
+        "包里缺渲染脚本（安装不完整），重装一次 md-to-word。",
+        "The render script is missing from the package (incomplete install); reinstall md-to-word.",
+    ),
     "cli.base": (
         "学校模板（.docx）：正文灌进它，保留它自己的封面/声明等版式（验不过就不产出）",
         "Base template (.docx): pour the body into it, keeping its own cover pages "

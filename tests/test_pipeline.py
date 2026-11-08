@@ -581,3 +581,25 @@ def test_the_output_says_which_version_and_format_made_it(tmp_path: Path) -> Non
     preset = Path("presets") / "zh-academic.txt"
     digest = hashlib.sha256(preset.read_bytes()).hexdigest()[:8]
     assert "md-to-word" in core and "zh-academic.txt" in core and digest in core, core
+
+
+def test_a_skipped_pdf_says_why_and_what_to_do(tmp_path: Path, capsys, monkeypatch) -> None:
+    """`--pdf` 没做成时不能只说"未执行"。
+
+    用户既不知道缺什么，也不知道换条路行不行。这条盯着两件事：退出码还是 3（docx 是好的），
+    以及屏幕上要说清"为什么非 Word 不可"——LibreOffice 之类不展开域，目录会空着。
+    """
+    from md_to_word.cli import main as cli_main
+    from md_to_word.visual_qa import word_pdf
+
+    monkeypatch.setattr(word_pdf, "can_render_word_pdf", lambda: (False, "not-darwin"))
+    monkeypatch.setattr(word_pdf, "render_pdf_via_word", lambda *a, **k: (False, "not-darwin"))
+
+    md = tmp_path / "m.md"
+    md.write_text("# 一\n\n正文。\n", encoding="utf-8")
+    code = cli_main([str(md), "-o", str(tmp_path / "o.docx"), "--pdf", "--no-check"])
+    err = capsys.readouterr().err
+
+    assert code == 3
+    assert (tmp_path / "o.docx").is_file()
+    assert "Word" in err and "LibreOffice" in err, err

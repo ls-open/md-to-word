@@ -68,6 +68,7 @@ class ExportResult:
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)  # messages 里的提醒条目，供 CLI 加标记
     lang: str = "zh"
+    pdf_skip_reason: str = ""  # `--pdf` 没做成的原因码，见 word_pdf.explain_unavailable
 
     @property
     def ok(self) -> bool:
@@ -502,6 +503,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 logger.info("🖨️ " + t("pipeline.pdf_ok", res.lang, path=pdf_path))
             else:
                 res.messages.append(f"MD2WORD_SKIP kind=pdf-render reason={reason}")
+                res.pdf_skip_reason = str(reason or "")
                 res.returncode = 3
 
         logger.info("✅ " + t("pipeline.success", res.lang, path=out_p))

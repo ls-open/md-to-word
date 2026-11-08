@@ -660,6 +660,13 @@ the references page. When PDF rendering is unavailable (Windows, Word not instal
 but never launched) it is skipped automatically and does not affect the `.docx` output (exit code
 `3`).
 
+**Why Word and nothing else**: the whole point of `--pdf` is that the fields get *computed* — the TOC
+page numbers and the chapter name in the header are fields, and we deliberately write the `.docx`
+**without** cached results, leaving them for the layout engine. Converters such as LibreOffice do not
+expand them, so the TOC comes out empty; that kind of review copy is more misleading than none, which
+is why there is **no fallback**. Word installed but never launched does not work either (its sandbox
+container is created on first launch) — open it once as the message suggests.
+
 ### 5.4 Theses: cover and front matter
 
 Covers, originality statements and double-ruled chapter headers cannot be expressed in

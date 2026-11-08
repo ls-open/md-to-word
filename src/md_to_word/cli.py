@@ -302,7 +302,10 @@ def main(args: list[str] | None = None) -> int:
         return result.returncode
 
     if result.returncode == EXIT_PDF_SKIPPED:
-        print(f"⚠️ {t('pipeline.pdf_skipped', result.lang)}", file=sys.stderr)
+        from md_to_word.visual_qa.word_pdf import explain_unavailable
+
+        hint = explain_unavailable(result.pdf_skip_reason, result.lang)
+        print(f"⚠️ {t('pipeline.pdf_skipped', result.lang, hint=hint)}", file=sys.stderr)
         return EXIT_PDF_SKIPPED
 
     return EXIT_OK
