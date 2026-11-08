@@ -499,6 +499,7 @@ def _merge_styles(src, dst, ids: dict[str, str], names: dict[str, str], qn) -> N
     defaults = {s.get(qn("w:type")) for s in dst_root.findall(qn("w:style"))
                 if s.get(qn("w:default")) == "1"}
 
+    added = []
     for st in src_root.findall(qn("w:style")):
         sid = st.get(qn("w:styleId"))
         name_el = st.find(qn("w:name"))
@@ -511,6 +512,7 @@ def _merge_styles(src, dst, ids: dict[str, str], names: dict[str, str], qn) -> N
             if clone.get(qn("w:type")) in defaults:
                 clone.attrib.pop(qn("w:default"), None)  # 一种类型只能有一个默认样式
             dst_root.append(clone)
+            added.append(clone)
             continue
         if _canon(st) == _canon(target):
             continue
@@ -524,13 +526,17 @@ def _merge_styles(src, dst, ids: dict[str, str], names: dict[str, str], qn) -> N
             names[name] = f"{name}（模板）"
             clone.find(qn("w:name")).set(qn("w:val"), names[name])
         dst_root.append(clone)
+        added.append(clone)
         ids[sid] = f"mdw-{sid}"
 
-    for new_id in ids.values():
-        clone = next(s for s in dst_root.findall(qn("w:style")) if s.get(qn("w:styleId")) == new_id)
-        based = clone.find(qn("w:basedOn"))
-        if based is not None and based.get(qn("w:val")) in ids:
-            based.set(qn("w:val"), ids[based.get(qn("w:val"))])
+    # 改过名的样式，引用它的地方也要跟着改——**包括没改名的那些**：一条样式自己不撞名，
+    # 它 basedOn 的那条却可能撞了。只遍历改名的那几条，`next` 还指着学校的正文样式，
+    # Word 里标题后按回车接上来的就不是我们的正文。
+    for clone in added:
+        for tag in ("w:basedOn", "w:next", "w:link"):
+            ref = clone.find(qn(tag))
+            if ref is not None and ref.get(qn("w:val")) in ids:
+                ref.set(qn("w:val"), ids[ref.get(qn("w:val"))])
 
 
 def _canon(el) -> bytes:
@@ -755,6 +761,9 @@ def verify_structure(base: Path, result: Path, cover_sections: int) -> tuple[boo
     ok, why = _check_rels_resolvable(result)
     if not ok:
         return False, why
+    ok, why = _check_style_refs_resolvable(result)
+    if not ok:
+        return False, why
     ok, why = _check_body_shape(result)
     if not ok:
         return False, why
@@ -907,6 +916,27 @@ def _check_rels_resolvable(result: Path) -> tuple[bool, str]:
                             f"{member} 里的 <{local}> 指向的 {rid} 是"
                             f"{rels[rid].rsplit('/', 1)[-1]}，不是它要的那种关系"
                         )
+    return True, ""
+
+
+def _check_style_refs_resolvable(result: Path) -> tuple[bool, str]:
+    """正文和页眉页脚引用的每条样式都得在 styles.xml 里找得到。
+
+    改名的意义就在这儿：样式 ID 改成了 `mdw-` 前缀，正文里的引用也要跟着改。漏一处，
+    Word 会悄悄退回普通段落——字体、字号、行距全丢，而包是完整的、打不开才怪。
+    """
+    with zipfile.ZipFile(result) as z:
+        styles = etree.fromstring(z.read("word/styles.xml"))
+        have = {s.get(W + "styleId") for s in styles.findall(W + "style")}
+        for member in z.namelist():
+            if not re.match(r"word/(document|header[^/]*|footer[^/]*)\.xml$", member):
+                continue
+            root = etree.fromstring(z.read(member))
+            for tag in ("pStyle", "rStyle", "tblStyle"):
+                for node in root.iter(W + tag):
+                    val = node.get(W + "val")
+                    if val and val not in have:
+                        return False, f"{member} 引用了不存在的样式「{val}」"
     return True, ""
 
 

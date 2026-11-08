@@ -555,3 +555,59 @@ def test_a_toc_in_the_body_does_not_block_the_cover(tmp_path: Path) -> None:
     doc.save(path)
 
     assert inspect_base(path, 1).ok
+
+
+def test_a_renamed_style_takes_its_next_and_link_with_it() -> None:
+    """改名要改全：`basedOn`、`next`、`link` 三处都得跟着走。
+
+    以前只改了 `basedOn`。`next` 还指着学校那条 `Normal`——在 Word 里标题后按回车，接上来的是
+    学校的正文样式，不是我们的。
+    """
+    src = Document()
+    src.styles.element.append(parse_xml(
+        f'<w:style {nsdecls("w")} w:type="paragraph" w:styleId="BodyText">'
+        '<w:name w:val="正文"/><w:pPr><w:spacing w:line="400" w:lineRule="exact"/></w:pPr>'
+        "</w:style>"))
+    src.styles.element.append(parse_xml(
+        f'<w:style {nsdecls("w")} w:type="paragraph" w:styleId="HeadingX">'
+        '<w:name w:val="标题"/><w:basedOn w:val="BodyText"/><w:next w:val="BodyText"/>'
+        '<w:link w:val="HeadingXChar"/></w:style>'))
+    dst = Document()
+    dst.styles.element.append(parse_xml(
+        f'<w:style {nsdecls("w")} w:type="paragraph" w:styleId="BodyText">'
+        '<w:name w:val="正文"/><w:pPr><w:spacing w:line="240" w:lineRule="auto"/></w:pPr>'
+        "</w:style>"))
+
+    ids, names = {}, {}
+    _merge_styles(src, dst, ids, names, qn)
+
+    merged = next(s for s in dst.styles.element.findall(qn("w:style"))
+                  if s.get(qn("w:styleId")) == "HeadingX")
+    assert merged.find(qn("w:basedOn")).get(qn("w:val")) == "mdw-BodyText"
+    assert merged.find(qn("w:next")).get(qn("w:val")) == "mdw-BodyText"
+    assert merged.find(qn("w:link")).get(qn("w:val")) == "HeadingXChar"
+
+
+def test_a_style_reference_left_dangling_is_caught(tmp_path: Path) -> None:
+    """正文引用了 styles.xml 里没有的样式：Word 悄悄退回普通段落，字体行距全丢。
+
+    包是完整的、结构验真本来一路放行——所以这条必须自己查一遍。
+    """
+    from md_to_word.template.base_inject import inject_into_base, verify_structure
+
+    base = _school_base(tmp_path / "base.docx", sections=2)
+    rendered = _rendered(tmp_path, "# 第一章 绪论\n\n正文。\n")
+    out = tmp_path / "out.docx"
+    inject_into_base(base, rendered, 1, out)
+    assert verify_structure(base, out, 1)[0]
+
+    with zipfile.ZipFile(out) as z:
+        members = {n: z.read(n) for n in z.namelist()}
+    members["word/document.xml"] = members["word/document.xml"].replace(
+        b'w:val="mdw-', b'w:val="gone-', 1)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in members.items():
+            z.writestr(name, blob)
+
+    ok, why = verify_structure(base, out, 1)
+    assert not ok and "样式" in why, why

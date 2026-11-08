@@ -95,6 +95,16 @@ also work). A section marker closes *the section above it*; never add a page bre
 
 ## 3. The format file
 
+**Two different things can be done with a `.docx` the user supplies — keep them apart:**
+
+| | command | what it takes from the `.docx` | limit |
+|:--|:--|:--|:--|
+| **read it** (反推) | `md-to-word-template x.docx -o format.txt` | its styles and page setup, as a draft `format.txt` | what `format.txt` can express; the rest lands in the "to confirm" list |
+| **pour into it** (灌入) | `--base-template x.docx --keep-until …` | its front matter, kept byte for byte; the body is replaced by ours | cut point must stop before its contents page; needs a Word-installed machine for the layout check |
+
+Reading it gives a reusable format file; pouring into it keeps that one school's cover. Neither
+replaces the other, and a thesis usually wants both.
+
 **Check for an existing format file before writing one.** `md-to-word --contract` points at the
 community library of school and journal formats; that library carries its own selection and usage
 rules, which change more often than this file should.
