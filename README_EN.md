@@ -21,6 +21,7 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 
 `md-to-word` uses a **declarative typographic contract** and **bidirectional quality gates with exact line numbers**:
 - **Byte-Identical Reproducibility**: Rebuilding the same Markdown source yields identical document binaries — packaging timestamps, permissions and entry order are all fixed.
+- **Self-Describing Output**: `docProps` records the version, the format file name and the first 8 hex digits of its sha256; no timestamp is written, so repeated exports stay byte-identical.
 - **Autonomous Self-Healing**: Missing formats or invalid syntax are caught before writing the file with exact line numbers and guidance, enabling AI Agents to auto-debug and self-heal.
 - **Compliant Typography**: Native OMML math formulas (vector, double-click editable, centered with numbering hard right), three-line tables with repeating headers across page breaks, and double/single-rule running headers.
 - **User format first**: When a template or written spec is available, compile against its format file; built-in presets are for a first look, while a deliverable should follow the template or spec.
@@ -167,7 +168,7 @@ Generated through the genuine compilation pipeline; page snapshots rendered from
 
 ---
 
-## Reverse-Engineered from Existing Word Templates?
+## Have an Existing Word Template? (deduce the format / pour in the body)
 
 No need to transcribe guidelines manually from `.docx` files issued by publishers or universities. Use the built-in deduction tool:
 
@@ -183,6 +184,9 @@ If the cover page and originality statement must survive **untouched**, don't re
 md-to-word thesis.md -f format.txt --base-template school.docx --cover-sections 3 -o thesis.docx
 ```
 
+`--keep-until "copyright authorization"` is safer: say it by content, and the tool converts it to a
+section number and reports it — no counting.
+
 > **A run either verifies or writes nothing.** The structural check runs everywhere; the page-by-page layout comparison needs Word on macOS, and the run says which layer it reached (the log says "node-for-node" or "page-for-page"). See the thesis manual inside the package (`md-to-word --contract` prints its path).
 
 ---
@@ -193,12 +197,12 @@ md-to-word thesis.md -f format.txt --base-template school.docx --cover-sections 
 - **Headings & Headers/Footers**: 6 heading levels, odd/even/first-page distinctions, sectional pagination, `{page}` `{numpages}` `{title}` fields.
 - **Tables**: Three-line tables, full grid, top/bottom rules, custom borders, repeating header rows, vertical/horizontal alignment, column width ratios.
 - **Equations**: Native OMML equation objects (double-click editable in Word; not images), centered, right-aligned numbering, chapter numbering, `@eq-` cross-references.
-- **Figures & Captions**: Width clamped to body margins, keep-with-next binding to avoid orphan captions, native vector PDF image support (auto-rasterized to 300 dpi on export).
+- **Figures, Tables & Captions**: Width clamped to body margins, keep-with-next binding so a caption never leaves its figure or table, native vector PDF image support (auto-rasterized to 300 dpi on export).
 - **Citations & Bibliography**: `.bib` + CSL system with 29 built-in standard styles (GB/T 7714, APA, Nature, IEEE), custom CSL support.
 - **Inline Formatting**: Bold, italic, strikethrough, underline, sub/superscript, inline code, inline math, hyperlinks, footnotes.
 - **Structure**: Native TOC fields `{{< toc >}}`, section breaks `{{< section >}}`, page breaks `{{< pagebreak >}}`.
 - **Quality Gates**: Preflight syntactic and citation validation, post-export integrity checks, granular style accounting.
-- **Pure Python**: Fully self-contained pipeline; zero dependency on Microsoft Word, WPS, or Pandoc.
+- **Pure Python**: The `.docx` pipeline is self-contained — zero dependency on Microsoft Word, WPS, or Pandoc. The `--pdf` review copy is the exception: that step needs Word on macOS to expand the fields.
 
 Refer to the [User Manual](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md) for full boundaries and vocabulary.
 
