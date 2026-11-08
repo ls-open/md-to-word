@@ -111,9 +111,8 @@ also work). A section marker closes *the section above it*; never add a page bre
 Reading it gives a reusable format file; pouring into it keeps that one school's cover. Neither
 replaces the other, and a thesis usually wants both.
 
-**Check for an existing format file before writing one.** `md-to-word --contract` points at the
-community library of school and journal formats; that library carries its own selection and usage
-rules, which change more often than this file should.
+**Check for an existing format file before writing one** — the user may already have one beside the
+manuscript, or a target `.docx` worth reverse-engineering.
 
 0. **Starting from nothing** — `md-to-word init` writes a complete preset copy plus a one-page
    manuscript that exports as-is. Useful when the user has no format file and no template.

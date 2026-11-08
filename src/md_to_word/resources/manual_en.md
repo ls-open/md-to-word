@@ -814,9 +814,9 @@ numbering), the document-level settings (theme, compatibility mode, punctuation 
 style you did not declare. The body's paper size, margins, page numbering and declared styles come from
 the format file.
 
-Document-level settings are shared by the whole file, and there can be only one copy. So the body's
-**line breaks** may land slightly differently than in a standalone export; fonts, sizes, line spacing,
-indents and margins are all ours, so the format requirements are unaffected.
+Document-level settings exist once and **follow the template**. So the body's **line breaks** may land
+slightly differently than in a standalone export — fonts, sizes, line spacing, indents and margins are
+all ours, so the format requirements are unaffected.
 
 **No file is produced unless it verifies.** The structural check runs everywhere: front matter
 node-for-node identical, none of the original's styles/numbering/theme missing, and every style the body
