@@ -59,3 +59,44 @@ def test_even_page_header_keeps_its_slot(tmp_path: Path) -> None:
     lines, _ = read_decor(Ref(path))
     assert "页眉内容：奇数页页眉" in lines
     assert "偶数页页眉内容：偶数页页眉" in lines
+
+
+def test_a_cached_field_result_is_not_read_as_content(tmp_path: Path) -> None:
+    """域里那段文字是上次算出来的缓存结果，不是内容。
+
+    Word 存盘时会把 PAGE 的上一次结果留在 `fldChar begin → separate → end` 中间。照抄进
+    草稿就成了「页脚内容：{页码} 18」——照它生成的模板，页脚上永远多印一个 18。
+    实测的一份英文论文模板就是这种。
+    """
+    import shutil
+    import zipfile
+
+    document = Document()
+    document.add_paragraph("正文。")
+    document.sections[0].footer.paragraphs[0].text = ""
+    source = tmp_path / "ref.docx"
+    document.save(source)
+
+    with zipfile.ZipFile(source) as z:
+        names = z.namelist()
+        payload = {n: z.read(n) for n in names}
+    footer = payload["word/footer1.xml"].decode("utf-8")
+    field = (
+        '<w:r><w:fldChar w:fldCharType="begin"/></w:r>'
+        '<w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>'
+        '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
+        '<w:r><w:t>18</w:t></w:r>'
+        '<w:r><w:fldChar w:fldCharType="end"/></w:r>'
+    )
+    footer = footer.replace("</w:p>", field + "</w:p>", 1)
+    payload["word/footer1.xml"] = footer.encode("utf-8")
+    patched = tmp_path / "cached.docx"
+    with zipfile.ZipFile(patched, "w", zipfile.ZIP_DEFLATED) as z:
+        for n in names:
+            z.writestr(n, payload[n])
+
+    lines, _ = read_decor(Ref(patched, "zh"))
+
+    footer_line = [line for line in lines if line.startswith("页脚内容")]
+    assert footer_line and "{页码}" in footer_line[0], lines
+    assert "18" not in footer_line[0], footer_line

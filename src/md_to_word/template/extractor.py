@@ -766,11 +766,33 @@ def read_decor(ref: Ref) -> tuple:
         root = etree.fromstring(raw)
         pieces = []
         drawings = 0
+        depth = 0                      # 当前嵌套在几层域里
         for el in root.iter():
-            if el.tag in (q('drawing'), q('pict'), q('object')):
+            if el.tag == q('fldChar'):
+                kind_ = el.get(q('fldCharType'))
+                if kind_ == 'begin':
+                    depth += 1
+                elif kind_ == 'end':
+                    depth = max(0, depth - 1)
+            elif el.tag in (q('drawing'), q('pict'), q('object')):
                 drawings += 1          # 学校 logo、页眉横线常在这里：读不出也表达不了
             elif el.tag == q('t') and el.text:
+                # 域里那段文字是**上次算出来的缓存结果**（PAGE 停在「18」、STYLEREF 停在
+                # 旧的章名），不是内容。照抄进草稿就会变成「页脚内容：{页码} 18」——
+                # 一份模板照它生成，页脚上就永远多印一个 18。
+                if depth or _inside_simple_field(el):
+                    continue
                 pieces.append(el.text)
+            elif el.tag == q('fldSimple'):
+                # 简易域把指令写在属性上，没有 instrText；它的子节点全是缓存结果（上面已跳过）
+                instr = (el.get(q('instr')) or '').strip()
+                if 'PAGE' in instr:
+                    pieces.append('{页码}')
+                elif 'NUMPAGES' in instr:
+                    pieces.append('{总页数}')
+                elif 'STYLEREF' in instr:
+                    m = instr.split('"')
+                    pieces.append('{样式标题:' + (m[1] if len(m) > 1 else '') + '}')
             elif el.tag == q('instrText') and el.text:
                 instr = el.text.strip()
                 if 'PAGE' in instr:
@@ -791,6 +813,16 @@ def read_decor(ref: Ref) -> tuple:
     if conflicting:
         doubt.append(t("extractor.note.sections_differ", ref.lang))
     return out, doubt
+
+
+def _inside_simple_field(el) -> bool:
+    """这个节点是不是落在 `<w:fldSimple>` 里面——那种域没有 fldChar，缓存结果直接挂在里面。"""
+    node = el.getparent()
+    while node is not None:
+        if node.tag == q('fldSimple'):
+            return True
+        node = node.getparent()
+    return False
 
 
 def _auto_lang(docx: Path) -> str:
