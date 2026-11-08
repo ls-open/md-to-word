@@ -140,3 +140,27 @@ def test_table_image_caption_key_aliases():
     img_c = spec.get_style("Image Caption")
     assert img_c is not None
     assert img_c["style_name"] == "Image Caption"
+
+
+def test_punctuation_compression_follows_the_proofing_language():
+    """标点压缩跟着校对语言走：中文文档让标点能压成半角，和中文 Word、学校模板一致。
+
+    这一项是文档级的，按段分叉不了，只能整份稿子定一个值。以前一律 `doNotCompress`
+    （python-docx 默认模板带过来的），中文产物每行比中文 Word 少排一个字，灌进学校模板
+    时还会和模板的设置打架。
+    """
+    from docx import Document
+
+    from md_to_word.template.generator import apply_proofing_language
+
+    def compression(lang: str) -> str:
+        doc = Document()
+        apply_proofing_language(doc, lang)
+        node = doc.settings.element.find(
+            "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}characterSpacingControl")
+        return node.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val")
+
+    assert compression("zh-CN") == "compressPunctuation"
+    assert compression("zh-TW") == "compressPunctuation"
+    assert compression("ja-JP") == "compressPunctuationAndJapaneseKana"
+    assert compression("en-US") == "doNotCompress"

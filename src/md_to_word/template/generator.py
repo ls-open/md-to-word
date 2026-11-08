@@ -622,6 +622,23 @@ def apply_proofing_language(doc, lang):
     rpr = ensure_ordered_child(rpr_default, 'rPr', ['rPr'])
     lang_el = ensure_ordered_child(rpr, 'lang', _RPR_ORDER)
     lang_el.set(W('eastAsia'), lang)
+    _match_punctuation_compression(doc, lang)
+
+
+# 中文校对语言对应的标点压缩档：中文版 Word 给 zh-CN 文档写的就是这个，学校模板也全是它。
+_PUNCT_BY_LANG = {"zh": "compressPunctuation", "ja": "compressPunctuationAndJapaneseKana"}
+
+
+def _match_punctuation_compression(doc, lang):
+    """标点压缩跟着校对语言走。
+
+    中文文档让行首行尾的标点能压成半角，和中文 Word、和学校模板一致；其余语言保持底模的
+    `doNotCompress`。这一项是**文档级**的，没法按段分叉，所以只能按整份稿子的语种定一个值。
+    """
+    want = _PUNCT_BY_LANG.get((lang or "").lower()[:2], "doNotCompress")
+    node = doc.settings.element.find(W('characterSpacingControl'))
+    if node is not None:                 # 底模里本来就有，只改值，不动位置
+        node.set(W('val'), want)
 
 
 def get_default_template():
