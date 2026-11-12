@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import re
+from typing import Optional
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
@@ -209,20 +210,110 @@ _ALIGN = {
 }
 ALIGN_MAP = {cn: enum for cn, (enum, _) in _ALIGN.items()}
 ALIGN_VAL = {cn: val for cn, (_, val) in _ALIGN.items()}
+ALIGN_ENUM_VAL = {enum: val for enum, val in _ALIGN.values()}
+ALIGN_CN = {val: cn for cn, (_, val) in _ALIGN.items() if not cn.isascii()}
 
-# ── 已知字体类别 ──
+# ── 已知字体类别与字体切分（全局单一真相源） ──
 CJK_FONTS = {
+    # ── 简体中文 / Generic CJK ──
     "宋体", "黑体", "仿宋", "FangSong", "楷体", "微软雅黑",
-    "SimSun", "SimHei", "KaiTi", "Microsoft YaHei",
+    "SimSun", "NSimSun", "SimSun-ExtB", "SimHei", "KaiTi", "Microsoft YaHei",
+    "FangSong_GB2312", "KaiTi_GB2312", "STSong", "STKaiti", "STHeiti", "STFangsong",
+    "PingFang SC", "Hiragino Sans GB", "WenQuanYi Micro Hei",
     "Noto Sans SC", "Noto Sans CJK SC", "Noto Serif SC", "Noto Serif CJK SC",
     "Source Han Sans SC", "Source Han Serif SC", "Source Han Sans", "Source Han Serif",
-    "PingFang SC", "Hiragino Sans GB", "WenQuanYi Micro Hei",
-    "STSong", "STKaiti", "STHeiti", "STFangsong",
+    # ── 繁体中文 (zh-TW / zh-HK) ──
+    "新細明體", "PMingLiU", "PMingLiU-ExtB", "細明體", "MingLiU", "MingLiU-ExtB",
+    "標楷體", "DFKai-SB", "BiauKai", "BiauKaiTC", "BiauKaiHK",
+    "微軟正黑體", "Microsoft JhengHei", "Microsoft JhengHei UI",
+    "蘋方-繁", "PingFang TC", "PingFang HK",
+    "宋體-繁", "Songti TC", "黑體-繁", "Heiti TC", "楷體-繁", "Kaiti TC",
+    "Noto Serif TC", "Noto Serif CJK TC", "Noto Sans TC", "Noto Sans CJK TC",
+    "Source Han Serif TC", "Source Han Sans TC",
+    "Source Han Serif HW TC", "Source Han Sans HW TC",
+    # ── 日文 (ja) ──
+    "MS Mincho", "MS PMincho", "MS Gothic", "MS PGothic", "Yu Mincho", "Yu Gothic",
+    "Meiryo", "Noto Sans JP", "Noto Serif JP", "Noto Sans CJK JP", "Noto Serif CJK JP",
 }
+_CJK_FONTS_LOWER = {f.lower(): f for f in CJK_FONTS}
 LATIN_FONTS = {
     "Times New Roman", "Arial", "Calibri", "Verdana", "Helvetica", "Georgia",
     "Cambria", "Garamond", "Palatino", "Consolas", "Courier New",
+    "Liberation Serif", "Liberation Sans", "DejaVu Sans",
 }
+_CJK_CHAR_RE = re.compile(r"[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u30ff\uf900-\ufaff]")
+_CJK_FONT_TOKEN_RE = re.compile(
+    r"\b(?:SC|TC|HK|JP|CJK|SimSun|NSimSun|SimHei|KaiTi|FangSong|MingLiU|PMingLiU"
+    r"|JhengHei|BiauKai|DFKai|PingFang|Songti|Heiti|Kaiti|Mincho|Gothic|Meiryo"
+    r"|STSong|STHeiti|STKaiti|STFangsong|WenQuanYi|Hiragino|Source\s+Han)\b",
+    re.I,
+)
+
+
+def is_cjk_font(name: str) -> bool:
+    """判定字体名是否属于中日韩（East Asia）字体槽。"""
+    if not name:
+        return False
+    clean = name.strip()
+    if clean in CJK_FONTS or clean.lower() in _CJK_FONTS_LOWER:
+        return True
+    return bool(_CJK_CHAR_RE.search(clean) or _CJK_FONT_TOKEN_RE.search(clean))
+
+
+def parse_font_name(text: str) -> Optional[list[str]]:
+    """从格式声明字体段提取 [cjk_font, latin_font] 或 None（解析/生成/审计同源）。"""
+    parts = re.split(r"[/／]", text)
+    cjk = None
+    latin = None
+
+    for part in parts:
+        p = part.strip()
+        if not p:
+            continue
+        known_match = None
+        for known in sorted(CJK_FONTS | LATIN_FONTS, key=len, reverse=True):
+            if re.search(r"\b" + re.escape(known) + r"\b", p, re.I):
+                known_match = known
+                break
+
+        if known_match:
+            if known_match in CJK_FONTS or is_cjk_font(known_match):
+                cjk = known_match
+            else:
+                latin = known_match
+        else:
+            candidate = re.split(r"[,，]", p)[0].strip()
+            if (
+                candidate
+                and not re.match(r"^\d", candidate)
+                and re.search(r"[^\W\d_]|[\u4e00-\u9fff]", candidate)
+            ):
+                if is_cjk_font(candidate):
+                    cjk = candidate
+                else:
+                    latin = candidate
+
+    result = []
+    if cjk:
+        result.append(cjk)
+    if latin:
+        result.append(latin)
+    return result if result else None
+
+
+def split_fonts(font_names, default_latin=None):
+    """把字体名列表拆成 (中日韩字体, 西文字体)。"""
+    cjk = None
+    latin = None
+    for f in (font_names or []):
+        if is_cjk_font(f):
+            cjk = f
+        else:
+            latin = f
+    if not latin and default_latin:
+        latin = default_latin
+    return cjk, latin
+
 
 # ── 页码格式（中英支持）──
 PAGE_NUMBER_FMT: dict[str, str] = {
@@ -238,6 +329,36 @@ PAGE_NUMBER_FMT: dict[str, str] = {
     "lowerRoman": "lowerRoman",
     "lowerLetter": "lowerLetter",
     "upperLetter": "upperLetter",
+}
+
+# ── 对称页边距与标点压缩（中英双语）──
+MIRROR_MARGINS_MAP: dict[str, bool] = {
+    "开": True,
+    "是": True,
+    "关": False,
+    "否": False,
+    "on": True,
+    "true": True,
+    "yes": True,
+    "off": False,
+    "false": False,
+    "no": False,
+}
+PUNCT_COMPRESSION_MAP: dict[str, str] = {
+    "压缩": "compressPunctuation",
+    "不压缩": "doNotCompress",
+    "压缩含日文假名": "compressPunctuationAndJapaneseKana",
+    "compress": "compressPunctuation",
+    "none": "doNotCompress",
+    "kana": "compressPunctuationAndJapaneseKana",
+    "compresspunctuation": "compressPunctuation",
+    "donotcompress": "doNotCompress",
+    "compresspunctuationandjapanesekana": "compressPunctuationAndJapaneseKana",
+}
+PUNCT_COMPRESSION_CN: dict[str, str] = {
+    "compressPunctuation": "压缩",
+    "doNotCompress": "不压缩",
+    "compressPunctuationAndJapaneseKana": "压缩含日文假名",
 }
 
 # ── 表格边框与对齐（中英双语）──

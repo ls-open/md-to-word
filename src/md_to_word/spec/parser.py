@@ -12,8 +12,10 @@ from docx.shared import Pt
 
 from md_to_word.spec.constants import (
     ALIGN_MAP,
+    MIRROR_MARGINS_MAP,
     PAGE_NUMBER_FMT,
     PAGE_SIZE_MAP,
+    PUNCT_COMPRESSION_MAP,
     SIZE_MAP,
     STYLE_CN,
     STYLE_EN,
@@ -24,6 +26,7 @@ from md_to_word.spec.constants import (
     TABLE_STYLE_MAP,
     TABLE_VALIGN_MAP,
     WRONG_KEY_HINTS,
+    parse_font_name,
 )
 from md_to_word.spec.models import MinLineSpacing, TemplateSpec
 
@@ -409,52 +412,10 @@ def _consume(props: dict, words: list[str], mode: str, name: str, desc: str, lin
 
 
 _CLAUSE_WORD_HINT = re.compile(
-    r"行距|段前|段后|缩进|加粗|倾斜|对齐|居中|边框|制表位|加入目录|与下段同页|跨页重复|段中不分页|段前分页|孤行控制|颜色"
-    r"|line-spacing|space-before|space-after|indent|bold|regular|italic|left|right|center|justify|repeat-header|keep-with-next",
+    r"行距|段前|段后|缩进|加粗|倾斜|对齐|居中|边框|制表位|加入目录|不入目录|加入页眉|不入页眉|与下段同页|跨页重复|段中不分页|段前分页|孤行控制|颜色"
+    r"|line-spacing|space-before|space-after|indent|bold|regular|italic|left|right|center|justify|repeat-header|keep-with-next|join-toc|no-toc|join-header|no-header",
     re.I,
 )
-
-
-def parse_font_name(text: str) -> Optional[list[str]]:
-    from md_to_word.spec.constants import CJK_FONTS, LATIN_FONTS
-
-    parts = re.split(r"[/／]", text)
-    cjk = None
-    latin = None
-
-    for part in parts:
-        p = part.strip()
-        if not p:
-            continue
-        known_match = None
-        for known in sorted(CJK_FONTS | LATIN_FONTS, key=len, reverse=True):
-            if re.search(r"\b" + re.escape(known) + r"\b", p, re.I):
-                known_match = known
-                break
-
-        if known_match:
-            if known_match in CJK_FONTS:
-                cjk = known_match
-            else:
-                latin = known_match
-        else:
-            candidate = re.split(r"[,，]", p)[0].strip()
-            if (
-                candidate
-                and not re.match(r"^\d", candidate)
-                and re.search(r"[^\W\d_]|[\u4e00-\u9fff]", candidate)
-            ):
-                if re.search(r"[\u4e00-\u9fff]", candidate) or re.search(r"\b(?:SC|TC|CJK|Song|Hei|Kai|FangSong|Han)\b", candidate, re.I):
-                    cjk = candidate
-                else:
-                    latin = candidate
-
-    result = []
-    if cjk:
-        result.append(cjk)
-    if latin:
-        result.append(latin)
-    return result if result else None
 
 
 def _consumable_word(word: str) -> bool:

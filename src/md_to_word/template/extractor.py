@@ -32,12 +32,16 @@ from typing import Optional
 from lxml import etree
 
 from md_to_word.i18n import t
-
-from md_to_word.template.generator import CJK_FONTS, _TWIPS_PER_CM
+from md_to_word.spec.constants import (
+    PAGE_SIZE_MAP,
+    PUNCT_COMPRESSION_CN,
+    TWIPS_PER_CM,
+    is_cjk_font,
+)
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
-TWIPS_PER_CM = 566.93
+_TWIPS_PER_CM = TWIPS_PER_CM
 
 # 页码格式词表：OOXML 值 → 本工具写法（与 generate_template.PAGE_NUMBER_FMT 反向对应）
 PGNUM_FMT = {'decimal': '阿拉伯', 'upperRoman': '罗马', 'lowerRoman': '小写罗马',
@@ -680,7 +684,7 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
     except ValueError:
         pitch = 0
     if pitch > 0:
-        from md_to_word.template.generator import PAGE_SIZE_MAP, doc_grid_lines_from_pitch
+        from md_to_word.template.generator import doc_grid_lines_from_pitch
         page_size = PAGE_SIZE_MAP.get(paper) if paper else None
         if None in (top, bottom, left, right) or page_size is None:
             doubt.append(t('extractor.note.doc_grid_skipped', ref.lang))
@@ -837,7 +841,7 @@ def _auto_lang(docx: Path) -> str:
     if east:
         return 'zh' if east.lower().startswith('zh') else 'en'
     fonts = {f.get(q('eastAsia')) for f in probe.styles.iter(q('rFonts'))}
-    return 'zh' if any(f in CJK_FONTS for f in fonts if f) else 'en'
+    return 'zh' if any(is_cjk_font(f) for f in fonts if f) else 'en'
 
 
 def main(argv=None):

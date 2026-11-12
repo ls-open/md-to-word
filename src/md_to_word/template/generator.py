@@ -12,20 +12,45 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import sys
 import tempfile
+import zipfile
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
+from docx.opc.packuri import PackURI
+from docx.opc.part import Part
 from docx.shared import Pt, RGBColor
 from lxml import etree
 
 from md_to_word.config import get_base_template_path
 from md_to_word.i18n import t
-from md_to_word.spec.constants import STYLE_CN, STYLE_MAP
+from md_to_word.spec.constants import (
+    ALIGN_CN,
+    ALIGN_ENUM_VAL,
+    ALIGN_MAP,
+    ALIGN_VAL,
+    CJK_FONTS,
+    LATIN_FONTS,
+    NS_M,
+    NS_W,
+    PAGE_NUMBER_FMT,
+    PAGE_SIZES_CM,
+    PAGE_SIZE_MAP,
+    SIZE_MAP,
+    STYLE_CN,
+    STYLE_MAP,
+    TWIPS_PER_CM,
+    M,
+    W,
+    parse_font_name,
+    split_fonts,
+)
 from md_to_word.spec.models import MinLineSpacing
 from md_to_word.utils.skill_utils import (
     TOC_MARKER_RE,
@@ -37,61 +62,17 @@ from md_to_word.utils.skill_utils import (
 
 logger = get_logger(__name__)
 
-# ── XML 命名空间 ──
-NS_W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
-NS_M = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
-
-def W(tag):
-    return f'{{{NS_W}}}{tag}'
-
-def M(tag):
-    return f'{{{NS_M}}}{tag}'
-
-# ── 字号映射（中文字号 → pt）──
-SIZE_MAP = {
-    '初号': Pt(42),
-    '小初': Pt(36),
-    '一号': Pt(26),
-    '小一': Pt(24),
-    '二号': Pt(22),
-    '小二': Pt(18),
-    '三号': Pt(16),
-    '小三': Pt(15),
-    '四号': Pt(14),
-    '小四': Pt(12),
-    '五号': Pt(10.5),
-    '小五': Pt(9),
-    '六号': Pt(7.5),
-    '小六': Pt(6.5),
-    '七号': Pt(5.5),
-    '八号': Pt(5),
-}
-
-# ── 样式名映射 ──
-# 唯一真相源在 `spec/constants.py`（词表、正典中文名、反查都在那儿），这里只引入。
-
-# ── 页码格式（唯一写法）──
-PAGE_NUMBER_FMT = {
-    '阿拉伯': 'decimal',
-    '罗马': 'upperRoman',
-    '小写罗马': 'lowerRoman',
-    '字母': 'lowerLetter',
-    '大写字母': 'upperLetter',
-}
-
-
-# ── 纸张尺寸（唯一写法 → 内部键）──
-PAGE_SIZE_MAP = {'A4': 'a4', 'Letter': 'letter'}
-
-# 纸张的**唯一一张尺寸表**（cm）。版心宽度、交给 Word 的 pgSz、导出后对账的期望值都由它算。
-PAGE_SIZES_CM = {'a4': (21.0, 29.7), 'letter': (21.59, 27.94)}
-_TWIPS_PER_CM = 566.93
+# 向后兼容别名；唯一真相源都在 `spec/constants.py`
+_TWIPS_PER_CM = TWIPS_PER_CM
+_ALIGN_VAL = ALIGN_ENUM_VAL
+_ALIGN_CN = ALIGN_CN
 
 
 def page_size_twips(page_size: str) -> tuple:
     """纸张 → (宽, 高) twips（对账侧与写入侧共用，避免各写一份常量）。"""
     w_cm, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
     return int(round(w_cm * _TWIPS_PER_CM)), int(round(h_cm * _TWIPS_PER_CM))
+
 
 # ── 页眉/页脚内容里可用的域标记（唯一写法；未知标记报错，不静默漏掉）──
 #   {页码}           → PAGE 域（当前页）
@@ -100,22 +81,6 @@ def page_size_twips(page_size: str) -> tuple:
 #                      （如 {样式标题:Heading 1} = 当前章标题）
 _RE_DECOR_TOKEN = re.compile(r'\{([^{}]*)\}')
 _RE_STYLEREF = re.compile(r'^样式标题\s*[:：]\s*(.+?)\s*$')
-
-# ── 对齐方式（唯一写法：居中/左对齐/右对齐/两端对齐）──
-# **唯一一张表**：中文写法 → (python-docx 枚举, OOXML 值)。下面两个视图与
-# 导出后对账用的那一份都从这里派生，不再各写一遍。
-_ALIGN = {
-    '居中': (WD_ALIGN_PARAGRAPH.CENTER, 'center'),
-    '左对齐': (WD_ALIGN_PARAGRAPH.LEFT, 'left'),
-    '右对齐': (WD_ALIGN_PARAGRAPH.RIGHT, 'right'),
-    '两端对齐': (WD_ALIGN_PARAGRAPH.JUSTIFY, 'both'),
-}
-ALIGN_MAP = {cn: enum for cn, (enum, _) in _ALIGN.items()}          # 解析用
-ALIGN_VAL = {cn: val for cn, (_, val) in _ALIGN.items()}            # 写 XML / 导出后对账
-
-# ── 已知 CJK / Latin 字体（用于分离中西文）──
-CJK_FONTS = {'宋体', '黑体', '仿宋', 'FangSong', '楷体', '微软雅黑'}
-LATIN_FONTS = {'Times New Roman', 'Arial', 'Calibri', 'Verdana'}
 
 
 def ensure_rpr(element):
@@ -253,10 +218,6 @@ def max_doc_grid_lines(spec) -> int:
     height_pt = _body_height_twips(spec.page_size, margins) / 20.0
     return int(height_pt // body_line_height_pt(spec))
 
-# python-docx 枚举 → OOXML 值（由上面那张中文表派生）
-_ALIGN_VAL = {enum: val for enum, val in _ALIGN.values()}
-
-
 def ensure_ordered_child(parent, tag, order):
     """按 schema 顺序取/建子元素。顺序表外的标签追加在末尾。"""
     el = parent.find(W(tag))
@@ -271,20 +232,6 @@ def ensure_ordered_child(parent, tag, order):
             return el
     parent.append(el)
     return el
-
-
-def split_fonts(font_names, default_latin=None):
-    """把字体名列表拆成 (中日韩字体, 西文字体)"""
-    cjk = None
-    latin = None
-    for f in (font_names or []):
-        if f in CJK_FONTS or re.search(r'[一-鿿]', f):
-            cjk = f
-        else:
-            latin = f
-    if not latin and default_latin:
-        latin = default_latin
-    return cjk, latin
 
 
 def _neutralize_inherited_first_line(ind):
@@ -462,49 +409,6 @@ def write_para_props(ppr, props):
                     ind.attrib.pop(W('leftChars'), None)
                 _neutralize_inherited_first_line(ind)
                 ind.attrib.pop(W('hangingChars'), None)
-
-
-# ── 解析函数 ──
-
-def parse_font_name(text):
-    """提取字体名，返回 [cjk_font, latin_font] 或 None"""
-    parts = re.split(r'[/／]', text)
-    cjk = None
-    latin = None
-
-    for part in parts:
-        p = part.strip()
-        if not p:
-            continue
-
-        known_match = None
-        for known in sorted(CJK_FONTS | LATIN_FONTS, key=len, reverse=True):
-            if re.search(r'\b' + re.escape(known) + r'\b', p):
-                known_match = known
-                break
-
-        if known_match:
-            if known_match in CJK_FONTS:
-                cjk = known_match
-            else:
-                latin = known_match
-        else:
-            candidate = re.split(r'[,，]', p)[0].strip()
-            # 字体名里得有字（字母或汉字）：纯数字（如把字号写成 `12` 漏了 pt）不是字体名，
-            # 放它过去就等于把"写错的字号"吞成字体名。
-            if candidate and not re.match(r'\d', candidate) \
-                    and re.search(r'[^\W\d_]|[\u4e00-\u9fff]', candidate):
-                if re.search(r'[\u4e00-\u9fff]', candidate):
-                    cjk = candidate
-                else:
-                    latin = candidate
-
-    result = []
-    if cjk:
-        result.append(cjk)
-    if latin:
-        result.append(latin)
-    return result if result else None
 
 
 class TemplateError(ValueError):
@@ -1357,14 +1261,12 @@ def _footnote_default_line(spec) -> str:
     fonts = '/'.join(body.get('font_name') or ['宋体', 'Times New Roman'])
     align = _ALIGN_CN.get(body.get('alignment') or '', '两端对齐')
     size_pt = (body.get('font_size') or SIZE_MAP['小四']).pt
-    names = list(SIZE_MAP)
-    i = next((n for n, name in enumerate(names) if SIZE_MAP[name].pt <= size_pt), len(names) - 1)
-    size_name = names[min(i + 1, len(names) - 1)]
+    size_name = next((name for name, sz in SIZE_MAP.items() if sz.pt < size_pt), '八号')
     return (f'{fonts} {size_name} 不加粗 不倾斜 {align} '
             f'行距1.0倍 段前0磅 段后0磅 首行缩进0字符')
 
 
-def apply_footnote_format(doc, spec, page_size, margins, default_latin=None):
+def apply_footnote_format(doc, spec, page_size, margins, default_latin=None, gutter_cm=None):
     """给两个脚注样式落定义：写了「脚注：」用写的，没写从正文推一套默认。
 
     另：脚注序号唯一要紧的属性是**上标**——不设它，正文里的序号就是个大号数字，
