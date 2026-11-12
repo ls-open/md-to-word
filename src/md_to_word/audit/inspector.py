@@ -146,6 +146,19 @@ def _pattr(styles: dict, name: str, tag: str, attr: str):
     return _first(_walk(styles, name), g)
 
 
+def _element_on(el) -> bool:
+    """开关型元素**真的**开着吗。
+
+    只看「元素在不在」会把 `val="0"` 判成开：`<w:keepNext w:val="0"/>` 与
+    `<w:keepNext/>` 是两回事，前者是**明确关掉**——从 basedOn 继承来一个关掉的开关，
+    正是这种写法最常见的来源。同一个文件里 `_is_on` / `_effective` 早就按三种 val
+    写法判断了，这两条判据得用同一套。
+    """
+    if el is None:
+        return False
+    return (el.get(W + 'val') or 'on') not in _OFF_VALUES
+
+
 def _pelement(styles: dict, name: str, tag: str):
     """pPr 下某元素的**有效元素**（沿 basedOn 上溯）；None = 整条链都没写。
 
@@ -205,9 +218,9 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
 
         if r.get('font_size'):
             want_sz = str(int(round(r['font_size'].pt * 2)))
-            rpr = st.find(W + 'rPr')
-            e = rpr.find(W + 'sz') if rpr is not None else None
-            got_sz = e.get(W + 'val') if e is not None else None
+            # 字号要沿 basedOn 上溯：从学校模板反推出的 format.txt 常把字号写在父样式上，
+            # 直读本样式会把完全合规的产物报成「产物 None」并据此拒绝交付。
+            got_sz = _effective(styles, name, 'sz')
             if got_sz != want_sz:
                 problems.append((t('audit.cat.font_size', lang),
                                  t('audit.msg.font_size', lang, name=shown, want=want_sz, got=got_sz)))
@@ -336,7 +349,7 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                                  t('audit.msg.no_toc', lang, name=shown, got=got_ol)))
 
         # 与下段同页（keepNext）：题注跟表、目录标题跟条目——不写就随底模继承定，静默
-        if r.get('keep_next') and _pelement(styles, name, 'keepNext') is None:
+        if r.get('keep_next') and not _element_on(_pelement(styles, name, 'keepNext')):
             problems.append((t('audit.cat.keep_next', lang),
                              t('audit.msg.keep_next', lang, name=shown)))
 
@@ -379,9 +392,8 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
         # 字符间距（`字距<N>磅`）：rPr/spacing 的 val 是二十分之一磅
         if r.get('char_spacing_pt') is not None:
             want_v = str(int(round(r['char_spacing_pt'] * 20)))
-            rpr = st.find(W + 'rPr')
-            e = rpr.find(W + 'spacing') if rpr is not None else None
-            got_v = e.get(W + 'val') if e is not None else None
+            # 同上：字符间距也可能是继承来的
+            got_v = _effective(styles, name, 'spacing')
             if got_v != want_v:
                 problems.append((t('audit.cat.char_spacing', lang),
                                  t('audit.msg.char_spacing', lang, name=shown,
@@ -391,7 +403,7 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
         # （「与下段同页」keepNext 在上一段单独查）
         for key, tag in (('keep_lines', 'keepLines'),
                          ('page_break_before', 'pageBreakBefore')):
-            if r.get(key) and _pelement(styles, name, tag) is None:
+            if r.get(key) and not _element_on(_pelement(styles, name, tag)):
                 label = t(f'audit.cat.{key}', lang)
                 problems.append((label, t('audit.msg.para_flag', lang, name=shown,
                                           label=label, tag=tag)))
@@ -498,9 +510,17 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                                        want=want_start, got=got_start)))
         # 只有要求文件写了「首页页眉/页脚内容」时 titlePg 才有意义：整篇不加页眉页脚的
         # 文档（要求里一条页眉页脚行都没有）根本谈不上「首页带出页眉页脚」。
-        if any(which == 'first' for _, which in spec.decor) and sect.find(W + 'titlePg') is None:
+        if any(which == 'first' for _, which in spec.decor) \
+                and not _element_on(sect.find(W + 'titlePg')):
             problems.append((t('audit.cat.title_page', lang),
                              t('audit.msg.title_pg_missing', lang)))
+    else:
+        # 没有 body 级 sectPr，上面那一整块（纸张、页边距、装订线、文档网格、页眉页脚距、
+        # 页码格式与起始、titlePg）全部**无从判断**。不写 else 就等于它们自动通过——
+        # 一份没写 sectPr 的产物会拿到「格式逐条对上」的绿灯，而它的纸张和页边距
+        # 根本没被看过一眼。结构不对就明说，不装作验过了。
+        problems.append((t('audit.cat.page_size', lang),
+                         t('audit.msg.no_sectpr', lang)))
 
     # ── 4. 表格：边框样式 / 单元格垂直对齐 / 表头跨页重复 ──
     if spec.table:
@@ -589,7 +609,9 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
         first_row = doc.find(f'.//{W}tbl/{W}tr')
         trpr = first_row.find(W + 'trPr') if first_row is not None else None
         # 没有表格就没什么可重复的，不报
-        if first_row is not None and (trpr is None or trpr.find(W + 'tblHeader') is None):
+        if first_row is not None and not _element_on(
+            None if trpr is None else trpr.find(W + 'tblHeader')
+        ):
             problems.append((t('audit.cat.table', lang),
                              t('audit.msg.repeat_header', lang)))
 
@@ -597,7 +619,7 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
     # `w:cantSplit` 也是行属性：写在每行 `<w:tr>` 的 trPr 里，表样式管不到。
     if (spec.table or {}).get('no_row_split'):
         trs = doc.findall(f'.//{W}tbl/{W}tr')
-        if trs and any(tr.find(f'{W}trPr/{W}cantSplit') is None for tr in trs):
+        if trs and any(not _element_on(tr.find(f'{W}trPr/{W}cantSplit')) for tr in trs):
             problems.append((t('audit.cat.table', lang),
                              t('audit.msg.no_row_split', lang)))
 

@@ -930,6 +930,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "要求 eastAsia={want}，产物 {got}",
         "expected eastAsia={want}, but the output is {got}",
     ),
+    "audit.msg.no_sectpr": (
+        "产物里没有正文节属性（w:sectPr）：纸张、页边距、装订线、文档网格、页眉页脚距、"
+        "页码格式全都无从判断。这份产物不是按常规流程写的，请重新导出或换一份底模",
+        "The output has no body-level section properties (w:sectPr): paper size, margins, "
+        "gutter, document grid, header/footer distance and page numbering cannot be checked. "
+        "This file was not produced by the normal path; re-export it or use another base template",
+    ),
     "audit.msg.page_size": (
         "要求 {size}{want}，产物 {got}",
         "expected {size}{want}, but the output is {got}",
