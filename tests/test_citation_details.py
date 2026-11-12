@@ -339,3 +339,55 @@ def test_english_narrative_citation_uses_and_not_ampersand() -> None:
     apa_zh = CitationEngine(bib, CSL / "apa.csl", lang="zh")
     assert "".join(s[0] for s in apa_zh.cite([("vd2021", "")], narrative=True)) == "Venkatesh & Davis (2021)"
 
+
+
+_SYNTH_STYLE = """<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text"
+       default-locale="en-US">
+  <info><title>probe</title><id>probe</id><updated>2024-01-01T00:00:00+00:00</updated></info>
+  <citation><layout><text variable="title"/></layout></citation>
+  <bibliography><layout>{body}</layout></bibliography>
+</style>"""
+
+
+def _synthetic(tmp_path: Path, body: str) -> Path:
+    path = tmp_path / "synth.csl"
+    path.write_text(_SYNTH_STYLE.format(body=body), encoding="utf-8")
+    return path
+
+
+def test_number_range_is_plural_but_identifiers_are_not(tmp_path: Path) -> None:
+    """`number = {3-5}` 是区间，标签要用复数；`TR-2023-04` / `3.5.0--rc1` 是编号，不是区间。
+
+    上游 0.12 的 `\\d+[^\\d.]+\\d+` 把 `3.5.0--rc1` 也判成复数；我们旧的补丁反过来
+    完全不认 `-`，于是真区间输出 `(number 3-5)`。
+    """
+    csl = _synthetic(tmp_path, '<label variable="number"/><text variable="number" prefix=" "/>')
+
+    def render(number: str) -> str:
+        bib = f"@techreport{{r, author = {{A, B}}, title = {{T}}, number = {{{number}}}, year = {{2020}}}}\n"
+        engine = CitationEngine(bib, csl, lang="en")
+        engine.reserve(["r"])
+        engine.cite([("r", "")])
+        return "".join(t for t, _ in dict(engine.bibliography_entries())["r"])
+
+    assert render("3-5") == "numbers 3-5"
+    assert render("TR-2023-04") == "number TR-2023-04"
+    assert render("3.5.0--rc1") == "number 3.5.0--rc1"
+
+
+def test_substituted_names_are_not_substituted_twice(tmp_path: Path) -> None:
+    """同名 `<names>` 第二次出现时，若变量已被前一个 `<substitute>` 用掉，
+    这里就该什么都不出——不能把本元素自己的 `<substitute>` 再渲染一遍
+    （实测得到 `Ann Ed / Solo Title`，本该是 `Ann Ed /`）。"""
+    csl = _synthetic(
+        tmp_path,
+        '<names variable="author"><substitute><names variable="editor"/></substitute></names>'
+        '<text value=" / "/>'
+        '<names variable="editor"><substitute><text variable="title"/></substitute></names>',
+    )
+    bib = "@book{edited, editor = {Smith, Ann}, title = {Solo Title}, year = {2020}}\n"
+    engine = CitationEngine(bib, csl, lang="en")
+    engine.reserve(["edited"])
+    engine.cite([("edited", "")])
+    rendered = "".join(t for t, _ in dict(engine.bibliography_entries())["edited"])
+    assert rendered == "Ann Smith / ", rendered

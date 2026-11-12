@@ -41,10 +41,13 @@ def _install_citeproc_shims() -> None:
     2. `Group.process` / `Macro.render` 用静态 `calls_variable()` 扫描 `<choose>` 全部未命中分支，
        导致如 APA 学位论文无报告号却印出 `(Publication)`；按 CSL 1.0 规范改为运行期实际变量追踪，
        同时保持非空 `<macro>` 在外层 `<group>` 里视同已成功渲染的变量（如 Chicago software 的 `released`）；
-    3. 独立 `<label variable="..."/>` 在变量缺失时未抑制，导致如 GB/T 7714-2025 无版本号却印出 `V.`；
+    3. 独立 `<label variable="..."/>` 的抑制**不需要再补**（0.12 的 `Label._variable_is_set`
+       已实现，且认 `page-first` / `citation-number` 这类派生变量）；这里只补 group 的变量追踪，
+       不再自己查一遍字典——自己查比上游更窄，会漏掉派生变量；
     4. `<if disambiguate="true">` 在 citeproc-py 里是未实现的 TODO（恒为真），导致 MLA 每条文内引用都强行附带题名；
     5. `Label.markup` 未向 `TextCased.case` 传递条目语言，导致英文 `(Eds.)`/`(Ed.)` 退化为小写；
     6. `Label._is_plural` 把 `3.5.0--rc1` / `TR-2023-04` 里的 `-` 误判为复数范围，输出 `(Versions ...)`；
+       但反过来也不能不认真区间（`number = {3-5}` 是 `numbers`），故按「整串就是数字-分隔符-数字」判定；
     7. `Name.initialize` 忽略 `<name initialize="false"/>`，导致 Chicago/MLA 文献表人名被错误缩写成首字母；
     8. `FormatNumber._format_last_page` 在 `minimal-two`/`minimal` 遇到 `1–40`/`11–112` 等不等位页码时截断错误（输出 `1–0`/`11–2`）；
     9. `to_ordinal` 遇到中文区域显式空 `<term name="ordinal"/>` 时误回退到 `en-US`（输出 `3rd 版`）。
@@ -55,7 +58,6 @@ def _install_citeproc_shims() -> None:
     group_frames: list[list[bool]] = []  # [var_called, var_rendered]
     sub_frames: list[tuple[object, dict[str, set[str]]]] = []  # (parent_names_elem, staging_repressed)
 
-    orig_substitute_render = _citeproc_model.Substitute.render
     orig_macro_render = _citeproc_model.Macro.render
     orig_names_process = _citeproc_model.Names.process
     orig_name_initialize = _citeproc_model.Name.initialize
@@ -148,6 +150,12 @@ def _install_citeproc_shims() -> None:
         filtered = [role for role in roles if role not in repressed_vars]
         if group_frames:
             group_frames[-1][0] = True
+        if roles and not filtered:
+            # 声明的 role 全被上游的 `<substitute>` 抑制掉了：这里本来就该什么都不出。
+            # 若把 `variable` 改写成空串再交给上游，上游会当成「变量缺失」，
+            # 于是把本元素自己的 `<substitute>` 再渲染一遍——实测得到
+            # `Ann Ed / Solo Title`（本该是 `Ann Ed /`）。
+            return None
         present = [r for r in filtered if r in item.reference and item.reference[r]]
 
         def _invoke():
@@ -227,16 +235,12 @@ def _install_citeproc_shims() -> None:
                 group_frames[-1][0] = True
             if not getattr(item, "has_locator", False):
                 return None
-        elif var and standalone:
-            # 独立 `<label variable="X"/>`（非 `<names>` 内部转发）：变量缺失或为空时不渲染（CSL 1.0）
-            if group_frames:
-                group_frames[-1][0] = True
-            try:
-                ref_val = item.reference[var.replace("-", "_")]
-            except _citeproc_model.VariableError:
-                return None
-            if ref_val is None or str(ref_val).strip() == "":
-                return None
+        elif var and standalone and group_frames:
+            # 独立 `<label variable="X"/>` 在变量为空时不渲染——这件事上游 0.12 的
+            # `Label._variable_is_set` 已经做了（含 `page-first` / `citation-number`
+            # 这些派生变量的特判）。这里只补 group 的运行期变量追踪，
+            # 不再自己查一遍字典：自己查会漏掉派生变量，比上游更窄。
+            group_frames[-1][0] = True
         val = orig_label_process(self, item, variable=variable, plural=plural, context=context, **kwargs)
         if val is not None and str(val) != "" and (var == "locator" or (var and standalone)) and group_frames:
             group_frames[-1][1] = True
@@ -326,7 +330,16 @@ def _install_citeproc_shims() -> None:
                 value = item.reference[var.replace("-", "_")]
             except _citeproc_model.VariableError:
                 return False
-            return bool(re.search(r"(?:\d\s*(?:,|&|\band\b)\s*\d)", str(value)))
+            # 复数 = 整串就是「数字 分隔符 数字…」：`3-5` / `1, 2` / `1 & 2` / `1/2`。
+            # 上游 0.12 的 `\d+[^\d.]+\d+` 会匹配到 `3.5.0--rc1`（`--rc` 里带字母），
+            # 那是一条版本号不是区间；反过来我们的旧正则不认 `-`，`3-5` 又丢复数。
+            # 用整串匹配同时挡住 `TR-2023-04` 这类编号：它不是区间，不该复数。
+            return bool(
+                re.fullmatch(
+                    r"\d+(?:\s*[-–—,;，；/、&]\s*\d+)+",
+                    str(value).strip(),
+                )
+            )
         return orig_label_is_plural(self, item)
 
     def _label_render(self, *args, **kwargs):
