@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -118,8 +119,11 @@ def _compile_docx_and_pdf(
     format_text: str,
     output_docx_path: Path,
     output_pdf_path: Path,
-) -> Tuple[bool, list]:
-    """同步编译生成 docx，并调用 soffice 转换为 pdf。"""
+) -> Tuple[bool, list, bool]:
+    """同步编译生成 docx，并在装了 LibreOffice 时顺带转一份 pdf。
+
+    返回 `(稿件是否编译成功, 错误列表, pdf 是否可用)`。
+    """
     with tempfile.TemporaryDirectory() as td:
         temp_dir = Path(td)
         md_file = temp_dir / "manuscript.md"
@@ -137,27 +141,38 @@ def _compile_docx_and_pdf(
         )
 
         if not res.ok:
-            return False, res.errors
+            return False, res.errors, False
 
         # 复制到目标 docx 路径
         output_docx_path.write_bytes(tmp_docx.read_bytes())
 
-        # 调用 soffice 转 pdf
+        # PDF 只是在线预览用的副产品：**docx 下载不该依赖 LibreOffice**。
+        # 把「PDF 转不出来」当成整体失败，等于要求每台机器都装 soffice，
+        # 没装就 500（实测过一次），而用户要的 docx 其实已经生成好了。
+        pdf_ok = _convert_to_pdf(tmp_docx, temp_dir / "output.pdf", output_pdf_path)
+        return True, [], pdf_ok
+
+
+def _convert_to_pdf(src: Path, tmp_pdf: Path, dst: Path) -> bool:
+    """用 LibreOffice 把 docx 转成 pdf；转不了返回 False（不抛异常）。"""
+    soffice = shutil.which("soffice")
+    if not soffice:
+        return False
+    try:
         subprocess.run(
-            ["soffice", "--headless", "--convert-to", "pdf", str(tmp_docx)],
-            cwd=str(temp_dir),
+            [soffice, "--headless", "--convert-to", "pdf", str(src)],
+            cwd=str(src.parent),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=15,
+            timeout=60,
             check=True,
         )
-
-        tmp_pdf = temp_dir / "output.pdf"
-        if not tmp_pdf.exists():
-            return False, ["PDF 文件转换输出失败"]
-
-        output_pdf_path.write_bytes(tmp_pdf.read_bytes())
-        return True, []
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if not tmp_pdf.exists():
+        return False
+    dst.write_bytes(tmp_pdf.read_bytes())
+    return True
 
 
 # 启动时预热生成 3 个默认模板的缓存文件
@@ -186,9 +201,10 @@ def warmup_default_caches():
 
         if not (docx_cache.exists() and pdf_cache.exists()):
             try:
-                ok, errs = _compile_docx_and_pdf(md, fmt_text, docx_cache, pdf_cache)
+                ok, errs, pdf_ok = _compile_docx_and_pdf(md, fmt_text, docx_cache, pdf_cache)
                 if ok:
-                    print(f"  ✓ 模板 {tpl_id} 静态缓存就绪 ({chash})")
+                    note = "" if pdf_ok else "（未装 LibreOffice，跳过 PDF）"
+                    print(f"  ✓ 模板 {tpl_id} 静态缓存就绪{note} ({chash})")
                 else:
                     print(f"  ✗ 模板 {tpl_id} 预热失败: {errs}")
             except Exception as e:
@@ -268,7 +284,7 @@ async def preview_manuscript(
 
     async with CONVERT_SEMAPHORE:
         loop = asyncio.get_event_loop()
-        ok, errors = await loop.run_in_executor(
+        ok, errors, pdf_ok = await loop.run_in_executor(
             None,
             _compile_docx_and_pdf,
             clean_md,
@@ -283,6 +299,20 @@ async def preview_manuscript(
         return JSONResponse(
             status_code=422,
             content={"ok": False, "errors": errors, "elapsed_ms": elapsed},
+        )
+
+    if not pdf_ok:
+        # 稿件本身编译通过了，只是这台机器没装 LibreOffice，出不了 PDF。
+        # 说清楚，别让用户以为是自己稿子写错了。
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": True,
+                "errors": [],
+                "preview_unavailable": "在线预览需要服务器安装 LibreOffice（soffice）；"
+                                       "稿件的 .docx 已生成，可直接下载后在 Word 里查看。",
+                "elapsed_ms": elapsed,
+            },
         )
 
     pdf_bytes = pdf_cache.read_bytes()
@@ -345,7 +375,7 @@ async def export_manuscript(
     if not docx_cache.exists():
         async with CONVERT_SEMAPHORE:
             loop = asyncio.get_event_loop()
-            ok, errors = await loop.run_in_executor(
+            ok, errors, _pdf_ok = await loop.run_in_executor(
                 None,
                 _compile_docx_and_pdf,
                 clean_md,

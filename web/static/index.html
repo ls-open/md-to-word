@@ -716,10 +716,17 @@
           // 使用 #view=FitH 保持适宜宽度，保证整页版式饱满清晰
           frame.src = latestPdfBlobUrl + '#view=FitH&toolbar=0&navpanes=0';
         } else {
-          statusBadge.textContent = currentLang === 'en' ? '❌ Compile Error' : '❌ 编译格式不合规或异常';
-          statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-medium';
           const errData = await res.json().catch(() => ({}));
-          alert((currentLang === 'en' ? 'Compilation Failed: ' : '编译未能成功生成: ') + (errData.detail || (errData.errors || []).join('\n') || '未知原因'));
+          if (res.status === 503 && errData.preview_unavailable) {
+            // 稿件编译通过了，只是这台服务器没有 LibreOffice 出不了 PDF——别报成「格式不合规」
+            statusBadge.textContent = currentLang === 'en' ? '✅ Compiled · preview needs LibreOffice' : '✅ 已编译 · 预览需服务器装 LibreOffice';
+            statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium';
+            alert(errData.preview_unavailable);
+          } else {
+            statusBadge.textContent = currentLang === 'en' ? '❌ Compile Error' : '❌ 编译格式不合规或异常';
+            statusBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-medium';
+            alert((currentLang === 'en' ? 'Compilation Failed: ' : '编译未能成功生成: ') + (errData.detail || (errData.errors || []).join('\n') || '未知原因'));
+          }
         }
       } catch (e) {
         alert((currentLang === 'en' ? 'Network error: ' : '编译渲染网络异常: ') + e.message);
