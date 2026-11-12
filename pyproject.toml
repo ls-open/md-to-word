@@ -34,8 +34,11 @@ dependencies = [
     # LaTeX → MathML：MathML 是 W3C 标准，解析器借成熟的；MathML → OMML 没有标准，
     # 那一段在我们自己的 transform/mathml2omml.py 里
     "latex2mathml>=3.0",
-    # CSL 引文渲染：2 MB，只依赖 lxml
-    "citeproc-py>=0.6",
+    # CSL 引文渲染：2 MB，只依赖 lxml。下限钉在 0.12：`transform/citations.py` 的
+    # `_install_citeproc_shims()` 修补的是 citeproc-py 的内部实现（Names/Group/Macro/
+    # Label/FormatNumber/to_ordinal），方法签名一换，补丁会静默失效、样式回退到旧 bug；
+    # 上限 <0.13 是这份补丁重新对齐之后再放开。
+    "citeproc-py>=0.12,<0.13",
     # PDF 图 → 位图（Word 的内联图片只认位图）。学术稿的图大多默认导出 PDF，
     # 这一步不装就有一半稿件导不出去；4.30 起 API 与 5.x 一致，老 macOS 也还有轮子
     "pypdfium2>=4.30",

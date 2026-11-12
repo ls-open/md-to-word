@@ -3,7 +3,7 @@ python-docx>=1.1.0  # 生成与改写 .docx 模板
 lxml>=4.9.0         # 直接读写 OOXML（样式 / 边框 / 页眉页脚）
 PyYAML>=6.0         # 读稿件 frontmatter
 latex2mathml>=3.0   # LaTeX → MathML（公式的解析层）
-citeproc-py>=0.6    # CSL 引文渲染
+citeproc-py>=0.12,<0.13  # CSL 引文渲染（citations.py 修补其内部实现，升级需重新对齐）
 pypdfium2>=4.30     # PDF 图 → 位图（Word 的内联图片只认位图）
 
 # 非 pip 依赖：
