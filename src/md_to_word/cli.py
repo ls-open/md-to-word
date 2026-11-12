@@ -222,7 +222,24 @@ def _run_init(args: list[str], lang: str) -> int:
     return run_init(Path(parsed.directory), preset=parsed.preset, force=parsed.force, lang=effective)
 
 
+def _make_output_never_crash() -> None:
+    """Windows 的控制台默认编码未必是 UTF-8。
+
+    `chcp 437/1252` 的机器上打印中文直接 `UnicodeEncodeError`，整条命令以 traceback
+    结束——而用户只是想把稿件导成 Word。这里只保证「不炸」：编码能表示就照常显示，
+    表示不了就换成占位符（例如英文版 Windows 上的 cmd）。中文版 Windows 默认 cp936，
+    中文照常可读，不受影响。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError, OSError):
+            # 被重定向成非 TextIOWrapper（例如某些测试替身）时没有 reconfigure
+            pass
+
+
 def main(args: list[str] | None = None) -> int:
+    _make_output_never_crash()
     argv = list(sys.argv[1:] if args is None else args)
     lang = _message_lang(argv)
     if argv and argv[0] == "init":

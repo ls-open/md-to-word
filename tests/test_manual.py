@@ -123,7 +123,8 @@ def test_contract_points_at_real_files() -> None:
         out = contract_cheatsheet(lang)
         path = manual_path(lang)
         assert path.is_file(), f"{lang} 手册不存在: {path}"
-        assert path.as_posix() in out, f"--contract --lang {lang} 没指向 {path.name}"
+        # Windows 上 --contract 打印的是反斜杠路径，用户看着才正常；比对时统一成正斜杠
+        assert path.as_posix() in out.replace("\\", "/"), f"--contract --lang {lang} 没指向 {path.name}"
         for name in ("zh-academic", "en-nature"):
             assert re.search(rf"{name}\s+\S+{name}\.txt", out), f"没给 {name} 预设的路径"
 

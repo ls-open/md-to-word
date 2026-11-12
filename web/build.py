@@ -94,7 +94,12 @@ def _export(
         ]
         if pdf:
             cmd.append("--pdf")
-        proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
+        # 明确指定 UTF-8：Windows 上 text=True 会用控制台编码（可能是 cp1252）
+        # 去解中文输出，直接 UnicodeDecodeError。
+        proc = subprocess.run(
+            cmd, env=env, capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+        )
         # 3 = docx 已生成但 PDF 没渲染（没装 Word / 渲染失败），不算稿件有问题
         if proc.returncode not in (0, 3):
             sys.stderr.write(proc.stdout + proc.stderr)
