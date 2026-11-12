@@ -10,7 +10,22 @@ from md_to_word.spec import list_available_presets, parse_format, read_preset_co
 def test_presets_exist():
     presets = list_available_presets()
     assert "zh-academic" in presets
+    assert "zh-tw-academic" in presets
+    assert "zh-report" in presets
     assert "en-nature" in presets
+
+
+def test_zh_tw_academic_preset():
+    content = read_preset_content("zh-tw-academic")
+    assert content is not None
+    spec = parse_format(content)
+    assert len(spec.styles) >= 20
+    assert spec.page_size == "a4"
+    assert spec.proofing_lang == "zh-TW"
+    assert spec.punctuation_compression == "doNotCompress"
+    body_style = spec.get_style("Body Text")
+    assert body_style is not None
+    assert "PMingLiU" in body_style["font_name"]
 
 
 def test_zh_academic_preset():
@@ -142,25 +157,87 @@ def test_table_image_caption_key_aliases():
     assert img_c["style_name"] == "Image Caption"
 
 
-def test_punctuation_compression_follows_the_proofing_language():
-    """标点压缩跟着校对语言走：中文文档让标点能压成半角，和中文 Word、学校模板一致。
+def test_punctuation_compression_defaults_and_overrides():
+    """标点压缩由显式声明主导，未写时按校对语言走合理默认：
 
-    这一项是文档级的，按段分叉不了，只能整份稿子定一个值。以前一律 `doNotCompress`
-    （python-docx 默认模板带过来的），中文产物每行比中文 Word 少排一个字，灌进学校模板
-    时还会和模板的设置打架。
+    - `zh-CN` → `compressPunctuation`（与简体中文 Word 一致）
+    - `zh-TW` / `zh-HK` / `zh-MO` / `en-US` → `doNotCompress`（繁体标点居中、英文无压缩）
+    - `ja-JP` → `compressPunctuationAndJapaneseKana`
+    - 显式声明 `标点压缩` / `Punctuation Compression` 可独立覆盖默认行为。
     """
     from docx import Document
 
-    from md_to_word.template.generator import apply_proofing_language
+    from md_to_word.template.generator import apply_punctuation_compression
 
-    def compression(lang: str) -> str:
+    def compression(proofing_lang: str | None, mode: str | None = None) -> str:
         doc = Document()
-        apply_proofing_language(doc, lang)
+        apply_punctuation_compression(doc, mode=mode, proofing_lang=proofing_lang)
         node = doc.settings.element.find(
             "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}characterSpacingControl")
         return node.get("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val")
 
     assert compression("zh-CN") == "compressPunctuation"
-    assert compression("zh-TW") == "compressPunctuation"
+    assert compression("zh-TW") == "doNotCompress"
+    assert compression("zh-HK") == "doNotCompress"
     assert compression("ja-JP") == "compressPunctuationAndJapaneseKana"
     assert compression("en-US") == "doNotCompress"
+    # 显式声明覆盖校对语言默认
+    assert compression("zh-TW", mode="compressPunctuation") == "compressPunctuation"
+    assert compression("zh-CN", mode="doNotCompress") == "doNotCompress"
+    assert compression("zh-CN", mode="compressPunctuationAndJapaneseKana") == "compressPunctuationAndJapaneseKana"
+
+
+def test_traditional_chinese_fonts_recognized_as_cjk():
+    """繁体中文（台灣 / 香港 / 澳門）常用字型須被歸為中日韓字型槽，不可誤判為西文字體。"""
+    from md_to_word.spec.constants import is_cjk_font, parse_font_name, split_fonts
+
+    tc_fonts = [
+        "PMingLiU",
+        "PMingLiU-ExtB",
+        "MingLiU",
+        "新細明體",
+        "DFKai-SB",
+        "標楷體",
+        "BiauKai",
+        "Microsoft JhengHei",
+        "微軟正黑體",
+        "Noto Serif TC",
+        "Noto Serif CJK TC",
+        "Source Han Serif TC",
+        "PingFang TC",
+        "PingFang HK",
+        "蘋方-繁",
+    ]
+    for font in tc_fonts:
+        assert is_cjk_font(font), f"未能识别繁体中文字体为 CJK：{font}"
+        assert split_fonts([font], default_latin="Times New Roman") == (font, "Times New Roman")
+
+    for latin in ("Times New Roman", "Arial", "Consolas", "Georgia"):
+        assert not is_cjk_font(latin), f"误把西文字体判为 CJK：{latin}"
+
+    # 顺序无关：无论西文字体写在前还是后，都拆成 (eastAsia, ascii)
+    assert parse_font_name("PMingLiU/Times New Roman") == ["PMingLiU", "Times New Roman"]
+    assert parse_font_name("Consolas/PMingLiU") == ["PMingLiU", "Consolas"]
+    assert split_fonts(parse_font_name("Times New Roman/標楷體")) == ("標楷體", "Times New Roman")
+
+
+def test_gutter_mirror_and_punctuation_english_parsing():
+    spec = parse_format(
+        """
+Paper: A4
+Margins: top 2.54cm bottom 2.54cm left 2.54cm right 2.54cm
+Gutter: 1.25cm
+Mirror Margins: on
+Proofing Language: zh-TW
+Punctuation Compression: none
+Title: Microsoft JhengHei/Times New Roman 18pt bold center line-spacing 1.5 space-before 0pt space-after 12pt indent 0
+Heading 1: Microsoft JhengHei/Times New Roman 14pt bold left line-spacing 1.5 space-before 12pt space-after 6pt indent 0
+Body Text: PMingLiU/Times New Roman 12pt justify line-spacing 1.5 space-before 0pt space-after 0pt indent 2chars
+First Paragraph: PMingLiU/Times New Roman 12pt justify line-spacing 1.5 space-before 0pt space-after 0pt indent 2chars
+Normal: PMingLiU/Times New Roman 12pt justify line-spacing 1.5 space-before 0pt space-after 0pt indent 2chars
+"""
+    )
+    assert spec.gutter_cm == 1.25
+    assert spec.mirror_margins is True
+    assert spec.proofing_lang == "zh-TW"
+    assert spec.punctuation_compression == "doNotCompress"

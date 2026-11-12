@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 from typing import Optional
+from xml.sax.saxutils import escape
 
 from lxml import etree
 from md_to_word.i18n import t
@@ -63,6 +64,7 @@ def toc_xml(level: Optional[int] = None, lang: str = "zh") -> str:
         raise MarkerError(t("markers.toc_depth", lang, max=_MAX_TOC_DEPTH, depth=depth))
     # 前后各留一个空格：与 Word 自己写出的域代码同形，用户在 Word 里改域时不会对不上。
     instr = f' TOC \\o "1-{depth}" \\h \\z \\u '
+    placeholder = escape(t("markers.toc_placeholder", lang))
     return (
         '<w:sdt xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         '<w:sdtPr><w:docPartObj>'
@@ -71,7 +73,7 @@ def toc_xml(level: Optional[int] = None, lang: str = "zh") -> str:
         '<w:p><w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
         f'<w:r><w:instrText xml:space="preserve">{instr}</w:instrText></w:r>'
         '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
-        "<w:r><w:t>（打开文档后目录会自动生成）</w:t></w:r>"
+        f"<w:r><w:t>{placeholder}</w:t></w:r>"
         '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
         "</w:sdtContent></w:sdt>"
     )

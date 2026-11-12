@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from docx import Document as open_docx
+from docx.enum.style import WD_STYLE_TYPE
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.opc.packuri import PackURI
 from docx.opc.part import Part
@@ -29,7 +30,14 @@ from md_to_word.utils.docx_zip import normalize_zip
 from md_to_word.utils.pdf_figure import PdfFigureError, is_pdf, rasterize
 from md_to_word.preprocessor.markers import MarkerError, section_paragraph_xml, toc_xml
 from md_to_word.spec.constants import PAGE_NUMBER_FMT
-from md_to_word.template.generator import _PPR_ORDER, _RPR_ORDER, ensure_ordered_child
+from md_to_word.template.generator import (
+    _PPR_ORDER,
+    _RPR_ORDER,
+    _STYLE_ORDER,
+    ensure_ordered_child,
+    read_header_styles_meta,
+    write_header_styles_meta,
+)
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
@@ -39,11 +47,6 @@ from md_to_word.model.document import (
 )
 
 SUPPORTED_BLOCKS = (Heading, Paragraph, ListBlock, Table, Figure, CodeBlock, PageBreak, Quote)
-
-# 章级但**不是**章标题的样式：结构上必须是一级标题，外观另给。
-# 页眉里的 `{样式标题:Heading 1}` 是 STYLEREF 域，只认样式名——这些标题若用自己的
-# 样式，域只能回退到上一个一级标题，文献页页眉就会显示「第六章」。
-_CHAPTER_LEVEL_STYLES = ("References Title",)
 
 # 列表缩进（twips，1 英寸 = 1440）：每层左缩进 0.5 英寸，编号悬挂 0.25 英寸。
 # 引用块里的列表整体再右移一个正文缩进，免得和引用正文左对齐、看不出从属关系。
@@ -117,11 +120,12 @@ def _escape(text: str) -> str:
     )
 
 
-# 附录标题：`附录A`、`附录2`、`Appendix B` 都认；标识后面必须跟空白或标点，
-# 否则 `# 附录 一些补充` 里的「一」会被当成本附录的编号。
+# 附录标题：`附录A`、`附錄A`、`附录2`、`Appendix B`、`Appendix IV` 都认；标识后面必须跟空白或标点，
+# 否则 `# 附录 一些补充` 里的「一」会被当成本附录的编号；英文单词（`Raw`/`One`/`in`）同理，
+# 只收 1 个大写字母或标准罗马数字（II–XIII），避免把未编号英文附录的标题首词抓成编号。
 _APPENDIX_TITLE_RE = re.compile(
-    r"^\s*(?:附录|Appendix)\s*([A-Za-z]{1,3}|\d{1,2}|[一二三四五六七八九十]{1,3})?",
-    re.I,
+    r"^\s*(?:附录|附錄|(?i:appendix)(?![A-Za-z]))\s*"
+    r"(XIII|XII|XI|VIII|VII|VI|IX|IV|III|II|[A-Z]|\d{1,2}|[一二三四五六七八九十]{1,3})?",
 )
 
 
@@ -132,7 +136,7 @@ def _appendix_label(title: str) -> str | None:
         return None
     ident = match.group(1) or ""
     rest = title[match.end():]
-    if ident and rest and not rest[0].isspace() and rest[0] not in "：:、.．，,（）()":
+    if ident and rest and not rest[0].isspace() and rest[0] not in "：:、.．，,（）()-—–":
         return ""
     return ident
 
@@ -203,6 +207,7 @@ class _Writer:
         no_row_split: bool = False,
         repeat_header: bool = False,
         table_space_after: float = 0.0,
+        header_styles: Optional[set[str]] = None,
         lang: Optional[str] = None,
     ) -> None:
         self.model = document
@@ -224,6 +229,7 @@ class _Writer:
         self.no_row_split = no_row_split  # 表格行是否禁止跨页断开（要求文件写「行不跨页」）
         self.repeat_header = repeat_header  # 表头跨页重复（要求文件写「跨页重复」）
         self.table_space_after = table_space_after  # 表后留白磅数（要求文件写「表后间距」）
+        self.header_styles = set(header_styles or ())  # 显式声明「加入页眉 / join-header」的样式名集合
         self._table_gap_pending = False  # 上一块是表格：下一块开写前补那个垫片
         chinese = looks_chinese(self._prose_text())
         # 报错语言：流水线按 `--lang`/稿件语种传进来；直接调库时按正文自己判
@@ -374,7 +380,12 @@ class _Writer:
         margins = sect.find(qn("w:pgMar"))
         try:
             width = int(size.get(qn("w:w")))
-            return width - int(margins.get(qn("w:left"))) - int(margins.get(qn("w:right")))
+            return (
+                width
+                - int(margins.get(qn("w:left")))
+                - int(margins.get(qn("w:right")))
+                - int(margins.get(qn("w:gutter")) or 0)
+            )
         except (AttributeError, TypeError, ValueError):
             return 8306
 
@@ -496,14 +507,61 @@ class _Writer:
             math_el.append(node)
         return math_el
 
+    def _ensure_unlisted_heading_style(self, level: int) -> str:
+        """创建或复用 `UnlistedHeading{level}`：外观复制自 `Heading {level}`，大纲级别钉死 9（不入目录）。"""
+        name = f"UnlistedHeading{level}"
+        if self._style_object(name) is not None:
+            return name
+        st = self.docx.styles.add_style(name, WD_STYLE_TYPE.PARAGRAPH)
+        src = self._style_object(f"Heading {level}")
+        normal = self._style_object("Normal")
+        if normal is not None:
+            st.base_style = normal
+        chain = []
+        cur = src
+        seen: set[int] = set()
+        while cur is not None and id(cur) not in seen:
+            seen.add(id(cur))
+            if normal is not None and cur.style_id == normal.style_id:
+                break
+            chain.append(cur)
+            cur = cur.base_style
+        dst_ppr = ensure_ordered_child(st.element, "pPr", _STYLE_ORDER)
+        dst_rpr = ensure_ordered_child(st.element, "rPr", _STYLE_ORDER)
+        for node in reversed(chain):
+            src_ppr = node.element.find(qn("w:pPr"))
+            if src_ppr is not None:
+                for child in src_ppr:
+                    tag = child.tag.rsplit("}", 1)[-1]
+                    if tag in ("pStyle", "numPr", "sectPr", "outlineLvl"):
+                        continue
+                    _copy_prop(dst_ppr, child, _PPR_ORDER)
+            src_rpr = node.element.find(qn("w:rPr"))
+            if src_rpr is not None:
+                for child in src_rpr:
+                    tag = child.tag.rsplit("}", 1)[-1]
+                    if tag == "rStyle":
+                        continue
+                    _copy_prop(dst_rpr, child, _RPR_ORDER)
+        ensure_ordered_child(dst_ppr, "outlineLvl", _PPR_ORDER).set(qn("w:val"), "9")
+        self._style_objects = None
+        self._style_names = None
+        self._style_refs = None
+        return name
+
     def _heading(self, block: Heading) -> None:
-        paragraph = self._new_paragraph(f"Heading {block.level}")
+        style_name = (
+            f"Heading {block.level}"
+            if block.listed
+            else self._ensure_unlisted_heading_style(block.level)
+        )
+        paragraph = self._new_paragraph(style_name)
         self.inlines(paragraph, block.inlines)
         self._after_heading = True
         clean_title = re.sub(
-            r"^[0-9一二三四五六七八九十第\s.、章节附录]+", "", _plain_text(block.inlines).strip()
+            r"^[0-9一二三四五六七八九十第\s.、章节節附录附錄]+", "", _plain_text(block.inlines).strip()
         ).strip()
-        if clean_title in ("参考文献", "参考书目", "References", "Bibliography"):
+        if clean_title in ("参考文献", "参考书目", "參考文獻", "參考書目", "References", "Bibliography"):
             self._write_bibliography()
 
     def _paragraph(self, block: Paragraph) -> None:
@@ -513,7 +571,7 @@ class _Writer:
         else:
             style = "First Paragraph" if self._after_heading else "Body Text"
         self._after_heading = False
-        chapter_level = style in _CHAPTER_LEVEL_STYLES
+        chapter_level = style in self.header_styles
         # 样式在模板里不存在时退回 Normal：预检本该拦住，走到这里说明门禁被关掉了，
         # 此时宁可降级排版，也不要 KeyError 中断整份稿件的导出。
         paragraph = self._new_paragraph(
@@ -552,12 +610,10 @@ class _Writer:
     def _adopt_style(self, paragraph, style_name: str) -> None:
         """把某个样式的段落/字符属性抄成这一段的直接格式。
 
-        只给章级标题用：结构必须是 Heading 1（页眉的 STYLEREF 认样式名），外观又由
-        格式文件里那一行决定，两者只能用「结构 + 直接格式」叠起来表达。抄的是模板里
-        那一份，和格式文件一字不差，不是在这里重算一遍。
-
-        `加入目录` 没写时补一条 `outlineLvl=9`：以前这些标题不在目录里，升成一级标题
-        不能顺手把目录也改了——要不要进目录由作者那一行说了算。
+        只给显式声明「加入页眉 / join-header」的标题用：结构必须是 Heading 1
+        （页眉的 STYLEREF 认样式名），外观又由格式文件里那一行决定，两者只能用
+        「结构 + 直接格式」叠起来表达。在标准 Word 目录域（TOC \\o \\u）下，
+        Heading 1 按大纲级别自动进入一级目录。
         """
         style = self._style_object(style_name)
         if style is None:
@@ -572,12 +628,40 @@ class _Writer:
                 if tag in ("pStyle", "numPr", "sectPr", "outlineLvl"):
                     continue
                 _copy_prop(ppr, child, _PPR_ORDER)
-        if source_ppr is None or source_ppr.find(qn("w:outlineLvl")) is None:
-            ensure_ordered_child(ppr, "outlineLvl", _PPR_ORDER).set(qn("w:val"), "9")
+        # 若 Heading 1 上有切换/边框/彩色等目标样式未声明的属性，显式写关闭覆盖，避免静默继承
+        heading1 = self._style_object("Heading 1")
+        h_rpr = heading1.element.find(qn("w:rPr")) if heading1 is not None else None
+        if heading1 is not None:
+            h_ppr = heading1.element.find(qn("w:pPr"))
+            if h_ppr is not None:
+                for toggle in ("keepNext", "keepLines", "pageBreakBefore"):
+                    if h_ppr.find(qn(f"w:{toggle}")) is not None and (
+                        source_ppr is None or source_ppr.find(qn(f"w:{toggle}")) is None
+                    ):
+                        ensure_ordered_child(ppr, toggle, _PPR_ORDER).set(qn("w:val"), "0")
+                if h_ppr.find(qn("w:pBdr")) is not None and (
+                    source_ppr is None or source_ppr.find(qn("w:pBdr")) is None
+                ):
+                    bdr = ensure_ordered_child(ppr, "pBdr", _PPR_ORDER)
+                    if bdr.find(qn("w:bottom")) is None:
+                        bdr.append(parse_xml(f'<w:bottom {nsdecls("w")} w:val="none"/>'))
+        h_color = h_rpr.find(qn("w:color")) if h_rpr is not None else None
+        need_auto_color = (
+            h_color is not None
+            and h_color.get(qn("w:val")) not in (None, "000000", "auto")
+            and (source_rpr is None or source_rpr.find(qn("w:color")) is None)
+        )
+        if need_auto_color:
+            p_rpr = ensure_ordered_child(ppr, "rPr", _PPR_ORDER)
+            if p_rpr.find(qn("w:color")) is None:
+                _copy_prop(p_rpr, parse_xml(f'<w:color {nsdecls("w")} w:val="auto"/>'), _RPR_ORDER)
         if source_rpr is not None:
             _fill_props(ensure_ordered_child(ppr, "rPr", _PPR_ORDER), source_rpr)
             for run in paragraph.runs:
-                _fill_props(run._r.get_or_add_rPr(), source_rpr)
+                r_rpr = run._r.get_or_add_rPr()
+                _fill_props(r_rpr, source_rpr)
+                if need_auto_color and r_rpr.find(qn("w:color")) is None:
+                    _copy_prop(r_rpr, parse_xml(f'<w:color {nsdecls("w")} w:val="auto"/>'), _RPR_ORDER)
 
     def _code(self, block: CodeBlock) -> None:
         paragraph = self._new_paragraph(self._style_ref("SourceCode"))
@@ -876,7 +960,7 @@ class _Writer:
         widths = (section.page_width, section.left_margin, section.right_margin)
         if any(value is None for value in widths):
             return width_cm
-        limit = Emu(widths[0] - widths[1] - widths[2]).cm
+        limit = Emu(widths[0] - widths[1] - widths[2] - (section.gutter or 0)).cm
         if limit <= 0:
             return width_cm
         return limit if width_cm is None or width_cm > limit else width_cm
@@ -1255,6 +1339,7 @@ def write_docx(
     repeat_header: bool = False,
     table_space_after: float = 0.0,
     provenance: str = "",
+    header_styles: Optional[set[str]] = None,
     lang: Optional[str] = None,
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
@@ -1266,7 +1351,14 @@ def write_docx(
     `equation_number_placement`：`right` 编号靠版心右边（默认），`inline` 紧跟公式。
     `equation_number_format`：编号外观模板（`（{c}-{n}）`）；空串按语种给默认。
     `appendix_equation_number_format`：附录里的编号外观；空串沿用上面那套。
+    `header_styles`：声明了「加入页眉 / join-header」的样式名集合；为 None 时从模板
+    `/customXml/mdw_meta.xml` 读取。
     """
+    if header_styles is None:
+        effective_header_styles = read_header_styles_meta(template) or set()
+    else:
+        effective_header_styles = set(header_styles)
+
     docx = open_docx(str(template))
     writer = _Writer(
         model,
@@ -1279,9 +1371,12 @@ def write_docx(
         no_row_split=no_row_split,
         repeat_header=repeat_header,
         table_space_after=table_space_after,
+        header_styles=effective_header_styles,
         lang=lang,
     )
     writer.write()
+    if header_styles is not None:
+        write_header_styles_meta(docx, effective_header_styles)
     if provenance:
         # 产物要能自证出处：版本与用的是哪份格式文件。只写固定字符串，不写时间戳，
         # 否则同一份稿件重复导出就不再逐字节一致了。

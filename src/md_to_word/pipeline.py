@@ -368,6 +368,11 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 # 「表后间距」写在「表格：」那一行：表格没有段前段后，留白由垫片撑
                 table_space_after=float(spec.table.get("space_after_pt") or 0) if spec else 0.0,
                 provenance=_provenance(fmt_file),
+                header_styles=(
+                    {r["style_name"] for r in spec.styles if r.get("join_header")}
+                    if spec
+                    else None
+                ),
                 lang=res.lang,
             )
         except UnsupportedFeature as exc:

@@ -24,15 +24,15 @@ from lxml import etree
 
 from md_to_word.spec.models import MinLineSpacing
 from md_to_word.template.generator import (
-    ALIGN_VAL, BOTTOM_BORDER_STYLE, CJK_FONTS,
+    ALIGN_ENUM_VAL, BOTTOM_BORDER_STYLE,
     TABLE_CELL_MARGIN_DEFAULT_CM, TABLE_BORDER_SIDES,
     TABLE_DEFAULT_WIDTHS, _TWIPS_PER_CM,
     _pt_to_border_sz, doc_grid_pitch, page_size_twips,
-    parse_format, table_border_widths,
+    parse_format, read_header_styles_meta, resolve_punctuation_compression, table_border_widths,
 )
 
 from md_to_word.config import looks_chinese
-from md_to_word.spec.constants import ROW_NAME_EN
+from md_to_word.spec.constants import ROW_NAME_EN, is_cjk_font
 from md_to_word.i18n import t
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
@@ -236,9 +236,9 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
             problems.append((t('audit.cat.italic', lang),
                              t('audit.msg.italic_extra', lang, name=shown, src=src_i)))
 
-        # 对齐：要求文件写中文，OOXML 落 jc 的英文值
+        # 对齐：要求文件写中/英文，OOXML 落 jc 的英文值
         if r.get('alignment') is not None:
-            want_jc = ALIGN_VAL.get(r['alignment'])
+            want_jc = ALIGN_ENUM_VAL.get(r['alignment'])
             got_jc = _pattr(styles, name, 'jc', W + 'val')
             if want_jc and got_jc != want_jc:
                 problems.append((t('audit.cat.alignment', lang),
@@ -325,12 +325,16 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                 problems.append((t('audit.cat.tabs', lang),
                                  t('audit.msg.dot_leader', lang, name=shown)))
 
-        # 加入目录（给自定义标题样式挂大纲级别 outlineLvl）
-        if r.get('join_toc'):
+        # 目录纳入状态（join_toc=True → outlineLvl 0–8；join_toc=False / no-toc → 9 或无）
+        if 'join_toc' in r:
             got_ol = _pattr(styles, name, 'outlineLvl', W + 'val')
-            if got_ol is None:
+            in_toc = got_ol in ('0', '1', '2', '3', '4', '5', '6', '7', '8')
+            if r['join_toc'] and not in_toc:
                 problems.append((t('audit.cat.toc', lang),
-                                 t('audit.msg.join_toc', lang, name=shown)))
+                                 t('audit.msg.join_toc', lang, name=shown, got=got_ol)))
+            elif not r['join_toc'] and in_toc:
+                problems.append((t('audit.cat.toc', lang),
+                                 t('audit.msg.no_toc', lang, name=shown, got=got_ol)))
 
         # 与下段同页（keepNext）：题注跟表、目录标题跟条目——不写就随底模继承定，静默
         if r.get('keep_next') and _pelement(styles, name, 'keepNext') is None:
@@ -363,10 +367,10 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                                    got=bot.get(W + 'val'))))
 
         # 西文字体（全局默认 `西文字体：X`）：**自己没指定西文的样式**，西文槽应落它。
-        # 判定与写入侧的 split_fonts 同一把尺子（字体名里有没有非中日韩的那个）。
+        # 判定与写入侧的 split_fonts 同一把尺子（is_cjk_font）。
         if spec.default_latin and r.get('font_name') is not None:
             names = r['font_name']
-            if not any(not (f in CJK_FONTS or re.search(r'[\u4e00-\u9fff]', f)) for f in names):
+            if not any(not is_cjk_font(f) for f in names):
                 got_ascii = _rfonts(styles, name)[1]
                 if got_ascii != spec.default_latin:
                     problems.append((t('audit.cat.latin_font', lang),
@@ -432,11 +436,7 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                                    want=want, got=got)))
         if spec.margins:
             pgmar = sect.find(W + 'pgMar')
-            # 「装订线」是折进**左**边距写的（理由见 generate_template 里那段注释：
-            # 正文宽度按 pgSz − pgMar 计算，不认 w:gutter，图片会压出右边距），故左边的期望值要加它。
             expect = dict(spec.margins)
-            if spec.gutter_cm:
-                expect['left'] = expect['left'] + spec.gutter_cm
             for en in ('top', 'bottom', 'left', 'right'):
                 if en not in expect:
                     continue
@@ -446,6 +446,15 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                     problems.append((t('audit.cat.page_margin', lang), t(
                         'audit.msg.page_margin', lang, side=t(f'audit.side.{en}', lang),
                         want=expect[en], twips=want_tw, got=got_tw)))
+
+        if spec.gutter_cm is not None:
+            pgmar = sect.find(W + 'pgMar')
+            want_gut_tw = int(round(spec.gutter_cm * 567))
+            got_gut_tw = int(pgmar.get(W + 'gutter') or 0) if pgmar is not None else 0
+            if abs(got_gut_tw - want_gut_tw) > 2:
+                problems.append((t('audit.cat.gutter', lang), t(
+                    'audit.msg.gutter', lang,
+                    want=spec.gutter_cm, twips=want_gut_tw, got=got_gut_tw)))
 
         # 文档网格：linePitch 由版心高 ÷ 行数 ÷ 正文行距倍数算出。
         # 这里**直接调写入侧那个函数**——两边各算一遍的话，算法一漂移就互相看不出来
@@ -615,7 +624,7 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                 problems.append((t('audit.cat.table', lang),
                                  t('audit.msg.table_space_after', lang, want=want_gap)))
 
-    # ── 8. 奇偶页不同 ──
+    # ── 8. 奇偶页不同 / 对称页边距 / 标点压缩 ──
     settings = etree.fromstring(z.read('word/settings.xml'))
     wants_even = any(k[1] == 'even' for k in spec.decor)
     has_even = settings.find(W + 'evenAndOddHeaders') is not None
@@ -628,6 +637,57 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
         if 'even' not in types:
             problems.append((t('audit.cat.even_odd', lang),
                              t('audit.msg.even_reference_missing', lang)))
+
+    has_mirror = settings.find(W + 'mirrorMargins') is not None
+    if bool(spec.mirror_margins) != has_mirror:
+        problems.append((t('audit.cat.mirror_margins', lang), t(
+            'audit.msg.mirror_margins', lang,
+            want=t('audit.flag.on' if spec.mirror_margins else 'audit.flag.off', lang),
+            got=t('audit.flag.on' if has_mirror else 'audit.flag.off', lang))))
+
+    if spec.punctuation_compression is not None or spec.proofing_lang is not None:
+        want_csc = resolve_punctuation_compression(spec.punctuation_compression, spec.proofing_lang)
+        csc_el = settings.find(W + 'characterSpacingControl')
+        got_csc = csc_el.get(W + 'val') if csc_el is not None else 'doNotCompress'
+        if got_csc != want_csc:
+            problems.append((t('audit.cat.punctuation_compression', lang), t(
+                'audit.msg.punctuation_compression', lang,
+                want=want_csc, got=got_csc)))
+
+    # ── 9. 页眉联动（join_header）：元数据集合一致 + 正文中已升格为 Heading 1 ──
+    want_header = {r['style_name'] for r in targets if r.get('join_header')}
+    got_header_meta = read_header_styles_meta(z)
+    if want_header or got_header_meta is not None:
+        got_set = got_header_meta if got_header_meta is not None else set()
+        if got_set != want_header:
+            problems.append((
+                t('audit.cat.header_promote', lang),
+                t('audit.msg.join_header_meta', lang,
+                  want=sorted(want_header) or '[]',
+                  got=sorted(got_set) if got_header_meta is not None else 'missing'),
+            ))
+    if want_header:
+        doc_root = etree.fromstring(z.read('word/document.xml'))
+        for r in targets:
+            if not r.get('join_header'):
+                continue
+            name = r['style_name']
+            st = styles.get(name.lower())
+            if st is None:
+                continue
+            style_id = st.get(W + 'styleId')
+            if not style_id:
+                continue
+            unpromoted = sum(
+                1 for ps in doc_root.findall(f'.//{W}pPr/{W}pStyle')
+                if ps.get(W + 'val') == style_id
+            )
+            if unpromoted:
+                shown = ROW_NAME_EN.get(name, name) if lang == 'en' else name
+                problems.append((
+                    t('audit.cat.header_promote', lang),
+                    t('audit.msg.join_header_unpromoted', lang, name=shown, count=unpromoted),
+                ))
     return problems
 
 

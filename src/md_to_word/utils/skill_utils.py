@@ -567,7 +567,10 @@ def heading_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
         if not m_head:
             continue
 
-        hashes, title = m_head.group(1), m_head.group(2)
+        hashes, raw_title = m_head.group(1), m_head.group(2)
+        title = _UNLISTED_HEADING_ATTR_RE.sub("", raw_title).rstrip().rstrip("#").rstrip()
+        if not title:
+            continue
         level = len(hashes)
 
         # 1. 第一个标题必须是 1 级
@@ -694,6 +697,7 @@ _WIDE_STYLE_RE = re.compile(r"^\s*％％")
 _REF_LINK_RE = re.compile(r"\[(?!\^)[^\]]+\]\[[^\]]*\]")
 _REF_LINK_DEF_RE = re.compile(r"^\s{0,3}\[(?!\^)[^\]]+\]:\s*\S")
 _EMPTY_HEADING_RE = re.compile(r"^\s*#{1,6}\s*$")
+_UNLISTED_HEADING_ATTR_RE = re.compile(r"\s*\{(?:\.unlisted|不入目录)\}\s*$")
 _HIGHLIGHT_RE = re.compile(r"==[^=\s][^=]*?==")
 _SPAN_ATTR_RE = re.compile(r"\[[^\]]*\]\{\s*(?P<attr>[.#][^}]*)\}")
 _PAREN_MATH_RE = re.compile(r"\\\(.+?\\\)")
@@ -741,6 +745,9 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
     for index, line in enumerate(lines):
         line_no = index + 1 + offset
         code_free = _strip_inline_code(line)
+        if re.match(r"^\s*#{1,6}\s+", code_free):
+            # 允许在 # 标题行尾写 `{.unlisted}` / `{不入目录}` 标记单个标题不入目录
+            code_free = _UNLISTED_HEADING_ATTR_RE.sub("", code_free)
 
         # `$$` 独占一行是块级公式的围栏，要成对切换；单行的 `$$…$$` 整行都是公式，
         # 既不切换状态、也不需要检查符号配对——两者混为一谈会让后面所有的 `$` 检查失效。

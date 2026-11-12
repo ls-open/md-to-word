@@ -231,6 +231,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "目录收录级数要在 1–{max} 之间，收到 {depth}",
         "the TOC depth must be between 1 and {max}; got {depth}",
     ),
+    "markers.toc_placeholder": (
+        "（打开文档后目录会自动生成）",
+        "(The table of contents will be generated automatically when opened)",
+    ),
     "mathml.unknown_element": (
         "尚未支持的 MathML 元素：{name}",
         "unsupported MathML element: {name}",
@@ -286,8 +290,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "The render script is missing from the package (incomplete install); reinstall md-to-word.",
     ),
     "cli.base": (
-        "学校模板（.docx）：正文灌进它，保留它自己的封面/声明等版式（验不过就不产出）",
-        "Base template (.docx): pour the body into it, keeping its own cover pages "
+        "前置底模（.docx，如学校/机构模板）：正文灌进它，保留其封面/声明等前置节（验不过就不产出）",
+        "Base template (.docx, e.g. institutional cover): pour the body into it, keeping its front-matter sections "
         "(nothing is written if verification fails)",
     ),
     "cli.cover_sections": (
@@ -429,6 +433,27 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "template.style.bibliography_group": (
         "{name}（已声明参考文献标题，须同时声明参考文献条目样式）",
         "{name} (a references-title style is declared, so the bibliography style must be declared too)",
+    ),
+    # 联动必填（目录样式 / 页眉 {样式标题:Heading ...} ↔ 摘要标题 / 参考文献标题开关）
+    "template.linkage_header": (
+        "⚠️ 目录/页眉联动声明缺失（存在歧义，不作静默猜测）:",
+        "⚠️ Missing required TOC/header linkage declarations:",
+    ),
+    "template.linkage.join_toc_missing": (
+        " - {alias}（{style}）：已声明目录样式，须显式写明「加入目录」或「不入目录」"
+        "（常规选择：摘要标题写「不入目录」，参考文献标题写「加入目录」）",
+        " - {style}: TOC styles are declared, so add `join-toc` or `no-toc` explicitly "
+        "(typical choice: `no-toc` for Abstract Title, `join-toc` for References Title)",
+    ),
+    "template.linkage.join_header_missing": (
+        " - {alias}（{style}）：页眉/页脚使用了「{{样式标题:Heading …}}」，须显式写明「加入页眉」或「不入页眉」",
+        " - {style}: headers/footers use `{{styleref:Heading ...}}`, so add `join-header` or `no-header` explicitly",
+    ),
+    "template.linkage.conflict_no_toc_join_header": (
+        " - {alias}（{style}）：「不入目录」与「加入页眉」在标准 Word 目录域（TOC \\o \\u）下冲突"
+        "（映射为 Heading 1 必然进入目录）；请改为「加入目录 加入页眉」或「不入目录 不入页眉」",
+        " - {style}: `no-toc` and `join-header` conflict under Word's standard TOC field (`TOC \\o \\u`, "
+        "where `Heading 1` enters the TOC); use `join-toc join-header` or `no-toc no-header`",
     ),
     # 要求文件里「该写的那一行」的示例。英文一律用 parser 认得的英文词法，
     # 测试里真的过一遍 `parse_format`——教人写出解析不了的行比中文更糟。
@@ -714,6 +739,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "these styles do not map to this tool's vocabulary (decide yourself whether you need "
         "them): {names}",
     ),
+    "extractor.note.header_inclusion_unverified": (
+        "参考文件使用了「{{样式标题:Heading …}}」动态章名页眉，但缺少本工具元数据（customXml/mdw_meta.xml），"
+        "无法从第三方 .docx 自动判定「{name}」是否切换章名页眉；草稿已保守预设为「不入页眉」，"
+        "若原模板在该节切换了页眉请改为「加入页眉」",
+        "the reference .docx uses a `{{styleref:Heading ...}}` header without tool metadata (`customXml/mdw_meta.xml`), "
+        "so header participation for `{name}` could not be verified from OOXML alone; defaulted to `no-header` "
+        "— change to `join-header` if that section switches the running header",
+    ),
     # ── 导出后对账（audit/inspector.py） ───────────────────────────
     # 类别标签与逐条明细分成两类：pipeline 把明细拼成 `  [类别] 说明`，
     # 两栏都得跟语言走，否则英文稿会看到英文标题下跟着中文行。
@@ -730,6 +763,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "audit.cat.indent": ("缩进", "indent"),
     "audit.cat.tabs": ("制表位", "tab stop"),
     "audit.cat.toc": ("目录", "TOC"),
+    "audit.cat.header_promote": ("页眉联动", "header linkage"),
     "audit.cat.keep_next": ("同页", "keep with next"),
     "audit.cat.border": ("边框", "border"),
     "audit.cat.latin_font": ("西文字体", "Latin font"),
@@ -740,6 +774,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "audit.cat.proofing_lang": ("校对语言", "proofing language"),
     "audit.cat.page_size": ("纸张", "paper size"),
     "audit.cat.page_margin": ("页边距", "page margin"),
+    "audit.cat.gutter": ("装订线", "gutter"),
     "audit.cat.doc_grid": ("文档网格", "document grid"),
     "audit.cat.header_distance": ("页眉距边界", "header distance"),
     "audit.cat.footer_distance": ("页脚距边界", "footer distance"),
@@ -747,6 +782,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "audit.cat.title_page": ("首页", "title page"),
     "audit.cat.table": ("表格", "table"),
     "audit.cat.even_odd": ("奇偶页", "odd/even pages"),
+    "audit.cat.mirror_margins": ("对称页边距", "mirror margins"),
+    "audit.cat.punctuation_compression": ("标点压缩", "punctuation compression"),
     # 页边距的四边（中文说「上边」）
     "audit.side.top": ("上", "top"),
     "audit.side.bottom": ("下", "bottom"),
@@ -837,8 +874,21 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "{name}: a dot-leader tab stop was required, but the output has no right+dot tab",
     ),
     "audit.msg.join_toc": (
-        "{name}：要求加入目录（outlineLvl），产物未设置大纲级别",
-        "{name}: the style should join the TOC (outlineLvl), but the output sets no outline level",
+        "{name}：要求加入目录（outlineLvl 0–8），产物 outlineLvl={got}",
+        "{name}: the style should join the TOC (outlineLvl 0–8), but the output has outlineLvl={got}",
+    ),
+    "audit.msg.no_toc": (
+        "{name}：要求不入目录（outlineLvl=9），但产物 outlineLvl={got}（会误入目录）",
+        "{name}: expected no-toc (outlineLvl=9), but the output has outlineLvl={got} (would enter the TOC)",
+    ),
+    "audit.msg.join_header_meta": (
+        "页眉联动样式集合：要求 {want}，但产物元数据记录为 {got}",
+        "header-promoted styles: expected {want}, but the output metadata recorded {got}",
+    ),
+    "audit.msg.join_header_unpromoted": (
+        "{name}：要求加入页眉（映射为 Heading 1），但产物正文仍有 {count} 处保留原样式（STYLEREF 将抓不到它）",
+        "expected {name} (`join-header`) paragraphs to be promoted to `Heading 1`, "
+        "but the output still has {count} unpromoted paragraph(s)",
     ),
     "audit.msg.keep_next": (
         "{name}：要求与下段同页（keepNext），产物未设置",
@@ -883,6 +933,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "audit.msg.page_margin": (
         "{side}边：要求 {want}cm({twips})，产物 {got}",
         "{side} margin: expected {want}cm ({twips} twips), but the output is {got}",
+    ),
+    "audit.msg.gutter": (
+        "要求 {want}cm({twips})，产物 {got}",
+        "expected {want}cm ({twips} twips), but the output is {got}",
     ),
     "audit.msg.doc_grid": (
         "要求每页 {lines} 行(linePitch={want})，产物 {got}",
@@ -976,6 +1030,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "audit.msg.even_reference_missing": (
         "产物开了「奇偶页不同」但没有任何 even 页眉/页脚引用",
         "the output enables different odd and even pages but has no even header/footer reference",
+    ),
+    "audit.msg.mirror_margins": (
+        "要求 {want}，产物 {got}",
+        "expected {want}, but the output is {got}",
+    ),
+    "audit.msg.punctuation_compression": (
+        "要求 {want}，产物 {got}",
+        "expected {want}, but the output is {got}",
     ),
     # ── 导前预检门禁 ────────────────────────────────────────────────
     # 行号前缀与方括号里的小标签各自成条：同一个「行 N [标签]: 说明」外壳被十几道门禁
@@ -1250,6 +1312,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "the section number depth does not match the number of `#`: `{hashes} {title}` has {level} `#`, "
         "but the number `{number}` is {depth} level(s) deep (common cause: the paper title was written as "
         "`# Title`; the title belongs in YAML `title:`, and top-level sections use `# 1. ...`)",
+    ),
+    "gate.heading.unlisted_with_styleref": (
+        "第 {line} 行标题「{title}」标记了不入目录（{{.unlisted}} / {{不入目录}}）：因页眉使用了动态样式标题，"
+        "该标题不进目录时也不会触发章名页眉切换（将沿用上一章页眉；若需切换页眉请用 `{{{{< section >}}}}` 分节）",
+        "Line {line}: heading `{title}` is marked `{{.unlisted}}` while headers/footers use `{{styleref:Heading ...}}`: "
+        "because unlisted headings do not map to built-in `Heading` styles, the running header will keep showing the "
+        "previous chapter's title (use a section shortcode if this section needs a distinct header)",
     ),
     # ── 块级标记与空行 ──
     "gate.block.math_close_no_blank": ("公式收尾行后无空行", "no blank line after the closing `$$`"),

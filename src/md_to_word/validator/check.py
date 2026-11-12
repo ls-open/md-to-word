@@ -26,7 +26,12 @@ from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_format
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
 from md_to_word.preprocessor.blocks import resolve_style_name
-from md_to_word.template.generator import PAGE_SIZES_CM, max_doc_grid_lines, missing_styles_for_body
+from md_to_word.template.generator import (
+    PAGE_SIZES_CM,
+    _has_heading_styleref,
+    max_doc_grid_lines,
+    missing_styles_for_body,
+)
 from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES, PdfFigureError, page_count
 
 # 复用 utils 中的基础文本解析工具
@@ -674,6 +679,23 @@ def validate_manuscript(
                   tag=t("gate.tag.style_missing", lang), why=why)
             )
 
+        # 14a. {.unlisted} / {不入目录} 与 {样式标题:Heading ...} 并用提醒（非阻断）
+        if _has_heading_styleref(spec):
+            _, body = split_frontmatter(md_text)
+            body_start = md_text.count("\n") - body.count("\n") + 1
+            for offset_idx, raw_line in enumerate(mask_code_fences(body).split("\n")):
+                m_unlisted = re.match(
+                    r"^\s*(#{1,6})\s+(.*?)\s*\{(?:\.unlisted|不入目录)\}\s*$",
+                    raw_line,
+                )
+                if m_unlisted:
+                    title = m_unlisted.group(2).rstrip().rstrip("#").rstrip()
+                    if title:
+                        report.warnings.append(
+                            t("gate.heading.unlisted_with_styleref", lang,
+                              line=body_start + offset_idx, title=title[:30])
+                        )
+
     # 14b. `:::` 不是本工具的写法
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         if re.match(r"^\s*:::", line):
@@ -687,7 +709,7 @@ def validate_manuscript(
     # 14c. 题注写进图片的方括号里：方括号只放无障碍替代文字
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         m = re.search(r"!\[([^\]]+)\]\(", line)
-        if m and re.match(r"^\s*(?:图|表|Figure|Table)\s*\d", m.group(1)):
+        if m and re.match(r"^\s*(?:图|圖|表|Figure|Table)\s*\d", m.group(1)):
             report.valid = False
             report.errors.append(
                 t("gate.line", lang, line=line_no,
@@ -704,7 +726,11 @@ def validate_manuscript(
             resolved == "References Title" for _, resolved in style_line_names(md_text)
         )
         has_heading = bool(
-            re.search(r"^#{1,6}\s*(?:参考文献|参考书目|References|Bibliography)\s*$", md_text, re.M)
+            re.search(
+                r"^#{1,6}\s*(?:参考文献|参考书目|參考文獻|參考書目|References|Bibliography)(?:\s*\{(?:\.unlisted|不入目录)\})?\s*$",
+                md_text,
+                re.M,
+            )
         )
         if not (has_style_title or has_heading):
             report.warnings.append(t("gate.bib.title_missing", lang))

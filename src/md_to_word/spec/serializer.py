@@ -12,6 +12,7 @@ from __future__ import annotations
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
+from md_to_word.spec.constants import PUNCT_COMPRESSION_CN
 from md_to_word.spec.models import MinLineSpacing, TemplateSpec
 from md_to_word.spec.parser import _BORDER_TEXT
 
@@ -94,6 +95,10 @@ def _style_line(style: dict) -> str:
         parts.append(f"颜色#{style['color']}")
     if style.get("dot_leader_tab"):
         parts.append("点线制表位")
+    if "join_toc" in style:
+        parts.append("加入目录" if style["join_toc"] else "不入目录")
+    if "join_header" in style:
+        parts.append("加入页眉" if style["join_header"] else "不入页眉")
     if style.get("keep_lines"):
         parts.append("段中不分页")
     if style.get("page_break_before"):
@@ -137,10 +142,14 @@ def serialize_format(spec: TemplateSpec) -> str:
         )
     if spec.gutter_cm:
         lines.append(f"装订线：{spec.gutter_cm:g}cm")
+    if spec.mirror_margins:
+        lines.append("对称页边距：开")
     if spec.default_latin:
         lines.append(f"西文字体：{spec.default_latin}")
     if spec.proofing_lang:
         lines.append(f"校对语言：{spec.proofing_lang}")
+    if spec.punctuation_compression:
+        lines.append(f"标点压缩：{PUNCT_COMPRESSION_CN[spec.punctuation_compression]}")
     if spec.doc_grid_lines:
         lines.append(f"文档网格：每页{spec.doc_grid_lines}行")
     if spec.equation_number and spec.equation_number != "right":

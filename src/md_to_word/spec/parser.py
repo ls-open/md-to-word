@@ -212,7 +212,26 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
         lambda p, m, d: _set_once(p, "char_spacing_pt", float(m.group("v")), "字距", d),
     ),
     (_S, re.compile(r"点线制表位|dot-leader-tab", re.I), lambda p, m, d: _set_once(p, "dot_leader_tab", True, "点线制表位", d)),
-    (_S, re.compile(r"加入目录|join-toc", re.I), lambda p, m, d: _set_once(p, "join_toc", True, "加入目录", d)),
+    (
+        _S,
+        re.compile(r"加入目录|join-toc", re.I),
+        lambda p, m, d: _set_once(p, "join_toc", True, "加入目录（不入目录）/join-toc (no-toc)", d),
+    ),
+    (
+        _S,
+        re.compile(r"不入目录|no-toc", re.I),
+        lambda p, m, d: _set_once(p, "join_toc", False, "加入目录（不入目录）/join-toc (no-toc)", d),
+    ),
+    (
+        _S,
+        re.compile(r"加入页眉|join-header", re.I),
+        lambda p, m, d: _set_once(p, "join_header", True, "加入页眉（不入页眉）/join-header (no-header)", d),
+    ),
+    (
+        _S,
+        re.compile(r"不入页眉|no-header", re.I),
+        lambda p, m, d: _set_once(p, "join_header", False, "加入页眉（不入页眉）/join-header (no-header)", d),
+    ),
     (_S, re.compile(r"与下段同页|keep-with-next", re.I), lambda p, m, d: _set_once(p, "keep_next", True, "与下段同页", d)),
     (_S, re.compile(r"段中不分页|keep-lines", re.I), lambda p, m, d: _set_once(p, "keep_lines", True, "段中不分页", d)),
     (_S, re.compile(r"段前分页|page-break-before", re.I), lambda p, m, d: _set_once(p, "page_break_before", True, "段前分页", d)),
@@ -463,6 +482,7 @@ _TOC_INELIGIBLE = {
     "Normal": "普通",
     "Compact": "紧凑",
 }
+_HEADING_STYLES = {f"Heading {i}": f"{'一二三四五六'[i - 1]}级标题" for i in range(1, 7)}
 
 
 def _check_clause_preconditions(props: dict, style_name: str, desc: str, lineno: Optional[int]) -> None:
@@ -470,6 +490,7 @@ def _check_clause_preconditions(props: dict, style_name: str, desc: str, lineno:
     where = (f"Line {lineno}: " if english else f"第 {lineno} 行 ") if lineno else ""
     who = _who(style_name, english)
     tail = f"\n  Line: {desc.strip()}" if english else f"\n  原文：{desc.strip()}"
+    canonical = STYLE_MAP.get(style_name, style_name)
 
     if "border_width_pt" in props and props.get("bottom_border") not in _BOTTOM_BORDER_KIND.values():
         raise ValueError(
@@ -485,11 +506,42 @@ def _check_clause_preconditions(props: dict, style_name: str, desc: str, lineno:
             else f"{where}{who}: 「跨页重复 / repeat-header」只能写在表头行。{tail}"
         )
 
-    if props.get("join_toc") and style_name in _TOC_INELIGIBLE:
+    if "join_toc" in props:
+        if canonical in _TOC_INELIGIBLE:
+            raise ValueError(
+                f"{where}{who}: `join-toc` / `no-toc` cannot be declared on body styles.{tail}"
+                if english
+                else f"{where}{who}: 「加入目录 / 不入目录」不能写在正文类样式上。{tail}"
+            )
+        if canonical in _HEADING_STYLES:
+            raise ValueError(
+                f"{where}{who}: built-in heading styles already map to the TOC hierarchy and ignore "
+                f"`no-toc` in Word; to exclude a specific heading (e.g. Acknowledgments), append "
+                f"`{{.unlisted}}` on that heading line in Markdown.{tail}"
+                if english
+                else f"{where}{who}: 内置一～六级标题在 Word 目录域下固定按大纲级别收录，样式层的"
+                f"「加入目录 / 不入目录」对其无效；若需个别章节不进目录，请在稿件该行末尾写 "
+                f"`# 标题 {{不入目录}}` 或 `# 标题 {{.unlisted}}`。{tail}"
+            )
+
+    if "join_header" in props and (canonical in _TOC_INELIGIBLE or canonical in _HEADING_STYLES):
         raise ValueError(
-            f"{where}{who}: `join-toc` only applies to heading styles.{tail}"
+            f"{where}{who}: `join-header` / `no-header` does not apply to body or built-in heading styles.{tail}"
             if english
-            else f"{where}{who}: 「加入目录 / join-toc」只能写在标题类样式上。{tail}"
+            else f"{where}{who}: 「加入页眉 / 不入页眉」不能写在正文类或内置各级标题样式上。{tail}"
+        )
+
+    if props.get("join_toc") is False and props.get("join_header") is True:
+        raise ValueError(
+            f"{where}{who}: `no-toc` and `join-header` cannot be combined: under Word's standard TOC "
+            f"field (`TOC \\o \\u`), promoting a paragraph to `Heading 1` for `{{styleref:Heading 1}}` "
+            f"automatically puts it into the TOC. Choose `join-toc join-header`, `no-toc no-header`, or "
+            f"use a `{{{{< section >}}}}` break in Markdown if both are required.{tail}"
+            if english
+            else f"{where}{who}: 「不入目录」与「加入页眉」不能同时声明：在标准 Word 目录域（TOC \\o \\u）下，"
+            f"只有映射到 `Heading 1` 才能切换 `{{样式标题:Heading 1}}` 页眉，而 `Heading 1` 必然进入目录。"
+            f"请改为「加入目录 加入页眉」或「不入目录 不入页眉」（确需不进目录又改页眉时，请在稿件中用 "
+            f"`{{{{< section >}}}}` 分节独立设置页眉）。{tail}"
         )
 
 
@@ -638,6 +690,25 @@ def _line_gutter(spec: TemplateSpec, desc: str, lineno: int) -> None:
     spec.gutter_cm = float(m.group(1))
 
 
+def _line_mirror_margins(spec: TemplateSpec, desc: str, lineno: int) -> None:
+    val = MIRROR_MARGINS_MAP.get(desc.strip().lower())
+    if val is None:
+        raise _bad_value(lineno, "对称页边距/Mirror Margins", desc, "开 / 关 (on / off)")
+    spec.mirror_margins = val
+
+
+def _line_punctuation_compression(spec: TemplateSpec, desc: str, lineno: int) -> None:
+    val = PUNCT_COMPRESSION_MAP.get(desc.strip().lower())
+    if val is None:
+        raise _bad_value(
+            lineno,
+            "标点压缩/Punctuation Compression",
+            desc,
+            "压缩 / 不压缩 / 压缩含日文假名 (compress / none / kana)",
+        )
+    spec.punctuation_compression = val
+
+
 def _line_doc_grid(spec: TemplateSpec, desc: str, lineno: int) -> None:
     m = re.fullmatch(r"(?:每页(\d+)行|(\d+)\s*lines)", desc, re.I)
     if not m:
@@ -726,10 +797,12 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "西文字体": lambda s, d, ln: setattr(s, "default_latin", d),
     "页边距": _line_margins,
     "校对语言": _line_proofing_lang,
+    "标点压缩": _line_punctuation_compression,
     "页眉距边界": _line_distance("header_distance", "页眉距边界"),
     "页脚距边界": _line_distance("footer_distance", "页脚距边界"),
     "纸张": _line_paper,
     "装订线": _line_gutter,
+    "对称页边距": _line_mirror_margins,
     "文档网格": _line_doc_grid,
     "公式编号": _line_equation_number,
     "公式编号格式": _line_equation_format,
@@ -743,11 +816,13 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "Margins": _line_margins,
     "Proofing Language": _line_proofing_lang,
     "Language": _line_proofing_lang,
+    "Punctuation Compression": _line_punctuation_compression,
     "Header Distance": _line_distance("header_distance", "Header Distance"),
     "Footer Distance": _line_distance("footer_distance", "Footer Distance"),
     "Paper": _line_paper,
     "Paper Size": _line_paper,
     "Gutter": _line_gutter,
+    "Mirror Margins": _line_mirror_margins,
     "Document Grid": _line_doc_grid,
     "Equation Number": _line_equation_number,
     "Equation Number Format": _line_equation_format,

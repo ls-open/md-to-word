@@ -42,6 +42,7 @@ class TemplateSpec:
     page_number: Optional[tuple[str, int]] = None
     page_size: str = "a4"
     gutter_cm: Optional[float] = None
+    mirror_margins: bool = False
     doc_grid_lines: Optional[int] = None
     equation_number: str = "right"  # right=编号靠右（默认）| inline=紧跟公式
     # 编号外观模板：`（{c}-{n}）`。空串=按语种与是否按章编号自动给默认
@@ -50,6 +51,7 @@ class TemplateSpec:
     # 「（B-1）」是两种不同的前缀，一个全局模板表达不了，故单列一行。
     appendix_equation_number_format: str = ""
     proofing_lang: Optional[str] = None
+    punctuation_compression: Optional[str] = None
     header_distance: Optional[float] = None
     footer_distance: Optional[float] = None
 

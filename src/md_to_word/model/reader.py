@@ -26,6 +26,7 @@ from md_to_word.preprocessor.blocks import hard_break, resolve_style_name, split
 from md_to_word.utils.typography import smart_quotes
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
+_UNLISTED_ATTR_RE = re.compile(r"\s*\{(?:\.unlisted|不入目录)\}\s*$")
 _FENCE_RE = re.compile(r"^(```|~~~)(.*)$")
 _SHORTCODE_RE = re.compile(r"^\{\{<\s*([a-z]+)(.*?)>\}\}\s*$")
 _IMAGE_ONLY_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<path>[^)\s]+)\)\s*(?P<attrs>\{[^}]*\})?\s*$")
@@ -547,11 +548,18 @@ class _Reader:
             heading = _HEADING_RE.match(stripped)
             if heading:
                 self._flush_pending()
+                raw_title = heading.group(2)
+                listed = True
+                unlisted_m = _UNLISTED_ATTR_RE.search(raw_title)
+                if unlisted_m:
+                    listed = False
+                    raw_title = raw_title[:unlisted_m.start()]
                 self._append(
                     Heading(
                         level=len(heading.group(1)),
                         # CommonMark：标题尾部可以写一串 `#` 收尾，它不属于标题文字
-                        inlines=self._inl(heading.group(2).rstrip().rstrip("#").rstrip()),
+                        inlines=self._inl(raw_title.rstrip().rstrip("#").rstrip()),
+                        listed=listed,
                     )
                 )
                 i += 1

@@ -92,7 +92,7 @@ def ensure_rpr(element):
 
 
 # ── OOXML 子元素顺序 ──
-# Word 对 w:rPr / w:pPr / w:tblStylePr 的子元素顺序有 schema 强制要求，
+# Word 对 w:rPr / w:pPr / w:tblStylePr / w:settings 的子元素顺序有 schema 强制要求，
 # 顺序错了 Word 会**整段忽略**（不报错）。按位置插入，不无脑 append。
 _RPR_ORDER = ['rStyle', 'rFonts', 'b', 'bCs', 'i', 'iCs', 'caps', 'smallCaps', 'strike',
               'dstrike', 'outline', 'shadow', 'emboss', 'imprint', 'noProof', 'snapToGrid',
@@ -120,6 +120,13 @@ _TRPR_ORDER = ['cnfStyle', 'divId', 'gridBefore', 'gridAfter', 'wBefore', 'wAfte
 _SECTPR_ORDER = ['footnotePr', 'endnotePr', 'type', 'pgSz', 'pgMar', 'paperSrc', 'pgBorders',
                  'lnNumType', 'pgNumType', 'cols', 'formProt', 'vAlign', 'noEndnote',
                  'titlePg', 'textDirection', 'bidi', 'rtlGutter', 'docGrid', 'printerSettings']
+_SETTINGS_ORDER = [
+    'zoom', 'bordersDoNotSurroundHeader', 'bordersDoNotSurroundFooter',
+    'mirrorMargins', 'defaultTabStop', 'drawingGridVerticalSpacing',
+    'displayHorizontalDrawingGridEvery', 'displayVerticalDrawingGridEvery',
+    'evenAndOddHeaders', 'characterSpacingControl', 'compat', 'mathPr',
+    'themeFontLang', 'clrSchemeMapping', 'decimalSymbol', 'listSeparator',
+]
 # ── 段落下边框（页眉下的那条线就靠它）──
 # OOXML 的边框线型里，「双线」不是一种，而是一族：两条线的**粗细顺序**（上细下粗 /
 # 上粗下细 / 等宽）与**间距**（小 / 中 / 大）各有一组取值。这里固定用「中」间距，
@@ -142,10 +149,9 @@ _FALLBACK_CONTENT_WIDTH_TWIPS = int(round((PAGE_SIZES_CM['a4'][0] - 2.54 * 2) * 
 
 
 def _content_width_twips(page_size, margins, gutter_cm=None) -> int:
-    """正文可用宽度（twips）。装订线是折进**左**边距写的，所以要一起减掉。"""
+    """正文可用宽度（twips）：纸宽 - 左边距 - 右边距 - 原生装订线。"""
     width_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])[0]
-    left = margins['left'] + (gutter_cm or 0)
-    return int(round((width_cm - left - margins['right']) * _TWIPS_PER_CM))
+    return int(round((width_cm - margins['left'] - margins['right'] - (gutter_cm or 0)) * _TWIPS_PER_CM))
 
 
 def body_line_spacing_multiple(styles) -> float:
@@ -343,9 +349,12 @@ def write_para_props(ppr, props):
         tab.set(W('leader'), 'dot')
         tab.set(W('pos'), str(props.get('dot_leader_pos', _FALLBACK_CONTENT_WIDTH_TWIPS)))
 
-    if props.get('join_toc'):
+    if props.get('join_toc') is True:
         outline = ensure_ordered_child(ppr, 'outlineLvl', _PPR_ORDER)
         outline.set(W('val'), '0')
+    elif props.get('join_toc') is False:
+        outline = ensure_ordered_child(ppr, 'outlineLvl', _PPR_ORDER)
+        outline.set(W('val'), '9')
 
     if props.get('keep_next'):
         ensure_ordered_child(ppr, 'keepNext', _PPR_ORDER)
@@ -526,23 +535,43 @@ def apply_proofing_language(doc, lang):
     rpr = ensure_ordered_child(rpr_default, 'rPr', ['rPr'])
     lang_el = ensure_ordered_child(rpr, 'lang', _RPR_ORDER)
     lang_el.set(W('eastAsia'), lang)
-    _match_punctuation_compression(doc, lang)
 
 
-# 中文校对语言对应的标点压缩档：中文版 Word 给 zh-CN 文档写的就是这个，学校模板也全是它。
-_PUNCT_BY_LANG = {"zh": "compressPunctuation", "ja": "compressPunctuationAndJapaneseKana"}
+def resolve_punctuation_compression(mode: str | None, proofing_lang: str | None = None) -> str:
+    """确定标点压缩模式：显式声明优先，否则按校对语言推导默认值。
 
-
-def _match_punctuation_compression(doc, lang):
-    """标点压缩跟着校对语言走。
-
-    中文文档让行首行尾的标点能压成半角，和中文 Word、和学校模板一致；其余语言保持底模的
-    `doNotCompress`。这一项是**文档级**的，没法按段分叉，所以只能按整份稿子的语种定一个值。
+    - zh-TW / zh-HK / zh-MO / zh-hant（繁体全角标点居中）及非中日韩语种默认 doNotCompress；
+    - 其余 zh*（如 zh-CN / zh-SG）默认 compressPunctuation；
+    - ja* 默认 compressPunctuationAndJapaneseKana。
     """
-    want = _PUNCT_BY_LANG.get((lang or "").lower()[:2], "doNotCompress")
-    node = doc.settings.element.find(W('characterSpacingControl'))
-    if node is not None:                 # 底模里本来就有，只改值，不动位置
-        node.set(W('val'), want)
+    if mode in ('compressPunctuation', 'doNotCompress', 'compressPunctuationAndJapaneseKana'):
+        return mode
+    tag = (proofing_lang or '').strip().lower().replace('_', '-')
+    if tag.startswith(('zh-tw', 'zh-hk', 'zh-mo', 'zh-hant')):
+        return 'doNotCompress'
+    if tag.startswith('zh'):
+        return 'compressPunctuation'
+    if tag.startswith('ja'):
+        return 'compressPunctuationAndJapaneseKana'
+    return 'doNotCompress'
+
+
+def apply_punctuation_compression(doc, mode: str | None = None, proofing_lang: str | None = None) -> str:
+    """把标点压缩模式写进 settings.xml/w:characterSpacingControl。"""
+    want = resolve_punctuation_compression(mode, proofing_lang)
+    node = ensure_ordered_child(doc.settings.element, 'characterSpacingControl', _SETTINGS_ORDER)
+    node.set(W('val'), want)
+    return want
+
+
+def apply_mirror_margins(doc, enabled: bool) -> None:
+    """把对称页边距开关写进 settings.xml/w:mirrorMargins。"""
+    el = doc.settings.element.find(W('mirrorMargins'))
+    if enabled:
+        if el is None:
+            ensure_ordered_child(doc.settings.element, 'mirrorMargins', _SETTINGS_ORDER)
+    elif el is not None:
+        doc.settings.element.remove(el)
 
 
 def get_default_template():
@@ -724,8 +753,51 @@ def _row_label(row: str, lang: str) -> str:
     return row if lang != "en" else (STYLE_MAP.get(row) or ROW_NAME_EN.get(row) or row)
 
 
+_LINKED_SECTION_TITLES = ('Abstract Title', 'References Title')
+
+
+def _has_toc_styles(req_by_style: dict) -> bool:
+    return any(s in req_by_style for s in TOC_STYLE_GROUP) or any(
+        s in req_by_style for s in ('TOC 4', 'TOC 5')
+    )
+
+
+def _has_heading_styleref(spec) -> bool:
+    return any(
+        name.strip().lower().startswith('heading')
+        for name in collect_styleref_names(spec)
+    )
+
+
+def _check_linkage_fields(spec, lang: str = "zh") -> list[str]:
+    """联动必填校验：
+    - 声明目录样式组时，Abstract Title / References Title 必须显式写明 join-toc 或 no-toc；
+    - 页眉/页脚含 {样式标题:Heading ...} 时，Abstract Title / References Title 必须显式写明 join-header 或 no-header；
+    - 禁止不入目录 + 加入页眉（标准 Word TOC \\o \\u 物理限制）。
+    """
+    req_by_style = {r['style_name']: r for r in spec.styles}
+    has_toc = _has_toc_styles(req_by_style)
+    has_header = _has_heading_styleref(spec)
+    errors: list[str] = []
+    for style_name in _LINKED_SECTION_TITLES:
+        req = req_by_style.get(style_name)
+        if req is None:
+            continue
+        alias = req.get('alias') or _style_label(style_name, lang)
+        if req.get('join_toc') is False and req.get('join_header') is True:
+            errors.append(t('template.linkage.conflict_no_toc_join_header', lang,
+                            alias=alias, style=style_name))
+        if has_toc and 'join_toc' not in req:
+            errors.append(t('template.linkage.join_toc_missing', lang,
+                            alias=alias, style=style_name))
+        if has_header and 'join_header' not in req:
+            errors.append(t('template.linkage.join_header_missing', lang,
+                            alias=alias, style=style_name))
+    return errors
+
+
 def _check_required_fields(spec, lang: str = "zh") -> bool:
-    """校验必填项是否齐备：必填样式 / 样式的必填字段 / 条件成套必填行。"""
+    """校验必填项是否齐备：必填样式 / 样式的必填字段 / 条件成套必填行 / 联动必填。"""
     req_by_style = {r['style_name']: r for r in spec.styles}
 
     missing_required = []   # (别名, 字段)
@@ -826,7 +898,8 @@ def _check_required_fields(spec, lang: str = "zh") -> bool:
         if written and style_name not in req_by_style:
             missing_rows.append((name, example))
 
-    has_errors = bool(missing_required or missing_styles or missing_rows)
+    linkage_errors = _check_linkage_fields(spec, lang)
+    has_errors = bool(missing_required or missing_styles or missing_rows or linkage_errors)
 
     if missing_styles:
         logger.warning(t('template.missing_styles_header', lang))
@@ -847,6 +920,11 @@ def _check_required_fields(spec, lang: str = "zh") -> bool:
             logger.info(t('template.field_item', lang, alias=alias,
                           field=t(f'template.field.{field}', lang) if field in FIELD_KEYS else field))
             logger.info(t('template.field_fix', lang, hint=hint))
+
+    if linkage_errors:
+        logger.warning(t('template.linkage_header', lang))
+        for err in linkage_errors:
+            logger.info(err)
 
     if has_errors:
         logger.error(t('template.abort', lang))
@@ -1210,7 +1288,7 @@ def apply_table_format(doc, spec, default_latin=None, lang: str = "zh"):
         logger.debug(f' ✓ Table: 单元格垂直对齐={table["valign"]}')
 
 
-def _props_from_req(req, page_size, margins):
+def _props_from_req(req, page_size, margins, gutter_cm=None):
     """样式行解析结果 → modify_style 吃的那份属性 dict。
 
     唯一一份：主循环与脚注默认都走这里，免得两条路上的可选属性各自漏一项。
@@ -1233,12 +1311,61 @@ def _props_from_req(req, page_size, margins):
             props[key] = req[key]
     if req.get('dot_leader_tab'):
         props['dot_leader_tab'] = True
-        props['dot_leader_pos'] = _content_width_twips(page_size, margins)
-    if req.get('join_toc'):
-        props['join_toc'] = True
+        props['dot_leader_pos'] = _content_width_twips(page_size, margins, gutter_cm=gutter_cm)
+    if 'join_toc' in req:
+        props['join_toc'] = bool(req['join_toc'])
+    if 'join_header' in req:
+        props['join_header'] = bool(req['join_header'])
     if req.get('keep_next'):
         props['keep_next'] = True
     return props
+
+
+_MDW_META_PART = "customXml/mdw_meta.xml"
+
+
+def write_header_styles_meta(doc, header_styles: set[str]) -> None:
+    """将声明加入页眉（join-header）的样式名集合以确定性 XML 写入 /customXml/mdw_meta.xml。"""
+    payload = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        f'<mdw-meta version="1"><header-styles>{json.dumps(sorted(header_styles), ensure_ascii=False)}'
+        "</header-styles></mdw-meta>\n"
+    ).encode("utf-8")
+    for rel in doc.part.rels.values():
+        if rel.reltype == RT.CUSTOM_XML and str(rel.target_part.partname).lstrip("/") == _MDW_META_PART:
+            rel.target_part._blob = payload
+            return
+    part = Part(PackURI("/" + _MDW_META_PART), "application/xml", payload, doc.part.package)
+    doc.part.relate_to(part, RT.CUSTOM_XML)
+
+
+def read_header_styles_meta(source) -> set[str] | None:
+    """从 docx（Path / str / ZipFile / parts dict）读取 header_styles 元数据；无元数据返回 None。"""
+    raw: bytes | None = None
+    if isinstance(source, dict):
+        raw = source.get(_MDW_META_PART)
+    elif isinstance(source, zipfile.ZipFile):
+        try:
+            raw = source.read(_MDW_META_PART)
+        except KeyError:
+            return None
+    else:
+        try:
+            with zipfile.ZipFile(str(source), "r") as zf:
+                raw = zf.read(_MDW_META_PART)
+        except (OSError, KeyError, zipfile.BadZipFile):
+            return None
+    if not raw:
+        return None
+    try:
+        root = etree.fromstring(raw)
+        el = root.find("header-styles")
+        if el is None or not el.text:
+            return set()
+        data = json.loads(el.text)
+        return {str(x) for x in data}
+    except (etree.XMLSyntaxError, ValueError, TypeError):
+        return None
 
 
 # ── 脚注的两个样式 ──
@@ -1247,7 +1374,6 @@ def _props_from_req(req, page_size, margins):
 # （实测：脚注与正文同为 12pt、序号不是上标）。所以这两个样式**写没写要求文件都要落定义**。
 _FOOTNOTE_STYLE = 'Footnote Text'
 _FOOTNOTE_REF_STYLE = 'Footnote Reference'
-_ALIGN_CN = {val: cn for cn, val in ALIGN_VAL.items()}
 
 
 def _footnote_default_line(spec) -> str:
@@ -1276,7 +1402,8 @@ def apply_footnote_format(doc, spec, page_size, margins, default_latin=None, gut
     if not declared:
         req = parse_style_props(_FOOTNOTE_STYLE, _footnote_default_line(spec))
         modify_style(doc, _FOOTNOTE_STYLE,
-                     _props_from_req(req, page_size, margins), default_latin=default_latin)
+                     _props_from_req(req, page_size, margins, gutter_cm=gutter_cm),
+                     default_latin=default_latin)
         logger.debug(f' ✓ {_FOOTNOTE_STYLE}: 要求文件未写「脚注」，已按正文推定默认')
 
     try:
@@ -1316,7 +1443,11 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
         logger.debug(f' 全局西文字体: {default_latin}')
 
     if _check_required_fields(spec, lang):
-        raise TemplateError(t('template.required_missing', lang))
+        linkage_errors = _check_linkage_fields(spec, lang)
+        msg = t('template.required_missing', lang)
+        if linkage_errors:
+            msg = msg + "\n" + "\n".join(linkage_errors)
+        raise TemplateError(msg)
 
     logger.debug('加载纯净现代 Word 365 底模...')
     tmp_path = get_default_template()
@@ -1326,17 +1457,28 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
     if spec.proofing_lang:
         apply_proofing_language(doc, spec.proofing_lang)
         logger.debug(f' ✓ 校对语言: {spec.proofing_lang}')
+    if spec.punctuation_compression is not None or spec.proofing_lang is not None:
+        csc_val = apply_punctuation_compression(doc, spec.punctuation_compression, spec.proofing_lang)
+        logger.debug(f' ✓ 标点压缩: {csc_val}')
+    apply_mirror_margins(doc, spec.mirror_margins)
+    if spec.mirror_margins:
+        logger.debug(' ✓ 对称页边距: 开')
 
     for req in reqs:
         style_name = req.get('style_name')
         if not style_name:
             continue
-        modify_style(doc, style_name, _props_from_req(req, page_size, margins),
-                     default_latin=default_latin)
+        modify_style(
+            doc,
+            style_name,
+            _props_from_req(req, page_size, margins, gutter_cm=spec.gutter_cm),
+            default_latin=default_latin,
+        )
 
     apply_table_format(doc, spec, default_latin=default_latin, lang=lang)
     apply_page_decorations(doc, spec, lang=lang)
-    apply_footnote_format(doc, spec, page_size, margins, default_latin=default_latin)
+    apply_footnote_format(doc, spec, page_size, margins,
+                          default_latin=default_latin, gutter_cm=spec.gutter_cm)
 
     try:
         hyperlink_style = doc.styles['Hyperlink']
@@ -1409,22 +1551,17 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
     w_cm, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
     pg_w, pg_h = Cm(w_cm), Cm(h_cm)
 
-    # 装订线**折进左边距**，不写 pgMar/@w:gutter。
-    # Word 打印时两者等效（单节、不开镜像页边距时，"装订线"就是在装订侧多留空白）；
-    # 但算正文宽度用的是 `pgSz - pgMar(left/right)`，
-    # **都不认 w:gutter**：实测 A4 + 2.54cm 边距 + 装订线1cm，`{width=25cm}` 被钳成
-    # 15.90cm（本应是 14.92cm），而文字起点已右移 1cm，于是图片压出右边距 **0.98cm**
-    # （在 Word 渲染的 PDF 上量出来的）。折进去之后，图片宽度、公式网格表、点线制表位
-    # 的落点全跟着对，且都是"算得对"而不是"再补一刀"。
-    eff_left = margins['left'] + (spec.gutter_cm or 0)
-
+    # 原生装订线（pgMar/@w:gutter）：左边距保持 declared margins['left']，
+    # 装订线单独写入 pgMar/@w:gutter；若开启对称页边距，Word 会自动将装订线放在内侧（奇数页左、偶数页右）。
+    # 写出器（_content_width_twips / _clamp）与校验器均把 w:gutter 从版心宽度中减去。
     for section in doc.sections:
         section.page_width = pg_w
         section.page_height = pg_h
         section.top_margin = Cm(margins['top'])
         section.bottom_margin = Cm(margins['bottom'])
-        section.left_margin = Cm(eff_left)
+        section.left_margin = Cm(margins['left'])
         section.right_margin = Cm(margins['right'])
+        section.gutter = Cm(spec.gutter_cm or 0)
         if spec.header_distance is not None:
             section.header_distance = Cm(spec.header_distance)
         if spec.footer_distance is not None:
@@ -1436,18 +1573,22 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
             grid.set(W('linePitch'), str(doc_grid_pitch(spec, margins)))
         w_cm = round(pg_w.inches * 2.54, 1)
         h_cm = round(pg_h.inches * 2.54, 1)
-        content_w = round(w_cm - eff_left - margins['right'], 1)
+        content_w = round(w_cm - margins['left'] - margins['right'] - (spec.gutter_cm or 0), 1)
         decor_cm = ''
         if spec.header_distance is not None or spec.footer_distance is not None:
             decor_cm = (f'，页眉距边界 {spec.header_distance}cm 页脚距边界 {spec.footer_distance}cm')
         extra = ''
-        left_note = ''
         if spec.gutter_cm:
             extra += f'，装订线 {spec.gutter_cm}cm'
-            left_note = f'（{margins["left"]}+装订线{spec.gutter_cm}）'
+        if spec.mirror_margins:
+            extra += '，对称页边距 开'
         if spec.doc_grid_lines:
             extra += f'，文档网格 每页 {spec.doc_grid_lines} 行'
-        logger.debug(f' ✓ 页面: {page_size} ({w_cm}×{h_cm}cm)，边距 上{margins["top"]}cm 下{margins["bottom"]}cm 左{eff_left}cm{left_note} 右{margins["right"]}cm，内容宽 {content_w}cm{decor_cm}{extra}')
+        logger.debug(
+            f' ✓ 页面: {page_size} ({w_cm}×{h_cm}cm)，边距 上{margins["top"]}cm '
+            f'下{margins["bottom"]}cm 左{margins["left"]}cm 右{margins["right"]}cm，'
+            f'内容宽 {content_w}cm{decor_cm}{extra}'
+        )
 
     try:
         doc.styles['Block Text']
@@ -1464,6 +1605,7 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
     # 代码的换行位置本身就是作者写的，再拉伸只会让人以为是排版错了。
     code_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
+    write_header_styles_meta(doc, {r['style_name'] for r in reqs if r.get('join_header')})
     doc.save(output_path)
 
     # 保存后重新打包：只做一件事——清除 styles.xml 里的全部主题字体/颜色属性。

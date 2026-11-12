@@ -59,6 +59,12 @@ SPEC_LEVEL = {
         "页边距：上2.54cm 下2.54cm 左3.18cm 右3.18cm",
         "Margins: top 2.54cm bottom 2.54cm left 3.18cm right 3.18cm",
     ),
+    "gutter": ("装订线：1cm", "Gutter: 1cm"),
+    "mirror_margins_on": ("对称页边距：开", "Mirror Margins: on"),
+    "mirror_margins_off": ("对称页边距：关", "Mirror Margins: off"),
+    "punct_compress": ("标点压缩：压缩", "Punctuation Compression: compress"),
+    "punct_none": ("标点压缩：不压缩", "Punctuation Compression: none"),
+    "punct_kana": ("标点压缩：压缩含日文假名", "Punctuation Compression: kana"),
     "table": (
         "表格：居中 三线表 线宽上1.5磅 线宽底1.5磅 线宽表头下0.75磅 单元格垂直居中",
         "Table: center three-line border-top 1.5pt border-bottom 1.5pt "
@@ -89,5 +95,15 @@ def test_style_line_parses_identically(name: str) -> None:
 def test_spec_level_setting_parses_identically(name: str) -> None:
     zh = parse_format(SPEC_LEVEL[name][0])
     en = parse_format(SPEC_LEVEL[name][1])
-    field = {"paper": "page_size", "margins": "margins", "table": "table"}[name]
+    field = {
+        "paper": "page_size",
+        "margins": "margins",
+        "gutter": "gutter_cm",
+        "mirror_margins_on": "mirror_margins",
+        "mirror_margins_off": "mirror_margins",
+        "punct_compress": "punctuation_compression",
+        "punct_none": "punctuation_compression",
+        "punct_kana": "punctuation_compression",
+        "table": "table",
+    }[name]
     assert getattr(zh, field) == getattr(en, field)

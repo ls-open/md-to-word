@@ -530,3 +530,27 @@ def test_table_caption_stays_with_its_table_without_the_declaration(tmp_path: Pa
     style = [s for s in styles.iterfind(".//w:style", ns)
              if s.get(f"{{{ns['w']}}}styleId") == "TableCaption"][0]
     assert style.find("w:pPr/w:keepNext", ns) is None, "样式里本来就没有，别把结论说反了"
+
+
+def test_english_toc_placeholder_has_no_chinese(tmp_path: Path) -> None:
+    """英文稿件的 `{{< toc >}}` 占位符应使用英文，不应硬编码中文。"""
+    en_tpl = tmp_path / "en_tpl.docx"
+    build_template((REPO_ROOT / "presets" / "en-nature.txt").read_text(encoding="utf-8"), en_tpl)
+    en_out = write_docx(
+        read_markdown("---\ntitle: \"Paper\"\n---\n\n{{< toc >}}\n\n# Introduction\n\nBody.\n"),
+        en_tpl,
+        tmp_path / "en.docx",
+    )
+    en_xml = zipfile.ZipFile(en_out).read("word/document.xml").decode("utf-8")
+    assert not re.search(r"[一-鿿]", en_xml), "英文目录占位符混入了中文"
+    assert "table of contents" in en_xml.lower()
+
+    zh_tpl = tmp_path / "zh_tpl.docx"
+    build_template(PRESET.read_text(encoding="utf-8"), zh_tpl)
+    zh_out = write_docx(
+        read_markdown("---\ntitle: \"论文\"\n---\n\n{{< toc >}}\n\n# 引言\n\n正文。\n"),
+        zh_tpl,
+        tmp_path / "zh.docx",
+    )
+    zh_xml = zipfile.ZipFile(zh_out).read("word/document.xml").decode("utf-8")
+    assert "打开文档后目录会自动生成" in zh_xml

@@ -100,14 +100,19 @@
                    保存 → 模板.docx
 ```
 
-### 1.5 页面尺寸与图片宽度（pgSz + pgMar）
+### 1.5 页面尺寸、装订线与图片宽度（pgSz + pgMar）
 
-版心宽 = `pgSz.w - pgMar.left - pgMar.right`；模板保存前由
-`src/md_to_word/template/generator.py` 按 `纸张：` 行写入这两组元素，缺任一项按 A4 + 2.54cm 兜底。
+版心宽 = `pgSz.w - pgMar.left - pgMar.right - pgMar.gutter`；模板保存前由
+`src/md_to_word/template/generator.py` 按 `纸张：`/`页边距：`/`装订线：` 写入 `pgSz` 与 `pgMar`，
+缺任一项按 A4 + 2.54cm 兜底。
 
-**装订线折进左边距写**：`w:gutter` 不进上述公式，版心会算大，所以 `pgMar/@w:left` 写
-`左边距 + 装订线`。`_content_width_twips` 已含装订线，仍漏加的是目录的 `dot_leader_pos`
-（生成时只传了页边距）。对账侧（`audit/inspector.py`）左边的期望值也加上装订线。
+**装订线改为原生 `w:gutter`**：`section.gutter = Cm(spec.gutter_cm or 0)`，不再把装订线折进
+`pgMar/@w:left`。这样两边对齐直观、双面镜像时内侧装订线能由 Word 自动翻边。相应地，以下四处全部
+统一扣减 `gutter`：`generator._content_width_twips`（含目录 `dot_leader_pos`）、`docx_writer._content_width_twips`、
+`docx_writer._clamp`、`validator.check._content_width_cm`；`audit/inspector.py` 独立核对 `pgMar/@w:left` 与
+`pgMar/@w:gutter`；`template/extractor.py` 读取原生 `w:gutter` 与 `settings.xml` 的 `w:mirrorMargins`。
+当格式文件写 `对称页边距：开`（`Mirror Margins: on`）时，在 `word/settings.xml` 按 schema 顺序
+（`_SETTINGS_ORDER`，位于 `defaultTabStop` 之前）写入 `<w:mirrorMargins/>`。
 
 ### 1.6 原生图语法居中
 
@@ -184,8 +189,8 @@ PDF，所以转换放在导出流程里，三个决定都有具体理由：
 行级键 `_LINE_KEYS`（`纸张：A4`）与样式行子句 `_CLAUSE_TABLE`（`正文：宋体 小四 …`）。
 
 **规矩只有一条：认不出的东西一律报错**（行号 + 原词 + 应写形式），没有"静默忽略"这第三种结果。
-**认得出来但没前提的，一样报错**：`边框粗` 没有下边框、`跨页重复` 不在 `表头：`、`加入目录` 挂在
-正文类样式上，都在解析期拦下——判据是**能否在 XML 里指出它落在哪**。
+**认得出来但没前提的，一样报错**：`边框粗` 没有下边框、`跨页重复` 不在 `表头：`、`加入目录` / `加入页眉` 挂在
+正文类或 `一~六级标题` 样式上、`不入目录` 与 `加入页眉` 同写，都在解析期拦下——判据是**能否在 XML 里指出它落在哪**。
 
 **为什么封闭**：用法是 AI 读要求原文 → 转写成 format.txt → 严格校验；多收一个同义写法就取消了
 对转写的唯一验证手段。
@@ -541,36 +546,36 @@ CommonMark 允许词内 `*`（`5*6*78`），本工具**故意**不跟：乘号�
 
 ---
 
-### 2.30 文档级设置只有一份，这是灌入这条路的天花板
+### 2.30 文档级设置只有一份：单独导出可配，灌入底模则让位于底模
 
 `docDefaults`、`w:compat`、`w:characterSpacingControl`、`w:mirrorMargins`、主题，这几样都是
 **整份文件一份**，没有按节分叉的写法。前置件和正文从两份文档里来，取值不同时只能选一边。
 
-**已经处理掉的一项**：`w:characterSpacingControl`（标点压缩）。底模写 `doNotCompress`——那是
-python-docx 的 `default.docx` 带过来的，不是我们选的；实测的四份中文模板全是 `compressPunctuation`，
-那是中文版 Word 给 zh-CN 文档写的值。现在它跟着**校对语言**走（`apply_proofing_language`）：
-中文、日文切到压缩档，其余保持 `doNotCompress`。同一段摘要的差别就是一行多挤一个字：
+**已经解耦并纳入格式规约的两项**（单独导出由 `format.txt` 决定）：
 
-```
-doNotCompress        35 字 | …本文提出了一种基于
-compressPunctuation  36 字 | …本文提出了一种基于声
-```
+1. **`w:characterSpacingControl`（标点压缩）**：不再绑定死在 `apply_proofing_language` 里，而是由
+   `apply_punctuation_compression(doc, mode=spec.punctuation_compression, proofing_lang=spec.proofing_lang)` 决定：
+   - 格式文件显式声明 `标点压缩：压缩/不压缩/压缩含日文假名`（`Punctuation Compression: compress/none/kana`）时优先按声明写入；
+   - 未写时按 `校对语言` 走地区默认：`zh-CN` → `compressPunctuation`（与简体中文 Word 一致，每行多排约一字），
+     **`zh-TW`/`zh-HK`/`zh-MO`/`zh-hant` 与 `en-*` → `doNotCompress`**（保留繁体中文全角居中标点不被压成半角），
+     `ja-*` → `compressPunctuationAndJapaneseKana`。
+2. **`w:mirrorMargins`（对称页边距 / 双面装订镜像）**：由 `apply_mirror_margins(doc, spec.mirror_margins)`
+   按 `对称页边距：开/关`（`Mirror Margins: on/off`）写入，与原生 `w:pgMar/@w:gutter` 协同工作。
 
-**剩下的仍在模板手里**，实测到的：
+**使用 `--base-template` 灌入时，文档级设置仍整体归底模**：
 
 | 设置 | 后果 |
 |:--|:--|
-| `w:mirrorMargins`（双面装订镜像） | 它不改变风格，它**改变每节 `pgMar` 的含义**。模板开着、我们没开时，我们带过去的左右页边距会在对开页被镜像一次——偶数页正文整块左右移 28pt |
+| `w:mirrorMargins`（双面装订镜像） | 它不改变风格，它**改变每节 `pgMar` 的含义**。底模开着而格式文件没开时，左右页边距会在对开页镜像——偶数页正文整块左右移 28pt |
 | `compatibilityMode`（15 / 14） | 断行细节不同，整篇的分页会挪 |
-| `docDefaults` 里的 `w:sz` | 学校不给字号时，我们没写死的样式会继承到它的字号 |
+| `w:characterSpacingControl`（标点压缩） | `settings.xml` 只有一份，以底模为准 |
+| `docDefaults` 里的 `w:sz` | 底模未清且我们未显式声明字号的样式会继承到它 |
 
-试过把镜像页边距改成我们的：封面第 2 页当场挪位，逐页验真拒收。试过四项全换成我们的：同样拒收。
-**两份都想保住做不到，Word 里就一个开关。**
+实测过把底模的 `settings.xml` 硬改成格式文件的配置：封面第 2 页会直接挪位而被逐页验真拒收。
+**所以定案清晰**：
 
-**定案：两条路各归各的。**
-
-- **灌入**（`--base-template`）：模板是什么就是什么。前置件是人家的，文档级设置也跟着人家走。
-- **自己写**（不灌入）：保持底模的默认，只有校对语言那一条会切换标点压缩。
+- **单独导出**（无 `--base-template`）：`w:mirrorMargins`、`w:characterSpacingControl`、`w:pgMar/@w:gutter` 全部由 `format.txt` 控制并写入对账；
+- **灌入底模**（`--base-template`）：底模的前置节和全局 `settings.xml` 原封不动，正文节的样式、纸张与边距数值由 `format.txt` 控制。
 
 所以 `--base-template` 的产物，正文的换行位置、对开页的左右边距会和单独导出有出入。写在手册
 §9.3 里，不做成选项。
@@ -579,6 +584,15 @@ compressPunctuation  36 字 | …本文提出了一种基于声
 会把每一份都判成失败。正文那一侧能确定的是**引用完整**——`_check_style_refs_resolvable` 保证
 正文和页眉页脚引用的每条样式都在 `styles.xml` 里（改名漏一处，Word 会悄悄退回普通段落，
 字体行距全丢，而包是完整的）。
+
+### 2.31 目录与章名页眉的正交声明（不再隐式升级 `References Title`）
+
+过去写出器把 `_CHAPTER_LEVEL_STYLES = ("References Title",)` 硬编码升为 `Heading 1` 以喂给 `{样式标题:Heading 1}`，并硬注 `outlineLvl=9` 来回避目录。这在用户只写正文报告时隐式生效，且在部分 Word 行为下与内置 `Heading 1` 的目录逻辑打架。现已收敛为**正交显式宣言 + 联动必填 + 单条标题退出**：
+
+1. **正交开关**：目录（`加入目录`/`不入目录`）与页眉（`加入页眉`/`不入页眉`）拆开。声明目录样式时，已声明的 `摘要标题` / `参考文献标题` 须显式二选一；页眉使用 `{样式标题:Heading ...}` 时，同理须显式声明 `加入页眉` / `不入页眉`；两类结构都未用的普通文档零负担。
+2. **Word Option 1 取舍（`TOC \o "1-N" \h \z \u`）**：标准 Word 目录域只按内置 `Heading 1..N` 抓取或 `\u` 大纲抓取，`Heading 1` 段落即使挂 `outlineLvl="9"` 仍可能进内置目录体系，故解析期直接拒绝 `不入目录 + 加入页眉`。确需某节不入目录又改页眉时，应以 `{{< section >}}` 切节控制。
+3. **无状态猜测的包内元数据（`/customXml/mdw_meta.xml`）**：哪些样式声明了 `加入页眉`，在模板阶段随 JSON 元数据写进 `customXml/mdw_meta.xml`；写出器读取它来决定哪些段落需要以 `_adopt_style` 映射为 `Heading 1`（并抑制 `Heading 1` 自身带入的多余 `keepNext`/`keepLines`/`pageBreakBefore`/`pBdr`/非黑颜色）；`inspector` 核对元数据与段落实际 `pStyle`；`extractor` 反推草稿时若源文档含 `STYLEREF` 但无 `mdw_meta.xml`，保守写 `不入页眉` 并在末尾列待确认提示。
+4. **单条 `#` 标题退出目录**：`# 致谢 {.unlisted}` / `# 致谢 {不入目录}` 落入动态克隆出的 `UnlistedHeading{N}`（`basedOn="Normal"`、`outlineLvl="9"`、完整拷贝 `Heading N` 视觉链）。保留章序与附录按章公式编号语义，且仍识别 `# 参考文献 {.unlisted}` 为文献插点。
 
 ## 3. 分发形态：一份实现，两个入口
 

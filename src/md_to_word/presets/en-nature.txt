@@ -35,12 +35,12 @@ Table Note: Times New Roman 10pt not-bold not-italic left line-spacing 1.0 space
 Figure: Times New Roman 11pt not-bold not-italic center line-spacing 1.0 space-before 6pt space-after 0pt indent 0 keep-with-next
 Image Caption: Times New Roman 11pt bold not-italic left line-spacing 1.5 space-before 6pt space-after 6pt indent 0
 
-Abstract Title: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 6pt space-after 6pt indent 0
+Abstract Title: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 6pt space-after 6pt indent 0 no-toc no-header
 Abstract: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 6pt indent 0
 Keywords: Times New Roman 12pt not-bold not-italic justify line-spacing 1.5 space-before 0pt space-after 12pt indent 0
 
-References Title: Times New Roman 14pt bold not-italic left line-spacing 1.5 space-before 18pt space-after 6pt indent 0 keep-with-next
-Bibliography: Times New Roman 9pt not-bold not-italic left line-spacing 1.0 space-before 0pt space-after 0pt hanging-indent 0.5in
+References Title: Times New Roman 14pt bold not-italic left line-spacing 1.5 space-before 18pt space-after 6pt indent 0 keep-with-next join-toc join-header
+Bibliography: Times New Roman 11pt not-bold not-italic left line-spacing 1.25 space-before 0pt space-after 3pt hanging-indent 0.5in
 
 Page Number: decimal start 1
 Footer: Times New Roman 9pt not-bold not-italic center line-spacing 1.0 space-before 0pt space-after 0pt indent 0

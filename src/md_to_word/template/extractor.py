@@ -660,11 +660,14 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
                 doubt.append(t('extractor.note.decor_distance_negative', ref.lang, value=v))
                 continue
             out.append(f'{label}：{v:g}cm')   # 显式写 0cm 也要照写：0 是值，不是"没设置"
-        # 装订线（pgMar/@w:gutter）。本工具自己的产物里不会有它——写入时是**折进左边距**
-        # 写的（理由见 design.md §1.5），故这里读的只可能是别人模板里的。
+        # 装订线（pgMar/@w:gutter）
         gut = cm_of('gutter')
         if gut:
             out.append(f'装订线：{gut:g}cm')
+    raw_settings = ref.parts.get('word/settings.xml')
+    settings_root = etree.fromstring(raw_settings) if raw_settings else None
+    if settings_root is not None and settings_root.find(q('mirrorMargins')) is not None:
+        out.append('对称页边距：开')
     pn = sect.find(q('pgNumType'))
     if pn is not None and pn.get(q('fmt')):
         fmt = PGNUM_FMT.get(pn.get(q('fmt')))
@@ -697,6 +700,12 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
     lang = ref.eff([ref.doc_defaults] if ref.doc_defaults is not None else [], 'rPr/lang')
     if lang is not None and lang.get(q('eastAsia')):
         out.append(f'校对语言：{lang.get(q("eastAsia"))}')
+    if settings_root is not None:
+        csc = settings_root.find(q('characterSpacingControl'))
+        if csc is not None:
+            val = csc.get(q('val'))
+            if val in PUNCT_COMPRESSION_CN:
+                out.append(f'标点压缩：{PUNCT_COMPRESSION_CN[val]}')
     return out, doubt
 
 
@@ -873,7 +882,12 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
     CLI 与库调用共用这一份，不另写第二遍。
     """
     from md_to_word.spec.constants import STYLE_CN, STYLE_EN, STYLE_MAP
-    from md_to_word.template.generator import REQUIRED_STYLES
+    from md_to_word.template.generator import (
+        REQUIRED_STYLES,
+        TOC_STYLE_GROUP,
+        _LINKED_SECTION_TITLES,
+        read_header_styles_meta,
+    )
 
     # 草稿的样式名按**参考文件的语种**出，与对应预设一致（zh-academic 写「正文」，
     # en-nature 写 Body Text）；两套写法都取自词表的规范映射，不在这里另立一份。
@@ -884,15 +898,29 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
             word_to_cn[word.replace(' ', '').lower()] = name
     lines = ['# 由 md-to-word-template 从参考文件读出的草稿，**请核对**',
              f'# 来源: {ref.path.name}']
-    for part in (read_page(ref, body_line_multiple(ref)), read_table(ref), read_decor(ref),
-                 read_limitations(ref)):
+    decor_lines, decor_doubt = read_decor(ref)
+    for part in (read_page(ref, body_line_multiple(ref)), read_table(ref),
+                 (decor_lines, decor_doubt), read_limitations(ref)):
         lines += part[0]
         ref.notes += part[1]
+    has_heading_styleref = any('{样式标题:heading' in line.lower() for line in decor_lines)
 
     required_cn = set(REQUIRED_STYLES.values())
-    styled, skipped = [], []
+    emitted: list[tuple[str, str, str, list[str]]] = []
+    skipped = []
     for sid_norm, cn in word_to_cn.items():
         if sid_norm not in ref.by_id:
+            continue
+        canonical = STYLE_MAP.get(cn, cn)
+        # pure_modern_base.docx 自带空壳 TOCHeading（仅 basedOn Normal、无自有属性）；
+        # 非目录模板若原样发出孤立的「目录标题」，不仅误判「已声明目录」还会因缺 TOC1–3 无法重生模板。
+        if (
+            canonical == 'TOC Heading'
+            and not any(s in ref.by_id for s in ('toc1', 'toc2', 'toc3', 'toc4', 'toc5'))
+            and ref.by_id[sid_norm].find(q('pPr')) is None
+            and ref.by_id[sid_norm].find(q('rPr')) is None
+        ):
+            skipped.append(cn)
             continue
         cs, doubt, defined = clauses_for(ref, sid_norm)
         if not defined and cn not in required_cn:
@@ -903,9 +931,32 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
             # 没有意义（下面那句"这些样式已跳过"已经说完了）。
             skipped.append(cn)
             continue
+        emitted.append((canonical, cn, sid_norm, cs))
+        ref.notes += [f'{cn}：{d}' for d in doubt]
+
+    emitted_canonical = {canonical for canonical, _, _, _ in emitted}
+    has_toc = any(s in emitted_canonical for s in TOC_STYLE_GROUP) or any(
+        s in emitted_canonical for s in ('TOC 4', 'TOC 5')
+    )
+    meta = read_header_styles_meta(ref.parts)
+    styled = []
+    for canonical, cn, sid_norm, cs in emitted:
+        if canonical in _LINKED_SECTION_TITLES:
+            ol = ref.eff(ref.chain(sid_norm), 'pPr/outlineLvl')
+            ol_val = ol.get(q('val')) if ol is not None else None
+            in_toc = ol_val in ('0', '1', '2', '3', '4', '5', '6', '7', '8')
+            if has_toc or in_toc:
+                cs.append('加入目录' if in_toc else '不入目录')
+            if meta is not None:
+                if canonical in meta and (in_toc or not has_toc):
+                    cs.append('加入页眉')
+                elif has_heading_styleref:
+                    cs.append('不入页眉')
+            elif has_heading_styleref:
+                cs.append('不入页眉')
+                ref.notes.append(t('extractor.note.header_inclusion_unverified', ref.lang, name=cn))
         lines.append(f'{cn}：' + ' '.join(cs))
         styled.append(cn)
-        ref.notes += [f'{cn}：{d}' for d in doubt]
     if skipped:
         ref.notes.append(t('extractor.note.styles_skipped', ref.lang, names='、'.join(skipped)))
     used = {(st.get(q('val')) or '').replace(' ', '').lower()

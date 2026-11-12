@@ -138,6 +138,7 @@ Inline = Union[
 class Heading:
     level: int
     inlines: list[Inline] = field(default_factory=list)
+    listed: bool = True
 
 
 @dataclass

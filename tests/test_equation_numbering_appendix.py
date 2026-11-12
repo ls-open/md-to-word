@@ -138,3 +138,41 @@ def test_appendix_format_needs_a_serial_number() -> None:
     """`{n}` 是必写的——只有 {c} 的模板会渲染出没有序号的编号。"""
     with pytest.raises(ValueError, match="序号"):
         parse_format(PRESET + "附录公式编号格式：（附{c}-）\n")
+
+
+def test_english_unlabelled_appendix_does_not_capture_ordinary_words(template: Path, tmp_path: Path) -> None:
+    """`# Appendix Raw Data` / `One` / `in Detail` / `For Proof` 里的首词不是附录字母编号，不能抓成 Raw/One/in/For。"""
+    model = read_markdown(
+        '---\ncrossref:\n  chapters: true\n---\n\n'
+        "# Introduction\n\n$$a$$ {#eq-1}\n\n"
+        "# Appendix Raw Data\n\n$$b$$ {#eq-2}\n\n"
+        "# Appendix One\n\n$$c$$ {#eq-3}\n\n"
+        "# Appendix in Detail\n\n$$d$$ {#eq-4}\n\n"
+        "# Appendix IV Proof\n\n$$e$$ {#eq-5}\n\n"
+        "# 附录B—补充推导\n\n$$f$$ {#eq-6}\n"
+    )
+    numbers = _write(
+        model,
+        template,
+        tmp_path,
+        "en_words",
+        equation_number_format="({c}.{n})",
+        appendix_equation_number_format="(App {c}.{n})",
+    )
+    assert numbers == ["(1.1)", "(App A.1)", "(App B.1)", "(App C.1)", "(App IV.1)", "(App B.1)"]
+
+
+def test_appendixes_word_is_not_misread_as_suffix_label(template: Path, tmp_path: Path) -> None:
+    """`# Appendixes` 不能把结尾的 `es` 抓成附录编号 `{c}=es`。"""
+    model = read_markdown(
+        '---\ncrossref:\n  chapters: true\n---\n\n# Intro\n\n$$a$$ {#eq-1}\n\n# Appendixes\n\n$$b$$ {#eq-2}\n'
+    )
+    numbers = _write(
+        model,
+        template,
+        tmp_path,
+        "appendixes",
+        equation_number_format="({c}.{n})",
+        appendix_equation_number_format="(App {c}.{n})",
+    )
+    assert numbers == ["(1.1)", "(2.1)"]

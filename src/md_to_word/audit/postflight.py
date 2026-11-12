@@ -40,6 +40,9 @@ _RE_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")           # 链接留文字、�
 _RE_LABEL = re.compile(r"\{#[^}]*\}")
 _RE_CITE = re.compile(r"@[\w:.\-]+")                        # 引用键渲染成 [1]
 _RE_STYLE_LINE = re.compile(r"^(\s*)%%\s*\S+", re.MULTILINE)  # `%% 表题 …` 里那个词是指令
+_RE_UNLISTED_ATTR = re.compile(
+    r"^(\s*#{1,6}\s+\S[^\n]*?)\s*\{(?:\.unlisted|不入目录)\}\s*$", re.MULTILINE
+)
 _RE_FENCE_INFO = re.compile(r"^\s*(?:```|~~~)[^\n]*$", re.MULTILINE)
 
 
@@ -61,7 +64,8 @@ def _source_for_chinese(md_path: Path | str) -> str:
     text = load_source_text(md_path)
     for pattern, repl in ((_RE_SHORTCODE, " "), (_RE_LINK, r"\1"),
                           (_RE_LABEL, " "), (_RE_CITE, " "),
-                          (_RE_STYLE_LINE, r"\1"), (_RE_FENCE_INFO, "")):
+                          (_RE_STYLE_LINE, r"\1"), (_RE_UNLISTED_ATTR, r"\1"),
+                          (_RE_FENCE_INFO, "")):
         text = pattern.sub(repl, text)
     return text
 

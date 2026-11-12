@@ -16,7 +16,7 @@ from md_to_word.spec.serializer import serialize_format
 PRESETS = Path(__file__).resolve().parents[1] / "presets"
 
 
-@pytest.mark.parametrize("preset", ["zh-academic", "en-nature"])
+@pytest.mark.parametrize("preset", ["zh-academic", "zh-tw-academic", "zh-report", "en-nature"])
 def test_round_trip_is_lossless(preset: str) -> None:
     original = parse_format((PRESETS / f"{preset}.txt").read_text(encoding="utf-8"))
     rewritten = parse_format(serialize_format(original))
@@ -28,6 +28,9 @@ def test_round_trip_is_lossless(preset: str) -> None:
     assert rewritten.page_size == original.page_size
     assert rewritten.proofing_lang == original.proofing_lang
     assert rewritten.default_latin == original.default_latin
+    assert rewritten.gutter_cm == original.gutter_cm
+    assert rewritten.mirror_margins == original.mirror_margins
+    assert rewritten.punctuation_compression == original.punctuation_compression
 
 
 def test_serialized_text_declares_schema_version() -> None:
@@ -69,6 +72,31 @@ def test_equation_number_placement_round_trip() -> None:
     assert "公式编号" not in serialize_format(default)
 
 
+def test_gutter_mirror_and_punctuation_round_trip() -> None:
+    """装订线、对称页边距、标点压缩要能无损往返；未声明时保持默认，不污染预设文本。"""
+    base = (PRESETS / "zh-academic.txt").read_text(encoding="utf-8")
+    default = parse_format(base)
+    default_text = serialize_format(default)
+    assert "装订线" not in default_text
+    assert "对称页边距" not in default_text
+    assert "标点压缩" not in default_text
+
+    custom_text = (
+        base.rstrip()
+        + "\n装订线：1.2cm\n对称页边距：开\n标点压缩：不压缩\n"
+    )
+    spec = parse_format(custom_text)
+    serialized = serialize_format(spec)
+    assert "装订线：1.2cm" in serialized
+    assert "对称页边距：开" in serialized
+    assert "标点压缩：不压缩" in serialized
+
+    rewritten = parse_format(serialized)
+    assert rewritten.gutter_cm == 1.2
+    assert rewritten.mirror_margins is True
+    assert rewritten.punctuation_compression == "doNotCompress"
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -87,3 +115,53 @@ def test_demo_requirements_round_trip_without_loss(path: Path) -> None:
     original = parse_format(path.read_text(encoding="utf-8"))
     rewritten = parse_format(serialize_format(original))
     assert rewritten.styles == original.styles
+
+
+def test_join_toc_round_trips_in_both_languages() -> None:
+    """样式行上的 `加入目录`/`不入目录` 与 `加入页眉`/`不入页眉` 经序列化再解析后不能丢失。"""
+    zh_lines = [
+        line.replace("不入目录 不入页眉", "加入目录 加入页眉")
+        if line.startswith("摘要标题：")
+        else (
+            line.replace("加入目录 加入页眉", "加入目录 不入页眉")
+            if line.startswith("参考文献标题：")
+            else line
+        )
+        for line in (PRESETS / "zh-academic.txt").read_text(encoding="utf-8").splitlines()
+    ]
+    zh_orig = parse_format("\n".join(zh_lines) + "\n")
+    zh_serialized = serialize_format(zh_orig)
+    assert "加入目录" in zh_serialized
+    assert "加入页眉" in zh_serialized
+    assert "不入页眉" in zh_serialized
+    assert parse_format(zh_serialized).styles == zh_orig.styles
+
+    en_lines = [
+        line.replace("no-toc no-header", "join-toc join-header")
+        if line.startswith("Abstract Title:")
+        else (
+            line.replace("join-toc join-header", "join-toc no-header")
+            if line.startswith("References Title:")
+            else line
+        )
+        for line in (PRESETS / "en-nature.txt").read_text(encoding="utf-8").splitlines()
+    ]
+    en_orig = parse_format("\n".join(en_lines) + "\n")
+    en_serialized = serialize_format(en_orig)
+    assert "加入目录" in en_serialized
+    assert "加入页眉" in en_serialized
+    assert "不入页眉" in en_serialized
+    assert parse_format(en_serialized).styles == en_orig.styles
+
+    # 默认预设里的「不入目录」「不入页眉」也能完整往返
+    preset_zh = parse_format((PRESETS / "zh-academic.txt").read_text(encoding="utf-8"))
+    preset_zh_ser = serialize_format(preset_zh)
+    assert "不入目录" in preset_zh_ser
+    assert "不入页眉" in preset_zh_ser
+    assert parse_format(preset_zh_ser).styles == preset_zh.styles
+
+    preset_en = parse_format((PRESETS / "en-nature.txt").read_text(encoding="utf-8"))
+    preset_en_ser = serialize_format(preset_en)
+    assert "不入目录" in preset_en_ser
+    assert "不入页眉" in preset_en_ser
+    assert parse_format(preset_en_ser).styles == preset_en.styles
