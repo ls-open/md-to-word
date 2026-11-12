@@ -50,11 +50,6 @@ class ExportOptions:
     cover_sections: int = 0  # 底模的前几节是前置件（封面、声明等），原样保留
     keep_pages: int = 0  # 按"前几页"说：要排版才能换算成节数
     keep_until: str = ""  # 按内容说：底模里出现这段文字的那一节为止
-    requirements_path: Optional[Path | str] = None  # 向后兼容别名
-
-    def __post_init__(self):
-        if self.format_path is None and self.requirements_path is not None:
-            self.format_path = self.requirements_path
 
 
 @dataclass
@@ -555,7 +550,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             else:
                 res.messages.append(f"MD2WORD_SKIP kind=pdf-render reason={reason}")
                 res.pdf_skip_reason = str(reason or "")
-                res.returncode = 3
+                res.returncode = EXIT_PDF_SKIPPED
 
         logger.info("✅ " + t("pipeline.success", res.lang, path=out_p))
         # 机器验得了文字与结构，验不了"看起来对不对"。表格行高列宽按内容自适应、公式与

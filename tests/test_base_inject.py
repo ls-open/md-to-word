@@ -680,3 +680,28 @@ def test_injected_package_keeps_the_doc_level_settings_we_declare(tmp_path: Path
         assert got_cs is not None and got_cs.get(f"{w}val") == expected_cs, (
             "标点压缩没搬过去"
         )
+
+
+def test_a_base_without_body_level_section_break_is_rejected_up_front(tmp_path: Path) -> None:
+    """末节 sectPr 挂在段落上时，注入会抛一个裸 ValueError 冒成「内部错误」。
+
+    体检这一关本来就该拦住——它已经在说「这份文件改不了」的话，不该让用户看到 traceback。
+    """
+    base = _school_base(tmp_path / "base.docx", sections=1)
+    # 把 body 级 sectPr 挪进最后一段的 pPr 里
+    document = Document(str(base))
+    body = document.element.body
+    sect = body.find(qn("w:sectPr"))
+    assert sect is not None
+    body.remove(sect)
+    para = body.findall(qn("w:p"))[-1]
+    ppr = para.find(qn("w:pPr"))
+    if ppr is None:
+        ppr = parse_xml(f"<w:pPr {nsdecls('w')}/>")
+        para.insert(0, ppr)
+    ppr.append(sect)
+    document.save(str(base))
+
+    report = inspect_base(base, 1)
+    assert not report.ok, "末节 sectPr 不在 body 级的模板被放行了"
+    assert any("分节符" in msg for msg in report.blocking), report.blocking

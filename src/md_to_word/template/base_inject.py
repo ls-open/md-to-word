@@ -154,6 +154,15 @@ def inspect_base(path: Path, cover_sections: int | None = None) -> BaseReport:
                     f"底模第 {toc} 节是目录。目录由你的稿件生成（{{{{< toc >}}}}），"
                     f"模板那份留着只会印出模板作者的条目——最多保留前 {toc - 1} 节"
                 )
+    # 末节的 sectPr 必须在 body 级。挂在段落 pPr 里的那种，注入时找不到"最后一个"，
+    # 会抛一个裸 ValueError 冒到 CLI 兜底里报成"内部错误"——这里先拦住，说清楚是哪份模板的问题。
+    body_el = root.find(W + "body")
+    if body_el is not None and body_el.find(W + "sectPr") is None:
+        report.blocking.append(
+            "这份模板的末节分节符不在正文末尾（挂在段落上），注入时切不开正文节。"
+            "请用 Word「另存为」一次再试，或换一份模板"
+        )
+
     if any(n.tag == W + "altChunk" for n in root.iter()):
         report.blocking.append("含有 altChunk（外部文档块），合并后内容会错位")
 
