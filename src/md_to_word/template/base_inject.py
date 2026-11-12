@@ -442,7 +442,34 @@ def inject_into_base(
         sbody.insert(list(sbody).index(final), child)
 
     sbody.replace(final, our_sect)
+    _copy_meta_part(ours, school, RT, PackURI, Part)
     school.save(str(out))
+
+
+def _copy_meta_part(ours, school, RT, PackURI, Part) -> None:
+    """把页眉联动的元数据部件（`customXml/mdw_meta.xml`）带到产物里。
+
+    灌入只搬正文、样式、编号、页眉页脚；`customXml` 不在搬运清单里，于是产物丢掉了
+    「哪些样式加入了页眉」这条自描述——之后拿它去 `md-to-word-template` 反推时，
+    只能保守地说「有 STYLEREF 但不知道谁进页眉」。本工具的产物该带着自己的说明。
+    """
+    name = "customXml/mdw_meta.xml"
+    source = next(
+        (p for p in ours.part.package.iter_parts() if str(p.partname).lstrip("/") == name),
+        None,
+    )
+    if source is None:
+        return
+    blob = source.blob
+    existing = next(
+        (p for p in school.part.package.iter_parts() if str(p.partname).lstrip("/") == name),
+        None,
+    )
+    if existing is not None:
+        existing._blob = blob
+        return
+    part = Part(PackURI("/" + name), source.content_type, blob, school.part.package)
+    school.part.relate_to(part, RT.CUSTOM_XML)
 
 
 def dropped_head(base: Path, cover_sections: int) -> str:

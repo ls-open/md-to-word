@@ -611,3 +611,26 @@ def test_a_style_reference_left_dangling_is_caught(tmp_path: Path) -> None:
 
     ok, why = verify_structure(base, out, 1)
     assert not ok and "样式" in why, why
+
+
+def test_header_styles_metadata_survives_injection(tmp_path: Path) -> None:
+    """灌入后产物要带着自己的 `customXml/mdw_meta.xml`。
+
+    不搬这个部件的话，产物丢掉「哪些样式加入了页眉」——再拿它去反推时，
+    只能保守地说「有 STYLEREF 但不知道谁进页眉」。自描述信息不该在合并时丢掉。
+    """
+    from md_to_word.template.generator import read_header_styles_meta
+
+    base = _school_base(tmp_path / "base.docx", sections=3)
+    template = tmp_path / "t.docx"
+    build_template(PRESET, template)
+    rendered = write_docx(
+        read_markdown("# 第一章\n\n正文。\n\n%% 参考文献标题 参 考 文 献\n\n文献。\n"),
+        template,
+        tmp_path / "r.docx",
+        header_styles={"References Title"},
+    )
+    out = tmp_path / "o.docx"
+    apply_base_template(base, rendered, 2, out, "第一章")
+
+    assert read_header_styles_meta(out) == {"References Title"}
