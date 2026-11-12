@@ -7,11 +7,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-[English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | **简体中文** | [在线演示站 (Playground)](https://ls-open.github.io/md-to-word/)
+[English](https://github.com/ls-open/md-to-word/blob/main/README_EN.md) | **简体中文** | [在线样张](https://ls-open.github.io/md-to-word/)
 
 把 Markdown 确定性编译为规范 Word（`.docx`）。专为学位论文、技术报告、学术论文、公文打造，**也是面向 AI Agent 设计的确定性 Word 格式编译底座**。
 
-> 🌐 **免安装试用**：[点击访问官方在线体验站 (Web Playground)](https://ls-open.github.io/md-to-word/)，按表单填入内容，用三套内置模板实时预览公式、三线表与页眉，直接下载成品 `.docx`。
+> 🌐 **先看成品**：[四套内置格式的在线样张](https://ls-open.github.io/md-to-word/)——公式、三线表、页眉、引文都是真的排出来的，`.docx` 可直接下载，用 Word 打开就是成品。
 
 ---
 
@@ -38,7 +38,7 @@
 
 | 使用形态 | 适用客户端 / 场景 | 本地环境依赖 | 接入方式 | 核心特点与适用建议 |
 | :--- | :--- | :---: | :--- | :--- |
-| **🌐 Web 在线体验站** | 浏览器里直接试玩、快速预览排版 | ❌ 无需安装任何环境 | 直接访问 [官方体验站](https://ls-open.github.io/md-to-word/) | **免安装**：按表单填入标题/摘要/正文/公式/表格，用三套内置模板分屏预览 PDF、下载 `.docx`。 |
+| **🌐 在线样张** | 先看效果，再决定装不装 | ❌ 无需安装任何环境 | 直接访问 [官方样张页](https://ls-open.github.io/md-to-word/) | **免安装**：四套内置格式的成品与规格清单，`.docx` / `.pdf` 直接下载；每一份都是 `python3 web/build.py` 现场导出的，可复核。 |
 | **🤖 MCP 原生外设** *(格式确定之后)* | **Claude Desktop**、**Cursor**、**Windsurf** 等支持 MCP 协议的 AI 桌面端 | ❌ 无需手动配 Python（`uvx` 自动拉取） | 在客户端配置中声明 `uvx` 命令（见下文） | **原生**：已经拿到 `format.txt` 后，让 AI 直接编译；环境在独立虚拟环境里。 |
 | **🧠 Agent Skill 技能** *(推荐)* | **Claude Code**、**终端 Agent**、**Nature Skills** | ⚠️ 依赖宿主 Agent 执行环境 | `npx skills add ls-open/md-to-word` 或呼叫 `$nature-paper2word` | **按规范排**：AI 先读规范、按用户模板/要求定格式，遇门禁读行号自愈重跑。 |
 | **💻 本地 CLI 与 SDK** | 终端命令行批处理、CI/CD 自动化流水线、Python 脚本开发 | 需 Python >= 3.10 | `pip install md-to-word-docx` 然后运行 `md-to-word 稿.md` | **纯本地**：不依赖任何大模型 API，支持模板样式反推与逐字节回归测试。 |

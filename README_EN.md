@@ -7,11 +7,11 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ls-open/md-to-word/blob/main/LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-brightgreen.svg)](https://www.python.org/)
 
-**English** | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md) | [Web Playground](https://ls-open.github.io/md-to-word/)
+**English** | [简体中文](https://github.com/ls-open/md-to-word/blob/main/README.md) | [Sample Gallery](https://ls-open.github.io/md-to-word/)
 
 Compile Markdown into compliant Word (`.docx`) documents matching strict formatting specifications. Designed for academic papers, theses, technical reports, and official documents — **and built as a deterministic Word compilation engine for AI Agents**.
 
-> 🌐 **Try it Online (No Installation Needed)**: [Launch the Official Web Playground](https://ls-open.github.io/md-to-word/) — fill in a form (title / abstract / body / equation / table), preview with three built-in templates, and download a `.docx` in seconds.
+> 🌐 **See the output first**: [the sample gallery](https://ls-open.github.io/md-to-word/) shows four built-in formats — equations, three-line tables, running headers and citations, actually typeset. Download the `.docx`; what opens in Word is the real thing.
 
 ---
 
@@ -38,7 +38,7 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 
 | Mode | Target Clients & Use Cases | Local Environment | Quick Start / Launch Command | Key Strengths |
 | :--- | :--- | :---: | :--- | :--- |
-| **🌐 Web Playground** | Browser preview, no install needed | ❌ None needed | Visit [Official Playground](https://ls-open.github.io/md-to-word/) | **Try it**: fill in a form and preview with three built-in templates; download `.docx`. |
+| **🌐 Sample Gallery** | See the output before installing anything | ❌ None needed | Visit the [official gallery](https://ls-open.github.io/md-to-word/) | **No install**: four built-in formats with their typographic contracts; download `.docx` / `.pdf`. Every sample is exported by `python3 web/build.py` and can be re-checked. |
 | **🤖 MCP Native Server** *(once the format is fixed)* | **Claude Desktop**, **Cursor**, **Windsurf**, and any MCP client | ❌ Handled automatically (`uvx` pulls isolated venv) | Add `uvx` configuration (see below) | **Native**: once a `format.txt` exists, the AI compiles directly; the environment runs in an isolated venv. |
 | **🧠 Agent Skill** *(Recommended)* | **Claude Code**, terminal agents, **Nature Skills** | ⚠️ Requires host agent environment | `npx skills add ls-open/md-to-word` or `$nature-paper2word` | **Format-driven**: reads the guide, derives the format from the user's template/spec, and self-heals on gate errors. |
 | **💻 Local CLI & SDK** | Terminal batch processing, CI/CD pipelines, Python scripts | Requires Python >= 3.10 | `pip install md-to-word-docx` then `md-to-word paper.md` | **Fully local**: no LLM API dependency, supports reverse template extraction and byte-level diffs. |
