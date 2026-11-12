@@ -141,6 +141,24 @@ def _provenance(fmt_file) -> str:
     return f"md-to-word {__version__} · {Path(fmt_file).name} · sha256:{digest}"
 
 
+def _postflight_error(in_p: Path, target: Path, res: ExportResult) -> Optional[str]:
+    """防丢数 + 防丢字：通过返回 None，不通过返回那条错误消息。
+
+    同一段检查在两个出口跑：验中间产物（`render_target`），以及灌了底模之后再验成品
+    （`out_p`）。原来两处各抄一遍，消息键与取样长度都得改两次——一处走样，同一个问题
+    就会有两个措辞。
+    """
+    all_kept, missing = verify_numeric_integrity(in_p, target)
+    if not all_kept:
+        return t("pipeline.numeric_failed", res.lang,
+                 count=len(missing), sample=", ".join(missing[:5]))
+    all_kept, missing = verify_chinese_integrity(in_p, target)
+    if not all_kept:
+        return t("pipeline.chinese_failed", res.lang,
+                 count=len(missing), sample="".join(missing[:12]))
+    return None
+
+
 def run_export_pipeline(options: ExportOptions) -> ExportResult:
     """执行完整的纯 Python 学术导出流水线。"""
     res = ExportResult(returncode=0)
@@ -395,23 +413,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
         # 8. 产物数值防丢检查 (Audit: Post-flight)
         if options.postflight:
-            all_kept, missing = verify_numeric_integrity(in_p, render_target)
-            if not all_kept:
+            err = _postflight_error(in_p, render_target, res)
+            if err:
                 res.returncode = EXIT_ERROR
-                res.errors.append(
-                    t("pipeline.numeric_failed", res.lang,
-                      count=len(missing), sample=", ".join(missing[:5]))
-                )
+                res.errors.append(err)
                 return res
             logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
-            all_kept, missing = verify_chinese_integrity(in_p, render_target)
-            if not all_kept:
-                res.returncode = EXIT_ERROR
-                res.errors.append(
-                    t("pipeline.chinese_failed", res.lang,
-                      count=len(missing), sample="".join(missing[:12]))
-                )
-                return res
 
         # 9. 格式要求逐条对账 (Audit: Inspector)
         if options.audit and fmt_file:
@@ -519,21 +526,10 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             # 要在成品上再跑一遍。格式对账不重跑：成品里混着学校的前置件与它自己的样式，
             # 逐条对账会把它判成「不合规」，那些本来就不是我们排的。
             if options.postflight:
-                all_kept, missing = verify_numeric_integrity(in_p, out_p)
-                if not all_kept:
+                err = _postflight_error(in_p, out_p, res)
+                if err:
                     res.returncode = EXIT_ERROR
-                    res.errors.append(
-                        t("pipeline.numeric_failed", res.lang,
-                          count=len(missing), sample=", ".join(missing[:5]))
-                    )
-                    return res
-                all_kept, missing = verify_chinese_integrity(in_p, out_p)
-                if not all_kept:
-                    res.returncode = EXIT_ERROR
-                    res.errors.append(
-                        t("pipeline.chinese_failed", res.lang,
-                          count=len(missing), sample="".join(missing[:12]))
-                    )
+                    res.errors.append(err)
                     return res
                 logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
             # 「逐页一致」只有真排过版才说得出口

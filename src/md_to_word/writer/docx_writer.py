@@ -29,7 +29,7 @@ from md_to_word.i18n import t
 from md_to_word.utils.docx_zip import normalize_zip
 from md_to_word.utils.pdf_figure import PdfFigureError, is_pdf, rasterize
 from md_to_word.preprocessor.markers import MarkerError, section_paragraph_xml, toc_xml
-from md_to_word.spec.constants import PAGE_NUMBER_FMT
+from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, PAGE_NUMBER_FMT
 from md_to_word.template.generator import (
     _PPR_ORDER,
     _RPR_ORDER,
@@ -561,7 +561,7 @@ class _Writer:
         clean_title = re.sub(
             r"^[0-9一二三四五六七八九十第\s.、章节節附录附錄]+", "", _plain_text(block.inlines).strip()
         ).strip()
-        if clean_title in ("参考文献", "参考书目", "參考文獻", "參考書目", "References", "Bibliography"):
+        if clean_title in BIBLIOGRAPHY_TITLES:
             self._write_bibliography()
 
     def _paragraph(self, block: Paragraph) -> None:

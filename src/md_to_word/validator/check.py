@@ -21,7 +21,7 @@ from md_to_word.config import get_csl_dir
 from md_to_word.i18n import t
 # 残符提醒与解析器共用同一条行内判据：预检另写一套，迟早对不上。
 from md_to_word.model.reader import inline_residue
-from md_to_word.spec.constants import PAGE_NUMBER_FMT, ROW_NAME_EN
+from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, PAGE_NUMBER_FMT, ROW_NAME_EN
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_format
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
@@ -35,6 +35,7 @@ from md_to_word.template.generator import (
 from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES, PdfFigureError, page_count
 
 # 复用 utils 中的基础文本解析工具
+from md_to_word.utils.masking import mask_html_comments
 from md_to_word.utils.skill_utils import (
     block_marker_issues,
     soft_wrap_issues,
@@ -99,7 +100,7 @@ def caption_adjacency_issues(md_text: str, lang: str = "zh") -> list[tuple[int, 
     中间只要夹了一句正文，就认为断开。
     """
     masked = mask_code_fences(md_text)
-    cleaned = re.sub(r"<!--.*?-->", lambda m: "\n" * m.group(0).count("\n"), masked, flags=re.DOTALL)
+    cleaned = mask_html_comments(masked)
     lines = cleaned.split("\n")
 
     def is_table_row(line: str) -> bool:
@@ -203,7 +204,7 @@ def literal_asterisk_issues(md_text: str) -> list[tuple[int, str]]:
     """
     issues: list[tuple[int, str]] = []
     masked = mask_code_fences(md_text)
-    masked = re.sub(r"<!--.*?-->", lambda m: "\n" * m.group(0).count("\n"), masked, flags=re.DOTALL)
+    masked = mask_html_comments(masked)
     for line_no, line in enumerate(masked.split("\n"), 1):
         if "*" not in line:
             continue
@@ -743,7 +744,9 @@ def validate_manuscript(
         )
         has_heading = bool(
             re.search(
-                r"^#{1,6}\s*(?:参考文献|参考书目|參考文獻|參考書目|References|Bibliography)(?:\s*\{(?:\.unlisted|不入目录)\})?\s*$",
+                r"^#{1,6}\s*(?:"
+                + "|".join(map(re.escape, BIBLIOGRAPHY_TITLES))
+                + r")(?:\s*\{(?:\.unlisted|不入目录)\})?\s*$",
                 md_text,
                 re.M,
             )

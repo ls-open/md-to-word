@@ -18,6 +18,7 @@ from typing import Optional
 from lxml import etree
 
 from md_to_word.i18n import t
+from md_to_word.utils.masking import mask_html_comments
 from md_to_word.preprocessor.blocks import hard_break
 
 # ══════════════════════════════════════════════════════════════════════
@@ -753,7 +754,6 @@ _IMAGE_ATTR_RE = re.compile(r"!\[[^\]]*\]\([^)\s]+\)\s*\{(?P<attrs>[^}]*)\}")
 _IMAGE_ATTR_OK = re.compile(r"^\s*(?:width\s*=\s*[\d.]+\s*(?:cm|mm|in|pt)?)?\s*$")
 _INDENT_CODE_RE = re.compile(r"^(?: {4,}|\t)\S")
 _LIST_ITEM_ANY_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
-_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 
 
 def _looks_like_block_start(line: str) -> bool:
@@ -779,7 +779,7 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
     # 先掩码围栏、再挖掉 HTML 注释（换成等量换行，行号不挪）：注释在导出时会被剔除，
     # 里面的 `<br>` 不该被当成正文字面量拦下来。
     masked = mask_code_fences(body)
-    masked = _COMMENT_RE.sub(lambda m: "\n" * m.group(0).count("\n"), masked)
+    masked = mask_html_comments(masked)
     lines = masked.split("\n")
     issues: list[tuple[int, str]] = []
 

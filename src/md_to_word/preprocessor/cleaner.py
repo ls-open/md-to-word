@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-_RE_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+from md_to_word.utils.masking import HTML_COMMENT_RE as _RE_HTML_COMMENT
 
 
 def strip_html_comments(text: str) -> str:

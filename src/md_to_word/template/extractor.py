@@ -33,6 +33,7 @@ from lxml import etree
 
 from md_to_word.i18n import t
 from md_to_word.spec.constants import (
+    PAGE_SIZES_CM,
     PAGE_SIZE_MAP,
     PUNCT_COMPRESSION_CN,
     TWIPS_PER_CM,
@@ -48,7 +49,9 @@ PGNUM_FMT = {'decimal': '阿拉伯', 'upperRoman': '罗马', 'lowerRoman': '小�
              'lowerLetter': '字母', 'upperLetter': '大写字母'}
 ALIGN = {'both': '两端对齐', 'justify': '两端对齐', 'center': '居中',
          'left': '左对齐', 'right': '右对齐'}
-PAPER = {(21.0, 29.7): 'A4', (21.59, 27.94): 'Letter'}
+# 尺寸反查表由 constants.PAGE_SIZES_CM 派生：纸张尺寸只有那一处是真的，
+# 这里只负责把它翻成写进草稿的名字（`a4` → `A4`）。
+PAPER = {size: name.title() for name, size in PAGE_SIZES_CM.items()}
 BORDER_STYLE = {'single': '单线', 'double': '双线', 'thinThickMediumGap': '双线',
                 'none': '无', 'nil': '无'}
 # 段落边框除下边框外的四边：格式文件表达不了，读到就要报出来（标签跟消息语言走）

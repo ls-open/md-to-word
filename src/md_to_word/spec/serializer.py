@@ -9,21 +9,19 @@
 
 from __future__ import annotations
 
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Pt
 
-from md_to_word.spec.constants import PUNCT_COMPRESSION_CN
+from md_to_word.spec.constants import (
+    ALIGN_ENUM_CN, PUNCT_COMPRESSION_CN, TABLE_ALIGN_MAP, TABLE_STYLE_MAP,
+)
 from md_to_word.spec.models import MinLineSpacing, TemplateSpec
 from md_to_word.spec.parser import _BORDER_TEXT
 
-_ALIGN_TEXT = {
-    WD_ALIGN_PARAGRAPH.CENTER: "居中",
-    WD_ALIGN_PARAGRAPH.LEFT: "左对齐",
-    WD_ALIGN_PARAGRAPH.RIGHT: "右对齐",
-    WD_ALIGN_PARAGRAPH.JUSTIFY: "两端对齐",
-}
-_TABLE_ALIGN = {"center": "居中", "left": "左对齐", "right": "右对齐"}
-_TABLE_STYLE = {"three-line": "三线表", "grid": "全网格线", "top-bottom": "顶底线", "none": "无边框"}
+# 三张表都从 constants 派生：那里是对齐与表格写法的唯一真相源，这里只翻个方向。
+# 反查而不是再抄一份——抄一份的话，parser 认了新词、序列化还写旧词，round-trip 就断了。
+_ALIGN_TEXT = ALIGN_ENUM_CN
+_TABLE_ALIGN = {v: k for k, v in TABLE_ALIGN_MAP.items()}
+_TABLE_STYLE = {v: k for k, v in TABLE_STYLE_MAP.items()}
 _TABLE_VALIGN = {"center": "单元格垂直居中", "top": "单元格垂直顶端", "bottom": "单元格垂直底端"}
 _BORDER_SIDE = {"top": "线宽上", "bottom": "线宽底", "header_bottom": "线宽表头下", "inside": "线宽内"}
 

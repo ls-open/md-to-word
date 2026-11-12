@@ -104,6 +104,26 @@ def test_marketplace_entry_matches_the_plugin_manifest() -> None:
         assert (REPO_ROOT / rel).is_dir(), f"plugin.json 指向的技能目录不存在：{rel}"
 
 
+def test_plugin_manifest_version_matches_the_package() -> None:
+    """插件清单里的版本号是手写的第二份，全仓只有它在管自己。
+
+    `__version__` 是权威：页面、`docProps`、`--version` 都从它算。但 `.codebuddy-plugin/
+    plugin.json` 是静态 JSON，市场清单直接从它读——发版时只改 `__init__.py` 的话，市场里
+    挂着的还是旧版本号，装下来却是新的。这条把两处钉在一起。
+    """
+    import json
+
+    import md_to_word
+
+    manifest = json.loads(
+        (REPO_ROOT / ".codebuddy-plugin" / "plugin.json").read_text(encoding="utf-8")
+    )
+    assert manifest["version"] == md_to_word.__version__, (
+        f"plugin.json 写着 {manifest['version']}，包是 {md_to_word.__version__}："
+        "发版要两处一起改"
+    )
+
+
 def test_skill_frozen_surface_exists_in_the_code() -> None:
     """技能文件里的「版本契约」必须兑现：写了要冻结的东西，代码里就得真有。
 

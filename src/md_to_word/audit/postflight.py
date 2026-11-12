@@ -10,11 +10,11 @@ import re
 import zipfile
 from collections import Counter
 from pathlib import Path
+from md_to_word.utils.masking import HTML_COMMENT_RE
 from md_to_word.utils.skill_utils import split_frontmatter
 
 _RE_NUMBER = re.compile(r"\b\d+\.\d{3,}\b")
 _RE_YEAR_LIKE = re.compile(r"^20\d{2}\.\d+$")
-_RE_HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _RE_OPENXML_FENCE = re.compile(
     r"^(?:```|~~~)\{=openxml\}.*?^(?:```|~~~)\s*$", re.DOTALL | re.MULTILINE
 )
@@ -23,7 +23,7 @@ _RE_OPENXML_FENCE = re.compile(
 def load_source_text(md_path: Path | str) -> str:
     text = Path(md_path).read_text(encoding="utf-8")
     _, text = split_frontmatter(text)
-    for pattern in (_RE_HTML_COMMENT, _RE_OPENXML_FENCE, _RE_IMAGE):
+    for pattern in (HTML_COMMENT_RE, _RE_OPENXML_FENCE, _RE_IMAGE):
         text = pattern.sub(" ", text)
     return text
 

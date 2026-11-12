@@ -60,6 +60,7 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     去哪儿读全部内容、去哪儿拿一份现成的要求文件。路径从安装位置现算，不写死。
     """
     from md_to_word.config import resolve_preset_path
+    from md_to_word.spec.presets import list_available_presets
 
     # 手册按语言各一份：中文版 manual.md，英文版 manual_en.md。两份都随包发布。
     resources = Path(__file__).resolve().parent / "resources"
@@ -67,9 +68,11 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     # 入门文档与技能入口是同一份流程（tests/test_resource_sync.py 盯着两者不许分叉）：
     # 只装 pip 包、手上没有 SKILL.md 的 Agent 从这里读“按什么顺序做”。
     guide = resources / "guide.md"
+    # 名单来自预设目录，不手写：加了第五个预设，这里自动出现。
+    # 英文预设排在最后——这是中文速查，先给中文稿的选项。
+    names = sorted(list_available_presets(), key=lambda n: (n.startswith("en-"), n))
     presets = "\n".join(
-        f"  {name:<15} {resolve_preset_path(name)}"
-        for name in ("zh-academic", "zh-tw-academic", "zh-report", "en-nature")
+        f"  {name:<15} {resolve_preset_path(name)}" for name in names
     )
     if lang == "en":
         return f"""A manuscript = plain Markdown + three conventions

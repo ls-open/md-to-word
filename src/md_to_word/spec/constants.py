@@ -150,6 +150,13 @@ STYLE_CN: dict[str, str] = {
 STYLE_EN: dict[str, str] = {v: k for k, v in STYLE_MAP.items() if not re.search(r"[\u4e00-\u9fff]", k)}
 
 # 表格相关的配置行在代码里用中文名标识（无对应 Word 样式名），报错时补一份英文
+# 文献区标题：稿子里写这几种之一，writer 就认定正文结束、开始写文献表；validator 也据此
+# 判断「有没有写抬头」。两处必须认同一张表——各写一份就会出现「预检说没写抬头，而用户
+# 明明写了」这种自相矛盾的提示。
+BIBLIOGRAPHY_TITLES: tuple[str, ...] = (
+    "参考文献", "参考书目", "參考文獻", "參考書目", "References", "Bibliography",
+)
+
 ROW_NAME_EN: dict[str, str] = {
     "表格": "Table",
     "表头": "Table Header",
@@ -212,6 +219,8 @@ ALIGN_MAP = {cn: enum for cn, (enum, _) in _ALIGN.items()}
 ALIGN_VAL = {cn: val for cn, (_, val) in _ALIGN.items()}
 ALIGN_ENUM_VAL = {enum: val for enum, val in _ALIGN.values()}
 ALIGN_CN = {val: cn for cn, (_, val) in _ALIGN.items() if not cn.isascii()}
+# 序列化时要按 python-docx 的枚举回写成中文，键换成枚举
+ALIGN_ENUM_CN = {enum: cn for cn, (enum, _) in _ALIGN.items() if not cn.isascii()}
 
 # ── 已知字体类别与字体切分（全局单一真相源） ──
 CJK_FONTS = {
