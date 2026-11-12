@@ -33,22 +33,12 @@ from md_to_word.i18n import t
 from md_to_word.spec.constants import (
     ALIGN_CN,
     ALIGN_ENUM_VAL,
-    ALIGN_MAP,
-    ALIGN_VAL,
-    CJK_FONTS,
-    LATIN_FONTS,
-    NS_M,
-    NS_W,
-    PAGE_NUMBER_FMT,
     PAGE_SIZES_CM,
-    PAGE_SIZE_MAP,
     SIZE_MAP,
     STYLE_CN,
     STYLE_MAP,
     TWIPS_PER_CM,
-    M,
     W,
-    parse_font_name,
     split_fonts,
 )
 from md_to_word.spec.models import MinLineSpacing
@@ -796,8 +786,12 @@ def _check_linkage_fields(spec, lang: str = "zh") -> list[str]:
     return errors
 
 
-def _check_required_fields(spec, lang: str = "zh") -> bool:
-    """校验必填项是否齐备：必填样式 / 样式的必填字段 / 条件成套必填行 / 联动必填。"""
+def _check_required_fields(spec, lang: str = "zh") -> tuple[bool, list[str]]:
+    """校验必填项是否齐备：必填样式 / 样式的必填字段 / 条件成套必填行 / 联动必填。
+
+    返回 `(是否有错, 联动错误列表)`：联动错误已经在上面逐条打过日志，调用方抛异常时
+    直接用这份列表，别再调一次 `_check_linkage_fields`——那样同一句会打印两遍。
+    """
     req_by_style = {r['style_name']: r for r in spec.styles}
 
     missing_required = []   # (别名, 字段)
@@ -921,18 +915,15 @@ def _check_required_fields(spec, lang: str = "zh") -> bool:
                           field=t(f'template.field.{field}', lang) if field in FIELD_KEYS else field))
             logger.info(t('template.field_fix', lang, hint=hint))
 
-    if linkage_errors:
-        logger.warning(t('template.linkage_header', lang))
-        for err in linkage_errors:
-            logger.info(err)
-
     if has_errors:
         logger.error(t('template.abort', lang))
         logger.error(t('template.abort_hint', lang))
     else:
         logger.debug(t('template.check_ok', lang))
 
-    return has_errors
+    # 联动错误要原样交回调用方：它既已逐条打在上面，抛异常时再重算一遍就会
+    # 让同一句话在输出里出现两次。
+    return has_errors, linkage_errors
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1442,10 +1433,12 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
     if default_latin:
         logger.debug(f' 全局西文字体: {default_latin}')
 
-    if _check_required_fields(spec, lang):
-        linkage_errors = _check_linkage_fields(spec, lang)
+    has_errors, linkage_errors = _check_required_fields(spec, lang)
+    if has_errors:
         msg = t('template.required_missing', lang)
         if linkage_errors:
+            # 联动错误**只**随异常一起给出（不再单独打日志）：打一遍再贴一遍，
+            # 用户会以为有两处问题；而只打日志的话，`--json` / MCP 这条路读不到。
             msg = msg + "\n" + "\n".join(linkage_errors)
         raise TemplateError(msg)
 
