@@ -68,7 +68,6 @@ def test_a_cached_field_result_is_not_read_as_content(tmp_path: Path) -> None:
     草稿就成了「页脚内容：{页码} 18」——照它生成的模板，页脚上永远多印一个 18。
     实测的一份英文论文模板就是这种。
     """
-    import shutil
     import zipfile
 
     document = Document()

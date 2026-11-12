@@ -6,8 +6,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from md_to_word.model.reader import parse_inlines
 from md_to_word.utils.skill_utils import (
     citations_without_bibliography, dialect_issues, split_frontmatter,

@@ -9,7 +9,6 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-from md_to_word.model.reader import read_markdown
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.transform.bibtex import parse_bibtex
 from md_to_word.utils.skill_utils import math_comment_issues, unbalanced_math_issues

@@ -1027,11 +1027,10 @@ def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> 
                 "正文前几句话在底模的前置件里也出现过（模板里常带示例目录），"
                 "没法用它定位正文从哪一页开始。请人工核对前置件页数"
             )
-        sentinel, start = "", None
+        start = None
         for cand in usable:
             start = _first_page_with(out_pdf, cand)
             if start is not None:
-                sentinel = cand
                 break
         if start is None:
             return False, f"产物里找不到正文首句「{usable[0]}」，没法定位前置件到哪一页"

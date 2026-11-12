@@ -10,13 +10,12 @@ Compatible with both modern MCP 2.x (MCPServer) and 1.x (FastMCP).
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import md_to_word
 from md_to_word.config import (
