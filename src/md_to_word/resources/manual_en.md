@@ -6,8 +6,9 @@ adds is in §9.
 Chinese edition: `manual.md`
 
 Markdown → compliant Word (`.docx`). Content and layout are separate: Markdown is the source,
-every format decision is declared in the format file; export is deterministic — rerun the
-same source at any time and the output is byte-for-byte identical.
+every format decision is declared in the format file; export is deterministic — on the same
+platform, rerun the same source at any time and the output is byte-for-byte identical (see the
+note at the end of §6 for the cross-platform case).
 
 `md-to-word --contract` prints the contract cheatsheet, the absolute paths of the getting-started
 guide and of this file, and the built-in preset paths.
@@ -746,6 +747,12 @@ with a message instead of moving it silently.
 cm on A4 with 2.54 cm margins, less any gutter). The pre-flight check computes the real text block
 from the format file and reports an over-wide width as a reminder (it does not stop the
 export); a percentage width is blocked.
+
+**What "byte-identical" means**: on the same platform, re-exporting the same source gives the same
+bytes — timestamps, permissions, entry order and the zip platform identifier are all pinned. Across
+platforms it does not hold: the deflate stream depends on the zlib implementation and version, so
+macOS's system zlib and the one bundled with CPython on Windows produce the same content with
+different bytes. Compare unpacked content when checking across machines.
 
 ---
 

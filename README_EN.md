@@ -20,7 +20,7 @@ Compile Markdown into compliant Word (`.docx`) documents matching strict formatt
 Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hallucinations, table drifts across page breaks, and styling inconsistencies. Tools like Pandoc require wrestling with complex internal XML templates and brittle post-filters for fine adjustments.
 
 `md-to-word` uses a **declarative typographic contract** and **bidirectional quality gates with exact line numbers**:
-- **Byte-Identical Reproducibility**: Rebuilding the same Markdown source yields identical document binaries — packaging timestamps, permissions and entry order are all fixed.
+- **Byte-Identical Reproducibility**: On the same platform, rebuilding the same Markdown source yields identical document binaries — packaging timestamps, permissions, entry order and the zip platform byte are all fixed (cross-platform differences are covered under [Known Limitations](#known-limitations)).
 - **Self-Describing Output**: `docProps` records the version, the format file name and the first 8 hex digits of its sha256; no timestamp is written, so repeated exports stay byte-identical.
 - **Autonomous Self-Healing**: Missing formats or invalid syntax are caught before writing the file with exact line numbers and guidance, enabling AI Agents to auto-debug and self-heal.
 - **Compliant Typography**: Native OMML math formulas (vector, double-click editable, centered with numbering hard right), three-line tables with repeating headers across page breaks, and double/single-rule running headers.
@@ -209,6 +209,20 @@ deep is refused, and the message names the most you may keep.
 - **Pure Python**: The `.docx` pipeline is self-contained — zero dependency on Microsoft Word, WPS, or Pandoc. The `--pdf` review copy is the exception: that step needs Word on macOS to expand the fields.
 
 Refer to the [User Manual](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md) for full boundaries and vocabulary.
+
+---
+
+## Known Limitations
+
+Everything above is what it does. Here is what it **cannot** do, or deliberately does not — so you don't find out the hard way:
+
+- **"Byte-identical" holds within one platform only.** Timestamps, permissions and entry order are pinned, but the bytes of the deflate stream depend on the zlib implementation and version — macOS's system zlib and the one bundled with CPython on Windows produce the same content with different bytes. So don't diff binaries across platforms; compare content.
+- **`--pdf` requires macOS with Word.** The TOC, `STYLEREF` chapter names in headers and page numbers are fields only Word actually expands. Without Word the `.docx` is still produced, the PDF step is skipped and logged; Linux and Windows never produce a PDF.
+- **Mixed Chinese/English CSL layouts are not supported.** The citation engine (citeproc-py) does not implement CSL-M, so one bibliography can only render in one locale. Pure Chinese or pure English libraries are fine; for mixed libraries pick the dominant language, or fix the entries in Word afterwards.
+- **Merged cells, diagonal header rules, inline text color, multi-column and floating wrapped figures are not supported.** The first three are limits of Markdown and the style model, the last two of the single-column body layout. Alternatives for each are in manual §6.
+- **A fenced code block inside a list item aborts the export** rather than silently hoisting the block to top level — it stops and tells you instead of quietly mis-formatting.
+
+The complete hard boundaries, CSL rendering deviations and silent-clamping rules live in [Manual §6](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md).
 
 ---
 
