@@ -60,11 +60,13 @@ def test_native_gutter_and_mirror_margins_xml_and_clamping(tmp_path: Path) -> No
     assert int(pgmar.get(f"{W}left")) == Cm(3.18).twips
     assert int(pgmar.get(f"{W}gutter")) == Cm(1.5).twips
 
-    # mirrorMargins 必须在 defaultTabStop 之前（OOXML schema 顺序）
+    # mirrorMargins 要落在 ECMA-376 `CT_Settings` 的顺序里：
+    # 在 `saveFormsData` 之后、`alignBordersAndEdges` / `bordersDoNotSurroundHeader` 之前
     setting_tags = [etree.QName(el).localname for el in settings_root]
     assert "mirrorMargins" in setting_tags
-    if "defaultTabStop" in setting_tags:
-        assert setting_tags.index("mirrorMargins") < setting_tags.index("defaultTabStop")
+    for later_tag in ("bordersDoNotSurroundHeader", "bordersDoNotSurroundFooter", "defaultTabStop"):
+        if later_tag in setting_tags:
+            assert setting_tags.index("mirrorMargins") < setting_tags.index(later_tag)
 
     # 标点压缩在 zh-tw-academic 为 doNotCompress
     csc = settings_root.find(f"{W}characterSpacingControl")

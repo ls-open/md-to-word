@@ -112,7 +112,8 @@
 `docx_writer._clamp`、`validator.check._content_width_cm`；`audit/inspector.py` 独立核对 `pgMar/@w:left` 与
 `pgMar/@w:gutter`；`template/extractor.py` 读取原生 `w:gutter` 与 `settings.xml` 的 `w:mirrorMargins`。
 当格式文件写 `对称页边距：开`（`Mirror Margins: on`）时，在 `word/settings.xml` 按 schema 顺序
-（`_SETTINGS_ORDER`，位于 `defaultTabStop` 之前）写入 `<w:mirrorMargins/>`。
+（`_SETTINGS_ORDER`：`zoom` 之后、`bordersDoNotSurroundHeader` 之前，即 ECMA-376 `CT_Settings`
+里 `saveFormsData` 与 `alignBordersAndEdges` 之间的那一格）写入 `<w:mirrorMargins/>`。
 
 ### 1.6 原生图语法居中
 

@@ -121,8 +121,8 @@ _SECTPR_ORDER = ['footnotePr', 'endnotePr', 'type', 'pgSz', 'pgMar', 'paperSrc',
                  'lnNumType', 'pgNumType', 'cols', 'formProt', 'vAlign', 'noEndnote',
                  'titlePg', 'textDirection', 'bidi', 'rtlGutter', 'docGrid', 'printerSettings']
 _SETTINGS_ORDER = [
-    'zoom', 'bordersDoNotSurroundHeader', 'bordersDoNotSurroundFooter',
-    'mirrorMargins', 'defaultTabStop', 'drawingGridVerticalSpacing',
+    'zoom', 'mirrorMargins', 'bordersDoNotSurroundHeader', 'bordersDoNotSurroundFooter',
+    'defaultTabStop', 'drawingGridVerticalSpacing',
     'displayHorizontalDrawingGridEvery', 'displayVerticalDrawingGridEvery',
     'evenAndOddHeaders', 'characterSpacingControl', 'compat', 'mathPr',
     'themeFontLang', 'clrSchemeMapping', 'decimalSymbol', 'listSeparator',
