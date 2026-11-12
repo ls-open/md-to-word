@@ -1,8 +1,10 @@
-"""官网样张页的模板目录与稿件拼装：只有纯函数，不依赖 Web 框架。
+"""展示页四套样张的内容源：模板目录、稿件拼装、格式文件生成。只有纯函数。
 
-单独成文件是为了能被 `tests/test_web_templates.py` 直接检查——模板清单是预设的
-第四份真相源（CLI / MCP / 包里 / 官网），它必须跟得上，而测试不该为了读一份字典
-去装 fastapi。
+`web/build.py` 拿它去编译 `docs/assets/` 里的成品；`tests/test_web_templates.py` 直接
+导入它做检查。两边都不需要任何 Web 框架——展示页是静态的，没有后端。
+
+这里是预设的第四份真相源（CLI / MCP / 包里 / 展示页）：新增一个预设，这里必须跟上，
+否则页面上的样张与真正能用的格式就对不上了。
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES = {
     "zh-journal": {
         "id": "zh-journal",
-        "name": "📰 中文学术期刊",
+        "name": "中文学术期刊",
         "name_en": "📰 Chinese Academic Journal",
         "badge": "GB/T 学术期刊",
         "badge_en": "GB/T Journal",
@@ -69,7 +71,7 @@ TEMPLATES = {
     },
     "zh-tw-journal": {
         "id": "zh-tw-journal",
-        "name": "📘 繁體中文學術期刊",
+        "name": "繁體中文學術期刊",
         "name_en": "📘 Traditional Chinese Academic Journal",
         "badge": "臺灣 / 香港 學位論文",
         "badge_en": "Taiwan / HK Thesis",
@@ -123,7 +125,7 @@ TEMPLATES = {
     },
     "zh-report": {
         "id": "zh-report",
-        "name": "📄 现代技术白皮书",
+        "name": "现代技术白皮书",
         "name_en": "📄 Technical White Paper",
         "badge": "技术报告",
         "badge_en": "Technical White Paper",
@@ -177,7 +179,7 @@ TEMPLATES = {
     },
     "en-paper": {
         "id": "en-paper",
-        "name": "🔬 英文学术期刊",
+        "name": "英文学术期刊",
         "name_en": "🔬 English Academic Paper (Nature)",
         "badge": "Nature / IEEE",
         "badge_en": "Nature / IEEE",

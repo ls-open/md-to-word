@@ -28,9 +28,11 @@ DOCS = (
     RESOURCES / "guide.md",
     RESOURCES / "manual.md",
     RESOURCES / "manual_en.md",
-    # 演示站的页面是**另一份**文案，和 app.py 里的模板数据不共源：改了 app.py，
-    # 页面上那句「企业级技术报告」照样在。所以它也得进这张网。
-    REPO / "web" / "static" / "index.html",
+    # 展示页的文案有两处来源：页面模板（page.html）与样张数据（catalog.py）。它们都不在
+    # 包内文档里，却是用户最先读到的那一段。改了 catalog 里的「企业级技术报告」，页面上
+    # 那句照样在——所以两份都得进这张网。
+    REPO / "web" / "page.html",
+    REPO / "web" / "catalog.py",
 )
 
 # 只收「给产品加等级 / 加称号」的说法。比较级如实取舍（「三条路里最费手工的那条」）
