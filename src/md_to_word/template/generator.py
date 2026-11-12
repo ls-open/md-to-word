@@ -786,11 +786,29 @@ def _check_linkage_fields(spec, lang: str = "zh") -> list[str]:
     return errors
 
 
-def _check_required_fields(spec, lang: str = "zh") -> tuple[bool, list[str]]:
+def _style_line_numbers(fmt_content: str) -> dict[str, int]:
+    """样式名 → 它在格式文件里的行号。
+
+    缺字段时只说样式名，用户还得自己在一份几十行的文件里找那一行；而「不认识属性词」
+    那条早就报行号了。判据一样，位置也得一样。
+    """
+    lines: dict[str, int] = {}
+    for i, line in enumerate(fmt_content.split("\n"), 1):
+        m = re.match(r"^\s*([^#:：\s][^:：]*?)\s*[：:]", line)
+        if m:
+            lines.setdefault(m.group(1).strip(), i)
+    return lines
+
+
+def _check_required_fields(
+    spec, lang: str = "zh", fmt_content: str | None = None
+) -> tuple[bool, list[str]]:
     """校验必填项是否齐备：必填样式 / 样式的必填字段 / 条件成套必填行 / 联动必填。
 
     返回 `(是否有错, 联动错误列表)`：联动错误已经在上面逐条打过日志，调用方抛异常时
     直接用这份列表，别再调一次 `_check_linkage_fields`——那样同一句会打印两遍。
+
+    `fmt_content` 给得出时，缺字段的那条会带上它在格式文件里的行号。
     """
     req_by_style = {r['style_name']: r for r in spec.styles}
 
@@ -909,9 +927,12 @@ def _check_required_fields(spec, lang: str = "zh") -> tuple[bool, list[str]]:
 
     if missing_required:
         logger.warning(t('template.missing_fields_header', lang))
+        style_lines = _style_line_numbers(fmt_content) if fmt_content else {}
         for alias, field in missing_required:
             hint = t(f'template.hint.{field}', lang) if field in FIELD_KEYS else field
-            logger.info(t('template.field_item', lang, alias=alias,
+            line_no = style_lines.get(alias)
+            where = t('template.field_where', lang, line=line_no) if line_no else ""
+            logger.info(t('template.field_item', lang, alias=alias, where=where,
                           field=t(f'template.field.{field}', lang) if field in FIELD_KEYS else field))
             logger.info(t('template.field_fix', lang, hint=hint))
 
@@ -1042,7 +1063,7 @@ def apply_page_decorations(doc, spec, lang: str = "zh"):
         for which, label in (('even', '偶数页'), ('first', '首页')):
             if (uses_even if which == 'even' else uses_first) and (kind, which) not in spec.decor:
                 spec.decor[(kind, which)] = base
-                logger.debug(f' ✓ {label}{cn}: 未单独指定，已沿用默认{cn}内容')
+                logger.info(f' ✓ {label}{cn}: 未单独指定，已沿用默认{cn}内容')
 
     if uses_even:
         doc.settings.odd_and_even_pages_header_footer = True
@@ -1433,7 +1454,7 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
     if default_latin:
         logger.debug(f' 全局西文字体: {default_latin}')
 
-    has_errors, linkage_errors = _check_required_fields(spec, lang)
+    has_errors, linkage_errors = _check_required_fields(spec, lang, format_text)
     if has_errors:
         msg = t('template.required_missing', lang)
         if linkage_errors:

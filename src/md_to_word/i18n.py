@@ -396,7 +396,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "⚠️ 必填字段缺失（缺失会沿用 Word 默认值，可能导致格式不合规）:",
         "⚠️ Missing required fields (Word defaults are used, so the format may not comply):",
     ),
-    "template.field_item": (" - {alias}: 缺少{field}", " - {alias}: missing {field}"),
+    "template.field_where": ("第 {line} 行 ", "line {line} "),
+    "template.field_item": (" - {where}{alias}: 缺少{field}", " - {where}{alias}: missing {field}"),
     "template.field_fix": (" 应写: {hint}", " should be: {hint}"),
     "template.abort": (
         "❌ 必填项或必填字段缺失，终止生成。",

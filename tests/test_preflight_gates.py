@@ -595,3 +595,22 @@ def test_a_real_missing_image_is_still_blocked(tmp_path: Path) -> None:
     report = validate_manuscript(manuscript)
     assert not report.valid
     assert any("图片文件不存在" in error for error in report.errors), report.errors
+
+
+def test_missing_format_fields_point_at_their_line(tmp_path: Path, caplog) -> None:
+    """README 承诺「格式没写全…精准指示行号」。
+
+    「不认识属性词」那条早就报行号；缺字段却只报样式名，用户还得自己在一份几十行的
+    文件里找那一行。两条判据面对的是同一份文件，位置就得一样。
+    """
+    import logging
+
+    from md_to_word.template.generator import generate_template
+
+    requirements = tmp_path / "format.txt"
+    requirements.write_text(
+        "文档标题：黑体 二号 加粗 居中\n\n正文：宋体 小四\n", encoding="utf-8"
+    )
+    with caplog.at_level(logging.INFO), pytest.raises(Exception):
+        generate_template(requirements.read_text(encoding="utf-8"), tmp_path / "t.docx")
+    assert "第 3 行 正文" in caplog.text, caplog.text
