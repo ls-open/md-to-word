@@ -19,7 +19,8 @@ PKG_RESOURCES = REPO_ROOT / "src" / "md_to_word" / "resources"
 
 
 # 只随包发布、仓库根不放副本的文件
-PACKAGE_ONLY = {"manual.md", "manual_en.md", "guide.md", "render_via_word.sh"}
+PACKAGE_ONLY = {"manual.md", "manual_en.md", "guide.md", "guide_zh.md",
+                "render_via_word.sh"}
 
 
 def _relative_files(root: Path) -> set[str]:
@@ -132,3 +133,19 @@ def test_skill_frozen_surface_exists_in_the_code() -> None:
 
     assert "`format.txt`" in section
     assert "`init`" in section and "md-to-word init" in text
+
+
+def test_the_chinese_quickstart_is_chinese_and_actionable() -> None:
+    """中文读者拿到的 `--guide` 是中文速览，不是英文那份的结尾加一行提示。
+
+    中文手册里写着「顺序见 `--guide`」——把它指到一份英文文档，等于告诉他「自己想办法」。
+    这里只锁两件事：它真的是中文，且最短路径里的三条命令都在。
+    """
+    import re
+
+    text = (PKG_RESOURCES / "guide_zh.md").read_text(encoding="utf-8")
+    assert len(text.splitlines()) > 30, "中文速览被削得太薄，撑不起「从零到一份」"
+    chinese = len(re.findall(r"[一-鿿]", text))
+    assert chinese > len(text) / 4, "中文速览里中文太少"
+    for command in ("md-to-word init", "--preset", "--base-template", "format.txt"):
+        assert command in text, f"中文速览里没提 {command}"

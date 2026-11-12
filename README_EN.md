@@ -32,7 +32,7 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 
 > 💡 **Core Design Philosophy**:  
 > At the foundational layer lies a deterministic Python compilation engine (`md-to-word-docx`), embedding all typographic rules, contracts, and quality gates. To eliminate the chronic headache of "external prompts and skill documents falling out of sync when formatting rules update", `md-to-word` uses a **self-contained design** (`md-to-word --guide` outputs the complete specification directly from the installed package).  
-> Whether you test it in your browser without installation, mount it into desktop AI clients via MCP, inject it into autonomous agents as a Skill, or run batch jobs in the terminal, the identical deterministic pipeline executes underneath.
+> Whether you look at the finished output in your browser, mount it into desktop AI clients via MCP, inject it into autonomous agents as a Skill, or run batch jobs in the terminal, the identical deterministic pipeline executes underneath.
 
 ### Usage & Ecosystem Matrix
 
@@ -100,17 +100,17 @@ For direct terminal productivity without LLMs:
 # Install core compiler
 pip install md-to-word-docx
 
-# Scaffold sample workspace
+# Scaffold sample workspace (English samples: add `--lang en --preset en-nature`)
 md-to-word init
 
 # Read complete self-contained contract and guide
 md-to-word --guide
 
-# Compile with an explicit format file
-md-to-word paper.md -f format.txt -o paper.docx
+# Compile with an explicit format file (hello.md is what `init` wrote)
+md-to-word hello.md -f format.txt -o hello.docx
 
 # Without a format file, use a preset for a first look (preview only)
-md-to-word paper.md --preset en-nature -o preview.docx
+md-to-word hello.md --preset en-nature -o preview.docx
 ```
 If you prefer direct Python CLI usage or operate in a local terminal / editor Agent environment:
 

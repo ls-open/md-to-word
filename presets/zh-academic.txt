@@ -1,7 +1,8 @@
 # 中文学术 / 通用报告预设（zh-academic）
 #
-# 用法：md-to-word 稿件.md -f presets/zh-academic.txt
-#       不传 -f、稿件同目录也没有唯一 .txt 时，本文件就是默认格式要求。
+# 用法：md-to-word 稿件.md --preset zh-academic -o 稿件.docx
+#       要改这份规则就把它放在稿件同目录、命名为 format.txt，
+#       之后 `md-to-word 稿件.md -o 稿件.docx` 会自动用它。
 #
 # 改法：整行 `#` 是注释，行内 `#` 不是。只改要动的行，其余留原样；
 #       合法写法与推导规则见包内 manual.md §3.1 / §3.5。

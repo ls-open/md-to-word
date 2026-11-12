@@ -32,7 +32,7 @@
 
 > 💡 **核心设计哲学**：
 > 本项目的底层是纯净、确定性的 Python 编译引擎（`md-to-word-docx`），内置了完整的排版契约规范与自检逻辑。为了解决“排版契约一旦升级、外部 Prompt/技能文档就失效不同步”的痛点，项目采用**规范内置自包含**设计（运行 `md-to-word --guide` 即可输出与代码同步的完整指南）。
-> 无论你是想在网页上免安装试玩、在桌面端挂载为原生 AI 工具（MCP）、在智能体中作为技能（Skill）调用，还是在终端执行 CLI 批处理，底层运行的都是同一套严格对账的编译逻辑。
+> 无论你是想在网页上先看成品、在桌面端挂载为原生 AI 工具（MCP）、在智能体中作为技能（Skill）调用，还是在终端执行 CLI 批处理，底层运行的都是同一套严格对账的编译逻辑。
 
 ### 选型对比与使用全景
 
@@ -113,11 +113,11 @@ md-to-word init
 # 查看完整工作流与格式词表
 md-to-word --guide
 
-# 显式指定格式文件导出
-md-to-word 论文.md -f format.txt -o 论文.docx
+# 导出（把 hello.md 换成你的稿件）
+md-to-word hello.md -f format.txt -o hello.docx
 
 # 没有格式文件时，用内置预设先看效果（仅预览）
-md-to-word 论文.md --preset zh-academic -o 预览.docx
+md-to-word hello.md --preset zh-academic -o 预览.docx
 ```
 
 - **作为 Python 库调用**：

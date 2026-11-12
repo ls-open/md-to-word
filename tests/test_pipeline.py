@@ -368,12 +368,20 @@ def test_json_output_survives_an_internal_error(tmp_path: Path, capsys, monkeypa
 
 
 def test_guide_is_readable_without_the_skill_directory(capsys) -> None:
-    """只装了 pip 包的人也要能一条命令读到‘按什么顺序做’。"""
+    """只装了 pip 包的人也要能一条命令读到「按什么顺序做」。
+
+    中文读者拿中文速览：英文那份是写给 AI Agent 的执行顺序，中文用户读它只会得到一份
+    看不懂的流程，而中文手册里写着「顺序见 --guide」。
+    """
     from md_to_word.cli import main
 
     assert main(["--guide"]) == 0
     out = capsys.readouterr().out
-    assert "Read this before the first run" in out and "## 1. The work, in order" in out
+    assert "从零到一份合规的 Word" in out and "md-to-word init" in out
+
+    assert main(["--guide", "--lang", "en"]) == 0
+    english = capsys.readouterr().out
+    assert "Read this before the first run" in english and "## 1. The work, in order" in english
 
 
 def test_guide_and_skill_entry_are_one_text() -> None:

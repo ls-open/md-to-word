@@ -137,16 +137,17 @@ Built-in presets:
 
 
 def guide_document(lang: str = "zh") -> str:
-    """入门文档：与技能入口 `SKILL.md` 同一份正文（测试盯着两者不许分叉）。
+    """入门文档。
 
-    只装了包、手上没有技能目录的调用方，从这一份读"按什么顺序做"；手册仍是细节的
-    唯一出处，中文稿读中文手册。
+    中文给中文速览（`guide_zh.md`）：英文那份是写给 AI Agent 的执行顺序，中文用户读它
+    只会得到一份看不懂的流程。英文仍然是 `guide.md`——它与技能入口 `SKILL.md` 同一份
+    正文，测试盯着两者不许分叉。
     """
     resources = Path(__file__).resolve().parent / "resources"
-    text = (resources / "guide.md").read_text(encoding="utf-8")
     if lang == "zh":
-        text += f"\n---\n\n中文细节见手册：{resources / 'manual.md'}\n"
-    return text
+        text = (resources / "guide_zh.md").read_text(encoding="utf-8")
+        return text + f"\n---\n\n中文细则见手册：{resources / 'manual.md'}\n"
+    return (resources / "guide.md").read_text(encoding="utf-8")
 
 
 def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
