@@ -12,6 +12,7 @@ CSL 的 author-in-text 形式渲染。这里对作者-年份制做一次保守�
 from __future__ import annotations
 
 import dataclasses
+import logging
 import re
 from contextvars import ContextVar
 from pathlib import Path
@@ -31,6 +32,34 @@ from md_to_word.i18n import t
 _DISAMBIGUATE_KEYS: ContextVar[frozenset[str]] = ContextVar(
     "md2word_disambiguate_keys", default=frozenset()
 )
+
+logger = logging.getLogger(__name__)
+
+# 补丁是对着 citeproc-py 0.12 的内部实现写的（见 `_install_citeproc_shims`）。
+SUPPORTED_CITEPROC = (0, 12)
+_citeproc_version_checked = False
+
+
+def _warn_if_unsupported_citeproc(lang: str) -> None:
+    """citeproc-py 不在支持范围内时明说一句，每个进程一次。
+
+    九处补丁修的都是 citeproc-py 内部方法。版本不对时它们**不会报错**，只会整体不生效：
+    文献表照样生成，却悄悄退回上游的已知缺陷（APA 学位论文多印 `(Publication)`、MLA
+    每条引用强带题名、`3.5.0--rc1` 被判成复数……）。这里把「静默降级」变成一句提醒。
+    """
+    global _citeproc_version_checked
+    if _citeproc_version_checked:
+        return
+    _citeproc_version_checked = True
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+
+        found = version("citeproc-py")
+        major, minor = (int(p) for p in found.split(".")[:2])
+    except (PackageNotFoundError, ValueError):
+        return
+    if (major, minor) != SUPPORTED_CITEPROC:
+        logger.warning(t("citations.citeproc_version", lang, found=found))
 
 
 def _install_citeproc_shims() -> None:
@@ -477,6 +506,7 @@ class CitationEngine:
     """一份文献库 + 一个 CSL 样式 = 一个渲染器。"""
 
     def __init__(self, bib_text: str, csl_path: Path | str, lang: str = "zh") -> None:
+        _warn_if_unsupported_citeproc(lang)
         self.lang = lang
         self.entries = parse_bibtex(bib_text)
         if not self.entries:

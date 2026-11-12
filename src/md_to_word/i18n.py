@@ -275,6 +275,15 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "the CSL style could not be parsed: {path} ({err})",
     ),
     "citations.key_missing": ("文献库里没有条目：{key}", "the bibliography has no entry for {key}"),
+    "citations.citeproc_version": (
+        "citeproc-py 是 {found}，不在支持范围（0.12.x）：本项目的 CSL 补丁可能不生效，"
+        "文献表会照常生成，但可能退回上游的已知缺陷（APA 学位论文多印 (Publication)、"
+        "MLA 每条引用强带题名等）。修：pip install -U 'citeproc-py>=0.12,<0.13'",
+        "citeproc-py is {found}, outside the supported range (0.12.x): the project's CSL shims "
+        "may not apply, and the bibliography — while still produced — can fall back to known "
+        "upstream defects (e.g. APA theses printing a stray (Publication), MLA adding a title to "
+        "every citation). Fix: pip install -U 'citeproc-py>=0.12,<0.13'",
+    ),
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
     "pipeline.pdf_skipped": (
         "docx 已生成；PDF 核对版未做——{hint}",
