@@ -223,16 +223,25 @@ def _run_init(args: list[str], lang: str) -> int:
 
 
 def _make_output_never_crash() -> None:
-    """Windows 的控制台默认编码未必是 UTF-8。
+    """让中文输出在任何 Windows 终端上都不会把命令打成 traceback。
 
-    `chcp 437/1252` 的机器上打印中文直接 `UnicodeEncodeError`，整条命令以 traceback
-    结束——而用户只是想把稿件导成 Word。这里只保证「不炸」：编码能表示就照常显示，
-    表示不了就换成占位符（例如英文版 Windows 上的 cmd）。中文版 Windows 默认 cp936，
-    中文照常可读，不受影响。
+    分两种情况，因为「输出到哪」决定了什么才是对的：
+
+    - **重定向到管道/文件**（CI、脚本收集、`> log.txt`）：编码由 Python 默认取系统码页，
+      英文版 Windows 是 cp1252，写中文直接 `UnicodeEncodeError`。这里定成 UTF-8——
+      下游本来就要的是字节，UTF-8 才是不丢字的答案。
+    - **真正的控制台**：Windows 的 console 路径（`_WindowsConsoleIO`）本来就是 UTF-16
+      写屏，不动它；个别非 console 的终端（如 mintty）默认编码可能是 cp1252，那就只加
+      `errors="replace"`，至少不炸。
+
+    中文版 Windows 默认 cp936，中文照常可读，两种情况都不受影响。
     """
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(errors="replace")
+            if not stream.isatty():
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            else:
+                stream.reconfigure(errors="replace")
         except (AttributeError, ValueError, OSError):
             # 被重定向成非 TextIOWrapper（例如某些测试替身）时没有 reconfigure
             pass
