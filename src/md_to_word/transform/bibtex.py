@@ -624,9 +624,9 @@ def _iter_entries(text: str):
                 i += 2
                 continue
             if opener == "{":
-                if ch == "{":
+                if ch == opener:
                     depth += 1
-                elif ch == "}":
+                elif ch == closer:
                     depth -= 1
             else:
                 # 括号式条目：花括号里的 `(` `)` 属于字段值，不参与条目定界计数
