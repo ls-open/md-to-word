@@ -63,3 +63,150 @@ def test_consecutive_numbers_collapse_to_range() -> None:
     # 两条不压：只有三条及以上才合并
     assert _collapse_numeric_runs("[4,5]") == "[4,5]"
     assert _collapse_numeric_runs("[4,6]") == "[4,6]"
+
+
+def test_braced_and_and_compound_surname_preserved() -> None:
+    """花括号保护的机构名内含 `and` 不能拆；复合姓氏 `{Smith Jr.}` 作为整体姓氏，不拆成粒子或掉后缀。"""
+    bib = """
+@misc{fao,
+  author = {{Food and Agriculture Organization} and J. R. {Smith Jr.} and {World Bank}},
+  year = {2024}
+}
+"""
+    authors = _entry(bib, "fao")["author"]
+    assert authors == [
+        {"literal": "Food and Agriculture Organization"},
+        {"family": "Smith Jr.", "given": "J. R."},
+        {"literal": "World Bank"},
+    ]
+
+    particle_comma = _entry("@article{v, author = {{van Berg}, Jan}, year = {2023}}", "v")["author"]
+    assert particle_comma == [{"family": "van Berg", "given": "Jan"}]
+
+
+def test_periodical_vs_non_periodical_number_and_verbatim_fields() -> None:
+    """`number` 在期刊里是 issue、在报告里是 number；URL/DOI/报告号里的 `--`/`~` 不可被排版引号/破折号改写。"""
+    bib = """
+@article{art,
+  author = {Lin, Wei},
+  title = {A--B Study},
+  journal = {J. Test},
+  volume = {10},
+  number = {3},
+  doi = {10.1000/a--b~1},
+  url = {https://example.org/~user/a--b},
+  year = {2025}
+}
+@techreport{tr,
+  author = {{FAO}},
+  title = {Annual Report},
+  institution = {Food and Agriculture Organization},
+  location = {Rome},
+  number = {FAO-TR-2024--01},
+  type = {Technical Report},
+  year = {2024}
+}
+"""
+    art = _entry(bib, "art")
+    assert art["type"] == "article-journal"
+    assert art["issue"] == "3"
+    assert "number" not in art
+    assert art["DOI"] == "10.1000/a--b~1"
+    assert art["URL"] == "https://example.org/~user/a--b"
+    assert "–" in art["title"]  # 普通正文题名的 -- 仍然正常转为短破折号
+
+    tr = _entry(bib, "tr")
+    assert tr["type"] == "report"
+    assert tr["number"] == "FAO-TR-2024--01"
+    assert "issue" not in tr
+    assert tr["publisher"] == "Food and Agriculture Organization"
+    assert tr["publisher-place"] == "Rome"
+    assert tr["genre"] == "Technical Report"
+
+
+def test_modern_types_howpublished_url_and_arxiv_misc() -> None:
+    """现代类型映射、`howpublished={\\url{...}}` 提取、以及 `@misc` 网页与 arXiv 预印本的分流。"""
+    bib = """
+@software{sw,
+  author = {Chen, Yi},
+  title = {md-to-word},
+  organization = {Open Science Lab},
+  version = {3.5.0--beta},
+  url = {https://github.com/example/md-to-word},
+  year = {2025}
+}
+@dataset{ds,
+  author = {Wang, Lei},
+  title = {Corpus},
+  publisher = {Zenodo},
+  year = {2024}
+}
+@misc{web,
+  author = {{Ministry of Education}},
+  title = {Policy Notice},
+  howpublished = {\\url{https://www.moe.gov.example/a--b}},
+  year = {2025},
+  urldate = {2026-11-12}
+}
+@misc{arxiv,
+  author = {Zhang, Wei},
+  title = {Preprint Paper},
+  eprint = {2501.01234},
+  archivePrefix = {arXiv},
+  year = {2025}
+}
+"""
+    sw = _entry(bib, "sw")
+    assert sw["type"] == "software"
+    assert sw["publisher"] == "Open Science Lab"
+    assert sw["version"] == "3.5.0--beta"
+
+    ds = _entry(bib, "ds")
+    assert ds["type"] == "dataset"
+
+    web = _entry(bib, "web")
+    assert web["type"] == "webpage"
+    assert web["URL"] == "https://www.moe.gov.example/a--b"
+
+    arxiv = _entry(bib, "arxiv")
+    assert arxiv["type"] == "article"
+    assert arxiv["URL"] == "https://arxiv.org/abs/2501.01234"
+    assert arxiv["genre"] == "preprint"
+
+    # 真实走一遍 CSL 渲染，确认 `@misc` + URL 在 GB/T 7714 出 `[EB/OL]` 而 APA/IEEE 均可渲染
+    gb = CitationEngine(bib, get_csl_dir() / "chinese-gb7714-2015-numeric.csl", lang="zh")
+    gb.reserve(["web", "tr"])
+    gb.cite([("web", "")])
+    bib_entries = dict(gb.bibliography_entries())
+    assert "[EB/OL]" in "".join(t for t, _ in bib_entries["web"])
+    assert "https://www.moe.gov.example/a--b" in "".join(t for t, _ in bib_entries["web"])
+
+    apa = CitationEngine(bib, get_csl_dir() / "apa.csl", lang="en")
+    apa.reserve(["sw", "ds", "web", "arxiv"])
+    for k in ("sw", "ds", "web", "arxiv"):
+        assert apa.cite([(k, "")])
+    assert len(apa.bibliography_entries()) == 4
+
+
+def test_misc_with_url_and_text_howpublished_renders_platform() -> None:
+    """`@misc` 同时带 `url` 与纯文本 `howpublished`（平台/发布方名称）时，APA 与 GB/T 7714 都不能悄悄丢掉。"""
+    bib = """
+@misc{moe2026b,
+  author = {{教育部}},
+  year = {2026},
+  title = {大學、技專校院各系所註冊率［資料集］},
+  howpublished = {政府資料開放平臺},
+  url = {https://data.gov.tw/dataset/26228}
+}
+"""
+    entry = _entry(bib, "moe2026b")
+    assert entry["type"] == "webpage"
+    assert entry["publisher"] == "政府資料開放平臺"
+
+    for csl_name in ("apa.csl", "chinese-gb7714-2015-numeric.csl"):
+        eng = CitationEngine(bib, get_csl_dir() / csl_name, lang="zh")
+        eng.reserve(["moe2026b"])
+        assert eng.cite([("moe2026b", "")])
+        rendered = "".join(t for t, _ in dict(eng.bibliography_entries())["moe2026b"])
+        assert "政府資料開放平臺" in rendered, (csl_name, rendered)
+        assert "https://data.gov.tw/dataset/26228" in rendered, (csl_name, rendered)

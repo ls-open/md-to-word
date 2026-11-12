@@ -293,3 +293,49 @@ def test_no_separator_when_the_number_is_not_where_the_style_says() -> None:
     engine._first_field_column = True
     engine._number_prefix, engine._number_suffix = "[", "]"
     assert engine._separate_first_field(["Doe, J. A study."], 3) == "Doe, J. A study."
+
+
+def test_edited_book_does_not_repeat_editors_and_capitalizes_label() -> None:
+    """编者书缺 author 时 editor 升到作者位，后续附注位不能再重复印一遍编者；
+
+    同时 APA 要求的 `(Eds.)` / `(Ed.)`（`text-case="title"`）要按默认英文区域生效。
+    """
+    bib = """
+@book{edbook, editor={Stensaker, Bjorn and Harvey, Lee}, year={2023},
+  title={Accountability in higher education}, edition={2}, publisher={Routledge}}
+@incollection{chap, author={Stake, R.}, editor={Guba, E.}, year={2000},
+  title={Chapter title}, booktitle={Handbook}, pages={10-20}, publisher={Press}}
+"""
+    apa = CitationEngine(bib, CSL / "apa.csl", lang="en")
+    apa.cite([("edbook", "")])
+    apa.cite([("chap", "")])
+    entries = {k: "".join(s[0] for s in segs) for k, segs in apa.bibliography_entries()}
+    assert entries["edbook"] == (
+        "Stensaker, B., & Harvey, L. (Eds.). (2023). Accountability in higher education (2nd ed.). Routledge."
+    )
+    assert "(Ed.)" in entries["chap"], entries["chap"]
+
+    for style in ("harvard-cite-them-right.csl", "modern-language-association.csl", "american-medical-association.csl"):
+        eng = CitationEngine(bib, CSL / style, lang="en")
+        eng.cite([("edbook", "")])
+        rendered = eng.bibliography()[0]
+        assert rendered.count("Stensaker") == 1, f"{style}: {rendered}"
+
+
+def test_english_narrative_citation_uses_and_not_ampersand() -> None:
+    """英文作者-年份叙述式引用正文用 `and`，括号内仍用 `&`（APA §8.17），
+
+    含 `&` 的单机构作者名不拆，中文稿也不乱插英文 `and`。
+    """
+    bib = """
+@article{vd2021, author={Venkatesh, V. and Davis, F.}, title={TAM}, journal={MS}, year={2021}}
+@book{pg2024, author={{Procter & Gamble}}, title={Annual Report}, publisher={P&G}, year={2024}}
+"""
+    apa_en = CitationEngine(bib, CSL / "apa.csl", lang="en")
+    assert "".join(s[0] for s in apa_en.cite([("vd2021", "")], narrative=True)) == "Venkatesh and Davis (2021)"
+    assert "".join(s[0] for s in apa_en.cite([("vd2021", "")], narrative=False)) == "(Venkatesh & Davis, 2021)"
+    assert "".join(s[0] for s in apa_en.cite([("pg2024", "")], narrative=True)) == "Procter & Gamble (2024)"
+
+    apa_zh = CitationEngine(bib, CSL / "apa.csl", lang="zh")
+    assert "".join(s[0] for s in apa_zh.cite([("vd2021", "")], narrative=True)) == "Venkatesh & Davis (2021)"
+
