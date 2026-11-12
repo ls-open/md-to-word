@@ -18,6 +18,10 @@ trap 'rm -rf "$TMP"' EXIT
 step() { printf '\n== %s\n' "$1"; }
 
 step "构建 wheel"
+# `build/` 里的旧产物不会被 `build_py` 清掉：源文件删了，`build/lib` 里还留着，
+# 打出来的 wheel 就会带上已经不存在的文档（3.5.0 合并手册后实测如此）。
+# 每次从干净目录构建，wheel 的内容才等于源码树的内容。
+rm -rf "$ROOT/build"
 python3 -m pip wheel "$ROOT" --no-deps -w "$TMP/dist" -q
 WHEEL=$(ls "$TMP"/dist/*.whl)
 echo "   $WHEEL"
@@ -36,11 +40,16 @@ step "命令行入口"
 step "包内文档"
 SITE=$("$TMP/venv/bin/python" -c "import md_to_word, pathlib; print(pathlib.Path(md_to_word.__file__).parent)")
 for f in resources/guide.md \
-         resources/manual.md resources/manual_en.md \
-         resources/manual-thesis.md resources/manual-thesis_en.md; do
+         resources/manual.md resources/manual_en.md; do
     test -f "$SITE/$f" || { echo "   缺少 $f"; exit 1; }
 done
-echo "   guide + 两册手册（中英各一）都在"
+# 反向也查一遍：源里已经没有的文档，不能因为 build/ 残留又混进 wheel
+stale=$(find "$SITE/resources" -maxdepth 1 -name 'manual-thesis*' | head -1)
+if [ -n "$stale" ]; then
+    echo "   wheel 里混入了已删除的文档：$(basename "$stale")"
+    exit 1
+fi
+echo "   guide + 两册手册（中英各一）都在，且没有残留旧文档"
 
 step "init → 导出"
 mkdir "$TMP/work" && cd "$TMP/work"
