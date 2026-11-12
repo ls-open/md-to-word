@@ -1283,18 +1283,6 @@ def cited_keys(model) -> list[str]:
     return list(dict.fromkeys(found))
 
 
-def _unique(pairs) -> list:
-    """同一条引用里同一个 key 只算一次（CSL 要求消重），定位符不同的保留第一处。"""
-    seen: set = set()
-    unique = []
-    for pair in pairs:
-        if pair[0] in seen:
-            continue
-        seen.add(pair[0])
-        unique.append(pair)
-    return unique
-
-
 def _expand_range(value: str) -> str:
     """`33-5` → `33-35`（CSL 的 `page-range-format="expanded"`）。"""
     def repl(m: re.Match) -> str:

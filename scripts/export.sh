@@ -28,9 +28,9 @@ if [[ -d "$VENDORED" ]] && command -v python3 >/dev/null 2>&1; then
     cat >&2 <<'MSG'
 缺少 Python 依赖，先在仓库根目录执行一次：
 
-  pip install -r requirements.txt
+  pip install -e .
 
-（只装依赖，引擎就在本目录的 src/ 里。）
+（依赖声明在 pyproject.toml，就这一份。）
 MSG
     exit 1
 fi

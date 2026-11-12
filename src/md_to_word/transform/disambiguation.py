@@ -46,12 +46,6 @@ def citation_attrs(style_text: str) -> dict[str, str]:
     return dict(re.findall(r'([\w-]+)="([^"]*)"', m.group(1)))
 
 
-def initialize_with(style_text: str) -> str:
-    """样式里的 `initialize-with`（APA 系都是 ". "）。消歧补首字母时照它写。"""
-    m = re.search(r'initialize-with="([^"]*)"', style_text)
-    return m.group(1) if m else ". "
-
-
 def clone(style_text: str, base_use_first: int, variant: Variant) -> str:
     """返回把名字参数改成 `variant` 的样式副本文本。"""
     start = style_text.find("<citation")
