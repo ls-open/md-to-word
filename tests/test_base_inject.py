@@ -705,3 +705,28 @@ def test_a_base_without_body_level_section_break_is_rejected_up_front(tmp_path: 
     report = inspect_base(base, 1)
     assert not report.ok, "末节 sectPr 不在 body 级的模板被放行了"
     assert any("分节符" in msg for msg in report.blocking), report.blocking
+
+
+def test_injected_output_is_byte_reproducible(tmp_path: Path) -> None:
+    """同一份底模 + 同一份稿子，两次导出的字节必须一致。
+
+    普通导出这条路早就有 `normalize_zip()` 钉住时间戳；灌底模走的是 `school.save()`，
+    不钉就带着当前时刻，README 那句「同一份源文件重复编译，产物二进制完全一致」
+    在 `--base-template` 上就不成立了。
+    """
+    from md_to_word.template.base_inject import inject_into_base
+
+    base = _school_base(tmp_path / "base.docx", sections=1)
+    rendered = _rendered(tmp_path, "# 一 引言\n\n正文一段。\n")
+
+    first = tmp_path / "a.docx"
+    second = tmp_path / "b.docx"
+    inject_into_base(base, rendered, 1, first)
+    inject_into_base(base, rendered, 1, second)
+    assert first.read_bytes() == second.read_bytes(), "两次灌入的字节不同"
+
+    # 只比两次的字节不够：DOS 时间戳的粒度是 2 秒，连着跑两次本来就会撞上同一格。
+    # 直接看元数据有没有被钉住。
+    with zipfile.ZipFile(first) as z:
+        stamps = {info.date_time for info in z.infolist()}
+    assert stamps == {(1980, 1, 1, 0, 0, 0)}, f"zip 时间戳没钉死：{stamps}"

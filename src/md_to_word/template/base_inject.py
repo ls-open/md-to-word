@@ -454,6 +454,11 @@ def inject_into_base(
     sbody.replace(final, our_sect)
     _copy_meta_part(ours, school, RT, PackURI, Part)
     school.save(str(out))
+    # 与普通导出一样把 zip 元数据钉死：python-docx 存盘会写当前时刻，不钉的话同一份
+    # 底模 + 同一份稿子两次导出字节不同，「逐字节可复现」在灌底模这条路就不成立。
+    from md_to_word.utils.docx_zip import normalize_zip
+
+    normalize_zip(out)
 
 
 def _copy_meta_part(ours, school, RT, PackURI, Part) -> None:
