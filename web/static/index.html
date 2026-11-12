@@ -117,8 +117,8 @@
         <span class="text-[11px] text-slate-400" id="txtPresetHint">所有样式统一精准控制在整整 1 页，无跨页冗余</span>
       </div>
 
-      <!-- 3 个经典模板卡片 -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="templateCards">
+      <!-- 4 个经典模板卡片 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="templateCards">
         <!-- 模板 1：中文学术期刊 -->
         <div onclick="selectTemplate('zh-journal')" id="card-zh-journal" class="tpl-card active cursor-pointer p-3.5 rounded-lg border-2 border-slate-900 bg-slate-50/70 hover:bg-slate-50 transition-all flex flex-col justify-between">
           <div class="flex items-center justify-between mb-1.5">
@@ -130,7 +130,18 @@
           </p>
         </div>
 
-        <!-- 模板 2：现代技术白皮书 -->
+        <!-- 模板 2：繁體中文學術期刊 -->
+        <div onclick="selectTemplate('zh-tw-journal')" id="card-zh-tw-journal" class="tpl-card cursor-pointer p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold text-slate-900" id="cardTitle-zh-tw-journal">📘 繁體中文學術期刊</span>
+            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium" id="cardBadge-zh-tw-journal">臺灣 / 香港</span>
+          </div>
+          <p class="text-[11px] text-slate-500 leading-relaxed" id="cardDesc-zh-tw-journal">
+            新細明體 · 微軟正黑體 · 全形標點不壓縮 · 1.5倍行距 · 規範三線表
+          </p>
+        </div>
+
+        <!-- 模板 3：现代技术白皮书 -->
         <div onclick="selectTemplate('zh-report')" id="card-zh-report" class="tpl-card cursor-pointer p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all flex flex-col justify-between">
           <div class="flex items-center justify-between mb-1.5">
             <span class="text-xs font-bold text-slate-900" id="cardTitle-zh-report">📄 现代技术白皮书</span>
@@ -141,7 +152,7 @@
           </p>
         </div>
 
-        <!-- 模板 3：英文学术期刊 -->
+        <!-- 模板 4：英文学术期刊 -->
         <div onclick="selectTemplate('en-paper')" id="card-en-paper" class="tpl-card cursor-pointer p-3.5 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all flex flex-col justify-between">
           <div class="flex items-center justify-between mb-1.5">
             <span class="text-xs font-bold text-slate-900" id="cardTitle-en-paper">🔬 英文学术期刊</span>
@@ -580,6 +591,16 @@
         document.getElementById('badgeEquation').textContent = isEn ? 'OMML Vector · Hard Right #' : '原生矢量 · 靠右编号';
         document.getElementById('badgeTable').textContent = isEn ? 'Three-line Table' : '标准三线表';
         document.getElementById('badgeReferences').textContent = isEn ? '10.5pt · Hanging 0.5"' : '五号 · 悬挂缩进';
+      } else if (tplId === 'zh-tw-journal') {
+        document.getElementById('badgeTitle').textContent = isEn ? '22pt Bold · Center' : '二號正黑 · 置中';
+        document.getElementById('badgeHeader').textContent = isEn ? '9pt · Single Rule' : '小五 · 單線頁眉';
+        document.getElementById('badgeAbstract').textContent = isEn ? '12pt · Indent 2 chars' : '小四新細明體 · 縮進2字元';
+        document.getElementById('badgeKeywords').textContent = isEn ? '12pt · Justified' : '小四 · 兩端對齊';
+        document.getElementById('badgeIntroHeading').textContent = isEn ? '16pt Bold · Keep next' : '三號加粗 · 與下段同頁';
+        document.getElementById('badgeBody').textContent = isEn ? '12pt · 1.5x Spacing' : '小四新細明體 · 1.5倍行距';
+        document.getElementById('badgeEquation').textContent = isEn ? 'OMML Vector · Hard Right #' : '原生向量 · 靠右編號';
+        document.getElementById('badgeTable').textContent = isEn ? 'Three-line Table' : '標準三線表';
+        document.getElementById('badgeReferences').textContent = isEn ? '10.5pt · Hanging 0.5"' : '五號 · 懸掛縮進';
       } else if (tplId === 'zh-report') {
         document.getElementById('badgeTitle').textContent = isEn ? '22pt · #1F4E79' : '二号黑体 · 品牌蓝';
         document.getElementById('badgeHeader').textContent = isEn ? '9pt · Single Rule' : '小五 · 单线页眉';
