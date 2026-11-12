@@ -20,6 +20,10 @@ jobs:
             python: "3.12"
           - os: macos-latest
             python: "3.12"
+          # 目标用户大多在 Windows + WPS 上。核心路径没有任何平台分支（只有 `--pdf`
+          # 那条明确只支持 macOS），但「大概率没事」和「测过」是两回事。
+          - os: windows-latest
+            python: "3.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
