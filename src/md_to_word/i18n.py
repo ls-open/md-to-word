@@ -44,8 +44,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Format file (.txt); without it, only a format.txt beside the manuscript is used, else a preset",
     ),
     "cli.preset": (
-        "内置格式预设：zh-academic（中文学术默认）或 en-nature（英文国际期刊）",
-        "Built-in preset: zh-academic (Chinese thesis) or en-nature (international journal)",
+        "内置格式预设：zh-academic / zh-tw-academic / zh-report / en-nature",
+        "Built-in preset: zh-academic / zh-tw-academic / zh-report / en-nature",
     ),
     "cli.lang": ("消息语言：auto=按稿件语种 / zh / en", "Message language: auto / zh / en"),
     "cli.no_check": ("跳过导前语法与排版契约预检（不推荐）", "Skip the pre-flight check (not recommended)"),
@@ -79,7 +79,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Write a format file and a sample manuscript into a directory, ready to export",
     ),
     "init.directory": ("目标目录（默认当前目录）", "Target directory (default: current)"),
-    "init.preset": ("用哪份内置预设（默认按语种：zh-academic / en-nature）", "Which built-in preset (default: by language)"),
+    "init.preset": (
+        "内置格式预设：zh-academic / zh-tw-academic / zh-report / en-nature（默认按语种）",
+        "Built-in preset: zh-academic / zh-tw-academic / zh-report / en-nature (default: by language)",
+    ),
     "init.force": ("覆盖已存在的同名文件", "Overwrite existing files"),
     "init.done": (
         "已生成：\n  {directory}/format.txt（{preset} 预设，整份都可以改）\n"
@@ -90,8 +93,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Workflow and full vocabulary: md-to-word --guide",
     ),
     "init.preset_missing": (
-        "未找到预设: {name}\n  内置预设是 zh-academic 与 en-nature；也可以直接给一份 --preset 之外的要求文件。",
-        "Preset not found: {name}\n  The built-in presets are zh-academic and en-nature.",
+        "未找到预设: {name}\n  内置预设是 zh-academic、zh-tw-academic、zh-report 与 en-nature；也可以直接给一份自定义格式文件。",
+        "Preset not found: {name}\n  Built-in presets are zh-academic, zh-tw-academic, zh-report, and en-nature.",
     ),
     "init.exists": (
         "未覆盖已存在的文件：{paths}（要覆盖加 --force）",

@@ -73,9 +73,9 @@ In your `claude_desktop_config.json` (or Cursor MCP settings), add:
 - `compile_markdown`: Compiles raw Markdown strings or local `.md` files directly into `.docx` documents;
 - `validate_manuscript`: Runs preflight validation gates (unclosed math formulas, broken table lines, unresolved CSL citations);
 - `get_guide` / `get_manual`: Reads the packaged workflow guide and full vocabulary;
-- `extract_format_from_docx`: Reverse-engineers a draft `format.txt` from a school/journal template;
-- `list_presets`: Explores built-in templates (Chinese Academic Journal, Technical Report/Whitepaper, Nature English Paper);
-- `inspect_preset`: Inspects typography specifications (`format.txt`) with complete transparency.
+- `extract_format_from_docx`: Reverse-engineers a draft `format.txt` from an existing reference `.docx`;
+- `list_presets`: Explores built-in presets (`zh-academic`, `zh-tw-academic` Traditional Chinese, `zh-report`, `en-nature`);
+- `inspect_preset`: Inspects full typography rules (`format.txt`) for any preset.
 
 **Order of work**: call `get_guide` first, then decide `format` from the user's template or spec; use a built-in preset only for a first look when no template is available.
 
@@ -176,7 +176,7 @@ No need to transcribe guidelines manually from `.docx` files issued by publisher
 md-to-word-template university_template.docx -o format.txt
 ```
 
-It automatically extracts page dimensions, margins, header/footer spacing, pagination, fonts, sizes, line spacing, paragraph before/after spacing, indentations, and table borders into a `format.txt`. **Anything it could not determine — or could read but cannot express — is collected into an item-by-item checklist at the end of that file**, and is never guessed.
+It automatically extracts page dimensions, margins, gutter, mirror margins, punctuation compression, header/footer spacing, pagination, fonts, sizes, line spacing, paragraph before/after spacing, indentations, and table borders into a `format.txt`. **Anything it could not determine — or could read but cannot express — is collected into an item-by-item checklist at the end of that file**, and is never guessed.
 
 If the cover page and originality statement must survive **untouched**, don't reverse-engineer — use that `.docx` as the base and pour the body in:
 
@@ -197,8 +197,8 @@ deep is refused, and the message names the most you may keep.
 
 ## Typography Capabilities
 
-- **Page & Prose**: Paper size, margins, gutters, document grid, Chinese/Western fonts, sizes, line spacing, indents, paragraph spacing, alignments, colors.
-- **Headings & Headers/Footers**: 6 heading levels, odd/even/first-page distinctions, sectional pagination, `{page}` `{numpages}` `{title}` fields.
+- **Page & Prose**: Paper size, margins, native gutters, double-sided mirror margins, document grid, Simplified/Traditional Chinese (`zh-tw-academic`) and Latin fonts, punctuation compression controls, sizes, line spacing, indents, paragraph spacing, alignments, style-level colors.
+- **Headings & Headers/Footers**: 6 heading levels, odd/even/first-page distinctions, sectional pagination, `{page}` `{total-pages}` `{style-title:Heading 1}` fields.
 - **Tables**: Three-line tables, full grid, top/bottom rules, custom borders, repeating header rows, vertical/horizontal alignment, column width ratios.
 - **Equations**: Native OMML equation objects (double-click editable in Word; not images), centered, right-aligned numbering, chapter numbering, `@eq-` cross-references.
 - **Figures, Tables & Captions**: Width clamped to body margins, keep-with-next binding so a caption never leaves its figure or table, native vector PDF image support (auto-rasterized to 300 dpi on export).

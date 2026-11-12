@@ -29,9 +29,10 @@ def test_mcp_list_presets():
         res = await server.call_tool("list_presets", {})
         assert not res.is_error
         presets = res.structured_content["result"]
-        assert len(presets) >= 3
+        assert len(presets) >= 4
         preset_ids = [p["id"] for p in presets]
         assert "zh-academic" in preset_ids
+        assert "zh-tw-academic" in preset_ids
         assert "zh-report" in preset_ids
         assert "en-nature" in preset_ids
     asyncio.run(_run())

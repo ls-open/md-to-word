@@ -24,16 +24,21 @@ cover and front matter, section and page numbering, chapter/appendix numbering, 
 
 ## 1. The work, in order
 
-1. **Confirm requirements & decide format** (§3): built-in preset (`zh-academic`, `en-nature`),
-   an edited copy of one, or a custom format file supplied by the user (or extracted from a reference `.docx`).
-2. **Normalize the manuscript**: Standard Markdown natively represents headings and body text, but
-   structures beyond standard Markdown (captions, TOC, page breaks, abstract, display math) must follow the contract
-   in §2. Map what the source actually contains; do not invent missing elements.
-   Write a new file; never edit the user's original in place.
-3. **Export** (§4).
-4. **Read the gates** (§4), fix the reported lines, export again. Repeat until the exit code is `0`.
-5. **Report** (§5): what format was applied, what the run warned about, and that the layout still
-   needs a look in Word.
+Before editing files, understand how **three inputs combine** to produce the final `.docx`:
+
+| Layer | File | What it controls |
+|:--|:--|:--|
+| **Content & inline** | Manuscript `.md` | Text, headings (`#`), structure (`%% Style`, `{{< toc >}}`, `{{< section >}}`, `$$…$$ {#eq-}`), YAML (`bibliography:`, `csl:`, `crossref:`), and **inline span formatting** (`**bold**`, `*italic*`, `~~strike~~`, `[text]{.underline}`, `^sup^`, `~sub~`, `` `code` ``, `[text](url)`). |
+| **Format & page** | `format.txt` or `--preset` | Global page geometry (`Paper`, `Margins`, `Gutter`, `Mirror Margins`), language/punctuation (`Proofing Language`, `Punctuation Compression`), running header/footer content (`{page}`, `{total-pages}`, `{style-title:Heading 1}`), and **style-level** typography (`Body Text`, `Heading 1`, `Table`, style `color#RRGGBB`, etc.). |
+| **Cover / base** *(optional)* | `--base-template x.docx` | Keeps an institutional cover/declaration `.docx` verbatim in leading sections (`--keep-until` / `--cover-sections` / `--keep-pages`). Note: the base's document settings (`settings.xml`, theme, `docDefaults`) apply globally; your declared styles and body page/margin/header rules come from `format.txt`. |
+
+Workflow:
+
+1. **Confirm requirements & decide format** (§3): choose a built-in preset (`zh-academic` / `zh-tw-academic` / `zh-report` / `en-nature`), edit a copy of one, use the user's `format.txt`, or extract one from a reference `.docx`.
+2. **Normalize the manuscript**: map structures beyond standard Markdown (title/abstract lines, captions, TOC, page breaks, section breaks, numbered equations) using the contract in §2, and keep inline emphasis/super/sub/code/links directly in Markdown. Write a new file; never overwrite the user's source if adapting one.
+3. **Export** (§4), adding `--base-template` only when an existing `.docx` cover/front-matter template must be preserved untouched.
+4. **Read the gates** (§4), fix reported line numbers, and re-run until exit code is `0`.
+5. **Report** (§5): state the format/preset/CSL used, relay any warnings, and note that visual layout still needs a check in Word.
 
 Nothing here accepts arbitrary Markdown and returns a finished document: a preset supplies
 formatting, not missing structure. Pre-flight stops with a line number instead of emitting a
@@ -43,6 +48,9 @@ document that looks acceptable while its formatting was never mapped.
 
 **Headings** — `#`, `##`, `###`, consecutive and unskipped; a heading that carries its own number
 (`1.`, `2.1`) needs as many `#` as its number has levels. Heading levels are set by `#` only.
+Append `{.unlisted}` (or `{不入目录}`) to opt a single heading out of the TOC while keeping `#`
+hierarchy and chapter equation numbering (it will not update `{style-title:Heading 1}` headers
+unless separated by `{{< section >}}`).
 
 **Style lines** — a line starting with `%% ` sets that paragraph's style. One line is one paragraph,
 ended by a blank line, no closing fence. Names come from a closed list, valid in either language;
@@ -102,25 +110,28 @@ also work). A section marker closes *the section above it*; never add a page bre
 | **read it** (反推) | `md-to-word-template x.docx -o format.txt` | its styles and page setup, as a draft `format.txt` | what `format.txt` can express; the rest lands in the "to confirm" list |
 | **pour into it** (灌入) | `--base-template x.docx --keep-until …` | its front matter, kept byte for byte; the body is replaced by ours | cut point must stop before its contents page; needs a Word-installed machine for the layout check |
 
-Reading it gives a reusable format file; pouring into it keeps that one school's cover. Neither
-replaces the other, and a thesis usually wants both.
+Reading it gives a reusable format file; pouring into it keeps an existing template's cover and front
+matter verbatim. Neither replaces the other, and a document with an official cover usually wants both.
 
 **Check for an existing format file before writing one** — the user may already have one beside the
 manuscript, or a target `.docx` worth reverse-engineering.
 
 0. **Starting from nothing** — `md-to-word init` writes a complete preset copy plus a one-page
    manuscript that exports as-is. Useful when the user has no format file and no template.
-1. **Built-in preset** — `zh-academic` or `en-nature`. Use as-is when the user has no custom
-   template or spec; it provides a complete, compliant baseline out of the box.
+1. **Built-in preset** — auto-selected by manuscript language (`zh-academic` for Chinese, `en-nature`
+   for other languages), or explicitly pass `--preset zh-tw-academic` (Traditional Chinese, `zh-TW`,
+   uncompressed punctuation) or `--preset zh-report` (Chinese technical report). Use as-is when the
+   user has no custom template or spec.
 2. **Copy and edit a preset** — change only the lines the user mentioned. Field order is fixed: font,
    size, bold, italic, alignment, line spacing, space before, space after, indent. Every style line
    must be complete; missing fields are errors.
 3. **Reverse-engineer a target `.docx`** — `md-to-word-template target.docx -o format.txt`, then work
    through the "to confirm" list at the end of the draft.
 
-Each property has exactly one accepted spelling, plus its Chinese or English counterpart; anything
-else is a hard error with a line number (manual §3.1). `format.txt` in these instructions means *the
-format file* — any filename works, `-f` takes it.
+Each property has exactly one accepted spelling (Simplified Chinese or English — Traditional Chinese
+key names are not accepted in `format.txt`, even for `zh-TW` manuscripts); anything else is a hard
+error with a line number (manual §3.1). `format.txt` in these instructions means *the format file* —
+any filename works, `-f` takes it.
 
 Citation style comes from `csl:` with a bundled name (manual §7) or a path to the user's own CSL.
 Without `csl:`, Chinese manuscripts get GB/T 7714 numeric and everything else APA 7th.
@@ -166,13 +177,20 @@ skipped. Messages follow the manuscript's language.
 
 ## 6. Boundaries
 
-- No custom cover pages, merged cells, multi-column text, inline text colour or text-wrapped figures.
-  Export the body, then complete those in Word.
+- **Covers & front matter**: custom graphical covers/declarations cannot be authored in `format.txt`
+  alone — pass `--base-template cover.docx --keep-until …` (§3, manual §9.3) to preserve an existing
+  `.docx` cover untouched, or merge the cover in Word afterwards.
+- **Tables & layout**: merged cells, diagonal headers, cell shading, multi-column layouts, and
+  text-wrapped floating figures are not supported in Markdown; complete those in Word after export.
+  (Double-sided `Mirror Margins` and `Gutter` *are* supported in `format.txt`.)
+- **Colours**: style-level text colour (`color#RRGGBB` in `format.txt`) works; **inline per-word
+  colour** (`{color=…}` inside a Markdown run) is not supported (unlike inline bold/italic/sub/sup,
+  which go directly in `.md`).
 - Only equation cross-references are supported (`{#eq-x}` + `@eq-x`); figure and table numbers are
   typed into the caption.
 - Sum and integral limits stay to the right of the symbol in numbered equations (Word stacks limits
   only in display math). Content and symbols are correct; only the arrangement differs.
-- TOC page numbers and chapter headers are Word fields; Word asks once whether to update them.
+- TOC page numbers and chapter headers are Word fields; Word asks once whether to update them. Because Word's built-in `TOC \o \u` captures `Heading 1`, a section title (`Abstract Title` / `References Title`) cannot join `{style-title:Heading 1}` headers while excluded from the TOC (`no-toc` + `join-header` is rejected; separate sections with `{{< section >}}` if needed).
 
 Full statements: manual §6 (limits) and §8 (symptom → fix).
 
@@ -190,7 +208,7 @@ interface in both directions is a Markdown file plus a `format.txt`.
   its name and meaning
 - exit codes `0` / `1` / `2` / `3`, and the JSON keys under `--json`
 - the manuscript contract in §2, the vocabulary in §3, the preset names `zh-academic` and
-  `en-nature`, and the fixed file name `format.txt`
+  `en-nature` (plus `zh-tw-academic` and `zh-report`), and the fixed file name `format.txt`
 
 Everything else — message wording, the layout inside the installed package, the version number — may
 change. Never parse the prose of a message: pass `--json` and read the keys.

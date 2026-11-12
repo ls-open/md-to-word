@@ -12,12 +12,15 @@ same source at any time and the output is byte-for-byte identical.
 `md-to-word --contract` prints the contract cheatsheet, the absolute paths of the getting-started
 guide and of this file, and the built-in preset paths.
 
-One export needs two files:
+One export combines **three input layers** (the third is optional):
 
-| File | What it holds |
-|:--|:--|
-| manuscript `*.md` | body text + three conventions (§2) |
-| format `*.txt` | one line of typography declarations per style (§3); without `-f` only a `format.txt` beside the manuscript is picked up, otherwise the built-in preset |
+| Layer | File | What it controls (Agent decision rule) |
+|:--|:--|:--|
+| **1. Content & inline spans** | Manuscript `*.md` | Body prose, headings (`#`), structure (`%% Style`, `{{< toc >}}`, `{{< section >}}`, `$$…$$ {#eq-}`), YAML (`bibliography:`, `csl:`, `crossref:`), and **inline formatting** (`**bold**`, `*italic*`, `~~strike~~`, `[text]{.underline}`, `^sup^`, `~sub~`, `` `code` ``, `[text](url)`, `[^1]`). |
+| **2. Styles & page setup** | Format `*.txt` (without `-f`, only a `format.txt` beside the manuscript is picked up; else a built-in preset) | Page geometry (`Paper`, `Margins`, `Gutter`, `Mirror Margins`), language/punctuation (`Proofing Language`, `Punctuation Compression`), header/footer content (`{page}`, `{total-pages}`, `{style-title:Heading 1}`), and **style-level** typography (fonts, sizes, paragraph `color#RRGGBB`, spacing, indents, tables). |
+| **3. Front-matter base** *(optional)* | `--base-template base.docx` | Preserves an existing institutional/publisher `.docx` cover, logos, and declarations verbatim in leading sections (`--keep-until` / `--cover-sections` / `--keep-pages`). Base supplies front sections and global `settings.xml`; body content and declared styles come from layers 1–2 (§9.3). |
+
+Rule of thumb: **write span-level tweaks (bolding two words, subscript) in `.md`; write paragraph/page rules (fonts, style-level colour, gutter, mirror margins, punctuation compression) in `format.txt`; preserve complex graphical covers via `--base-template`; complete only unsupported features (merged cells, inline per-word colour, multi-column, floating wrapped figures) in Word.**
 
 ---
 
@@ -46,22 +49,25 @@ One export needs two files:
 | Starting from nothing | `md-to-word init [dir]`: writes a `format.txt` and a `hello.md` that exports as-is |
 
 ```bash
-md-to-word manuscript.md -o out.docx                     # built-in zh-academic preset (Chinese)
-md-to-word manuscript.md --preset en-nature -o out.docx  # international journal preset
-md-to-word manuscript.md -f format.txt -o out.docx # explicit format file
-md-to-word init                                          # format.txt + a hello.md that exports as-is
-md-to-word --guide                                       # getting-started guide (pipeline entry)
-md-to-word --contract                                    # cheatsheet + guide, manual and preset paths
-md-to-word --contract --lang en                          # same, in English (canonical English style names)
-md-to-word manuscript.md -o out.docx --verbose           # per-style log, for "the format had no effect"
-md-to-word thesis.md --base-template school.docx --cover-sections 3 -o thesis.docx   # see §9.3
+md-to-word manuscript.md -o out.docx                     # auto preset: zh-academic (zh) / en-nature (other)
+md-to-word manuscript.md --preset zh-tw-academic -o out.docx  # Traditional Chinese academic preset (zh-TW)
+md-to-word manuscript.md --preset zh-report -o out.docx       # Chinese technical report preset
+md-to-word manuscript.md --preset en-nature -o out.docx       # international journal preset
+md-to-word manuscript.md -f format.txt -o out.docx            # explicit format file
+md-to-word init                                               # format.txt + a hello.md that exports as-is
+md-to-word --guide                                            # getting-started guide (pipeline entry)
+md-to-word --contract                                         # cheatsheet + guide, manual and preset paths
+md-to-word --contract --lang en                               # same, in English (canonical English style names)
+md-to-word manuscript.md -o out.docx --verbose                # per-style log, for "the format had no effect"
+md-to-word thesis.md --base-template base.docx --cover-sections 3 -o thesis.docx   # see §9.3
 ```
 
 **Choosing the format file — one of three**: pass `-f`; otherwise a file named exactly
-`format.txt` beside the manuscript is used; otherwise the built-in preset, **selected by the
-manuscript's language**: `zh-academic` for Chinese, `en-nature` for every other language. No other
-`.txt` is guessed at — if there is one, the run names it in a reminder. Which file was used is always
-reported.
+`format.txt` beside the manuscript is used; otherwise a built-in preset — auto-selected by the
+**manuscript's language** (`zh-academic` for Chinese, `en-nature` for every other language), or
+selected explicitly with `--preset zh-tw-academic` (Traditional Chinese, `zh-TW`, uncompressed
+punctuation) or `--preset zh-report` (Chinese technical report). No other `.txt` is guessed at —
+if there is one, the run names it in a reminder. Which file was used is always reported.
 
 **Exit codes**: `0` done; `1` a manuscript, gate or dependency problem; `2` a usage error; `3` the `.docx` was written
 but `--pdf` was not rendered (non-macOS). `0` means every gate passed — **it does not mean the
@@ -109,6 +115,10 @@ mapped.
   each: `%% Subtitle …` / `%% Author …` / `%% Date …`. **Do not put these four in YAML**; the
   pre-flight check rejects them.
 - In the body, `#` starts the section headings; levels are consecutive and never skipped.
+- To opt a single heading (such as `# Acknowledgements`) out of the TOC while keeping `#` hierarchy
+  and chapter equation numbering, append `{.unlisted}` or `{不入目录}` (e.g.
+  `# Acknowledgements {.unlisted}`). It keeps the heading appearance, but will not trigger
+  `{style-title:Heading 1}` header updates (use `{{< section >}}` if a separate header is needed).
 - If headings carry their own Arabic numbering (`1.`, `2.1`, `2.1.1`), the depth of the numbering
   equals the number of `#` characters.
 
@@ -132,11 +142,14 @@ To style a paragraph, start the line with `%% Style Name content`:
 - Style names come from the closed vocabulary in §3.4; a wrong name is an error with a line number.
   **Heading styles (`Heading 1` etc.) cannot be written here**; the level is set by `#` only.
 - `Bibliography` cannot be written here either: the reference list is generated from `.bib` and is
-  **inserted after the `%% References Title` line** (a literal `# References` heading also works),
-  so appendices and acknowledgements can follow the references normally.
-- `%% References Title` **is a level-1 heading in structure** (that is what lets a header field
-  `{style-title:Heading 1}` pick it up); its look still comes from that line in the format file,
-  and whether it joins the table of contents depends on whether that row says `join-toc`.
+  **inserted after the `%% References Title` line** (`# References` or `# References {.unlisted}`
+  also work), so appendices and acknowledgements can follow the references normally.
+- Whether `%% Abstract Title` and `%% References Title` enter the TOC or drive
+  `{style-title:Heading 1}` running headers is explicitly declared in the format file via
+  `join-toc`/`no-toc` and `join-header`/`no-header` (no hidden promotion). Choosing `join-header`
+  maps those paragraphs to `Heading 1` for `STYLEREF` while preserving every declared look
+  property verbatim; due to Word's built-in `TOC \o \u` rule, `no-toc` and `join-header` **cannot**
+  be combined.
 - Every block-level element (`$$` equation, first table row, standalone image line, short code,
   `%%` line) **must be separated from adjacent body text by a blank line**; §2.5 has the table of
   which side must be blank. `%% Table Caption` may sit directly above the first table row.
@@ -191,8 +204,8 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 |:--|:--|:--|
 | Table caption | one line above the table: `%% Table Caption **Table 1** Comparison of methods` | `Table Caption` |
 | Table note | one line below the table: `%% Table Note Note: …` | `Table Note` |
-| Image | `![](path/img.png){width=14cm}` | `Figure` |
-| Image (vector PDF) | `![](path/fig.pdf){width=14cm}` | `Figure` |
+| Image | `![](path/img.png){width=14cm}` | `Captioned Figure` (`Figure`) |
+| Image (vector PDF) | `![](path/fig.pdf){width=14cm}` | `Captioned Figure` (`Figure`) |
 | Image caption | one line above or below the image: `%% Image Caption Figure 1 System overview` | `Image Caption` |
 
 - A caption is a **separate paragraph**, not a field attached to the table or image; a leading
@@ -232,8 +245,7 @@ Headers and footers on sections: **every section gets them by default** (if the 
 declares header content, every page should show it). To opt a section out, write `header=none` /
 `footer=none` on that marker — the usual cover reads
 `{{< section page_number=lowerRoman start=1 header=none footer=none >}}`. A `start` value belongs to
-the section that declares it. **The last section (the body) numbers itself from the format file's
-`Page Numbers:` line** — it restarts at `start` when the section before it uses another numbering
+the section that declares it. **The last section (the body) numbers itself from the format file's `Page Number:` line** — it restarts at `start` when the section before it uses another numbering
 style or shows no page numbers at all (a cover), and keeps counting when that section is already
 decimal, so references after the body never fall back to 1.
 
@@ -241,8 +253,9 @@ decimal, so references after the body never fall back to 1.
 - `\newpage` / `\pagebreak` / `\clearpage` have no effect in docx.
 - The TOC uses a **field**, not a static list: page numbers must be computed by Word. It updates
   once when the document is opened; **to be fully accurate press F9 once more**.
-- Entries come from the **outline level**: `#` headings have one natively; a custom style needs
-  `join-toc` on its style line (it cannot be written on body styles).
+- Entries come from the **outline level**: `#` headings have one natively (opt a single heading out
+  by appending `{.unlisted}` or `{不入目录}`); non-heading section-title styles use `join-toc` /
+  `no-toc` (not valid on body styles or `Heading 1–6`).
 
 **Two rules for `{{< section … >}}`**:
 
@@ -371,9 +384,11 @@ in-line use of `#` is colour, `color#1F4E79`).
 ### 3.1 Vocabulary (one spelling per property)
 
 A style line has the form `<style name>: <property 1> <property 2> …` (either `:` or the full-width
-`：` works). **Any word outside this table is an error with its line number** — parsing consumes
-whole words, so an unrecognised word is reported: it is neither silently dropped nor misread by
-another rule.
+`：` works). **Keywords accept Simplified Chinese and English only — Traditional Chinese key names are
+not accepted in `format.txt`** (write `Paper: A4` / `Proofing Language: zh-TW` or Simplified `纸张：A4`
+/ `校对语言：zh-TW`; the `.md` manuscript itself can freely use Traditional Chinese). **Any word outside
+this table is an error with its line number** — parsing consumes whole words, so an unrecognised word
+is reported: it is neither silently dropped nor misread by another rule.
 
 | Property | Canonical spelling | Example | Wrong spelling (reported as an error) |
 |:--|:--|:--|:--|
@@ -391,18 +406,21 @@ another rule.
 | Left indent | `left-indent <number>chars` | `left-indent 2chars` | `indent-left 2chars`, `left-indent 2cm` |
 | Dot-leader tab | `dot-leader-tab` | add it to a hand-typed line: the page number is right-aligned at the end, with a dot leader | writing a position number; writing it on `TOC 1/2/3` has no effect |
 | Pagination control | `keep-with-next`, `page-break-before`, `keep-lines`, `widow-control` / `no-widow-control` | `Heading 1: … keep-with-next page-break-before` | — (`page-break-before` is more robust than a hand-written `{{< pagebreak >}}`: after content is added or removed the heading still starts on a new page automatically) |
-| Join TOC | `join-toc` | `Abstract Title: … join-toc` | writing it on a body style (`Body Text` / `First Paragraph` / `Normal` / `Compact`) — every paragraph would become a TOC entry |
+| TOC inclusion | `join-toc` / `no-toc` | `References Title: … join-toc`, `Abstract Title: … no-toc` | Required on `Abstract Title` / `References Title` whenever TOC styles are declared; invalid on body styles (`Body Text` / `First Paragraph` / `Normal` / `Compact`) or `Heading 1–6` (per-heading opt-out is §2.1) |
+| Header inclusion | `join-header` / `no-header` | `References Title: … join-header`, `Abstract Title: … no-header` | Required on `Abstract Title` / `References Title` whenever headers use `{style-title:Heading ...}`; cannot combine with `no-toc`, and invalid on body styles or `Heading 1–6` |
 | Repeat across pages | `repeat-header` | `Table Header: … repeat-header` | writing it on any style line other than `Table Header:` (it describes the header row's `w:tblHeader`) |
 | No border | `no-border` (removes the bottom border built into the base template) | `Title: … no-border` | `border-bottom-none` — identical output to `no-border`, so only one spelling is kept |
 | Bottom border | `border-bottom-<single\|double\|even-double\|thick-thin\|triple>` `[border-width <N>pt]` | `Header: … border-bottom-double border-width 1.5pt` | `underline` (that is a character property); `border-width` on its own (nowhere to land without a bottom border) |
 | Character spacing | `char-spacing <N>pt` (positive widens, negative tightens) | `char-spacing 0.5pt`, `char-spacing -0.2pt` | `letter-spacing 0.5pt` |
 | Paper | `Paper: <A4\|Letter>` (defaults to A4) | `Paper: A4` | `Paper: B5` |
 | Margins | `Margins: top <N>cm bottom <N>cm left <N>cm right <N>cm` | `Margins: top 2.54cm bottom 2.54cm left 2.54cm right 2.54cm` | — |
-| Gutter | `Gutter: <N>cm` | `Gutter: 1cm` | — (the engine folds it into the left margin; write this line only) |
+| Gutter | `Gutter: <N>cm` | `Gutter: 1cm` | Written natively to `w:pgMar/@w:gutter`; subtracted from usable text-block width (sits on the inside edge when `Mirror Margins: on` is enabled) |
+| Mirror margins | `Mirror Margins: <on\|off>` | `Mirror Margins: on` | Sets `<w:mirrorMargins/>` for double-sided printing so `Margins:` `left`/`right` become inside/outside margins |
 | Header / footer distance from the edge | `Header Distance: <N>cm` / `Footer Distance: <N>cm` | `Header Distance: 1.40cm` | — |
 | Document grid | `Document Grid: <N> lines` | `Document Grid: 22 lines` | the ceiling is "text-block height ÷ body line height" (12 pt at 1.3 spacing = 34 lines); beyond it you get a warning, because Word rounds the line height up to whole grid units and the result is worse; **there is no "characters per line" switch** |
 | Latin font | `Font: <typeface>` (global Latin default) | `Font: Times New Roman` | — |
-| Proofing language | `Proofing Language: <language code>` | `Proofing Language: en-US` | `Proofing Language: English` (without it the base template proofreads as English, and Word flags a Chinese manuscript as misspelled throughout) |
+| Proofing language | `Proofing Language: <language code>` | `Proofing Language: en-US`, `zh-CN`, `zh-TW` | `Proofing Language: English` (without it the base template proofreads as English, and Word flags Chinese text as misspelled throughout) |
+| Punctuation compression | `Punctuation Compression: <compress\|none\|kana>` | `Punctuation Compression: none` | Maps to `w:characterSpacingControl`. Defaults by proofing language when omitted: `zh-CN` → `compress`, `zh-TW`/`zh-HK`/`zh-MO`/`en-*` → `none` (keeps centred Traditional Chinese full-width punctuation intact), `ja-*` → `kana` |
 | Table (required when the manuscript has tables) | `Table: <center\|left\|right> <three-line\|grid\|top-bottom\|none> [border-top/border-bottom/border-header <N>pt (rule widths)] [border-inside <N>pt (grid only)] [valign center\|top\|bottom] [cell-margin <N>cm] [space-after <N>pt] [no-row-split]` | `Table: center three-line border-top 1pt border-bottom 1pt border-header 0.25pt valign center` | writing `border-inside` for three-line or top-bottom (there are no inner rules); writing any border width for `none`; `cell-margin` applies to all four sides and is in cm, not pt; `space-after` falls after the table, table notes included |
 | Paragraphs in tables | `Compact: <paragraph properties, same syntax as a style line>` | `Compact: Times New Roman 10pt center …` | — (the font, size and alignment of table text **can only come from this line**; without it a paragraph inherits the body's 2-character first-line indent) |
 | Header row (required when the manuscript has tables) | `Table Header: <paragraph properties> [repeat-header]` | `Table Header: Times New Roman 10pt bold not-italic center line-spacing 1.0 space-before 0pt space-after 0pt indent 0 repeat-header` | — |
@@ -418,11 +436,11 @@ Chinese spellings parse as well and may be mixed into the same line: `加粗` / 
 `不倾斜`, `居中` / `左对齐` / `右对齐` / `两端对齐`, `行距1.5倍`, `行距20磅`, `段前0磅`, `段后6磅`,
 `首行缩进2字符`, `悬挂缩进0.5英寸`, `左缩进2字符`, `颜色#1F4E79`, `无边框`, `下边框双线`,
 `边框粗1.5磅`, `字距0.5磅`, `与下段同页`, `段前分页`, `段中不分页`, `孤行控制`, `取消孤行控制`,
-`加入目录`, `跨页重复`, `点线制表位`. The configuration keys have Chinese forms too (`纸张：`,
-`页边距：`, `西文字体：`, `校对语言：`, `页眉距边界：`, `页脚距边界：`, `装订线：`, `文档网格：`,
-`页码：`, `表格：`, `表头：`, `页眉：`, `页脚：`, `页眉内容：`, `页脚内容：`, `公式编号：`,
-`公式编号格式：`, `附录公式编号格式：`, `脚注：`); the Chinese column of the vocabulary is in
-`manual.md` §3.1.
+`加入目录`, `不入目录`, `加入页眉`, `不入页眉`, `跨页重复`, `点线制表位`. The configuration keys have Simplified Chinese forms too (`纸张：`,
+`页边距：`, `对称页边距：`, `西文字体：`, `校对语言：`, `标点压缩：`, `页眉距边界：`, `页脚距边界：`,
+`装订线：`, `文档网格：`, `页码：`, `表格：`, `表头：`, `页眉：`, `页脚：`, `页眉内容：`, `页脚内容：`,
+`公式编号：`, `公式编号格式：`, `附录公式编号格式：`, `脚注：`); the Chinese column of the vocabulary is
+in `manual.md` §3.1.
 
 **Fields available in headers and footers** (closed set; anything else is an error): `{page}`
 (PAGE), `{total-pages}` (NUMPAGES), `{style-title:<Word style name>}` (STYLEREF, e.g.
@@ -518,6 +536,10 @@ Chinese names are accepted as well, so a bilingual or Chinese manuscript can use
   `TOC Heading` + `TOC 1/2/3` (4 and 5 are optional but must be consecutive); abstract →
   `Abstract Title` + `Abstract`; references → `References Title` + `Bibliography` (when using
   `.bib`); block quotes → `Block Text`; `Header Content` requires `Header` (same for the footer).
+- **Linked requiredness**: `join-toc` / `no-toc` is required on declared `Abstract Title` /
+  `References Title` **only when TOC styles are declared**; `join-header` / `no-header` is
+  required on them **only when headers use `{style-title:Heading ...}`**. Plain documents that use
+  neither need no TOC or header clauses.
 
 ### 3.5 Deriving the rest when the user only specified part of it
 
@@ -585,24 +607,30 @@ pre-flight check → build the style template → read into the document model �
 The style template is generated fresh on every export and never cached, and **styles** have exactly
 one source: the format file.
 
-A `.docx` received from a university or a journal goes one of two ways:
+- **Default preset & Traditional Chinese**: without `-f` / `--preset`, Chinese text defaults to
+  `zh-academic`. For **Traditional Chinese (Taiwan/HK/Macau)** submissions, pass
+  `--preset zh-tw-academic` (uses `PMingLiU` body, `Microsoft JhengHei` headings,
+  `Proofing Language: zh-TW`, and `Punctuation Compression: none` to keep full-width centred
+  punctuation intact across platforms).
+
+A `.docx` supplied by an institution, university or journal goes one of two ways:
 
 - **Styles only** — read it into a format file and export as usual (below).
 - **Keep its cover too** — use that `.docx` as the base and pour the body in with `--base-template`.
-  Styles still come from the format file; the base only supplies the front matter and page setup.
-  That is the thesis path — see §9.2.
+  Styles still come from the format file; the base supplies the front matter and global document
+  settings (§9.3).
 
 ```
 md-to-word-template template.docx -o format.txt   # reverse-engineered draft; check it item by item
 md-to-word paper.md -f format.txt -o paper.docx
 ```
 
-Only format data is read: paper size, margins, header/footer distance from the edge, page-number
-format, document grid, proofing language, header/footer text and fields, tables (read from the style
-the document's tables **actually reference** — it need not be called Table), and each style's fonts,
-size, line spacing, paragraph spacing and indent. The export still builds its own template.
-Multi-section templates (cover, TOC, body) work the same way — section breaks are marked in the
-manuscript with `{{< section >}}`.
+Only format data is read: paper size, margins, gutter, mirror margins, punctuation compression,
+header/footer distance from the edge, page-number format, document grid, proofing language,
+header/footer text and fields, tables (read from the style the document's tables **actually
+reference** — it need not be called Table), and each style's fonts, size, line spacing, paragraph
+spacing and indent. The export still builds its own template. Multi-section templates (cover, TOC,
+body) work the same way — section breaks are marked in the manuscript with `{{< section >}}`.
 
 Properties are read at their **effective** value: whatever a style does not set itself is looked up
 along the `basedOn` chain and in `docDefaults`, so the most common shape — a derived style whose
@@ -668,24 +696,30 @@ chapter headers are collected in §9. The `--base-template` path lives there too
 ## 6. Capability limits
 
 **Supported**: every paragraph property a style line can declare (font, size, bold and italic,
-colour, alignment, indentation, line spacing, paragraph spacing, borders and table rule widths,
-character spacing, pagination control); headers, footers and the three kinds of field; different
-odd/even pages and a different first page, per-section page numbers; tables (three-line, full grid,
-top-and-bottom rules, borderless, repeating header rows, cell alignment and margins, column-width
-ratios); native OMML equations and cross-references; figures and captions; `.bib` + CSL references;
-inline formatting; three-level lists and lists inside block quotes; footnotes.
+style-level colour, alignment, indentation, line spacing, paragraph spacing, borders and table rule
+widths, character spacing, pagination control); paper size, native gutter, and double-sided mirror
+margins; proofing language and punctuation compression; headers, footers and the three kinds of
+field; different odd/even pages and a different first page, per-section page numbers; tables
+(three-line, full grid, top-and-bottom rules, borderless, repeating header rows, cell alignment and
+margins, column-width ratios); native OMML equations and cross-references; figures and captions;
+`.bib` + CSL references; inline formatting (`**bold**`, `*italic*`, `~~strike~~`, `[text]{.underline}`,
+`^sup^`, `~sub~`, inline code, links); three-level lists and lists inside block quotes; footnotes;
+and preserving existing `.docx` covers/front matter via `--base-template` (§9.3).
 
-**Not possible** (do it in Word, or write it differently):
+**Layering & hard boundaries** (what goes in Markdown vs `format.txt` vs `--base-template`, or Word):
 
-| Not possible | What to do instead |
+| Requirement | How it works / Which layer handles it |
 |:--|:--|
-| A custom cover page (crest, underlined fill-in fields, signature page) | `%% Title` generates one standard title block only; merge a cover supplied by your institution into the first page in Word, or lay out a simple one with a table |
-| Merged cells, diagonal header cells, cell shading | A Markdown table is a regular two-dimensional grid; export the grid, then merge those cells in Word |
-| Multi-column layouts, floating figures with text wrapping | Single column is the only layout; images go into their own centred figure paragraph |
+| Custom graphical cover pages, crests, fill-in underlines, signature pages | Cannot be drawn from scratch in `format.txt`; **pass an existing `.docx` via `--base-template base.docx --keep-until …` to keep front-matter pages verbatim while compiling the body** (§9.3). Without a `.docx` base, only plain text/table covers work in Markdown; merge graphical covers in Word. |
+| Changing fonts, style-level colour, spacing, alignment for a whole paragraph style | **MD + `format.txt` together**: declare `color#1F4E79` etc. in `format.txt`, trigger with `#` or `%% Style Name` in `.md` |
+| Bolding, italicising, underlining, sub/superscripting, or monospacing a few words | **Markdown directly**: write `**bold**`, `*italic*`, `[text]{.underline}`, `H~2~O`, `x^2^`, `` `code` `` in `.md` without touching `format.txt` |
+| **Inline** per-word text colour (e.g. two red words inside a paragraph) | **Not supported** (`{color=…}` does not exist; colour is style-level `color#RRGGBB` only) — apply in Word afterwards or use a dedicated paragraph style |
+| Merged cells, diagonal header cells, cell shading | **Not supported** (Markdown tables are regular 2D grids); export the grid, then merge/shade in Word |
+| Multi-column layouts, floating figures with text wrapping | **Not supported** (single-column layout and standalone centred figures only); double-sided `Mirror Margins: on` and `Gutter` *are* supported |
 | A figure kept as a vector (PDF embedded as-is) | Word inline pictures hold bitmaps only; a PDF figure is rasterised at 300 dpi, which is enough for print but no longer infinitely scalable |
 | Limits above and below the sum/integral sign in a numbered equation | Word only stacks limits above and below the symbol in a display equation; a numbered equation is an inline equation (the number sits at the right via a tab). The content and symbols are correct; the layout differs |
 | Arbitrary tab stops | Only `dot-leader-tab` exists (right-aligned with a dot leader) |
-| Inline text colour | Colour is a style property (`color#1F4E79`); inline `{color=…}` is not supported |
+| Excluding a section title from the TOC while updating chapter headers | Word's built-in `TOC \o \u` field pulls `Heading 1` into the TOC automatically, so `no-toc` and `join-header` cannot combine; split sections with `{{< section >}}` if a custom header is needed without TOC entry |
 | Footnote position | Always printed at the bottom of the page that cites it — a Word layout rule |
 | More than three list levels | The fourth level and beyond merge into the third |
 
@@ -752,7 +786,7 @@ examples. The tag is a stable category identifier; the text after it says which 
 | Requirements file does not parse | A property word is not in the §3.1 vocabulary; the error gives the line number, the original word and the expected form |
 | Image is not centred | The `Figure:` style line has no indent, so it inherits the body's first-line indent |
 | An equation reports dropped characters or incomplete structure | unbalanced braces (`\frac{a}{b`) are the usual cause; add what is missing at the reported line. Added or lost characters and spacing are both caught, never shipped silently |
-| A Chinese manuscript is underlined in red throughout | The format file has no `Proofing Language: zh-CN` |
+| A Chinese manuscript is underlined in red throughout | The format file has no `Proofing Language: zh-CN` (or `zh-TW` for Traditional Chinese) |
 | References were not generated | YAML is missing `bibliography:`, the body has no `[@key]`, or the references section title line is missing |
 | TOC entry font is wrong | The TOC entry styles were not written as Word's built-in styles (`TOC 1/2/3`), or `dot-leader-tab` was written on them (no effect) |
 | Header shows "Error! Reference source not found" | X in `{style-title:X}` is not a Word style name (write `Heading 1`) |
@@ -773,7 +807,7 @@ examples. The tag is a stable category identifier; the text after it says which 
 | Roman numerals for front matter, body starting at 1 | §9.4; syntax in §2.5 |
 | Table of contents (field, dot leaders, depth) | §2.5; outline levels §9.7 |
 | Equations numbered by chapter `(2-1)` | §2.3; appendices §9.5 |
-| Double-ruled chapter header (`{style:Heading 1}`) | §2.5, §3.1 |
+| Double-ruled chapter header (`{style-title:Heading 1}`) | §2.5, §3.1 |
 | References in GB/T 7714 | §4, "References: only the `.bib` route" |
 | Three-line tables, repeating header rows | §2.4, §3.1 |
 
@@ -786,19 +820,20 @@ boxes or exact alignment inside a fixed line grid.
 
 Three routes, ordered by how much can be guaranteed:
 
-1. **Pour the body into the school's template (recommended)**: keep the school's `.docx` as front
-   matter and replace the rest with our typeset body. See the next section.
+1. **Pour the body into an existing template (`--base-template`, recommended)**: keep the
+   institution's or journal's `.docx` as front matter and replace the rest with our typeset body.
+   See the next section.
 2. **Text-only covers**: if the cover is plain text with no crest or fixed rules, Markdown can do it
    (`%%` style lines, a picture, and a closing `{{< section header=none footer=none >}}`). Check
-   first whether the school allows this.
+   first whether your guidelines allow this.
 3. **Lay it out yourself in Word**: the tool produces the body, you merge the cover by hand. Most
-   robust, most manual. **Never paste the school's cover into the output** — Word redefines
+   robust, most manual. **Never paste an existing cover into the output** — Word redefines
    same-named styles and the whole body follows.
 
-### 9.3 Pour the body into the school's own template
+### 9.3 Pour the body into an existing cover template (`--base-template`)
 
 ```bash
-md-to-word manuscript.md -f format.txt --base-template school.docx --keep-until "copyright authorization" -o out.docx
+md-to-word manuscript.md -f format.txt --base-template base.docx --keep-until "copyright authorization" -o out.docx
 ```
 
 `--keep-until <text>` keeps everything through the section containing that text and reports the number;
@@ -810,15 +845,16 @@ counts), the cut must stop before it — the manuscript writes `{{< toc >}}` to 
 deep is refused, and the message names the most you may keep.
 
 What the base contributes: the front-matter sections verbatim (their page setup, headers, footers, page
-numbering), the document-level settings (theme, compatibility mode, punctuation compression), and any
-style you did not declare. The body's paper size, margins, page numbering and declared styles come from
-the format file.
+numbering), the document-level settings (theme, compatibility mode, punctuation compression, mirror
+margins), and any style you did not declare. The body's paper size, margins, gutter, page numbering,
+and declared styles come from the format file.
 
-Document-level settings exist once and **follow the template**: punctuation compression, compatibility
-mode, mirrored margins for double-sided binding, default font and size. So the body's line breaks — and,
-when the template mirrors margins, the left/right margins on facing pages — will differ from a
-standalone export: double-sided binding needs the binding edge to alternate, and the template is written
-for that. The font, size, line-spacing, indent and margin *values* are still ours.
+Document-level settings exist once per `.docx`: in a standalone export, `Mirror Margins` and
+`Punctuation Compression` come from your format file; **with `--base-template`, the base's
+`settings.xml` applies globally** (punctuation compression, compatibility mode, mirrored margins for
+double-sided binding, default font and size). So the body's line breaks — and, when the base mirrors
+margins, the left/right margins on facing pages — may differ from a standalone export, while our
+font, size, line-spacing, indent, and margin *values* remain intact.
 
 **No file is produced unless it verifies.** The structural check runs everywhere: front matter
 node-for-node identical, none of the original's styles/numbering/theme missing, and every style the body
@@ -836,7 +872,7 @@ matter in lower-case Roman" goes after the table of contents, before chapter one
 
 - For a cover: `{{< section page_number=lowerRoman start=1 header=none footer=none >}}` — give all
   three, or the cover will carry a header and a page number.
-- **The body's numbering comes from the format file's `Page Numbers:` line**: it restarts at `start`
+- **The body's numbering comes from the format file's `Page Number:` line**: it restarts at `start`
   when the preceding section uses another numbering style or shows no numbers at all, and keeps
   counting when that section is already decimal (references after the body never fall back to 1).
 - A section break already starts a new page: **do not add `{{< pagebreak >}}` after it**, or you get
@@ -855,12 +891,14 @@ matter in lower-case Roman" goes after the table of contents, before chapter one
 
 ### 9.6 Double-ruled chapter headers
 
-Write `Header Content: {Style:Heading 1}` in the format file and the header follows each chapter
+Write `Header Content: {style-title:Heading 1}` in the format file and the header follows each chapter
 title. Two things must hold at once:
 
 - every chapter in the manuscript uses `#` (level 1); `##` will not be found;
-- the references heading must also be level 1 in the structure, or those pages keep showing the
-  previous chapter.
+- `References Title` (or `Abstract Title`) must explicitly declare `join-toc join-header` (or
+  `no-header` to keep it out of headers), otherwise references pages keep showing the previous
+  chapter header; similarly, `{.unlisted}` `#` headings stay outside `Heading 1` and do not switch
+  running headers unless separated by `{{< section >}}`.
 
 ### 9.7 Common traps
 
@@ -869,9 +907,9 @@ All of these came from real reports. None of them fails loudly; they just come o
 | Symptom | Cause |
 |:--|:--|
 | A table is set to centred but stays left | Only a separator row with colons makes per-column statements; the whole table follows the `Compact:` row's alignment |
-| Equations crush the lines above and below | Fixed line spacing (`line-spacing 20pt`) is shorter than the formula; use `line-spacing-min` or a larger value |
+| Equations crush the lines above and below | Fixed line spacing (`line-spacing 20pt`) is shorter than the formula; use `min-line-spacing` or a larger value |
 | Declared "22 lines per page" but nothing changed | There is a ceiling: body-height ÷ line-height. Declarations beyond it do not take effect, and the pre-check says so |
-| References missing from the table of contents | The references heading is not in the TOC levels |
-| Page numbers continue from the front matter | See §3: the body restarts from the format file's `start` |
+| References missing from the table of contents | `References Title` omitted `join-toc` (or the heading carries `{.unlisted}` / `{不入目录}`) |
+| Page numbers continue from the front matter | See §9.4: the body restarts from the format file's `start` |
 | Appendix equations numbered (1-1) | The appendix heading has no identifier, or no appendix number format is set |
 | Front matter needs page numbers but no header | `header=none` only drops the header; page numbers ride on the footer, so do not write `footer=none` |

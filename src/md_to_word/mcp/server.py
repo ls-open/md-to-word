@@ -42,41 +42,54 @@ except ImportError:
 PRESET_METADATA: dict[str, dict[str, Any]] = {
     "zh-academic": {
         "id": "zh-academic",
-        "name": "中文学术期刊 / 学位论文规范 (Chinese Academic Thesis & Journal)",
+        "name": "简体中文学术期刊 / 学位论文规范 (Simplified Chinese Academic)",
         "target": "中国知网 (CNKI)、万方、高校硕博学位论文、CSCD/CSSCI 核心期刊",
-        "description": "Standard Chinese academic format with SimSun/Times New Roman, GB/T 7714-2015 citations, double-line header, two-character paragraph indents, and three-line tables.",
+        "description": "Simplified Chinese academic format (zh-CN) with SimSun/SimHei + Times New Roman, compressed punctuation (compressPunctuation), 2-char indent, 1.5x line spacing, and three-line tables.",
         "typography": {
-            "fonts": "宋体 (SimSun) / Times New Roman",
-            "header": "双线页眉 (Double-line header) with running title",
-            "body": "小四 (12pt), 首行缩进 2 字符, 1.25 倍行距",
+            "fonts": "宋体 (SimSun) / 黑体 (SimHei) / Times New Roman",
+            "header": "无默认页眉（按学术规范留白；页脚居中阿拉伯数字页码）",
+            "body": "小四 (12pt), 首行缩进 2 字符, 1.5 倍行距, 校对语言 zh-CN",
             "tables": "标准三线表 (Three-line table)",
-            "citations": "GB/T 7714-2015 顺序编码制 / 著者-出版年制",
+            "citations": "GB/T 7714-2015 顺序编码制（中文默认）/ 著者-出版年制",
+        },
+    },
+    "zh-tw-academic": {
+        "id": "zh-tw-academic",
+        "name": "繁體中文學術期刊 / 學位論文規範 (Traditional Chinese Academic)",
+        "target": "台灣 / 香港 / 澳門繁體中文碩博士學位論文與學術期刊",
+        "description": "Traditional Chinese academic format (zh-TW) using PMingLiU/Microsoft JhengHei + Times New Roman, uncompressed full-width punctuation (doNotCompress), 2-char indent, 1.5x spacing, and three-line tables.",
+        "typography": {
+            "fonts": "PMingLiU (新細明體) / Microsoft JhengHei (微軟正黑體) / Times New Roman",
+            "header": "無預設頁眉（頁腳置中阿拉伯數字頁碼）",
+            "body": "小四 (12pt), 首行縮進 2 字符, 1.5 倍行距, 校對語言 zh-TW, 標點不壓縮",
+            "tables": "標準三線表 (Three-line table)",
+            "citations": "APA / IEEE / GB/T 7714-2015（於稿件 YAML 以 csl: 指定）",
         },
     },
     "zh-report": {
         "id": "zh-report",
         "name": "现代技术白皮书 / 机构分析报告 (Modern Tech Report & Whitepaper)",
         "target": "企业技术白皮书、行业研究报告、工程技术规范、解决方案",
-        "description": "Modern technical whitepaper layout with SimHei/Calibri, single-line header, compact spacing, shaded tables, and highlighted code fences.",
+        "description": "Modern technical whitepaper layout with SimSun/SimHei/KaiTi + Times New Roman, colored headings, single-line header, full-grid tables, and block paragraphs (0 indent, 6pt after).",
         "typography": {
-            "fonts": "黑体 (SimHei) / Calibri",
+            "fonts": "宋体 (SimSun) / 黑体 (SimHei) / 楷体 (KaiTi) / Times New Roman",
             "header": "现代单线页眉 (Single-line header)",
-            "body": "五号 (10.5pt), 1.2 倍行距",
-            "tables": "现代三线表，表头灰色阴影底纹",
-            "citations": "尾注文献列表 / 超链接附录",
+            "body": "小四 (12pt), 1.5 倍行距, 段后 6pt, 首行缩进 0",
+            "tables": "全网格线表格 (0.75pt 外框 / 0.5pt 内线)",
+            "citations": "GB/T 7714-2015 / APA",
         },
     },
     "en-nature": {
         "id": "en-nature",
-        "name": "国际顶级英文期刊规范 (International English Paper - Nature / IEEE Style)",
+        "name": "国际英文学术期刊规范 (International Journal - Nature / IEEE / APA)",
         "target": "Nature, IEEE, ACM, Springer, Elsevier, arXiv submissions",
-        "description": "International journal format with Times New Roman / Arial, running header, block paragraph spacing (0 indent), and Nature-style numbered citations.",
+        "description": "International journal format with Times New Roman / Consolas, block paragraph spacing (0 indent, 6pt after), 1.5x line spacing, and APA/Nature/IEEE CSL support.",
         "typography": {
-            "fonts": "Times New Roman / Arial",
-            "header": "English running head with page number right-aligned",
-            "body": "10pt, 1.15 line spacing, 6pt after paragraph, 0 indent",
+            "fonts": "Times New Roman / Consolas (code)",
+            "header": "No running header by default; centered footer with decimal page number",
+            "body": "12pt, 1.5 line spacing, 6pt after paragraph, 0 indent, en-US",
             "tables": "Classic three-line table",
-            "citations": "Nature numbered brackets [1], APA author-date supported",
+            "citations": "APA author-date default; Nature/IEEE numbered citations via csl: YAML",
         },
     },
 }
@@ -207,14 +220,15 @@ def create_mcp_server() -> Any:
                 raw Markdown goes to a temporary file and its path is returned.
             format: A format file path OR raw format content. This is the typography contract
                 (the `format.txt` file), not Python dependency requirements.
-            preset: Built-in preset name ('zh-academic', 'zh-report', 'en-nature'). Only used
-                when `format` is absent. A preset is a preview baseline, not a deliverable.
+            preset: Built-in preset name ('zh-academic', 'zh-tw-academic', 'zh-report', 'en-nature').
+                Only used when `format` is absent. A preset is a starting baseline; provide a format
+                file or customize it for deliverable specs.
             generate_pdf: Whether to also generate a PDF (requires Word on macOS).
             lang: Optional message/document language ('zh' or 'en'); auto-detected if omitted.
-            base_template: A school/journal .docx to pour the body into, keeping its own cover
-                and front matter (a run either verifies or writes nothing).
-                Pair it with exactly one of `keep_until` / `cover_sections` / `keep_pages`
-                to say where the front matter ends.
+            base_template: Pre-existing .docx template (with cover pages, declarations, or front
+                matter) to pour the generated body into while preserving its leading front-matter
+                sections unchanged (nothing is written if verification fails). Pair with exactly one
+                of `keep_until` / `cover_sections` / `keep_pages`.
             cover_sections: Keep the base's first N sections as front matter.
             keep_pages: Say it in pages instead; requires Word to convert pages to sections.
             keep_until: Say it by content (recommended) — keep through the section containing
@@ -264,8 +278,8 @@ def create_mcp_server() -> Any:
             if not fmt_path:
                 used_preset = preset or ("zh-academic" if result.lang == "zh" else "en-nature")
                 notice = (
-                    f"已套用官方内置预设「{used_preset}」完成排版。建议在 Word 中打开核对效果；"
-                    "若学校或期刊有专属格式要求，可提供 format 文件或参考 .docx 重新编译。"
+                    f"已套用内置预设「{used_preset}」完成排版。建议在 Word 中打开核对效果；"
+                    "若目标方（高校、期刊或机构）有专属格式要求，可提供 format 文件或参考 .docx 重新编译。"
                 )
 
             return {
@@ -402,21 +416,21 @@ def create_mcp_server() -> Any:
         title="Read the Full Manual",
         description=(
             "Read the full manual when a spelling or behaviour is not certain: every style "
-            "name, YAML key, equation rule, CSL preset and known limit. A degree thesis also "
-            "needs §9: cover, front matter, section/page numbering and `--base-template`."
+            "name, YAML key, equation rule, CSL preset and known limit, plus §9 for custom "
+            "covers, front matter, section/page numbering, and `--base-template`."
         ),
     )
     def get_manual(lang: str = "zh") -> str:
-        """Return the manual; `lang` is 'zh' or 'en'. §9 is the thesis part."""
+        """Return the manual; `lang` is 'zh' or 'en'. §9 covers front matter and base templates."""
         return _read_manual(lang)
 
     @server.tool(
         name="extract_format_from_docx",
         title="Reverse-engineer a format file from a .docx",
         description=(
-            "Read a school/journal/company .docx template and produce a draft format file. "
-            "The draft lists every value it could determine and a 'to confirm' list it could "
-            "not; review those before compiling."
+            "Read a reference .docx template (institution, journal, or organization) and produce "
+            "a draft format file. The draft lists every value it could determine and a "
+            "'to confirm' list it could not; review those before compiling."
         ),
     )
     def extract_format_from_docx(
@@ -445,7 +459,7 @@ def create_mcp_server() -> Any:
     @server.tool(
         name="list_presets",
         title="List Built-in Style Presets",
-        description="List all available built-in style presets (Academic Thesis, Tech Report, Nature English Paper) with typography specifications.",
+        description="List all available built-in style presets (Simplified/Traditional Chinese Academic, Tech Report, Nature English Paper) with typography specifications.",
     )
     def list_presets() -> list[dict[str, Any]]:
         """List all available built-in style presets with target domains and typographic highlights."""
@@ -485,7 +499,7 @@ def create_mcp_server() -> Any:
         """Inspect the raw format.txt specification for a given preset name.
 
         Args:
-            preset: Preset name (e.g. 'zh-academic', 'zh-report', 'en-nature').
+            preset: Preset name (e.g. 'zh-academic', 'zh-tw-academic', 'zh-report', 'en-nature').
 
         Returns:
             Raw text of format.txt specification.
@@ -531,7 +545,7 @@ def create_mcp_server() -> Any:
 
         Args:
             topic: The subject or title of the paper/report to write.
-            preset: Target style preset ('zh-academic', 'zh-report', or 'en-nature').
+            preset: Target style preset ('zh-academic', 'zh-tw-academic', 'zh-report', or 'en-nature').
             lang: Language for the manuscript ('zh' or 'en').
         """
         prompt_content = f"""Please draft a manuscript on the topic: "{topic}".

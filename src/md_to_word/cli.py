@@ -68,7 +68,8 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     # 只装 pip 包、手上没有 SKILL.md 的 Agent 从这里读“按什么顺序做”。
     guide = resources / "guide.md"
     presets = "\n".join(
-        f"  {name:<12} {resolve_preset_path(name)}" for name in ("zh-academic", "en-nature")
+        f"  {name:<15} {resolve_preset_path(name)}"
+        for name in ("zh-academic", "zh-tw-academic", "zh-report", "en-nature")
     )
     if lang == "en":
         return f"""A manuscript = plain Markdown + three conventions
@@ -129,7 +130,7 @@ Built-in presets:
 推荐从预设起步：将下面那份复制到稿件旁，仅修改需要的行。
 
 入门文档（与技能入口 SKILL.md 同文，读其一即可）：{guide}
-手册（完整词表、YAML、公式编号、CSL 清单、能力边界；学位论文看 §9）：{manual}
+手册（完整词表、YAML、公式编号、CSL 清单、能力边界；前置封面/多节页码与 `--base-template` 看 §9）：{manual}
 内置预设：
 {presets}
 """
