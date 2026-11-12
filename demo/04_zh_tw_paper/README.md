@@ -11,7 +11,7 @@ md-to-word paper_zh_tw.md -o paper_zh_tw.docx --pdf    # 順便出一份 PDF 對
 bash scripts/export.sh demo/04_zh_tw_paper/paper_zh_tw.md -o /tmp/paper.docx
 ```
 
-## 這份為什麼單獨列一份
+## 為什麼繁中要單獨一份
 
 繁中不是簡中換個字型。`zh-tw-academic` 預設與 `zh-academic` 的差別都在「繁體出版習慣」上，
 而這些差別沒有一個是靠肉眼一看就記得的：
