@@ -20,6 +20,7 @@ DEMOS = {
     "01": REPO_ROOT / "demo" / "01_chinese_thesis" / "thesis_sample.md",
     "02": REPO_ROOT / "demo" / "02_modern_report" / "report_sample.md",
     "03": REPO_ROOT / "demo" / "03_english_paper" / "paper.md",
+    "04": REPO_ROOT / "demo" / "04_zh_tw_paper" / "paper_zh_tw.md",
 }
 
 # 写法 → 至少出现在一份样例里
@@ -66,3 +67,18 @@ def test_every_demo_is_listed_in_the_coverage_table() -> None:
     table = (REPO_ROOT / "demo" / "README.md").read_text(encoding="utf-8")
     for folder in DEMOS.values():
         assert folder.parent.name in table, f"demo/README.md 的覆盖表漏了 {folder.parent.name}"
+
+
+def test_every_preset_has_a_demo() -> None:
+    """每个内置预设都要有一份示例。
+
+    预设是给人一键选的，选完总得有个能打开、能对着改的样本；`demo/README.md` 里也写着
+    「样例是最终验收面」。`zh-tw-academic` 这一条曾经漏过一次：包里发布了、CLI 能选、
+    官网在展示，`demo/` 里一份稿子都没有，而没有任何东西在检查它。
+    """
+    presets = sorted(p.stem for p in (REPO_ROOT / "presets").glob("*.txt"))
+    assert presets, "没找到任何内置预设"
+    demos = [p.read_text(encoding="utf-8")
+             for p in (REPO_ROOT / "demo").rglob("README.md")]
+    missing = [name for name in presets if not any(name in text for text in demos)]
+    assert not missing, f"这些预设没有任何样例提到：{missing}"
