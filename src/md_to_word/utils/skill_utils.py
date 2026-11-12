@@ -111,6 +111,24 @@ def mask_code_fences(content: str) -> str:
     return "\n".join(out)
 
 
+# 行内代码：`` `…` `` 或 ``` ``…`` ```。整段换成点号，保留长度与行号。
+_INLINE_CODE_RE = re.compile(r"(?<!`)(`{1,3})[^`\n]*?\1(?!`)")
+
+
+def mask_inline_code(content: str) -> str:
+    """行内代码的内容掩码为 '.'，保留长度与行号。
+
+    判据只该看「作者真写的正文」时用它：稿件里用反引号演示语法（`` `![alt](x.png)` ``）是
+    正当的，不该被当成真图片去查磁盘。
+    """
+    return _INLINE_CODE_RE.sub(lambda m: "." * len(m.group(0)), content)
+
+
+def mask_code(content: str) -> str:
+    """围栏代码块 + 行内代码一起掩码。"""
+    return mask_inline_code(mask_code_fences(content))
+
+
 def split_frontmatter(text: str) -> tuple[str, str]:
     """拆分 YAML frontmatter，返回 (frontmatter_text, body_text)。
     无 frontmatter 时返回 ("", 原文本)。兼容 UTF-8 BOM、CRLF 行尾与空 frontmatter。

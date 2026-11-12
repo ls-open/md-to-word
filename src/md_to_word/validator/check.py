@@ -46,6 +46,7 @@ from md_to_word.utils.skill_utils import (
     heading_issues,
     image_width_issues,
     malformed_table_issues,
+    mask_code,
     mask_code_fences,
     parse_bib_keys,
     resolve_manuscript_path,
@@ -295,6 +296,11 @@ def validate_manuscript(
 
     csl_dir = csl_dir or get_csl_dir()
 
+    # 只看「作者真写的正文」的那几条判据用这个：围栏代码块与行内代码都掩成点号，
+    # 行号与长度不变。稿件里用反引号演示语法（``` 里的 `![x](y.png)`、`%%注释`、
+    # 重复的 `{#eq-x}`）是正当写法，不该被当成真内容去查磁盘或判重复。
+    visible = mask_code(md_text)
+
     # 0. 格式要求（有要求文件才谈得上「稿件结构是否有对应样式」）
     if spec is None and spec_path is not None:
         fmt_file = Path(spec_path)
@@ -370,11 +376,18 @@ def validate_manuscript(
                 t("gate.csl.default", lang, name=default_csl_path(md_text).name)
             )
 
-        # 1c2. `[-@key]`（只出年份）：引擎不实现，静默当普通引用就等于改写了作者的话
-        for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
-            if re.search(r"\[-@[\w:.-]+", line):
-                report.valid = False
-                report.errors.append(t("gate.citation.suppress_author", lang, line=line_no))
+        # 1c2. `[-@key]`（只出年份）：引擎不实现，静默当普通引用就等于改写了作者的话。
+        # 判据是「方括号组里任意一条引用带了 `-` 前缀」，不是「方括号紧跟 `-@`」：
+        # `[@a; -@b]` 是 Pandoc 的标准写法，只看开头会把它整组放行，渲染结果与不带 `-`
+        # 逐字相同——正是这条注释要防的「改写作者的话」。
+        for line_no, line in enumerate(visible.split("\n"), 1):
+            for group in re.findall(r"\[[^\]\n]*\]", line):
+                if re.search(r"(?:^|[\s;,\[])-\s*@[\w:.-]+", group):
+                    report.valid = False
+                    report.errors.append(
+                        t("gate.citation.suppress_author", lang, line=line_no)
+                    )
+                    break
 
         known = {"bibliography", "csl", "crossref", "link-citations"}
         blocked = {"title", "subtitle", "author", "date", "abstract", "keywords"}
@@ -449,13 +462,7 @@ def validate_manuscript(
             )
 
     # 2. 图片路径空格与存在性
-    in_code = False
-    for i, line in enumerate(md_text.split("\n"), 1):
-        stripped = line.strip()
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            in_code = not in_code
-        if in_code:
-            continue
+    for i, line in enumerate(visible.split("\n"), 1):
         for m in re.finditer(r"!\[(.*?)\]\((.*?)\)", line):
             raw_path = m.group(2).strip()
             # 远程图片本引擎不下载：放过去只会在写出阶段把它当本地路径，报成"磁盘满"
@@ -498,31 +505,31 @@ def validate_manuscript(
                 )
 
     # 2b. 图片必须独立成行：行内图片不会落成图段，只会印出一个 `!`
-    for i, line in enumerate(md_text.split("\n"), 1):
+    for i, line in enumerate(visible.split("\n"), 1):
         stripped = line.strip()
-        if not re.search(r"!\[.*?\]\(", line) or stripped.startswith("```"):
+        if not re.search(r"!\[.*?\]\(", line):
             continue
         if not re.fullmatch(r"!\[[^\]]*\]\([^)]*\)(?:\{[^}]*\})?", stripped):
             report.valid = False
             report.errors.append(t("gate.image.inline", lang, line=i))
 
     # 2c. 脚注引用必须有定义：缺定义的脚注会印成空号，整段注释丢字
-    defined = set(re.findall(r"^\s*\[\^([^\]]+)\]:", md_text, re.M))
-    for i, line in enumerate(md_text.split("\n"), 1):
+    defined = set(re.findall(r"^\s*\[\^([^\]]+)\]:", visible, re.M))
+    for i, line in enumerate(visible.split("\n"), 1):
         for label in re.findall(r"\[\^([^\]]+)\](?!:)", line):
             if label not in defined:
                 report.valid = False
                 report.errors.append(t("gate.footnote.undefined", lang, line=i, label=label))
 
     # 2d. 表格行缺少行尾竖线：那一行会掉出表格、变成正文，竖线原样印出来
-    for i, line in enumerate(md_text.split("\n"), 1):
+    for i, line in enumerate(visible.split("\n"), 1):
         stripped = line.strip()
         if stripped.startswith("|") and not stripped.endswith("|"):
             report.valid = False
             report.errors.append(t("gate.table.row_unclosed", lang, line=i))
 
     # 2e. 样式行 `%%` 后面必须有空格，否则整行原样印成正文
-    for i, line in enumerate(md_text.split("\n"), 1):
+    for i, line in enumerate(visible.split("\n"), 1):
         if line.startswith("%%") and not line.startswith("%% "):
             report.valid = False
             report.errors.append(t("gate.style_line.no_space", lang, line=i))
@@ -607,7 +614,7 @@ def validate_manuscript(
 
     # 10b. 公式标签重复：两条公式共用一个标签，后面那条的编号会盖掉前面，引用只能指到一条
     labels_seen: dict[str, int] = {}
-    for i, line in enumerate(md_text.split("\n"), 1):
+    for i, line in enumerate(visible.split("\n"), 1):
         for label in re.findall(r"\{#(eq-[\w:.\-]+)\}", line):
             if label in labels_seen:
                 report.valid = False

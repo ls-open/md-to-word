@@ -519,6 +519,28 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             for note in outcome.notes:
                 res.messages.append(note)
                 res.warnings.append(note)
+            # 上面第 8、9 步验的是 `render_target`——灌底模时那是临时目录里的中间产物。
+            # 用户拿到的是 `out_p`；注入本身可能丢字（前几节被切、关系被重写），所以防丢数
+            # 要在成品上再跑一遍。格式对账不重跑：成品里混着学校的前置件与它自己的样式，
+            # 逐条对账会把它判成「不合规」，那些本来就不是我们排的。
+            if options.postflight:
+                all_kept, missing = verify_numeric_integrity(in_p, out_p)
+                if not all_kept:
+                    res.returncode = EXIT_ERROR
+                    res.errors.append(
+                        t("pipeline.numeric_failed", res.lang,
+                          count=len(missing), sample=", ".join(missing[:5]))
+                    )
+                    return res
+                all_kept, missing = verify_chinese_integrity(in_p, out_p)
+                if not all_kept:
+                    res.returncode = EXIT_ERROR
+                    res.errors.append(
+                        t("pipeline.chinese_failed", res.lang,
+                          count=len(missing), sample="".join(missing[:12]))
+                    )
+                    return res
+                logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
             # 「逐页一致」只有真排过版才说得出口
             key = "pipeline.base_ok" if outcome.layout_verified else "pipeline.base_ok_structure"
             logger.info("✓ " + t(key, res.lang, pages=outcome.cover_sections))

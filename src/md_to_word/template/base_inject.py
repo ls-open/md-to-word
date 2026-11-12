@@ -352,6 +352,7 @@ def inject_into_base(
     style_ids: dict[str, str] = {}
     style_names: dict[str, str] = {}
     _merge_styles(ours, school, style_ids, style_names, qn)
+    _merge_doc_level_settings(ours, school, qn)
 
     counters: dict[str, int] = {}
     empty_refs: dict[str, str] = {}
@@ -564,6 +565,97 @@ def _merge_styles(src, dst, ids: dict[str, str], names: dict[str, str], qn) -> N
             ref = clone.find(qn(tag))
             if ref is not None and ref.get(qn("w:val")) in ids:
                 ref.set(qn("w:val"), ids[ref.get(qn("w:val"))])
+
+
+def verify_doc_level_settings(rendered: Path, injected: Path) -> None:
+    """灌完之后，我们声明的文档级设置还在不在。
+
+    这两项不属于任何一条样式，丢了不会在 Word 里报错，只会安静地不起作用：校对语言退回
+    底模的值（中文满篇红波浪线），标点压缩退回底模的值（全角标点不再压缩）。所以在
+    「验不过就不产出」这一关也要看一眼。
+    """
+    import zipfile
+
+    def read(path: Path, member: str):
+        with zipfile.ZipFile(path) as z:
+            return etree.fromstring(z.read(member))
+
+    want = read(rendered, "word/styles.xml")
+    got = read(injected, "word/styles.xml")
+    wanted_lang = want.find(f"{W}docDefaults/{W}rPrDefault/{W}rPr/{W}lang")
+    got_lang = got.find(f"{W}docDefaults/{W}rPrDefault/{W}rPr/{W}lang")
+    want_east = None if wanted_lang is None else wanted_lang.get(W + "eastAsia")
+    got_east = None if got_lang is None else got_lang.get(W + "eastAsia")
+    if want_east and got_east != want_east:
+        raise BaseTemplateError(
+            f"校对语言没搬进底模：要求 {want_east}，产物 {got_east or '未设置'}"
+        )
+
+    want_s = read(rendered, "word/settings.xml")
+    got_s = read(injected, "word/settings.xml")
+    for tag, label in (("characterSpacingControl", "标点压缩"),
+                       ("mirrorMargins", "对称页边距")):
+        source = want_s.find(W + tag)
+        if source is None:
+            continue
+        actual = got_s.find(W + tag)
+        if actual is None or actual.get(W + "val") != source.get(W + "val"):
+            raise BaseTemplateError(
+                f"{label}没搬进底模：要求 {source.get(W + 'val') or '开'}，"
+                f"产物 {None if actual is None else (actual.get(W + 'val') or '开')}"
+            )
+
+
+def _merge_doc_level_settings(src, dst, qn) -> None:
+    """把**我们声明的**文档级设置搬进底模：校对语言、标点压缩、对称页边距。
+
+    只搬 `w:style` 是不够的。`docDefaults` 里的校对语言与 `settings.xml` 里的标点压缩
+    都不属于任何一条样式，灌完之后底模的旧值还在，而生成器专门写这两项的理由（不写中文
+    语言，Word 就拿英文词典查中文，整篇标红）恰恰在底模这条路上失效。声明了却不起作用，
+    比没声明更坏——用户以为自己设过了。
+
+    `format.txt` 为准：底模的前置件有自己的样式，正文的排版仍然按我们的声明来。
+    底模独有的设置（`evenAndOddHeaders`、`titlePg`、`compat` 等）一律不碰。
+    """
+    from copy import deepcopy
+
+    # 1. 校对语言走 docDefaults：只覆盖 eastAsia 槽，西文槽保持底模的值
+    src_lang = None
+    node = src.styles.element.find(qn("w:docDefaults"))
+    for tag in ("w:rPrDefault", "w:rPr", "w:lang"):
+        node = None if node is None else node.find(qn(tag))
+    src_lang = node
+    east_asia = None if src_lang is None else src_lang.get(qn("w:eastAsia"))
+    if east_asia:
+        root = dst.styles.element
+        defaults = root.find(qn("w:docDefaults"))
+        if defaults is None:
+            defaults = deepcopy(src.styles.element.find(qn("w:docDefaults")))
+            root.insert(0, defaults)
+        rpr_default = defaults.find(qn("w:rPrDefault"))
+        if rpr_default is None:
+            rpr_default = etree.SubElement(defaults, qn("w:rPrDefault"))
+        rpr = rpr_default.find(qn("w:rPr"))
+        if rpr is None:
+            rpr = etree.SubElement(rpr_default, qn("w:rPr"))
+        lang = rpr.find(qn("w:lang"))
+        if lang is None:
+            lang = etree.SubElement(rpr, qn("w:lang"))
+        lang.set(qn("w:eastAsia"), east_asia)
+
+    # 2. settings.xml 里的几项：有就搬，没有就按 schema 顺序插
+    from md_to_word.template.generator import _SETTINGS_ORDER, ensure_ordered_child
+
+    src_settings = src.settings.element
+    dst_settings = dst.settings.element
+    for tag in ("characterSpacingControl", "mirrorMargins"):
+        source = src_settings.find(qn(f"w:{tag}"))
+        if source is None:
+            continue
+        target = ensure_ordered_child(dst_settings, tag, _SETTINGS_ORDER)
+        for attr in list(target.attrib):
+            del target.attrib[attr]
+        target.attrib.update(source.attrib)
 
 
 def _canon(el) -> bytes:
@@ -1145,6 +1237,8 @@ def apply_base_template(
         ok, why = verify_structure(base, staged, cover_sections)
         if not ok:
             raise BaseTemplateError(f"结构验真没通过：{why}", report.notes)
+
+        verify_doc_level_settings(rendered, staged)
 
         # 版面验真只有在装了 Word 的机器上才做得了。做不了不等于不做——
         # 结构那一关已经保证封面一个字节没动，剩下的"排出来一样不一样"只能请人看。

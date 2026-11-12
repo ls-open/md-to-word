@@ -85,7 +85,8 @@ and prints the exact line to write instead.
 
 **Equations** — `$$...$$ {#eq-name}` on its own line, referenced as `@eq-name` (no brackets: `[@eq-name]` is citation syntax and pre-flight rejects it). Chinese manuscripts
 get 「式/图/表」 prefixes and （1）numbering, English ones Equation/Figure/Table and (1);
-`crossref: chapters: true` switches to per-chapter numbering. `\tag{}` is blocked.
+`chapters: true` under `crossref:` switches to per-chapter numbering (indented on its own line —
+`crossref: chapters: true` on one line is not valid YAML). `\tag{}` is blocked.
 
 **Citations** — `[@key]` parenthetical, `@key` narrative, resolved from `bibliography:` + `csl:`. A
 `.bib` is mandatory once the manuscript cites: handwritten reference lists are not supported, and

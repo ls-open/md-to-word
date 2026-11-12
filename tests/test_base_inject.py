@@ -634,3 +634,49 @@ def test_header_styles_metadata_survives_injection(tmp_path: Path) -> None:
     apply_base_template(base, rendered, 2, out, "第一章")
 
     assert read_header_styles_meta(out) == {"References Title"}
+
+
+def test_injected_package_keeps_the_doc_level_settings_we_declare(tmp_path: Path) -> None:
+    """校对语言与标点压缩不属于任何一条样式，只搬 `w:style` 的话它们会被底模顶掉。
+
+    这两项恰恰是生成器专门写进去的：不写中文校对语言，Word 就拿英文词典查中文，
+    整篇标成拼写错误。灌完底模它们没了，等于 `format.txt` 里那两行白写。
+    """
+    from md_to_word.template.base_inject import inject_into_base
+
+    base = _school_base(tmp_path / "base.docx", sections=1)
+
+    # 底模里先把这两项写成恩「别的值」，才能看出注入有没有搬过去
+    with zipfile.ZipFile(base) as z:
+        styles = z.read("word/styles.xml")
+    assert b"docDefaults" in styles
+
+    rendered = _rendered(
+        tmp_path,
+        '---\n---\n\n# 一 引言\n\n正文一段。\n\n%% 正文 宋体 小四\n',
+    )
+    with zipfile.ZipFile(rendered) as z:
+        want_lang = etree.fromstring(z.read("word/styles.xml"))
+        want_settings = etree.fromstring(z.read("word/settings.xml"))
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    wanted = want_lang.find(f"{w}docDefaults/{w}rPrDefault/{w}rPr/{w}lang")
+    expected_lang = None if wanted is None else wanted.get(f"{w}eastAsia")
+    wanted_cs = want_settings.find(f"{w}characterSpacingControl")
+    expected_cs = None if wanted_cs is None else wanted_cs.get(f"{w}val")
+    assert expected_lang, "生成器本该写中文校对语言"
+
+    out = tmp_path / "out.docx"
+    inject_into_base(base, rendered, 1, out)
+
+    with zipfile.ZipFile(out) as z:
+        got_styles = etree.fromstring(z.read("word/styles.xml"))
+        got_settings = etree.fromstring(z.read("word/settings.xml"))
+    got = got_styles.find(f"{w}docDefaults/{w}rPrDefault/{w}rPr/{w}lang")
+    assert got is not None and got.get(f"{w}eastAsia") == expected_lang, (
+        "校对语言没搬过去：灌底模之后 Word 会用英文词典查中文"
+    )
+    if expected_cs:
+        got_cs = got_settings.find(f"{w}characterSpacingControl")
+        assert got_cs is not None and got_cs.get(f"{w}val") == expected_cs, (
+            "标点压缩没搬过去"
+        )

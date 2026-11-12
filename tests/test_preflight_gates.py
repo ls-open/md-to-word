@@ -517,3 +517,81 @@ def test_audit_items_are_printed_in_the_requested_language(tmp_path: Path) -> No
     joined = "\n".join(f"[{cat}] {msg}" for cat, msg in problems)
     assert "but the output" in joined, joined
     assert not CJK_RE.search(joined), joined
+
+
+# ── 只出年份的引文（`-@`）────────────────────────────────────────────────
+# 引擎不实现 `<suppress-author>`，读到之后当普通引用渲染——**输出与不写 `-` 逐字相同**。
+# 所以预检必须拦；判据是「方括号组里任意一条引用带 `-`」，不是「方括号紧跟 `-@`」：
+# `[@a; -@b]` 是 Pandoc 的标准写法，只看开头会整组放行。
+
+
+@pytest.mark.parametrize("citation", ["[-@a]", "[@a; -@b]", "[see -@a]", "[@a;@b;-@c]"])
+def test_suppressed_author_is_blocked_anywhere_in_a_citation_group(
+    tmp_path: Path, citation: str
+) -> None:
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text(
+        f'---\nbibliography: refs.bib\n---\n\n# 一 引言\n\n正文{citation} 结束。\n',
+        encoding="utf-8",
+    )
+    report = validate_manuscript(manuscript)
+    assert not report.valid
+    assert any("只出年份" in error for error in report.errors), report.errors
+
+
+def test_ordinary_citation_groups_are_not_blamed(tmp_path: Path) -> None:
+    """正常引用不能被这道门禁误伤——`-` 只出现在作者名里不算（如 `Doe-Smith`）。"""
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text(
+        "---\nbibliography: refs.bib\n---\n\n# 一 引言\n\n正文[@a; @b] 与 @doe-smith 结束。\n",
+        encoding="utf-8",
+    )
+    report = validate_manuscript(manuscript)
+    assert not any("只出年份" in error for error in report.errors), report.errors
+
+
+def test_suppressed_author_inside_a_code_fence_is_ignored(tmp_path: Path) -> None:
+    """围栏里演示这段语法是正当的：稿件讲的就是这个工具怎么写。"""
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text(
+        "---\n---\n\n# 一 引言\n\n```markdown\n正文[@a; -@b] 结束。\n```\n",
+        encoding="utf-8",
+    )
+    report = validate_manuscript(manuscript)
+    assert not any("只出年份" in error for error in report.errors), report.errors
+
+
+# ── 代码块里演示语法是正当写法 ─────────────────────────────────────────
+# 这几条判据原本直接扫原文，于是一篇「讲 Markdown 怎么写」的稿子会被自己的示例判死：
+# 行内代码里的图片语法去查磁盘、围栏里重复的公式标签算重复。同一个文件里另有九处判据
+# 早就走 mask_code_fences——判据必须是同一套。
+
+
+@pytest.mark.parametrize(
+    ("body", "why"),
+    [
+        ("正文里写 `![图](figures/不存在.png)` 应当原样印出。", "行内代码里的图片语法"),
+        ("```markdown\n$$a=b$$ {#eq-dup}\n$$c=d$$ {#eq-dup}\n```", "围栏里重复的公式标签"),
+        ("```latex\n%% 这是 LaTeX 注释\n```", "围栏里没有空格的百分号"),
+        ("```text\n| 参数 | 含义\n| a | b\n```", "围栏里没写行尾竖线的表格行"),
+        ("```markdown\n参见 [^1] 的写法\n```", "围栏里没有定义的脚注"),
+    ],
+)
+def test_syntax_demos_inside_code_do_not_block(
+    tmp_path: Path, body: str, why: str
+) -> None:
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text(f"---\n---\n\n# 一 引言\n\n{body}\n", encoding="utf-8")
+    report = validate_manuscript(manuscript)
+    assert report.valid, f"{why}被当成真内容拦下了：{report.errors}"
+
+
+def test_a_real_missing_image_is_still_blocked(tmp_path: Path) -> None:
+    """遮罩不能把真问题一起遮掉。"""
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text(
+        "---\n---\n\n# 一 引言\n\n![真图](figures/不存在.png)\n", encoding="utf-8"
+    )
+    report = validate_manuscript(manuscript)
+    assert not report.valid
+    assert any("图片文件不存在" in error for error in report.errors), report.errors
