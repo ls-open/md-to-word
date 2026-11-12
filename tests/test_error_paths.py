@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 import subprocess
 
@@ -43,7 +44,13 @@ def test_output_pointing_at_a_directory_is_reported(workdir: Path, capsys) -> No
     assert "outdir" in output
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root 无视目录权限")
+# Windows 上没有 geteuid，用 chmod 也造不出「写不进去的目录」——跳过而不是让收集阶段就炸。
+# 在这之前这条 skipif 的 `os.geteuid()` 会让整个模块在 Windows 上导入失败，一条都跑不了。
+_POSIX = sys.platform != "win32"
+
+
+@pytest.mark.skipif(not _POSIX, reason="Windows 用 chmod 造不出不可写目录")
+@pytest.mark.skipif(_POSIX and os.geteuid() == 0, reason="root 无视目录权限")
 def test_unwritable_output_directory_is_reported(workdir: Path, capsys) -> None:
     locked = workdir / "locked"
     locked.mkdir()
