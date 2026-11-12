@@ -79,6 +79,9 @@
   @media (max-width:820px){ .panel-inner{grid-template-columns:1fr;gap:22px} }
 
   .shot{
+    /* <figure> 的浏览器默认外边距是 1em 40px：不清掉的话预览图比上方的标签条和标题
+       右移 40px、下沉 16px，左边缘对不齐，看起来像排版坏了 */
+    margin:0;
     border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;
     box-shadow:0 1px 2px rgba(20,25,32,.05),0 12px 32px -18px rgba(20,25,32,.28);
   }
@@ -183,7 +186,7 @@
         <article class="panel" id="panel-zh-journal">
           <div class="panel-inner">
             <figure class="shot">
-              <img src="assets/zh-journal.png" alt="中文学术期刊样张首页" loading="lazy">
+              <img src="assets/zh-journal.png" alt="中文学术期刊样张首页">
               <figcaption><span>Word 渲染 · 1 页</span><span>zh-academic</span></figcaption>
             </figure>
             <div class="meta">
@@ -218,7 +221,7 @@
         <article class="panel" id="panel-zh-tw-journal">
           <div class="panel-inner">
             <figure class="shot">
-              <img src="assets/zh-tw-journal.png" alt="繁體中文學術期刊样张首页" loading="lazy">
+              <img src="assets/zh-tw-journal.png" alt="繁體中文學術期刊样张首页">
               <figcaption><span>Word 渲染 · 1 页</span><span>zh-tw-academic</span></figcaption>
             </figure>
             <div class="meta">
@@ -253,7 +256,7 @@
         <article class="panel" id="panel-zh-report">
           <div class="panel-inner">
             <figure class="shot">
-              <img src="assets/zh-report.png" alt="现代技术白皮书样张首页" loading="lazy">
+              <img src="assets/zh-report.png" alt="现代技术白皮书样张首页">
               <figcaption><span>Word 渲染 · 1 页</span><span>zh-report</span></figcaption>
             </figure>
             <div class="meta">
@@ -288,7 +291,7 @@
         <article class="panel" id="panel-en-paper">
           <div class="panel-inner">
             <figure class="shot">
-              <img src="assets/en-paper.png" alt="英文学术期刊样张首页" loading="lazy">
+              <img src="assets/en-paper.png" alt="英文学术期刊样张首页">
               <figcaption><span>Word 渲染 · 1 页</span><span>en-nature</span></figcaption>
             </figure>
             <div class="meta">

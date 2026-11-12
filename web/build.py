@@ -178,9 +178,10 @@ def _render_page(templates: dict, built: set[str]) -> str:
 
         png = ASSETS / f"{tpl_id}.png"
         if tpl_id in built and png.exists():
+            # 不加 loading="lazy"：没选中的面板是 display:none，懒加载的图要等点了标签
+            # 才开始下载，第一次切换会先看到一张空白卡片。四张图一共 600 多 KB，值。
             figure = (
-                f'<img src="assets/{tpl_id}.png" alt="{_esc(tpl["name"])}样张首页" '
-                f'loading="lazy">'
+                f'<img src="assets/{tpl_id}.png" alt="{_esc(tpl["name"])}样张首页">'
             )
         else:
             figure = (
