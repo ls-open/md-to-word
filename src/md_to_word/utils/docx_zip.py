@@ -43,5 +43,10 @@ def normalize_zip(path: Path | str) -> None:
             info = zipfile.ZipInfo(item.filename, date_time=FIXED_TIME)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = FIXED_PERMS
+            # `create_system` 决定中央目录里那一个字节：Python 在 Windows 上写 0（FAT），
+            # 其它平台写 3（Unix）。不钉死的话，同一份稿件在 Windows 与 macOS 上导出的
+            # 两个 .docx 内容一字不差、字节却不一致——「逐字节可复现」就只在单机上成立。
+            # 3 与 `external_attr` 里那组 Unix 权限是配套的，统一按它写。
+            info.create_system = 3
             dst.writestr(info, src.read(item.filename))
     shutil.move(str(tmp), str(path))
