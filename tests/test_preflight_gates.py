@@ -55,6 +55,13 @@ CASES = {
         False,
     ),
     "undefined_crossref": (CROSSREF_YAML + "\n见 @eq-missing。\n", None, True),
+    # 交叉引用写成引文方括号：渲染期会被当条目去查，然后从 citeproc 深处抛异常，
+    # 最后被兜底成「未预料到的内部错误…本工具的缺陷」——归因完全错了，必须在预检拦下。
+    "bracketed_crossref": (
+        CROSSREF_YAML + "\n$$E = mc^2$$ {#eq-a}\n\n见 [@eq-a]。\n",
+        None,
+        True,
+    ),
     # 引擎只认正文的样式行：YAML 里的摘要/关键词没有任何排版位置，静默丢一段摘要
     # 比报错难查得多，所以这里拦下来并说清该写成什么样。
     "yaml_abstract": (

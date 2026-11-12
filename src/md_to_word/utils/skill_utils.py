@@ -371,6 +371,8 @@ _DEFINED_LABEL_RE = re.compile(r'\{#([\w:.\-]+)\}')
 # 交叉引用标签前缀——`@eq-x` 这类是**交叉引用**，不是文献 key，
 # 当文献 key 去 .bib 里找必然找不到（demo/01 的 `@eq-dynamics` 即属此类）。
 _CROSSREF_PREFIX_RE = re.compile(r'^(?:eq|fig|tbl|sec|lst)-')
+# `[@eq-x]` / `[@fig-x; @eq-y]`：方括号里的交叉引用（应为 `@eq-x`，不加方括号）
+_BRACKETED_CITE_RE = re.compile(r'\[[^\]\n]*@([\w:.\-]+)[^\]\n]*\]')
 
 
 def parse_bib_keys(bib_text: str) -> set:
@@ -450,6 +452,29 @@ def math_comment_issues(text: str) -> list[tuple[int, str]]:
         # 围栏没闭合：那是「`$$` 未配对」，由方言检查单独报一次即可。顺着这个误判往下扫，
         # 后面每一行的 `%` / 花括号都会被算成公式内容，一屏假错误把真病因淹掉。
         return []
+    return issues
+
+
+def bracketed_crossref_issues(text: str, line_offset: int = 0, lang: str = "zh") -> list[tuple[int, str]]:
+    """交叉引用写成了引文方括号（`[@eq-x]`）→ [(行号, 说明)]。
+
+    方括号是引文写法，渲染期会拿 `eq-x` 去文献库里找，找不到就从 citeproc 深处抛异常，
+    最后被兜底成「未预料到的内部错误…本工具的缺陷」——归因完全错了。交叉引用不带方括号
+    （`@eq-x`），这一条能在预检里静态看出来，就该在预检说出来。
+
+    与文献库无关：没写 `.bib` 的稿子同样要报，所以不放在 `citation_key_issues` 的
+    `known_keys` 早退之后。
+    """
+    issues: list[tuple[int, str]] = []
+    for i, raw in enumerate(mask_code_fences(text or "").split("\n"), 1):
+        line = _ANGLE_RE.sub(" ", _INLINE_CODE_RE.sub(" ", raw))
+        for m in _BRACKETED_CITE_RE.finditer(line):
+            key = m.group(1).rstrip(".")
+            if _CROSSREF_PREFIX_RE.match(key):
+                issues.append((
+                    i + line_offset,
+                    t("gate.citation.bracketed_crossref", lang, key=key),
+                ))
     return issues
 
 

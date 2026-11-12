@@ -349,7 +349,20 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 # 而引擎是在模型读出来之前建的，所以这里把真正引用到的 key 交回去
                 from md_to_word.transform.citations import cited_keys
 
-                engine.reserve(cited_keys(model))
+                keys = cited_keys(model)
+                engine.reserve(keys)
+                # 兜底：预检本该拦下「引了不存在的 key」，但只要有一条漏过去，
+                # 渲染期就会从 citeproc 深处抛 CitationError，被兜底成
+                # 「未预料到的内部错误…请把 traceback 发给维护者」——那是错的归因。
+                missing_keys = [k for k in dict.fromkeys(keys) if not engine.has(k)]
+                if missing_keys:
+                    res.returncode = EXIT_ERROR
+                    res.errors.append(t(
+                        "pipeline.citation_failed",
+                        res.lang,
+                        reason="、".join(missing_keys[:5]),
+                    ))
+                    return res
             write_docx(
                 model,
                 tpl_for_render,

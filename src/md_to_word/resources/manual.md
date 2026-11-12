@@ -146,6 +146,7 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 ```
 
 - 正文引用写 `@eq-model1`，渲染前缀按稿件语种自动取：中文稿「式」，其它「Equation」。
+  **交叉引用不加方括号**：`[@eq-model1]` 是引文写法，会被当成一条文献去查，预检会拦下来并提示改成 `@eq-model1`。
   **前缀由引擎加**，正文写「见 @eq-model1」即可，写成「见式 @eq-model1」会得到「见式 式（1）」。
   要改前缀就在 YAML 里显式写 `crossref:`（§2.7），写了以 YAML 为准。
 - **按章编号**（学位论文的 `（2-1）` 而非 `（1）`）：YAML 写 `crossref: chapters: true`。

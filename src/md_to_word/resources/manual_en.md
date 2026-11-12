@@ -174,6 +174,7 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   `Equation` for English manuscripts, 「式」 for Chinese ones. **The prefix is added by the engine**:
   write `see @eq-model1`, not `see Equation @eq-model1`, which would render `see Equation Equation 1`.
   To override the prefix, write `crossref:` explicitly in YAML (§2.7); YAML wins.
+- **No brackets on cross-references**: `[@eq-model1]` is citation syntax and would be looked up as a bibliography entry; pre-flight rejects it and asks for `@eq-model1`.
 - **Numbering by chapter** (a thesis `(2-1)` rather than `(1)`): write `crossref: chapters: true`
   in YAML. The chapter number is the ordinal of the level-1 heading the equation belongs to; a
   hand-typed number in the heading is not read.

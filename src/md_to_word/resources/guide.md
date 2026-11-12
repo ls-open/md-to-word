@@ -83,7 +83,7 @@ and prints the exact line to write instead.
 **YAML holds only position-independent configuration**: `bibliography:`, `csl:`, `crossref:`
 (`link-citations: false` drops the in-text hyperlink).
 
-**Equations** — `$$...$$ {#eq-name}` on its own line, referenced as `@eq-name`. Chinese manuscripts
+**Equations** — `$$...$$ {#eq-name}` on its own line, referenced as `@eq-name` (no brackets: `[@eq-name]` is citation syntax and pre-flight rejects it). Chinese manuscripts
 get 「式/图/表」 prefixes and （1）numbering, English ones Equation/Figure/Table and (1);
 `crossref: chapters: true` switches to per-chapter numbering. `\tag{}` is blocked.
 

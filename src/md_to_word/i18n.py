@@ -1055,6 +1055,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.list_sep": ("、", ", "),
     # 方括号里的标签
     "gate.tag.citation_key": ("引文 key 缺失", "citation key missing"),
+    "gate.tag.crossref_syntax": ("交叉引用写法", "cross-reference syntax"),
     "gate.tag.unsupported_syntax": ("写法不支持", "unsupported syntax"),
     "gate.tag.block_marker": ("块级标记空行缺失", "blank line missing around a block marker"),
     "gate.tag.unknown_shortcode": ("未知短代码", "unknown shortcode"),
@@ -1131,6 +1132,17 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.citation.unknown_key": (
         "引用了 {key}，但文献库里没有这个条目",
         "cited {key}, but the bibliography has no such entry",
+    ),
+    "gate.citation.bracketed_crossref": (
+        "「[@{key}]」是引文写法，交叉引用不加方括号：改成「@{key}」，否则会被当成一条文献去查",
+        "`[@{key}]` is citation syntax; cross-references take no brackets — write `@{key}`",
+    ),
+    "pipeline.citation_failed": (
+        "引用没能渲染：{reason}\n"
+        "  通常是有 key 在文献库里找不到，或引用写成了「[@eq-…]」这种方括号交叉引用。",
+        "citation rendering failed: {reason}\n"
+        "  Usually a key missing from the bibliography, or a bracketed cross-reference "
+        "(`[@eq-...]`), which is citation syntax.",
     ),
     "gate.key.cjk_swallowed": (
         "——`@` 后面要留一个空格或标点：紧跟着的汉字会被并进 key 里",

@@ -38,6 +38,7 @@ from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES, PdfFigureEr
 from md_to_word.utils.skill_utils import (
     block_marker_issues,
     soft_wrap_issues,
+    bracketed_crossref_issues,
     citation_key_issues,
     citations_without_bibliography,
     dialect_issues,
@@ -557,6 +558,14 @@ def validate_manuscript(
         report.errors.append(
             t("gate.line", lang, line=line_no,
               tag=t("gate.tag.unsupported_syntax", lang), why=why)
+        )
+
+    # 4c. 交叉引用写成了引文方括号：`[@eq-x]` 会被当条目去查，渲染期才炸
+    for line_no, why in bracketed_crossref_issues(md_text, lang=lang):
+        report.valid = False
+        report.errors.append(
+            t("gate.line", lang, line=line_no,
+              tag=t("gate.tag.crossref_syntax", lang), why=why)
         )
 
     # 5. 块级标记空行分隔
