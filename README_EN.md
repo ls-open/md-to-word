@@ -22,7 +22,7 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 `md-to-word` uses a **declarative typographic contract** and **bidirectional quality gates with exact line numbers**:
 - **Byte-Identical Reproducibility**: On the same platform, rebuilding the same Markdown source yields identical document binaries — packaging timestamps, permissions, entry order and the zip platform byte are all fixed (cross-platform differences are covered under [Known Limitations](#known-limitations)).
 - **Self-Describing Output**: `docProps` records the version, the format file name and the first 8 hex digits of its sha256; no timestamp is written, so repeated exports stay byte-identical.
-- **Autonomous Self-Healing**: Missing formats or invalid syntax are caught before writing the file with exact line numbers and guidance, enabling AI Agents to auto-debug and self-heal.
+- **Actionable errors**: Missing formats or invalid syntax are caught before the file is written, with exact line numbers and the fix, so an Agent can correct the manuscript and re-run.
 - **Compliant Typography**: Native OMML math formulas (vector, double-click editable, centered with numbering hard right), three-line tables with repeating headers across page breaks, and double/single-rule running headers.
 - **User format first**: When a template or written spec is available, compile against its format file; built-in presets are for a first look, while a deliverable should follow the template or spec.
 
@@ -30,8 +30,8 @@ Prompting LLMs to hand-write `python-docx` scripts often leads to formatting hal
 
 ## Architectural Design: Self-Contained Engine & Multi-Modal Access
 
-> 💡 **Core Design Philosophy**:  
-> At the foundational layer lies a deterministic Python compilation engine (`md-to-word-docx`), embedding all typographic rules, contracts, and quality gates. To eliminate the chronic headache of "external prompts and skill documents falling out of sync when formatting rules update", `md-to-word` uses a **self-contained design** (`md-to-word --guide` outputs the complete specification directly from the installed package).  
+> 💡 **Design**:  
+> At the foundational layer lies a deterministic Python compilation engine (`md-to-word-docx`), with the typographic contract and its self-checks inside the package. So that an upgrade of the contract cannot leave external prompts and skill documents behind, the specification ships **with the package**: `md-to-word --guide` prints exactly the version that matches the code.  
 > Whether you look at the finished output in your browser, mount it into desktop AI clients via MCP, inject it into autonomous agents as a Skill, or run batch jobs in the terminal, the identical deterministic pipeline executes underneath.
 
 ### Usage & Ecosystem Matrix
@@ -176,20 +176,21 @@ No need to transcribe guidelines manually from `.docx` files issued by publisher
 md-to-word-template university_template.docx -o format.txt
 ```
 
-It automatically extracts page dimensions, margins, gutter, mirror margins, punctuation compression, header/footer spacing, pagination, fonts, sizes, line spacing, paragraph before/after spacing, indentations, and table borders into a `format.txt`. **Anything it could not determine — or could read but cannot express — is collected into an item-by-item checklist at the end of that file**, and is never guessed.
+It extracts page dimensions, margins, gutter, page-number style, and each style's fonts, sizes, line
+spacing, paragraph spacing, indentation and table borders into a `format.txt`. **Anything it could not
+determine — or could read but cannot express (boxes, shading, images inside headers) — is collected
+into an item-by-item checklist at the end of that file**, and is never guessed.
 
 If the cover page and originality statement must survive **untouched**, don't reverse-engineer — use that `.docx` as the base and pour the body in:
 
 ```bash
-md-to-word thesis.md -f format.txt --base-template school.docx --cover-sections 3 -o thesis.docx
+md-to-word thesis.md -f format.txt --base-template school.docx --keep-until "copyright authorization" -o thesis.docx
 ```
 
-`--keep-until "copyright authorization"` is safer: say it by content, and the tool converts it to a
-section number and reports it — no counting.
-
-**The contents page is never kept**: if the base has one, the cut must stop before it — your manuscript
-writes `{{< toc >}}` to generate it, which is the only way its page numbers come out right. Cutting too
-deep is refused, and the message names the most you may keep.
+`--keep-until` locates by content and is more reliable than `--cover-sections N`: the tool converts it
+to a section number and reports it. **The contents page is never kept**: if the base has one, the cut
+must stop before it — your manuscript writes `{{< toc >}}` to generate it, which is the only way its page
+numbers come out right. Cutting too deep is refused, and the message names the most you may keep.
 
 > **A run either verifies or writes nothing.** The structural check runs everywhere; the page-by-page layout comparison needs Word on macOS, and the run says which layer it reached (the log says "node-for-node" or "page-for-page"). See §9 of the packaged manual (`md-to-word --contract` prints its path).
 
@@ -214,13 +215,13 @@ Refer to the [User Manual](https://github.com/ls-open/md-to-word/blob/main/src/m
 
 ## Known Limitations
 
-Everything above is what it does. Here is what it **cannot** do, or deliberately does not — so you don't find out the hard way:
+The previous section is what it does. This one lists what it **cannot** do, or deliberately does not, with the reason for each:
 
-- **"Byte-identical" holds within one platform only.** Timestamps, permissions and entry order are pinned, but the bytes of the deflate stream depend on the zlib implementation and version — macOS's system zlib and the one bundled with CPython on Windows produce the same content with different bytes. So don't diff binaries across platforms; compare content.
+- **"Byte-identical" holds within one platform only.** Timestamps, permissions and entry order are pinned, but the bytes of the deflate stream depend on the zlib implementation and version — macOS's system zlib and the one bundled with CPython on Windows produce the same content with different bytes. Binary comparison across platforms therefore always differs; compare content when checking across machines.
 - **`--pdf` requires macOS with Word.** The TOC, `STYLEREF` chapter names in headers and page numbers are fields only Word actually expands. Without Word the `.docx` is still produced, the PDF step is skipped and logged; Linux and Windows never produce a PDF.
 - **Mixed Chinese/English CSL layouts are not supported.** The citation engine (citeproc-py) does not implement CSL-M, so one bibliography can only render in one locale. Pure Chinese or pure English libraries are fine; for mixed libraries pick the dominant language, or fix the entries in Word afterwards.
 - **Merged cells, diagonal header rules, inline text color, multi-column and floating wrapped figures are not supported.** The first three are limits of Markdown and the style model, the last two of the single-column body layout. Alternatives for each are in manual §6.
-- **A fenced code block inside a list item aborts the export** rather than silently hoisting the block to top level — it stops and tells you instead of quietly mis-formatting.
+- **A fenced code block inside a list item aborts the export and reports an error** rather than silently hoisting the block to top level. This follows the same rule as every other gate: stop and report, instead of emitting a mis-formatted document.
 
 The complete hard boundaries, CSL rendering deviations and silent-clamping rules live in [Manual §6](https://github.com/ls-open/md-to-word/blob/main/src/md_to_word/resources/manual_en.md).
 
@@ -228,18 +229,15 @@ The complete hard boundaries, CSL rendering deviations and silent-clamping rules
 
 ## Syntax Cheat Sheet
 
+Only the syntax specific to this contract is listed here; the authoritative list is `md-to-word --contract`, which prints a cheatsheet that ships with the code. This table is its summary.
+
 | Element | Syntax | Note |
 |:--|:--|:--|
-| **Headings** | `# Heading 1`, `## Heading 2` | Each `#` denotes level; do not skip levels |
 | **Paragraph Style** | `%% Abstract Text here...` | Prefix line with `%% styleName`; one line per paragraph |
-| **Soft Line Break** | End line with `\` or two spaces | For addresses, poems, long titles |
-| **Numbered Equation** | `$$E=mc^2$$ {#eq-mass}` | Standalone line; referenced via `@eq-mass` |
-| **Citation** | `[@smith2024]` | Declare `bibliography: refs.bib` in YAML |
-| **Figure & Caption** | `![](figures/arch.png){width=13cm}`<br>`%% Figure Caption Fig. 1 Architecture` | Placed on consecutive lines; bound together |
-| **Table & Caption** | Before table: `%% Table Caption **Table 1** Benchmark`<br>`\| A \| B \|`<br>After: `%% Table Note Note: ...` | Standard Markdown table with automatic rule borders |
-| **TOC Field** | Standalone `{{< toc >}}` | Generates native Word TOC field |
-| **Section & Paging** | `{{< section page_number=lowerRoman start=1 >}}` | Breaks section and restarts page numbering |
-| **Page Break** | Standalone `{{< pagebreak >}}` | Inserts page break |
+| **Numbered Equation** | `$$E=mc^2$$ {#eq-mass}` | Standalone line; referenced as `@eq-mass` without brackets |
+| **Figure / Table Caption** | Before a table: `%% Table Caption **Table 1** Benchmark`<br>Line after a figure: `%% Figure Caption Fig. 1 Architecture` | Caption stays bound to its float and does not separate across pages |
+| **Citation** | `[@smith2024]` in the body, `bibliography: refs.bib` in YAML | The bibliography is generated by the citation engine, ordered by the CSL style |
+| **Structure Markers** | `{{< toc >}}`, `{{< section page_number=lowerRoman start=1 >}}`, `{{< pagebreak >}}` | TOC field, section break with page-number restart, forced page break; each on its own line |
 
 ---
 

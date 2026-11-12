@@ -64,6 +64,28 @@ BANNED = (
     "flawless",
 )
 
+# 口语词：每个都有更准的书面说法（「踩坑」→「遇到的问题」、「咋」→「如何」）。
+# 这些词读起来不难，但它们把事实换成了熟人语气——第一次读这份文档的人，
+# 需要的是能核对的说法，不是熟络。词表同样要窄：`其实`、`容易`、`直接` 是正常书面词，
+# 被误封会逼人把句子改得更绕。
+COLLOQUIAL = (
+    "踩坑",
+    "翻车",
+    "拍脑袋",
+    "露馅",
+    "老老实实",
+    "一眼就能",
+    "说白了",
+    "咋",
+    "啥",
+    "呗",
+    "咱们",
+    "gotcha",
+    "no-brainer",
+    "game-changer",
+    "just works",
+)
+
 # (文件, 词, 理由)。空着是对的。
 ALLOW: set[tuple[str, str]] = set()
 
@@ -80,4 +102,18 @@ def test_public_docs_do_not_grade_the_product() -> None:
     assert not hits, (
         "这些文档给产品加了等级或称号：" + "、".join(hits) +
         "\n写它能做什么、验到哪一层、哪里不行；不写它有多好。"
+    )
+
+
+def test_public_docs_keep_a_written_register() -> None:
+    """对外文档用书面语，不换熟人语气。"""
+    hits = []
+    for path in DOCS:
+        text = path.read_text(encoding="utf-8").lower()
+        for term in COLLOQUIAL:
+            if term in text and (path.name, term) not in ALLOW:
+                hits.append(f"{path.name}: {term}")
+    assert not hits, (
+        "这些文档用了口语词：" + "、".join(hits) +
+        "\n每个词都有更准的书面说法；文档的读者第一次认识这个项目。"
     )

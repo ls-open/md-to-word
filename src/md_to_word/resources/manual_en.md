@@ -911,7 +911,7 @@ title. Two things must hold at once:
 
 ### 9.7 Common traps
 
-All of these came from real reports. None of them fails loudly; they just come out slightly wrong:
+None of the situations below raises an error; they only make the output wrong:
 
 | Symptom | Cause |
 |:--|:--|
