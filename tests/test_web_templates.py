@@ -132,6 +132,12 @@ def test_page_offers_every_template(catalog) -> None:
             assert needle in html, f"页面缺少 {needle}"
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="提交的产物是在 macOS 上生成的；deflate 压缩流的字节取决于 zlib 的实现与版本，"
+           "换平台必然不同（内容一致、字节不同）。这条检查的是「源码与产物同步」，"
+           "在 ubuntu / macOS 上跑就够了",
+)
 @pytest.mark.parametrize("tpl_id", ["zh-journal", "zh-tw-journal", "zh-report", "en-paper"])
 def test_committed_docx_matches_a_fresh_export(catalog, build, tpl_id: str, tmp_path: Path) -> None:
     """页面上写着「这不是效果图」——那就得能复核。

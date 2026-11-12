@@ -68,3 +68,7 @@ GitHub Pages 的源设成 **`main` 分支的 `/docs` 目录**（仓库 Settings 
   装了本技能的 Agent。
 - PDF 是 Word 在 macOS 上渲染的，Windows 下的分页没有验证过；`docs/index.html` 的措辞不要写成
   「任何机器上都长这样」。
+- **「逐字节一致」只在同一平台上成立。** 时间戳、权限、条目顺序都已经钉死，但 deflate
+  压缩流的字节取决于 zlib 的实现与版本——macOS 的系统 zlib 与 Windows 的 CPython 自带
+  那份打出来的字节不同，内容一样。所以 `test_committed_docx_matches_a_fresh_export`
+  在 Windows 上跳过：它检查的是「源码改了有没有忘记重建产物」，在生成产物的平台上跑就够了。
