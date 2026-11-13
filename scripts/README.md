@@ -8,6 +8,7 @@
 |:--|:--|:--|
 | `export.sh` | 导出。先用仓库里的 `src/`，没有源码时退回已安装的 `md-to-word` | `md-to-word` / `python3 -m md_to_word` |
 | `acceptance.sh` | **发版前的安装验收**：建 wheel → 干净 venv 安装 → 跑 --version/--contract/--guide/init/导出/--json/--pdf/反推 | —（这一步只有安装后才成立） |
+| `release.sh` | **发版一条命令**：升版本号 → 重出五份样例 → 重建样张页 → 跑门禁 → 提交并打 tag。推远端/发 PyPI 要显式加 `--push` / `--publish` | —（编排上面这些步骤） |
 | `read_reference_docx.py` | 从参考 `.docx` 反推 `format.txt` 草稿 | `md-to-word-template` |
 | `generate_template.py` | 只按要求文件生成样式模板，用来看产物长什么样 | —（导出时会临时生成） |
 | `check_md.py` | 单独跑导前预检 | —（每次导出都会跑） |
@@ -15,7 +16,7 @@
 | `normalize_csl.py` | 规范化 CSL（剥掉 `<bibliography>` 上的直接格式属性） | —（用户自带 CSL 时自动执行） |
 | `docx_diff.py` | 语义级比对两份 docx：剥掉 `rsid`/`paraId` 这类随机 ID 后逐行 diff | —（排错专用） |
 | `render_via_word.sh` | 转发到包内的同脚本（渲染要随 wheel 发布，pip 装的人也得能 `--pdf`） | `md-to-word … --pdf` |
-| `create_pure_modern_base.py` | 重新生成 `resources/pure_modern_base.docx` | —（底模已随包发布） |
+| `create_pure_modern_base.py` | 重新生成 `src/md_to_word/resources/pure_modern_base.docx` | —（底模已随包发布） |
 
 ## 视觉核验的轻重
 

@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.ls-open/md-to-word -->
+
 # md-to-word
 
 [![Skill: Nature Skills](https://img.shields.io/badge/Skill-Nature%20Skills-d9381e?logo=github&logoColor=white)](https://github.com/Yuan1z0825/nature-skills/tree/main/skills/nature-paper2word)
