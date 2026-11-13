@@ -229,7 +229,7 @@ md-to-word 论文.md -f format.txt --base-template 学校模板.docx --keep-unti
 本项目专注下游的高质量确定性排版与 Word 交付，前期的文献调研、开题构思与论文写作推荐配合以下学术 Agent 框架：
 
 - **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)**：科研论文全流程写作 Agent 技能集。本项目的技能版已合并入该仓库，负责终稿阶段的规范 Word 编译交付，在 Nature Skills 环境中可直接唤起 `$nature-paper2word`。
-- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**：五阶段学术研究全流程框架。本项目被收录在其第三方项目列表中，在 Stage 5（FINALIZE）产出 Markdown 草稿与参考文献后，直接承接出规范 `.docx`。
+- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**：由五个研究技能组成、采用十阶段流水线的学术研究框架。本项目被收录在其第三方项目列表中，在 Stage 5（FINALIZE）产出 Markdown 草稿与参考文献后，直接承接出规范 `.docx`。
 - **[中文独立开发者](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)**：收录于程序员专刊精选独立项目。
 
 ---
