@@ -6,6 +6,4 @@ prune tests
 prune demo
 prune scripts
 prune references
-prune resources
-prune presets
 global-exclude __pycache__ *.py[cod] .DS_Store

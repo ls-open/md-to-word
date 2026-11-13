@@ -15,7 +15,7 @@ from md_to_word.template.builder import build_template
 from md_to_word.writer import write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 DECOR = (
     "页眉内容：某某大学学位论文 {样式标题:Heading 1}\n"
     "页眉：宋体/Times New Roman 小五 不加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符\n"

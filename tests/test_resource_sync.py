@@ -1,57 +1,15 @@
-"""预设与资源两份拷贝必须一致（手册除外）。
+"""同一份事实在几处分发时不许分叉。
 
-技能按目录分发、pip 用包内同名目录；同一份事实存两处，改一份忘另一份就会「本地跑对、装完跑错」。
-不用软链接是因为 Windows 的 git checkout 默认不落软链接；手册（`manual*.md`）只随包发布，故测试只盯其余资源。
+预设与资源只存在于包内（`src/md_to_word/`），仓库根不再放第二份。剩下的重复都来自**分发形态**
+——技能入口、插件入口、市场清单——它们各自要一份实物文件，改一处忘另一处就会「本地跑对、装完跑错」。
 """
 
 from __future__ import annotations
 
-import filecmp
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ROOT_PRESETS = REPO_ROOT / "presets"
-ROOT_RESOURCES = REPO_ROOT / "resources"
-PKG_PRESETS = REPO_ROOT / "src" / "md_to_word" / "presets"
 PKG_RESOURCES = REPO_ROOT / "src" / "md_to_word" / "resources"
-
-
-# 只随包发布、仓库根不放副本的文件
-PACKAGE_ONLY = {"manual.md", "manual_en.md", "guide.md", "guide_zh.md",
-                "render_via_word.sh"}
-
-
-def _relative_files(root: Path) -> set[str]:
-    return {
-        str(p.relative_to(root))
-        for p in root.rglob("*")
-        if p.is_file() and p.name not in PACKAGE_ONLY
-    }
-
-
-@pytest.mark.parametrize(
-    ("root", "package", "label"),
-    [
-        (ROOT_PRESETS, PKG_PRESETS, "presets"),
-        (ROOT_RESOURCES, PKG_RESOURCES, "resources"),
-    ],
-)
-def test_copies_are_identical(root: Path, package: Path, label: str) -> None:
-    root_files = _relative_files(root)
-    package_files = _relative_files(package)
-    assert root_files == package_files, (
-        f"{label}/ 与 {package.relative_to(REPO_ROOT)}/ 的文件清单不一致："
-        f"仅根目录有 {sorted(root_files - package_files)}，"
-        f"仅包内有 {sorted(package_files - root_files)}"
-    )
-
-    _, mismatch, errors = filecmp.cmpfiles(
-        root, package, sorted(root_files), shallow=False
-    )
-    assert not errors, f"{label}/ 有文件无法比较：{errors}"
-    assert not mismatch, f"{label}/ 与包内拷贝内容不一致：{mismatch}"
 
 
 def test_packaged_guide_is_the_skill_entry() -> None:

@@ -41,5 +41,5 @@ bash scripts/export.sh demo/04_zh_tw_paper/paper_zh_tw.md -o /tmp/paper.docx
   pdftoppm -png -r 110 -f 1 -l 1 -singlefile paper_zh_tw.pdf page-1
   ```
 
-- `format.txt` 是 `presets/zh-tw-academic.txt` 的副本，改這裡不會影響預設；
-  要改預設請改 `presets/zh-tw-academic.txt`（包內那份有一份同樣的副本，測試盯著兩者不許分叉）。
+- `format.txt` 是 `zh-tw-academic` 預設的副本，改這裡不會影響預設；
+  要改預設請改包內的 `src/md_to_word/presets/zh-tw-academic.txt`（`md-to-word --contract` 會給出絕對路徑）。

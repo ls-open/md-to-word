@@ -21,7 +21,7 @@ from md_to_word.spec.serializer import serialize_format
 from md_to_word.template.extractor import Ref, q, read_table
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 # 整行换掉而不是往后追加：预设自己也会声明这两项，追加就撞成"写了两次"
 SPEC = re.sub(r"^表格：.*$", "表格：居中 三线表 单元格垂直居中 单元格内边距0.15cm 表后间距6磅",
               PRESET, flags=re.M)

@@ -16,7 +16,7 @@ import pytest
 from md_to_word.audit.inspector import audit_docx_against_spec
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = REPO_ROOT / "presets" / "zh-academic.txt"
+PRESET = REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt"
 
 MANUSCRIPT = """\
 %% 文档标题 对账测试稿

@@ -18,7 +18,7 @@ from md_to_word.visual_qa.word_pdf import can_render_word_pdf
 from md_to_word.writer import write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
 pytestmark = pytest.mark.skipif(
     not can_render_word_pdf()[0], reason="需要本机 Microsoft Word 才能验真"

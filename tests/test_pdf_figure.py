@@ -22,7 +22,7 @@ from md_to_word.validator.check import validate_manuscript
 from md_to_word.writer import UnsupportedFeature, write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = REPO_ROOT / "presets" / "zh-academic.txt"
+PRESET = REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt"
 
 
 def _make_pdf(path: Path, pages: int = 1, width: int = 200, height: int = 100) -> Path:

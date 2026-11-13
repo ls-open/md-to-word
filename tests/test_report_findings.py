@@ -14,7 +14,7 @@ from md_to_word.transform.bibtex import parse_bibtex
 from md_to_word.utils.skill_utils import math_comment_issues, unbalanced_math_issues
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
 
 def _export(tmp_path: Path, body: str, name: str = "m.docx", spec: str | None = None):

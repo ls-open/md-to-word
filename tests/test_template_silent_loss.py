@@ -285,7 +285,7 @@ def test_a_style_whose_id_is_machine_generated_is_still_found(tmp_path):
     from md_to_word.template.builder import build_template
     from md_to_word.template.extractor import _build_draft
 
-    preset = (Path(__file__).resolve().parents[1] / "presets" / "zh-academic.txt").read_text(
+    preset = (Path(__file__).resolve().parents[1] / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(
         encoding="utf-8")
     source = tmp_path / "generated.docx"
     build_template(preset, source)
@@ -307,7 +307,7 @@ def test_a_mapped_style_is_not_reported_as_unmapped(tmp_path):
     from md_to_word.template.builder import build_template
     from md_to_word.template.extractor import _build_draft
 
-    preset = (Path(__file__).resolve().parents[1] / "presets" / "zh-academic.txt").read_text(
+    preset = (Path(__file__).resolve().parents[1] / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(
         encoding="utf-8")
     source = tmp_path / "generated.docx"
     build_template(preset, source)

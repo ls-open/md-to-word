@@ -320,7 +320,7 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 
 症状：同一个 format.txt 在不同 CSL 下，参考文献的悬挂缩进、行距、段间距行为不一致。
 原因：CSL 有两种悬挂缩进机制——`hanging-indent="true"` 与 `second-field-align="flush"`，都会写成段落级 direct formatting，绕过模板，覆盖 Bibliography 样式的设置。
-解决：内置 CSL 都已用 `scripts/normalize_csl.py` 去掉 `<bibliography>` 上的 `hanging-indent`、`second-field-align`、`line-spacing` 等 direct formatting 属性，悬挂缩进改由 format.txt 的 Bibliography 样式（`悬挂缩进0.5英寸`）统一控制。**新增 CSL 必须跑一次**：`python3 scripts/normalize_csl.py resources/csl/新期刊.csl`。
+解决：内置 CSL 都已用 `scripts/normalize_csl.py` 去掉 `<bibliography>` 上的 `hanging-indent`、`second-field-align`、`line-spacing` 等 direct formatting 属性，悬挂缩进改由 format.txt 的 Bibliography 样式（`悬挂缩进0.5英寸`）统一控制。**新增 CSL 必须跑一次**：`python3 scripts/normalize_csl.py src/md_to_word/resources/csl/新期刊.csl`。
 
 ### 2.9 参考文献 Tab 残留导致悬挂失效
 

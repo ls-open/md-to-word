@@ -21,7 +21,7 @@ from md_to_word.template.builder import build_template
 from md_to_word.writer import UnsupportedFeature, write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = REPO_ROOT / "presets" / "zh-academic.txt"
+PRESET = REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt"
 DEMO = REPO_ROOT / "demo" / "00_quickstart"
 
 
@@ -535,7 +535,7 @@ def test_table_caption_stays_with_its_table_without_the_declaration(tmp_path: Pa
 def test_english_toc_placeholder_has_no_chinese(tmp_path: Path) -> None:
     """英文稿件的 `{{< toc >}}` 占位符应使用英文，不应硬编码中文。"""
     en_tpl = tmp_path / "en_tpl.docx"
-    build_template((REPO_ROOT / "presets" / "en-nature.txt").read_text(encoding="utf-8"), en_tpl)
+    build_template((REPO_ROOT / "src" / "md_to_word" / "presets" / "en-nature.txt").read_text(encoding="utf-8"), en_tpl)
     en_out = write_docx(
         read_markdown("---\ntitle: \"Paper\"\n---\n\n{{< toc >}}\n\n# Introduction\n\nBody.\n"),
         en_tpl,

@@ -15,7 +15,7 @@ from md_to_word.config import get_csl_dir
 from md_to_word.transform.citations import CitationEngine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-CSL_DIR = REPO_ROOT / "resources" / "csl"
+CSL_DIR = REPO_ROOT / "src" / "md_to_word" / "resources" / "csl"
 REFERENCE = REPO_ROOT / "src" / "md_to_word" / "resources" / "manual.md"
 
 BIB = """@article{a, author={Smith, John and Doe, Jane}, title={A Study of Things},

@@ -12,7 +12,7 @@ from md_to_word.template.builder import build_template
 from md_to_word.validator.check import validate_manuscript
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = REPO_ROOT / "presets" / "zh-academic.txt"
+PRESET = REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt"
 FIGURE = REPO_ROOT / "demo" / "01_chinese_thesis" / "figures" / "qa_pipeline.png"
 
 BASE_YAML = '---\n---\n\n# 一 引言\n\n正文一段。\n'
@@ -470,7 +470,7 @@ def mismatched_audit_pair(tmp_path: Path):
     from md_to_word.model.reader import read_markdown
     from md_to_word.writer import write_docx
 
-    en_preset = (REPO_ROOT / "presets" / "en-nature.txt").read_text(encoding="utf-8")
+    en_preset = (REPO_ROOT / "src" / "md_to_word" / "presets" / "en-nature.txt").read_text(encoding="utf-8")
     template = tmp_path / "zh_tpl.docx"
     build_template(PRESET.read_text(encoding="utf-8"), template)
     docx = write_docx(read_markdown("# 1 Introduction\n\nBody.\n"), template, tmp_path / "o.docx")
@@ -511,7 +511,7 @@ def test_audit_items_are_printed_in_the_requested_language(tmp_path: Path) -> No
 
     # 产物按中文预设生成，改用英文要求文件对账，必然逐条不符
     matched, problems = audit_docx_against_spec(
-        tmp_path / "o.docx", REPO_ROOT / "presets" / "en-nature.txt", "en"
+        tmp_path / "o.docx", REPO_ROOT / "src" / "md_to_word" / "presets" / "en-nature.txt", "en"
     )
     assert not matched
     joined = "\n".join(f"[{cat}] {msg}" for cat, msg in problems)

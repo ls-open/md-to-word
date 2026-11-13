@@ -30,7 +30,7 @@ from md_to_word.template.builder import build_template
 from md_to_word.writer import write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
 
 def _school_base(path: Path, sections: int = 2) -> Path:

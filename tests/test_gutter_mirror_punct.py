@@ -22,7 +22,7 @@ from md_to_word.validator.check import content_width_cm
 from md_to_word.writer.docx_writer import write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESETS = REPO_ROOT / "presets"
+PRESETS = REPO_ROOT / "src" / "md_to_word" / "presets"
 W = f"{{{NS_W}}}"
 
 

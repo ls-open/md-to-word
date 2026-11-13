@@ -24,7 +24,7 @@ from md_to_word.template.generator import TemplateError, read_header_styles_meta
 from md_to_word.writer import write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
 MANUSCRIPT = "%% 文档标题 测试\n\n# 第一章\n\n正文。\n\n%% 参考文献标题 参 考 文 献\n"
 
@@ -138,7 +138,7 @@ def test_no_toc_and_join_header_is_rejected_at_parse() -> None:
     with pytest.raises(ValueError, match="不入目录.*加入页眉"):
         parse_format(zh_bad)
 
-    en_preset = (REPO_ROOT / "presets" / "en-nature.txt").read_text(encoding="utf-8")
+    en_preset = (REPO_ROOT / "src" / "md_to_word" / "presets" / "en-nature.txt").read_text(encoding="utf-8")
     en_bad = _replace_style_line(
         en_preset,
         "Abstract Title:",

@@ -14,7 +14,7 @@ from md_to_word.audit.postflight import verify_chinese_integrity
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 TABLE_LINE = re.search(r"^表格：.*$", PRESET, re.M).group(0)
 TITLE_LINE = re.search(r"^文档标题：.*$", PRESET, re.M).group(0)
 SPEC = PRESET.replace(TABLE_LINE, TABLE_LINE + " 行不跨页").replace(

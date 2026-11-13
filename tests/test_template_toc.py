@@ -16,7 +16,7 @@ import pytest
 from md_to_word.template.builder import build_template
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = REPO_ROOT / "presets" / "zh-academic.txt"
+PRESET = REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt"
 
 
 def _styles_xml(tmp_path: Path) -> str:

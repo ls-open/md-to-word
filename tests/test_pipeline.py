@@ -489,10 +489,10 @@ def test_legacy_r_flag_still_works_and_says_so(tmp_path: Path, capsys) -> None:
     manuscript = _write_manuscript(tmp_path)
     out = tmp_path / "out.docx"
 
-    assert cli_main([str(manuscript), "-r", "presets/zh-academic.txt", "-o", str(out)]) == 0
+    assert cli_main([str(manuscript), "-r", "src/md_to_word/presets/zh-academic.txt", "-o", str(out)]) == 0
     assert "-r" in capsys.readouterr().err
 
-    assert cli_main([str(manuscript), "-f", "presets/zh-academic.txt", "-o", str(out)]) == 0
+    assert cli_main([str(manuscript), "-f", "src/md_to_word/presets/zh-academic.txt", "-o", str(out)]) == 0
     assert "旧写法" not in capsys.readouterr().err
 
 
@@ -586,7 +586,9 @@ def test_the_output_says_which_version_and_format_made_it(tmp_path: Path) -> Non
     assert result.returncode == 0, result.errors
 
     core = zipfile.ZipFile(out).read("docProps/core.xml").decode("utf-8")
-    preset = Path("presets") / "zh-academic.txt"
+    from md_to_word.config import get_presets_dir
+
+    preset = get_presets_dir() / "zh-academic.txt"
     digest = hashlib.sha256(preset.read_bytes()).hexdigest()[:8]
     assert "md-to-word" in core and "zh-academic.txt" in core and digest in core, core
 

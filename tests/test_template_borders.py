@@ -15,7 +15,7 @@ from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
 HEADER = (
     "页眉：宋体/Times New Roman 小五 不加粗 不倾斜 居中 行距1.0倍 "

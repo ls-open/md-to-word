@@ -202,7 +202,7 @@ def test_footnotes_are_numbered_and_images_keep_their_alt_text(tmp_path: Path) -
     pic = repo / "demo" / "01_chinese_thesis" / "figures" / "qa_pipeline.png"
     shutil.copy(pic, tmp_path / "pic.png")
     build_template(
-        (repo / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+        (repo / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
     )
     md = (
         "# 一\n\n正文有脚注[^n]，还有图。\n\n![系统架构图](pic.png){width=5cm}\n\n"
@@ -228,7 +228,7 @@ def test_each_ordered_list_restarts_numbering(tmp_path: Path) -> None:
 
     repo = Path(__file__).resolve().parents[1]
     build_template(
-        (repo / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+        (repo / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
     )
     md = "# 一\n\n1. 甲\n2. 乙\n\n中间正文。\n\n1. 丙\n2. 丁\n"
     write_docx(read_markdown(md), tmp_path / "tpl.docx", tmp_path / "o.docx")
@@ -251,7 +251,7 @@ def test_an_over_wide_image_is_clamped_to_the_text_block(tmp_path: Path) -> None
     repo = Path(__file__).resolve().parents[1]
     shutil.copy(repo / "demo/01_chinese_thesis/figures/qa_pipeline.png", tmp_path / "pic.png")
     build_template(
-        (repo / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+        (repo / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
     )
     md = "# 一\n\n![](pic.png){width=25cm}\n\n%% 图片题注 图 1 宽图\n"
     write_docx(read_markdown(md), tmp_path / "tpl.docx", tmp_path / "o.docx", base_dir=tmp_path)
@@ -270,7 +270,7 @@ def test_footnotes_keep_inline_formatting_and_links(tmp_path: Path) -> None:
 
     repo = Path(__file__).resolve().parents[1]
     build_template(
-        (repo / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+        (repo / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
     )
     md = (
         "# 一\n\n正文[^1]。\n\n"
@@ -300,7 +300,7 @@ def test_link_citations_false_writes_plain_citations(tmp_path: Path) -> None:
         "@article{a, author={Adams, Bo}, title={A}, journal={J}, year={2019}}\n", encoding="utf-8"
     )
     build_template(
-        (repo / "presets" / "en-nature.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
+        (repo / "src" / "md_to_word" / "presets" / "en-nature.txt").read_text(encoding="utf-8"), tmp_path / "tpl.docx"
     )
     md = "---\nbibliography: refs.bib\nlink-citations: false\n---\n\n# One\n\nSee [@a].\n"
     from md_to_word.config import get_csl_dir

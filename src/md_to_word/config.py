@@ -16,30 +16,14 @@ PACKAGE_DIR = Path(__file__).resolve().parent
 DEFAULT_PRESET_ZH = "zh-academic"
 DEFAULT_PRESET_EN = "en-nature"
 
-# 工作区/工程根目录（根据包所在目录推导）
-WORKSPACE_DIR = PACKAGE_DIR.parent.parent
-
-
 def get_presets_dir() -> Path:
-    """获取预设目录 presets/。优先包内，兜底工程根目录。"""
-    pkg_presets = PACKAGE_DIR / "presets"
-    if pkg_presets.is_dir():
-        return pkg_presets
-    root_presets = WORKSPACE_DIR / "presets"
-    if root_presets.is_dir():
-        return root_presets
-    return root_presets
+    """包内预设目录 presets/。预设与资源都只随包发布，仓库里没有第二份。"""
+    return PACKAGE_DIR / "presets"
 
 
 def get_resources_dir() -> Path:
-    """获取资源目录 resources/。优先包内，兜底工程根目录。"""
-    pkg_res = PACKAGE_DIR / "resources"
-    if pkg_res.is_dir():
-        return pkg_res
-    root_res = WORKSPACE_DIR / "resources"
-    if root_res.is_dir():
-        return root_res
-    return root_res
+    """包内资源目录 resources/（CSL、底模、手册）。"""
+    return PACKAGE_DIR / "resources"
 
 
 def get_csl_dir() -> Path:

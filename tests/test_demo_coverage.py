@@ -76,7 +76,9 @@ def test_every_preset_has_a_demo() -> None:
     「样例是最终验收面」。`zh-tw-academic` 这一条曾经漏过一次：包里发布了、CLI 能选、
     官网在展示，`demo/` 里一份稿子都没有，而没有任何东西在检查它。
     """
-    presets = sorted(p.stem for p in (REPO_ROOT / "presets").glob("*.txt"))
+    from md_to_word.config import get_presets_dir
+
+    presets = sorted(p.stem for p in get_presets_dir().glob("*.txt"))
     assert presets, "没找到任何内置预设"
     demos = [p.read_text(encoding="utf-8")
              for p in (REPO_ROOT / "demo").rglob("README.md")]

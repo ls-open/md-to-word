@@ -28,7 +28,7 @@ from md_to_word.template.builder import build_template
 from md_to_word.template.extractor import Ref, _build_draft, clauses_for, q, read_table
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
 
 def _style_of(document, style_id: str):

@@ -23,9 +23,9 @@ from md_to_word.validator.check import validate_manuscript
 from md_to_word.writer import write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ZH_ACADEMIC = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
-ZH_REPORT = (REPO_ROOT / "presets" / "zh-report.txt").read_text(encoding="utf-8")
-EN_NATURE = (REPO_ROOT / "presets" / "en-nature.txt").read_text(encoding="utf-8")
+ZH_ACADEMIC = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+ZH_REPORT = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-report.txt").read_text(encoding="utf-8")
+EN_NATURE = (REPO_ROOT / "src" / "md_to_word" / "presets" / "en-nature.txt").read_text(encoding="utf-8")
 
 
 def _strip_clauses(line: str) -> str:

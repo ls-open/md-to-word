@@ -29,7 +29,7 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 @pytest.mark.parametrize("preset", ["zh-academic.txt", "en-nature.txt"])
 def test_preset_parses_and_generates_template(preset: str, tmp_path: Path) -> None:
     """Every shipped preset must be a valid requirements file and build a template."""
-    text = (SKILL_DIR / "presets" / preset).read_text(encoding="utf-8")
+    text = (SKILL_DIR / "src" / "md_to_word" / "presets" / preset).read_text(encoding="utf-8")
     spec = parse_format(text)
     names = {style["style_name"] for style in spec.styles}
 

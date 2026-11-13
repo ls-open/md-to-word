@@ -17,7 +17,7 @@ from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.template.builder import build_template
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
 MIN_LINE_SPACING = (
     "正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 "

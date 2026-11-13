@@ -13,7 +13,7 @@ import pytest
 from md_to_word.spec.parser import parse_format
 from md_to_word.spec.serializer import serialize_format
 
-PRESETS = Path(__file__).resolve().parents[1] / "presets"
+PRESETS = Path(__file__).resolve().parents[1] / "src" / "md_to_word" / "presets"
 
 
 @pytest.mark.parametrize("preset", ["zh-academic", "zh-tw-academic", "zh-report", "en-nature"])

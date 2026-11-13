@@ -23,7 +23,7 @@ from md_to_word.template.generator import max_doc_grid_lines
 from md_to_word.writer import write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-PRESET = (REPO_ROOT / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
 EQUATION = "---\ncrossref:\n  chapters: true\n---\n\n# 一\n\n$$a=b$$ {#eq-a}\n"
 
