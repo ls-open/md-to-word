@@ -246,7 +246,7 @@ Only the syntax specific to this contract is listed here; the authoritative list
 Focused on deterministic downstream Word compilation. Recommended to pair with upstream research frameworks:
 
 - **[Nature Skills](https://github.com/Yuan1z0825/nature-skills)**: Academic research and writing agent toolkit. The skill version is merged into that repository to deliver compliant Word documents in the final stage.
-- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**: 5-stage research framework. Listed among its third-party projects, directly compiling Stage 5 (FINALIZE) Markdown and `.bib` outputs into Word.
+- **[Academic Research Skills](https://github.com/Imbad0202/academic-research-skills)**: a suite of five research skills with a 10-stage pipeline. Listed among its third-party projects, directly compiling Stage 5 (FINALIZE) Markdown and `.bib` outputs into Word.
 - **[Chinese Independent Developer](https://github.com/1c7/chinese-independent-developer/blob/master/.github/pages/README-Programmer-Edition.md)**: Featured in the developer showcase.
 
 ---
