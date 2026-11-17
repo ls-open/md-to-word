@@ -32,10 +32,10 @@
 
 ```bash
 # 导出规范 Word 文档（.docx）
-bash ../../scripts/export.sh hello.md -r format.txt -o hello.docx
+bash ../../scripts/export.sh hello.md -f format.txt -o hello.docx
 
 # （可选，仅限 macOS 且装有 Word）顺带输出排版 PDF 对照样张
-bash ../../scripts/export.sh hello.md -r format.txt -o hello.docx --pdf
+bash ../../scripts/export.sh hello.md -f format.txt -o hello.docx --pdf
 ```
 
 预期：几秒内输出 `✅ Word 文档导出成功`，得到一份 1 页的 `.docx`。

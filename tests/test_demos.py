@@ -1,6 +1,6 @@
-"""四份 demo 必须每次都导得出来，且不带一条门禁错误。
+"""五份 demo 必须每次都导得出来，且不带一条门禁错误。
 
-demo 是「常见稿件形态」的样本：最小样例、中文学位论文、技术白皮书、英文期刊。
+demo 是「常见稿件形态」的样本：最小样例、中文学位论文、技术白皮书、英文期刊、繁体中文期刊。
 它们同时是回归网——某个改动让其中任何一种形态跑不通，这里会先红，而不是等用户
 拿着一份真实稿件撞上。单元测试盯的是单点行为，这一组盯的是**整条链路对常见形态成立**。
 """
@@ -23,6 +23,7 @@ CASES = [
     ("01_chinese_thesis", "thesis_sample.md", "format.txt", None),
     ("02_modern_report", "report_sample.md", "format.txt", None),
     ("03_english_paper", "paper.md", None, "en-nature"),
+    ("04_zh_tw_paper", "paper_zh_tw.md", "format.txt", None),
 ]
 
 

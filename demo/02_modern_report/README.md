@@ -3,7 +3,7 @@
 面向**企业技术白皮书、行业研究报告、可行性研究报告与工作公文**。与学位论文样例相比，这一份
 侧重扁平结构与高信息密度：单节、无目录、正文与数据表交替推进。
 
-> 同类内容想一键出稿，可以直接用 `zh-report` 预设；本目录那份是按具体报告要求改过的版本。
+> 同类内容想快速出稿，可以直接用 `zh-report` 预设；本目录那份是按具体报告要求改过的版本。
 
 ---
 
@@ -41,8 +41,8 @@ demo/02_modern_report/
 ## 三、 复现
 
 ```bash
-bash ../../scripts/export.sh report_sample.md -r format.txt -o report_sample.docx
-bash ../../scripts/export.sh report_sample.md -r format.txt -o report_sample.docx --pdf
+bash ../../scripts/export.sh report_sample.md -f format.txt -o report_sample.docx
+bash ../../scripts/export.sh report_sample.md -f format.txt -o report_sample.docx --pdf
 ```
 
 ---

@@ -1,4 +1,4 @@
-# 标杆样例 1：中文学位论文 / 核心期刊范文
+# 样例 1：中文学位论文 / 核心期刊范文
 
 本样例专为**中国高校硕士/博士学位论文、毕业设计、中文核心期刊（知网/万方标准）及严谨学术专著**设计，涵盖了学术排版中最繁琐、手工调格式最痛苦的全部高难度要素。
 
@@ -45,10 +45,10 @@ demo/01_chinese_thesis/
 
 ```bash
 # 1. 导出规范 Word 文档（.docx）
-bash ../../scripts/export.sh thesis_sample.md -r format.txt -o thesis_sample.docx
+bash ../../scripts/export.sh thesis_sample.md -f format.txt -o thesis_sample.docx
 
 # 2. （可选，仅限 macOS 且装有 Word）顺带输出排版 PDF 对照样张
-bash ../../scripts/export.sh thesis_sample.md -r format.txt -o thesis_sample.docx --pdf
+bash ../../scripts/export.sh thesis_sample.md -f format.txt -o thesis_sample.docx --pdf
 ```
 
 ---
