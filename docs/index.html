@@ -3,9 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>md-to-word · 把 Markdown 排成规范的 Word</title>
-<meta name="description" content="声明式排版契约 + 确定性编译：Markdown 一条命令导出规范 Word，公式、三线表、GB/T 7714 引文、学位论文分节页码。四份样张可直接下载。">
+<title>md-to-word · Markdown 转 Word (.docx) 学术论文与公文排版工具</title>
+<meta name="description" content="免费开源的 Markdown 转 Word (.docx) 纯 Python 编译引擎与 MCP 服务，不依赖 Pandoc 或 Quarto。支持声明式 format.txt 排版、原生可编辑 OMML 数学公式、跨页重复表头三线表、GB/T 7714 与 APA 引文、学位论文分节页码，四套真实样张可直接下载。">
+<meta name="keywords" content="Markdown 转 Word,md to word,Markdown 导出 docx,学位论文排版,三线表,OMML 公式,GB/T 7714,Pandoc 替代,MCP Server,Claude Code Skill">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://ls-open.github.io/md-to-word/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="md-to-word">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:url" content="https://ls-open.github.io/md-to-word/">
+<meta property="og:title" content="md-to-word · Markdown 转规范 Word (.docx) 排版工具">
+<meta property="og:description" content="纯 Python 实现，不依赖 Pandoc 或 Quarto。支持原生可编辑数学公式、跨页三线表、GB/T 7714 与 APA 引文、学位论文分节页码，提供 CLI、MCP 与 AI Agent 技能接入。">
+<meta property="og:image" content="https://ls-open.github.io/md-to-word/assets/zh-journal.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="md-to-word · Markdown 转规范 Word (.docx) 排版工具">
+<meta name="twitter:description" content="声明式排版契约 + 确定性编译：Markdown 导出规范 Word，支持原生 OMML 公式、三线表、CSL 引文与学位论文分节页码。">
+<meta name="twitter:image" content="https://ls-open.github.io/md-to-word/assets/zh-journal.png">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📄</text></svg>">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "md-to-word",
+  "alternateName": "md-to-word-docx",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Windows, macOS, Linux",
+  "softwareVersion": "3.6.0",
+  "url": "https://ls-open.github.io/md-to-word/",
+  "codeRepository": "https://github.com/ls-open/md-to-word",
+  "downloadUrl": "https://pypi.org/project/md-to-word-docx/",
+  "license": "https://opensource.org/licenses/MIT",
+  "inLanguage": ["zh-CN", "zh-TW", "en"],
+  "description": "Deterministic Markdown-to-Word (.docx) compiler and MCP server for academic papers, theses, and technical reports. Pure Python with native OMML equations, three-line tables, CSL citations (GB/T 7714 / APA), and section page numbering.",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
 <style>
   :root{
     --ink:#151a20; --ink-2:#4c5866; --ink-3:#7d8794;

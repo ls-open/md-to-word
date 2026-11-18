@@ -289,7 +289,22 @@ def build(template_ids: list[str], page_only: bool = False) -> int:
     DOCS.mkdir(parents=True, exist_ok=True)
     (DOCS / "index.html").write_text(html, encoding="utf-8")
     (DOCS / ".nojekyll").write_text("", encoding="utf-8")
-    print(f"  ✓ docs/index.html（{len(html) // 1024} KB）")
+    (DOCS / "robots.txt").write_text(
+        "User-agent: *\nAllow: /\n\nSitemap: https://ls-open.github.io/md-to-word/sitemap.xml\n",
+        encoding="utf-8",
+    )
+    (DOCS / "sitemap.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        "  <url>\n"
+        "    <loc>https://ls-open.github.io/md-to-word/</loc>\n"
+        "    <changefreq>weekly</changefreq>\n"
+        "    <priority>1.0</priority>\n"
+        "  </url>\n"
+        "</urlset>\n",
+        encoding="utf-8",
+    )
+    print(f"  ✓ docs/index.html（{len(html) // 1024} KB）· robots.txt · sitemap.xml")
 
     if missing_pdf:
         print(

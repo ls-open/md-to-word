@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ls-open.github.io/md-to-word/sitemap.xml
