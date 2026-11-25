@@ -160,7 +160,8 @@ def test_failed_gate_keeps_the_previous_output(tmp_path: Path, monkeypatch) -> N
     out.write_bytes(b"previous-good-build")
 
     monkeypatch.setattr(
-        pipeline, "_postflight_error", lambda *_args, **_kwargs: "simulated gate failure"
+        pipeline, "_postflight_failure",
+        lambda *_args, **_kwargs: ("pipeline.numeric_failed", "simulated gate failure"),
     )
     result = pipeline.run_export_pipeline(
         ExportOptions(input_path=manuscript, output_path=out, preset="zh-academic")

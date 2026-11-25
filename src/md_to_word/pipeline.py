@@ -21,6 +21,7 @@ from md_to_word.audit.postflight import verify_chinese_integrity, verify_numeric
 from md_to_word.config import (
     default_csl_path, default_preset_name, get_csl_dir, resolve_preset_path,
 )
+from md_to_word.diagnostics import Diagnostic
 from md_to_word.i18n import resolve_lang, t
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.spec.parser import parse_format
@@ -68,11 +69,33 @@ class ExportResult:
     doc_lang: str = ""  # 稿件语言：决定默认预设与默认 CSL，和消息语言分开
     format_source: str = ""  # file:/abs/path 或 preset:zh-academic
     pdf_skip_reason: str = ""  # `--pdf` 没做成的原因码，见 word_pdf.explain_unavailable
+    diagnostics: list[Diagnostic] = field(default_factory=list)  # 与 errors/warnings 同源的机器视图
 
     @property
     def ok(self) -> bool:
         """docx 是否已经写出来了（`--pdf` 跳过不算失败）。"""
         return self.returncode in (EXIT_OK, EXIT_PDF_SKIPPED)
+
+
+def _fail(
+    res: ExportResult, code: str, message: str, *,
+    line: Optional[int] = None, file: Optional[Path | str] = None,
+) -> None:
+    """记一条阻断项并结束本次调用：错误句子与诊断条目一次写入，不会只更新一边。"""
+    res.returncode = EXIT_ERROR
+    res.errors.append(message)
+    res.diagnostics.append(Diagnostic(
+        "error", code, message, file=str(file) if file else None, line=line,
+    ))
+
+
+def _warn(res: ExportResult, code: str, message: str, *, file: Optional[Path | str] = None) -> None:
+    """记一条提醒：`messages` 给人、`warnings` 供 CLI 加标记、`diagnostics` 给程序。"""
+    res.messages.append(message)
+    res.warnings.append(message)
+    res.diagnostics.append(Diagnostic(
+        "warning", code, message, file=str(file) if file else None,
+    ))
 
 
 def _inline_text(inline) -> str:
@@ -113,15 +136,17 @@ def _first_text(blocks) -> str:
     return ""
 
 
-def _note_encoding(label_key: str, encoding: str, res: ExportResult) -> None:
+def _note_encoding(
+    label_key: str, encoding: str, res: ExportResult, *, file: Optional[Path | str] = None
+) -> None:
     if encoding in UTF8_ENCODINGS:
         return
-    note = t(
-        "textio.fallback", res.lang,
-        label=t(label_key, res.lang), encoding=encoding,
+    _warn(
+        res,
+        "textio.fallback",
+        t("textio.fallback", res.lang, label=t(label_key, res.lang), encoding=encoding),
+        file=file,
     )
-    res.messages.append(note)
-    res.warnings.append(note)
 
 
 def _read_user_text(
@@ -135,13 +160,15 @@ def _read_user_text(
     try:
         text, encoding = read_text_file(path)
     except TextDecodeError:
-        res.errors.append(t("textio.unreadable", res.lang, label=label, path=path))
+        _fail(res, "textio.unreadable",
+              t("textio.unreadable", res.lang, label=label, path=path), file=path)
         return None
     except OSError as exc:
-        res.errors.append(t("pipeline.read_failed", res.lang, label=label, path=path, err=exc))
+        _fail(res, "pipeline.read_failed",
+              t("pipeline.read_failed", res.lang, label=label, path=path, err=exc), file=path)
         return None
     if warn_fallback:
-        _note_encoding(label_key, encoding, res)
+        _note_encoding(label_key, encoding, res, file=path)
     return text
 
 
@@ -161,10 +188,18 @@ def _resolve_format(
     fmt_file: Optional[Path] = None
     fmt_content: Optional[str] = None
 
+    if format_path and preset:
+        # 同时给两个来源时旧行为是「-f 静默胜出」——调用方以为 preset 生效了，
+        # 拿到的却是另一份格式。宁可当场拒绝，也不替人猜。
+        _fail(res, "pipeline.format_preset_conflict",
+              t("pipeline.format_preset_conflict", res.lang))
+        return None, None
+
     if format_path:
         p_fmt = Path(format_path).resolve()
         if not p_fmt.is_file():
-            res.errors.append(t("pipeline.format_missing", res.lang, path=p_fmt))
+            _fail(res, "pipeline.format_missing",
+                  t("pipeline.format_missing", res.lang, path=p_fmt), file=p_fmt)
             return None, None
         fmt_content = _read_user_text(p_fmt, "textio.label.format", res)
         if fmt_content is None:
@@ -174,7 +209,8 @@ def _resolve_format(
     elif preset:
         p_pre = resolve_preset_path(preset)
         if not p_pre or not p_pre.is_file():
-            res.errors.append(t("pipeline.preset_missing", res.lang, name=preset))
+            _fail(res, "pipeline.preset_missing",
+                  t("pipeline.preset_missing", res.lang, name=preset))
             return None, None
         fmt_file = p_pre
         fmt_content = _read_user_text(p_pre, "textio.label.format", res, warn_fallback=False)
@@ -213,6 +249,110 @@ def _resolve_format(
     return fmt_file, fmt_content
 
 
+@dataclass
+class BasePlan:
+    """底模这件事在渲染前就能确定的全部结论。"""
+
+    base: Path
+    sections: Optional[int]  # None = `--keep-pages`，要排一次版才能换算成节数
+
+
+def _prepare_base_plan(
+    options: ExportOptions, res: ExportResult, *, allow_keep_pages: bool
+) -> tuple[bool, Optional[BasePlan]]:
+    """渲染前把底模的前置条件全部查完，两个出口共用。
+
+    返回 `(False, None)` 表示已经记下错误；`(True, None)` 表示没用底模。放在渲染前
+    是刻意的：底模不存在、切点歧义、需要 Word 却不在 macOS 上，都不该等整篇排完才说。
+    `allow_keep_pages=False` 给 `--validate-only`：它不排版，换算不了页数。
+    """
+    if not options.base_template:
+        return True, None
+
+    from md_to_word.template.base_inject import (
+        inspect_base,
+        section_outline,
+        sections_until_text,
+    )
+
+    base_p = Path(options.base_template).resolve()
+    if not base_p.is_file():
+        _fail(res, "pipeline.base_missing",
+              t("pipeline.base_missing", res.lang, path=base_p), file=base_p)
+        return False, None
+
+    report = inspect_base(base_p)
+    if not report.ok:
+        _fail(res, "pipeline.base_failed",
+              t("pipeline.base_failed", res.lang, reason="；".join(report.blocking)),
+              file=base_p)
+        res.errors.extend(f"  {n}" for n in report.notes)
+        return False, None
+
+    # 三个切点只能选一个。旧行为是「谁先命中谁生效」（keep_until 曾压过 keep_pages），
+    # 调用方以为另一个生效了，切出来的前置件却不是自己要的——宁可当场拒绝。
+    if sum(bool(v) for v in (
+        options.cover_sections, options.keep_until, options.keep_pages,
+    )) > 1:
+        _fail(res, "pipeline.base_multi_cut",
+              t("pipeline.base_multi_cut", res.lang), file=base_p)
+        return False, None
+
+    if options.keep_pages:
+        if not allow_keep_pages:
+            _fail(res, "pipeline.validate_base_keep_pages",
+                  t("pipeline.validate_base_keep_pages", res.lang))
+            return False, None
+        from md_to_word.template.base_inject import section_count
+        from md_to_word.visual_qa.word_pdf import can_render_word_pdf
+
+        if not can_render_word_pdf()[0]:
+            _fail(res, "pipeline.base_keep_pages_needs_word",
+                  t("pipeline.base_keep_pages_needs_word", res.lang,
+                    sections=section_count(base_p)))
+            return False, None
+        return True, BasePlan(base_p, None)
+
+    sections = options.cover_sections
+    if not sections and options.keep_until:
+        hits = sections_until_text(base_p, options.keep_until)
+        if not hits:
+            outline = "\n".join(
+                f"  第 {i} 节：{line}"
+                for i, line in enumerate(section_outline(base_p), 1)
+            )
+            _fail(res, "pipeline.base_until_missing",
+                  t("pipeline.base_until_missing", res.lang,
+                    text=options.keep_until, outline=outline), file=base_p)
+            return False, None
+        if len(hits) > 1:
+            _fail(res, "pipeline.base_until_ambiguous",
+                  t("pipeline.base_until_ambiguous", res.lang,
+                    text=options.keep_until,
+                    sections="、".join(str(h) for h in hits)), file=base_p)
+            return False, None
+        sections = hits[0]
+        res.messages.append(t(
+            "pipeline.base_until_resolved", res.lang,
+            text=options.keep_until, sections=sections))
+
+    if not sections:
+        _fail(res, "pipeline.base_need_sections",
+              t("pipeline.base_need_sections", res.lang), file=base_p)
+        return False, None
+
+    report = inspect_base(base_p, sections)
+    if not report.ok:
+        _fail(res, "pipeline.base_failed",
+              t("pipeline.base_failed", res.lang, reason="；".join(report.blocking)),
+              file=base_p)
+        res.errors.extend(f"  {n}" for n in report.notes)
+        return False, None
+    for note in report.notes:
+        _warn(res, "pipeline.base_note", note, file=base_p)
+    return True, BasePlan(base_p, sections)
+
+
 def run_validation(options: ExportOptions) -> ExportResult:
     """只跑导前预检：读稿、选格式、校验，不生成模板也不写 .docx。
 
@@ -222,29 +362,27 @@ def run_validation(options: ExportOptions) -> ExportResult:
     res.lang = resolve_lang("", options.lang)
     in_p = Path(options.input_path).resolve()
     if not in_p.is_file():
-        res.returncode = EXIT_ERROR
-        res.errors.append(t("pipeline.input_missing", res.lang, path=in_p))
+        _fail(res, "pipeline.input_missing",
+              t("pipeline.input_missing", res.lang, path=in_p), file=in_p)
         return res
     try:
         manuscript_text, manuscript_encoding = read_text_file(in_p)
     except TextDecodeError:
-        res.returncode = EXIT_ERROR
-        res.errors.append(t(
+        _fail(res, "textio.unreadable", t(
             "textio.unreadable", res.lang,
             label=t("textio.label.manuscript", res.lang), path=in_p,
-        ))
+        ), file=in_p)
         return res
     except OSError as exc:
-        res.returncode = EXIT_ERROR
-        res.errors.append(t(
+        _fail(res, "pipeline.read_failed", t(
             "pipeline.read_failed", res.lang,
             label=t("textio.label.manuscript", res.lang), path=in_p, err=exc,
-        ))
+        ), file=in_p)
         return res
     res.lang = resolve_lang(manuscript_text, options.lang)
     doc_lang = resolve_lang(manuscript_text, None)
     res.doc_lang = doc_lang
-    _note_encoding("textio.label.manuscript", manuscript_encoding, res)
+    _note_encoding("textio.label.manuscript", manuscript_encoding, res, file=in_p)
 
     fmt_file, fmt_content = _resolve_format(
         in_p,
@@ -254,80 +392,19 @@ def run_validation(options: ExportOptions) -> ExportResult:
         doc_lang=doc_lang,
     )
     if fmt_content is None:
-        res.returncode = EXIT_ERROR
         return res
 
     # 底模这条路不排版也能验的项：文件能不能读、切点是否唯一、节数够不够。
-    # 不补这一段，`--validate-only` 会对“底模不存在/没给切点/切点歧义”返回 0，
-    # 而真正导出立刻失败——对论文工作流是错误的安全信号。
-    if options.base_template:
-        from md_to_word.template.base_inject import (
-            inspect_base,
-            section_outline,
-            sections_until_text,
-        )
-
-        base_p = Path(options.base_template).resolve()
-        if not base_p.is_file():
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.base_missing", res.lang, path=base_p))
-            return res
-        base_report = inspect_base(base_p)
-        if not base_report.ok:
-            res.returncode = EXIT_ERROR
-            res.errors.append(t(
-                "pipeline.base_failed", res.lang,
-                reason="；".join(base_report.blocking),
-            ))
-            res.errors.extend(f"  {n}" for n in base_report.notes)
-            return res
-        if options.keep_pages:
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.validate_base_keep_pages", res.lang))
-            return res
-        sections = options.cover_sections
-        if not sections and options.keep_until:
-            hits = sections_until_text(base_p, options.keep_until)
-            if not hits:
-                outline = "\n".join(
-                    f"  第 {i} 节：{line}"
-                    for i, line in enumerate(section_outline(base_p), 1)
-                )
-                res.returncode = EXIT_ERROR
-                res.errors.append(t(
-                    "pipeline.base_until_missing", res.lang,
-                    text=options.keep_until, outline=outline,
-                ))
-                return res
-            if len(hits) > 1:
-                res.returncode = EXIT_ERROR
-                res.errors.append(t(
-                    "pipeline.base_until_ambiguous", res.lang,
-                    text=options.keep_until,
-                    sections="、".join(str(h) for h in hits),
-                ))
-                return res
-            sections = hits[0]
-        if not sections:
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.base_need_sections", res.lang))
-            return res
-        base_report = inspect_base(base_p, sections)
-        if not base_report.ok:
-            res.returncode = EXIT_ERROR
-            res.errors.append(t(
-                "pipeline.base_failed", res.lang,
-                reason="；".join(base_report.blocking),
-            ))
-            res.errors.extend(f"  {n}" for n in base_report.notes)
-            return res
-        for note in base_report.notes:
-            res.messages.append(note)
-            res.warnings.append(note)
+    # 与导出共用 `_prepare_base_plan`：两边各写一套，`--validate-only` 迟早会说
+    # 「没问题」而真正导出立刻失败——对论文工作流是错误的安全信号。
+    ok, _plan = _prepare_base_plan(options, res, allow_keep_pages=False)
+    if not ok:
+        return res
 
     logger.info("🔍 " + t("pipeline.precheck", res.lang))
     report = validate_manuscript(in_p, spec_path=fmt_file, lang=res.lang)
     res.errors.extend(report.errors)
+    res.diagnostics.extend(report.diagnostics)
     for warning in report.warnings:
         res.messages.append(warning)
         res.warnings.append(warning)
@@ -371,8 +448,8 @@ def _provenance(fmt_file) -> str:
     return f"md-to-word {__version__} · {Path(fmt_file).name} · sha256:{digest}"
 
 
-def _postflight_error(in_p: Path, target: Path, res: ExportResult) -> Optional[str]:
-    """防丢数 + 防丢字：通过返回 None，不通过返回那条错误消息。
+def _postflight_failure(in_p: Path, target: Path, res: ExportResult) -> Optional[tuple[str, str]]:
+    """防丢数 + 防丢字：通过返回 None，不通过返回 `(code, 错误消息)`。
 
     同一段检查在两个出口跑：验中间产物（`render_target`），以及灌了底模之后再验成品
     （`out_p`）。原来两处各抄一遍，消息键与取样长度都得改两次——一处走样，同一个问题
@@ -380,12 +457,14 @@ def _postflight_error(in_p: Path, target: Path, res: ExportResult) -> Optional[s
     """
     all_kept, missing = verify_numeric_integrity(in_p, target)
     if not all_kept:
-        return t("pipeline.numeric_failed", res.lang,
-                 count=len(missing), sample=", ".join(missing[:5]))
+        return "pipeline.numeric_failed", t(
+            "pipeline.numeric_failed", res.lang,
+            count=len(missing), sample=", ".join(missing[:5]))
     all_kept, missing = verify_chinese_integrity(in_p, target)
     if not all_kept:
-        return t("pipeline.chinese_failed", res.lang,
-                 count=len(missing), sample="".join(missing[:12]))
+        return "pipeline.chinese_failed", t(
+            "pipeline.chinese_failed", res.lang,
+            count=len(missing), sample="".join(missing[:12]))
     return None
 
 
@@ -396,30 +475,28 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     res.lang = resolve_lang("", options.lang)
     in_p = Path(options.input_path).resolve()
     if not in_p.is_file():
-        res.returncode = EXIT_ERROR
-        res.errors.append(t("pipeline.input_missing", res.lang, path=in_p))
+        _fail(res, "pipeline.input_missing",
+              t("pipeline.input_missing", res.lang, path=in_p), file=in_p)
         return res
     try:
         manuscript_text, manuscript_encoding = read_text_file(in_p)
     except TextDecodeError:
-        res.returncode = EXIT_ERROR
-        res.errors.append(t(
+        _fail(res, "textio.unreadable", t(
             "textio.unreadable", res.lang,
             label=t("textio.label.manuscript", res.lang), path=in_p,
-        ))
+        ), file=in_p)
         return res
     except OSError as exc:
-        res.returncode = EXIT_ERROR
-        res.errors.append(t(
+        _fail(res, "pipeline.read_failed", t(
             "pipeline.read_failed", res.lang,
             label=t("textio.label.manuscript", res.lang), path=in_p, err=exc,
-        ))
+        ), file=in_p)
         return res
     # 消息语言可以覆盖；**稿件语言**只按正文判，它决定默认预设与默认 CSL。
     res.lang = resolve_lang(manuscript_text, options.lang)
     doc_lang = resolve_lang(manuscript_text, None)
     res.doc_lang = doc_lang
-    _note_encoding("textio.label.manuscript", manuscript_encoding, res)
+    _note_encoding("textio.label.manuscript", manuscript_encoding, res, file=in_p)
 
     # 1. 确定最终输出路径
     if options.output_path:
@@ -429,14 +506,14 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     # 目录不存在时当场说清楚：否则要等整条流水线跑完、写文件那一刻才抛 FileNotFoundError，
     # 对着 traceback 的人不会想到是自己漏建了一个目录。
     if not out_p.parent.is_dir():
-        res.returncode = EXIT_ERROR
-        res.errors.append(t("pipeline.output_dir_missing", res.lang, dir=out_p.parent))
+        _fail(res, "pipeline.output_dir_missing",
+              t("pipeline.output_dir_missing", res.lang, dir=out_p.parent), file=out_p.parent)
         return res
     # `-o 某个目录` 是常见笔误（把目录当成文件名传进来），python-docx 会抛 IsADirectoryError，
     # 到时候看到的是 zipfile 的 traceback——这里先拦住。
     if out_p.is_dir():
-        res.returncode = EXIT_ERROR
-        res.errors.append(t("pipeline.output_is_dir", res.lang, path=out_p))
+        _fail(res, "pipeline.output_is_dir",
+              t("pipeline.output_is_dir", res.lang, path=out_p), file=out_p)
         return res
     # `-o 稿件.md` 会把 Markdown 原地覆盖成 docx。这是不可恢复的数据损失，必须先拦。
     try:
@@ -444,8 +521,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     except OSError:
         same_file = out_p == in_p
     if same_file:
-        res.returncode = EXIT_ERROR
-        res.errors.append(t("pipeline.output_is_input", res.lang, path=in_p))
+        _fail(res, "pipeline.output_is_input",
+              t("pipeline.output_is_input", res.lang, path=in_p), file=out_p)
         return res
 
     # 2. 确定格式 (Format Spec)
@@ -457,7 +534,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         doc_lang=doc_lang,
     )
     if fmt_content is None:
-        res.returncode = EXIT_ERROR
+        return res
+
+    # 2b. 底模的前置条件在渲染前查完：底模不存在、切点歧义、需要 Word 却不在 macOS 上，
+    #     都不该等整篇排完才说。与 `--validate-only` 共用同一份判断。
+    ok, base_plan = _prepare_base_plan(options, res, allow_keep_pages=True)
+    if not ok:
         return res
 
     # 要求文件写错时预检会给出带行号的原因；这里只取公式编号这一项，读不出就用默认
@@ -472,16 +554,19 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         v_report = validate_manuscript(
             in_p, spec_path=fmt_file, lang=res.lang
         )
-        if not v_report.valid:
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.rejected", res.lang, count=len(v_report.errors)))
-            res.errors.extend(v_report.errors)
-            return res
-        # 提醒进 `result.messages`：`--json` 的消费方（技能、脚本）只有拿到结构化结果才能
-        # 转述，靠正则去刮 stderr 是另一种脆弱。人看的那一份由 CLI 统一加 ⚠️ 打印。
+        # 预检的结构化诊断原样并入结果：`--json` 的消费方拿到的行号与 code
+        # 与 `--validate-only` 是同一份，不在这里重新拼。提醒也要同时进
+        # `messages/warnings`——否则 diagnostics 里有 warning、人读视图里没有，
+        # 两个出口又成了各说各话。失败时同样如此：提醒对修稿仍然有用。
+        res.diagnostics.extend(v_report.diagnostics)
         for w in v_report.warnings:
             res.messages.append(w)
             res.warnings.append(w)
+        if not v_report.valid:
+            _fail(res, "pipeline.rejected",
+                  t("pipeline.rejected", res.lang, count=len(v_report.errors)))
+            res.errors.extend(v_report.errors)
+            return res
 
     # 5. 准备工作环境与 CSL 解析
     render_target: Optional[Path] = None
@@ -520,8 +605,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
         # 临时模板生成
         if not fmt_content:
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.no_spec", res.lang))
+            _fail(res, "pipeline.no_spec", t("pipeline.no_spec", res.lang))
             return res
         # 产物先写到输出目录里的临时文件：所有门禁都在它上面跑，全通过才换到目标路径。
         # 这样门禁失败时目标位置要么没有文件、要么还是上一次的成品，不会留一份“看着能交”
@@ -534,8 +618,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                     prefix=f".{out_p.stem}.", suffix=".docx", dir=out_p.parent
                 )
             except OSError as exc:
-                res.returncode = EXIT_ERROR
-                res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
+                _fail(res, "pipeline.write_failed",
+                      t("pipeline.write_failed", res.lang, path=out_p, err=exc), file=out_p)
                 return res
             os.close(fd)
             render_target = Path(tmp_name)
@@ -543,10 +627,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         try:
             build_template(fmt_content, temp_tpl_path, lang=res.lang)
         except TemplateError as exc:
-            res.returncode = EXIT_ERROR
-            res.errors.append(
-                t("pipeline.format_template_failed", res.lang, reason=exc)
-            )
+            _fail(res, "pipeline.format_template_failed",
+                  t("pipeline.format_template_failed", res.lang, reason=exc), file=fmt_file)
             return res
         tpl_for_render = temp_tpl_path
 
@@ -564,7 +646,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                     Path(bib_path), "textio.label.bibliography", res
                 )
                 if bib_text is None:
-                    res.returncode = EXIT_ERROR
+                    return res
+                from md_to_word.transform.biblio import bibliography_problem
+
+                problem = bibliography_problem(bib_text, res.lang)
+                if problem:
+                    _fail(res, "gate.bib.json", problem, file=bib_path)
                     return res
                 citation_keys = parse_bib_keys(bib_text)
 
@@ -588,14 +675,15 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
             inherited = crossref_keys(bib_text)
             if inherited:
-                note = t("bib.crossref_not_inherited", res.lang, keys="、".join(inherited[:5]))
-                res.messages.append(note)
-                res.warnings.append(note)
+                _warn(res, "bib.crossref_not_inherited", t(
+                    "bib.crossref_not_inherited", res.lang,
+                    keys="、".join(inherited[:5]),
+                ))
             try:
                 engine = CitationEngine(bib_text, csl_path, res.lang)
             except (CitationError, OSError) as exc:
-                res.returncode = EXIT_ERROR
-                res.errors.append(t("pipeline.csl_error", res.lang, reason=exc))
+                _fail(res, "pipeline.csl_error",
+                      t("pipeline.csl_error", res.lang, reason=exc), file=csl_path)
                 return res
 
         try:
@@ -612,12 +700,10 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 # 「未预料到的内部错误…请把 traceback 发给维护者」——那是错的归因。
                 missing_keys = [k for k in dict.fromkeys(keys) if not engine.has(k)]
                 if missing_keys:
-                    res.returncode = EXIT_ERROR
-                    res.errors.append(t(
-                        "pipeline.citation_failed",
-                        res.lang,
+                    _fail(res, "pipeline.citation_failed", t(
+                        "pipeline.citation_failed", res.lang,
                         reason="、".join(missing_keys[:5]),
-                    ))
+                    ), file=in_p)
                     return res
             write_docx(
                 model,
@@ -645,28 +731,26 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 lang=res.lang,
             )
         except MarkdownError as exc:
-            res.returncode = EXIT_ERROR
-            res.errors.append(t(
+            _fail(res, "pipeline.markdown_error", t(
                 "pipeline.markdown_error", res.lang,
                 reason=t("reader.unclosed_code_fence", res.lang, line=exc.line),
-            ))
+            ), line=exc.line, file=in_p)
             return res
         except UnsupportedFeature as exc:
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.unsupported", res.lang, reason=exc))
+            _fail(res, "pipeline.unsupported",
+                  t("pipeline.unsupported", res.lang, reason=exc), file=in_p)
             return res
         except OSError as exc:
             # 目录只读、磁盘满、文件被 Word 占着：都是"写不进去"，不该甩 traceback。
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
+            _fail(res, "pipeline.write_failed",
+                  t("pipeline.write_failed", res.lang, path=out_p, err=exc), file=out_p)
             return res
 
         # 8. 产物数值防丢检查 (Audit: Post-flight)
         if options.postflight:
-            err = _postflight_error(in_p, render_target, res)
-            if err:
-                res.returncode = EXIT_ERROR
-                res.errors.append(err)
+            failure = _postflight_failure(in_p, render_target, res)
+            if failure:
+                _fail(res, failure[0], failure[1], file=out_p)
                 return res
             logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
 
@@ -674,8 +758,9 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         if options.audit and fmt_file:
             matched, problems = audit_docx_against_spec(render_target, fmt_file, res.lang)
             if not matched:
-                res.returncode = EXIT_ERROR
-                res.errors.append(t("pipeline.audit_failed", res.lang, count=len(problems)))
+                _fail(res, "pipeline.audit_failed",
+                      t("pipeline.audit_failed", res.lang, count=len(problems)),
+                      file=fmt_file)
                 for cat, msg in problems:
                     res.errors.append(f"  [{cat}] {msg}")
                 return res
@@ -686,84 +771,25 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             try:
                 os.replace(render_target, out_p)
             except OSError as exc:
-                res.returncode = EXIT_ERROR
-                res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
+                _fail(res, "pipeline.write_failed",
+                      t("pipeline.write_failed", res.lang, path=out_p, err=exc), file=out_p)
                 return res
             render_target = None
             res.output_docx = out_p
 
         # 10. 灌进学校模板：封面原样保留，正文换成我们排的
-        if options.base_template:
+        if options.base_template and base_plan is not None:
             from md_to_word.template.base_inject import BaseTemplateError, apply_base_template
 
-            base_p = Path(options.base_template).resolve()
-            if not base_p.is_file():
-                res.returncode = EXIT_ERROR
-                res.errors.append(t("pipeline.base_missing", res.lang, path=base_p))
-                return res
-            # 按内容 / 按页换算节数都要先读这份文件。读不了要在这里说清楚，不能让它
-            # 从深处抛出去、被兜底成「本工具的缺陷」。
-            from md_to_word.template.base_inject import inspect_base
-
-            report = inspect_base(base_p)
-            if not report.ok:
-                res.returncode = EXIT_ERROR
-                res.errors.append(
-                    t("pipeline.base_failed", res.lang, reason="；".join(report.blocking)))
-                res.errors.extend(f"  {n}" for n in report.notes)
-                return res
+            base_p = base_plan.base
+            sections = base_plan.sections
             sentinel = _first_text(model.blocks)
-            sections = options.cover_sections
-            if not sections and not options.keep_pages and not options.keep_until:
-                res.returncode = EXIT_ERROR
-                res.errors.append(t("pipeline.base_need_sections", res.lang))
-                return res
             try:
-                if not sections and options.keep_until:
-                    # 人说的是内容，机器要的是节数。这一步只看 XML 不看排版。
-                    from md_to_word.template.base_inject import (
-                        section_outline,
-                        sections_until_text,
-                    )
+                if sections is None:
+                    # `--keep-pages`：按页换算节数要先真的排一次版。Word 能不能用、
+                    # 底模能不能读，前面已经查过；这里只做换算。
+                    from md_to_word.template.base_inject import resolve_sections_for_pages
 
-                    hits = sections_until_text(base_p, options.keep_until)
-                    if not hits:
-                        outline = "\n".join(
-                            f"  第 {i} 节：{line}"
-                            for i, line in enumerate(section_outline(base_p), 1)
-                        )
-                        res.returncode = EXIT_ERROR
-                        res.errors.append(t(
-                            "pipeline.base_until_missing", res.lang,
-                            text=options.keep_until, outline=outline))
-                        return res
-                    if len(hits) > 1:
-                        res.returncode = EXIT_ERROR
-                        res.errors.append(t(
-                            "pipeline.base_until_ambiguous", res.lang,
-                            text=options.keep_until,
-                            sections="、".join(str(h) for h in hits)))
-                        return res
-                    sections = hits[0]
-                    res.messages.append(t(
-                        "pipeline.base_until_resolved", res.lang,
-                        text=options.keep_until, sections=sections))
-                elif not sections and options.keep_pages:
-                    # 按页换算节数要先真的排一次版。这台机器排不了，就得在这里说清楚，
-                    # 而不是让它在深处抛出去、被兜底成「本工具的缺陷」。
-                    from md_to_word.template.base_inject import (
-                        resolve_sections_for_pages,
-                        section_count,
-                    )
-                    from md_to_word.visual_qa.word_pdf import can_render_word_pdf
-
-                    if not can_render_word_pdf()[0]:
-                        res.returncode = EXIT_ERROR
-                        res.errors.append(
-                            t("pipeline.base_keep_pages_needs_word", res.lang,
-                              sections=section_count(base_p))
-                        )
-                        return res
                     sections = resolve_sections_for_pages(
                         base_p, render_target, options.keep_pages, Path(temp_dir), sentinel
                     )
@@ -778,8 +804,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                         prefix=f".{out_p.stem}.", suffix=".docx", dir=out_p.parent
                     )
                 except OSError as exc:
-                    res.returncode = EXIT_ERROR
-                    res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
+                    _fail(res, "pipeline.write_failed",
+                          t("pipeline.write_failed", res.lang, path=out_p, err=exc), file=out_p)
                     return res
                 os.close(fd)
                 injected_target = Path(tmp_name)
@@ -788,29 +814,27 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                     _first_texts(model.blocks),
                 )
             except BaseTemplateError as exc:
-                res.returncode = EXIT_ERROR
-                res.errors.append(t("pipeline.base_failed", res.lang, reason=exc.reason))
+                _fail(res, "pipeline.base_failed",
+                      t("pipeline.base_failed", res.lang, reason=exc.reason), file=base_p)
                 res.errors.extend(f"  {n}" for n in exc.notes)
                 return res
             for note in outcome.notes:
-                res.messages.append(note)
-                res.warnings.append(note)
+                _warn(res, "pipeline.base_note", note, file=base_p)
             # 上面第 8、9 步验的是 `render_target`——灌底模时那是临时目录里的中间产物。
             # 用户拿到的是 `out_p`；注入本身可能丢字（前几节被切、关系被重写），所以防丢数
             # 要在成品上再跑一遍。格式对账不重跑：成品里混着学校的前置件与它自己的样式，
             # 逐条对账会把它判成「不合规」，那些本来就不是我们排的。
             if options.postflight:
-                err = _postflight_error(in_p, injected_target, res)
-                if err:
-                    res.returncode = EXIT_ERROR
-                    res.errors.append(err)
+                failure = _postflight_failure(in_p, injected_target, res)
+                if failure:
+                    _fail(res, failure[0], failure[1], file=out_p)
                     return res
                 logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
             try:
                 os.replace(injected_target, out_p)
             except OSError as exc:
-                res.returncode = EXIT_ERROR
-                res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
+                _fail(res, "pipeline.write_failed",
+                      t("pipeline.write_failed", res.lang, path=out_p, err=exc), file=out_p)
                 return res
             injected_target = None
             res.output_docx = out_p

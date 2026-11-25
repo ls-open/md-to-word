@@ -1,0 +1,55 @@
+# APA Style 7th edition, student paper
+#
+# Usage: md-to-word paper.md --preset en-apa-student -o paper.docx
+#
+# Covers: US Letter, 1in margins, 12pt Times New Roman, double spacing,
+# 0.5in first-line indent, top-right page number, heading levels 1-5,
+# references on a new page with 0.5in hanging indent.
+# Not covered: run-in Level 4/5 headings (exported as separate indented paragraphs);
+# table number bold + title italic in one style (write **Table 1** / *Title* inline);
+# title-page affiliation/course/instructor have no dedicated styles (repeat %% 作者).
+# Body starts on page 2: insert {{< pagebreak >}} after the title page,
+# then repeat the title at the top of page 2 with %% 副标题.
+
+Paper: Letter
+Margins: top 2.54cm bottom 2.54cm left 2.54cm right 2.54cm
+Font: Times New Roman
+Proofing Language: en-US
+Header Distance: 1.27cm
+
+Title: Times New Roman 12pt bold not-italic center line-spacing 2.0 space-before 72pt space-after 24pt indent 0 no-border
+Subtitle: Times New Roman 12pt bold not-italic center line-spacing 2.0 space-before 0pt space-after 0pt indent 0 no-border
+Author: Times New Roman 12pt not-bold not-italic center line-spacing 2.0 space-before 0pt space-after 0pt indent 0
+Date: Times New Roman 12pt not-bold not-italic center line-spacing 2.0 space-before 0pt space-after 0pt indent 0
+
+Heading 1: Times New Roman 12pt bold not-italic center line-spacing 2.0 space-before 0pt space-after 0pt indent 0 keep-with-next
+Heading 2: Times New Roman 12pt bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0 keep-with-next
+Heading 3: Times New Roman 12pt bold italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0 keep-with-next
+Heading 4: Times New Roman 12pt bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0.5in keep-with-next
+Heading 5: Times New Roman 12pt bold italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0.5in keep-with-next
+
+Body Text: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0.5in
+First Paragraph: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0.5in
+Normal: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0.5in
+Block Text: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0 left-indent 3chars
+Code: Consolas 10pt not-bold not-italic left line-spacing 1.0 space-before 0pt space-after 0pt indent 0
+Footnote: Times New Roman 10pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0
+
+Compact: Times New Roman 10pt not-bold not-italic center line-spacing 1.0 space-before 0pt space-after 0pt indent 0
+Table: center three-line border-top 0.5pt border-bottom 0.5pt border-header 0.5pt valign center
+Table Header: Times New Roman 10pt bold not-italic center line-spacing 1.0 space-before 0pt space-after 0pt indent 0 repeat-header
+Table Caption: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0 keep-with-next
+Table Note: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0
+Figure: Times New Roman 12pt not-bold not-italic center line-spacing 1.0 space-before 0pt space-after 0pt indent 0
+Image Caption: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0 keep-with-next
+
+Abstract Title: Times New Roman 12pt bold not-italic center line-spacing 2.0 space-before 0pt space-after 0pt indent 0 keep-with-next no-toc no-header page-break-before
+Abstract: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0
+Keywords: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt indent 0.5in
+
+References Title: Times New Roman 12pt bold not-italic center line-spacing 2.0 space-before 0pt space-after 0pt indent 0 keep-with-next no-toc no-header page-break-before
+Bibliography: Times New Roman 12pt not-bold not-italic left line-spacing 2.0 space-before 0pt space-after 0pt hanging-indent 0.5in
+
+Page Number: decimal start 1
+Header: Times New Roman 12pt not-bold not-italic right line-spacing 1.0 space-before 0pt space-after 0pt indent 0
+Header Content: {page}

@@ -23,7 +23,7 @@ import citeproc.model as _citeproc_model
 from citeproc.source import Locator
 from citeproc.source.json import CiteProcJSON
 
-from md_to_word.transform.bibtex import parse_bibtex
+from md_to_word.transform.biblio import parse_bibliography
 from md_to_word.transform.disambiguation import (
     BASE, StyleCloner, Variant, citation_attrs, initials,
 )
@@ -508,7 +508,8 @@ class CitationEngine:
     def __init__(self, bib_text: str, csl_path: Path | str, lang: str = "zh") -> None:
         _warn_if_unsupported_citeproc(lang)
         self.lang = lang
-        self.entries = parse_bibtex(bib_text)
+        # BibTeX / BibLaTeX 与 CSL-JSON 走同一个入口（按内容判断，不看扩展名）。
+        self.entries = parse_bibliography(bib_text, lang)
         if not self.entries:
             raise CitationError(t("citations.empty_library", lang))
         try:

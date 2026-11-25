@@ -32,13 +32,15 @@ md-to-word hello.md -o hello.docx
 | 参考文献 | YAML 写 `bibliography: refs.bib` 与 `csl: chinese-gb7714-2015-numeric.csl`，正文写 `[@key]` |
 | 目录 / 分节 / 分页 | `{{< toc >}}`、`{{< section >}}`、`{{< pagebreak >}}` |
 
-参考文献只有 `.bib` 一条路：手写文献列表会被预检拒绝，先整理成 `.bib` 再引用。
+参考文献给 `.bib`（BibTeX / BibLaTeX）或 **CSL-JSON**（Zotero、Mendeley、Crossref 直接导出的
+`.json`）都行，工具按文件内容判断，不看扩展名。手写文献列表会被预检拒绝。
 
 ## 4. 换一套格式
 
 - **有学校的书面要求或模板**：逐条改进 `format.txt`。要求里没提到的东西不用写，写了就得写全。
 - **只要一个通用的规范**：`--preset zh-academic`（中文期刊）、`zh-tw-academic`（繁體）、
-  `zh-report`（技术报告）、`en-nature`（英文期刊）。
+  `zh-report`（技术报告）、`zh-gb9704`（党政机关公文正文版式，不含红头/版记）、
+  `en-nature`（英文期刊）、`en-apa-student`（APA 7 学生论文）。
 - **手上有学校给的 `.docx`**：`--base-template 学校模板.docx --keep-until "版权使用授权书"`
   按内容指定保留到哪一页，前置件原样留下，正文换成我们排的。这条路是实验性的，
   不同学校的模板差异很大，导出后务必用 Word 打开核对一遍。
@@ -48,7 +50,8 @@ md-to-word hello.md -o hello.docx
 - **先单跑预检**：`md-to-word 稿件.md --validate-only`，只检查、不生成 `.docx`；退出码 `0` 就能继续导出。
 - **报错带行号**，按行号改那一行。看不出怎么改时，报错里通常有一句「应写: …」。
 - 预检分两级：**会让人看出来的错**直接拦下；**看不出来的**给提醒但不拦。
-- `md-to-word --json` 给机器读；Agent 用这条，不要解析面向人的输出。
+- `md-to-word --json` 给机器读：`diagnostics` 里每条都带 `code`、`file`、`line`，按 `code` 分支，
+  不要去解析句子。完整契约（样式名、预设路径与 sha256、退出码）用 `md-to-word --contract --json`。
 - `--pdf` 只在 macOS 且本机装了 Microsoft Word 时可用；其它平台渲染请自己用 Word 打开。
 - 导出的 `.docx` 里 `docProps` 记着版本与格式文件的 sha256 前八位——对不上就是拿错了规则。
 

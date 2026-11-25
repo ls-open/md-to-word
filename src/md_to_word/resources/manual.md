@@ -50,19 +50,22 @@ md-to-word 稿件.md -o 输出.docx                      # 内置中文预设 zh
 md-to-word 稿件.md --preset zh-tw-academic -o out.docx # 繁体中文学术预设（zh-TW，标点不压缩）
 md-to-word 稿件.md --preset zh-report -o out.docx    # 中文现代技术报告预设
 md-to-word 稿件.md --preset en-nature -o out.docx    # 英文期刊预设
+md-to-word 稿件.md --preset zh-gb9704 -o out.docx    # 党政机关公文正文版式（不含红头/版记）
+md-to-word 稿件.md --preset en-apa-student -o out.docx # APA 7 学生论文
 md-to-word 稿件.md -f format.txt -o out.docx        # 显式指定格式文件
 md-to-word init                                     # 生成 format.txt 与可直接导出的 hello.md
 md-to-word 稿件.md --validate-only                  # 只跑导前预检，不写 .docx
 md-to-word --guide                                  # 入门文档（代办流程、门禁、边界）
 md-to-word --contract                               # 契约速查 + 手册与预设路径
 md-to-word --contract --lang en                     # 同上，英文版（样式名用英文正典名）
+md-to-word --contract --json                        # 同一份契约的机器可读版本（给 Agent）
 md-to-word 稿件.md -o 输出.docx --verbose            # 逐样式明细，排查「格式没生效」
 md-to-word 论文.md --base-template 底模.docx --cover-sections 3 -o 论文.docx   # 见 §9.3
 ```
 
 **格式要求三选一**：`-f` 显式指定；稿件同目录有 `format.txt` 就用它；否则用内置预设——未传 `--preset` 时**按稿件
-语种选**：中文稿 `zh-academic`，其他语种 `en-nature`；繁体中文或技术报告可显式传 `--preset zh-tw-academic`
-或 `--preset zh-report`。除 `format.txt` 之外不猜：同目录另有 `.txt` 时会在提醒里点名，要用就加 `-f`。
+语种选**：中文稿 `zh-academic`，其他语种 `en-nature`；繁体中文、技术报告、公文、APA 学生论文可显式传
+`--preset zh-tw-academic`、`zh-report`、`zh-gb9704`、`en-apa-student`。除 `format.txt` 之外不猜：同目录另有 `.txt` 时会在提醒里点名，要用就加 `-f`。
 用了哪一份，输出里都会报出来。
 
 `--lang` 只决定**消息语言**；默认预设与默认 CSL 按**稿件正文语言**选，不随 `--lang` 变。稿件、格式文件与
@@ -76,15 +79,22 @@ md-to-word 论文.md --base-template 底模.docx --cover-sections 3 -o 论文.do
 ```json
 {"ok": true, "returncode": 0, "input": "稿件.md", "output": "…/稿件.docx", "pdf": null,
  "lang": "zh", "doc_lang": "zh", "format_source": "preset:zh-academic",
- "messages": ["…"], "warnings": [], "errors": []}
+ "messages": ["…"], "warnings": [], "errors": [],
+ "diagnostics": [{"severity": "warning", "code": "gate.heading.level",
+                  "file": "…/稿件.md", "line": 7, "message": "…"}]}
 ```
 
 键名固定、不随版本变；`messages` 与 `errors` 的值是给人读的句子，跟着稿件语种走。
 `messages` 含进度、**提醒**与结尾的核对提示（提醒按类合并成一条，最多列 8 个行号），成功时
 要转述的内容都在这里，不必再解析 stderr；需要单独识别提醒时读 `warnings`，它是 `messages`
 里提醒条目的子集。`lang` 是消息语言，`doc_lang` 是稿件语言（决定默认预设与默认 CSL），
-`format_source` 是 `file:/绝对路径` 或 `preset:zh-academic`。解析方读键，不读措辞。参数用法
-错误（退出码 `2`）发生在参数解析阶段，此时不产出 JSON。
+`format_source` 是 `file:/绝对路径` 或 `preset:zh-academic`。解析方读键，不读措辞。
+
+`diagnostics` 是同一批结论的结构化版本，每条固定五个键：`severity`（`error` / `warning`）、
+`code`（稳定标识，如 `gate.image.missing`）、`file`、`line`（没有单一位置时为 `null`）、
+`message`。**按 `code` 分支**，`message` 只用来展示。`--contract --json` 给出完整契约：
+版本、guide/手册路径、预设路径与 `sha256`、中英样式名、YAML 键、块级标记、图片格式、
+退出码，以及 `--json` 的键集。参数用法错误（退出码 `2`）发生在参数解析阶段，此时不产出 JSON。
 
 **库调用**：
 
@@ -426,11 +436,15 @@ HTML 标签与 `<https://…>` 自动链接、横向分隔线 `---`、`====` 下
 **顺序见 `--guide`，本文件只讲事实。** 一句话的流程是：先产出一版合规 `.docx`，再按反馈微调；
 没有明确格式要求就用内置预设，不要去追问格式细节。
 
-### 参考文献：只有 `.bib` 一条路
+### 参考文献：`.bib` 或 CSL-JSON
 
 - **无参考文献**：YAML 不写 `bibliography:` 与 `csl:`，正文不出现 `[@key]`。
 - **有参考文献**：YAML 写 `bibliography: refs.bib` 与 `csl: <样式>.csl`。文献列表由引擎生成，
   用户**不写**列表、不写 `%% 参考文献`（会被预检拒绝），只在文献区标题那一行之后由引擎插入。
+- **`bibliography:` 也接受 CSL-JSON**（Zotero / Mendeley / Crossref 直接导出的 `.json`）：
+  顶层是条目数组，或 `{"items": [...]}`；每条至少要有 `id`（正文 `[@id]` 靠它对应）。
+  按**文件内容**判断，不看扩展名——`.json` 里放 BibTeX 也能读。JSON 写坏时预检报
+  `gate.bib.json` 并指到文件；CSL-JSON 没有 `crossref` 继承这回事。
 - **手写文献列表不受支持**：只有手写条目时，先据此生成 `references.bib` 再引用。
 - `csl:` 写内置文件名（如 `apa.csl`）时自动在包内查找；也可写相对稿件目录的路径或绝对路径。
   **自带 CSL 会自动规范化**：去掉 `<bibliography>` 上的 `hanging-indent` 与 `line-spacing` 并提示一行——

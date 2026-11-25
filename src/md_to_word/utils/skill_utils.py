@@ -369,8 +369,10 @@ _BRACKETED_CITE_RE = re.compile(r'\[[^\]\n]*@([\w:.\-]+)[^\]\n]*\]')
 
 
 def parse_bib_keys(bib_text: str) -> set:
-    """从 .bib 文本里取出全部条目 key。"""
-    return set(_BIB_ENTRY_RE.findall(bib_text or ''))
+    """文献库里的全部引用 key：CSL-JSON 取 `id`，否则按 BibTeX 条目头取。"""
+    from md_to_word.transform.biblio import bibliography_keys
+
+    return bibliography_keys(bib_text)
 
 
 def cited_keys(text: str, line_offset: int = 0):

@@ -23,7 +23,9 @@ from md_to_word.config import (
     get_presets_dir,
     resolve_preset_path,
 )
+from md_to_word.contract import contract_payload
 from md_to_word.i18n import resolve_lang, t
+from md_to_word.spec.presets import list_available_presets
 from md_to_word.utils.textio import TextDecodeError, read_text_file
 from md_to_word.template.extractor import extract_spec_from_docx
 
@@ -76,6 +78,33 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
             "body": "小四 (12pt), 1.5 倍行距, 段后 6pt, 首行缩进 0",
             "tables": "全网格线表格 (0.75pt 外框 / 0.5pt 内线)",
             "citations": "GB/T 7714-2015 / APA",
+        },
+    },
+    "zh-gb9704": {
+        "id": "zh-gb9704",
+        "name": "党政机关公文正文版式 (GB/T 9704-2012 official-document body)",
+        "target": "党政机关公文、通知、函件（正文版式；红头与版记需 --base-template）",
+        "description": "GB/T 9704-2012 body layout: A4, 37/35/28/26mm margins with mirrored gutters, 3号仿宋 body, 28.9pt fixed line spacing (22 lines per page), 2号小标宋 title, 4号宋体 page number. Not the red-header letterhead, 发文字号 or 版记.",
+        "typography": {
+            "fonts": "仿宋 / 黑体 / 楷体 / 方正小标宋简体 / 宋体",
+            "header": "无页眉",
+            "body": "三号 (16pt), 首行缩进 2 字符, 固定行距 28.9 磅, 每面 22 行, 校對语言 zh-CN",
+            "tables": "全网格线 (0.5pt)",
+            "citations": "不设参考文献表（公文引用用发文字号）",
+            "known_deviations": "页码数字按西文字体 Times New Roman 渲染；无红头/版记/印章",
+        },
+    },
+    "en-apa-student": {
+        "id": "en-apa-student",
+        "name": "APA Style 7th edition, student paper",
+        "target": "美国高校课程论文、APA 7 学生版投稿",
+        "description": "APA 7 student paper: US Letter, 1-inch margins, 12pt Times New Roman, double spacing, 0.5-inch first-line indent, page number top-right, heading levels 1-5 (levels 4 and 5 approximated as indented paragraphs), references on a new page with 0.5-inch hanging indent.",
+        "typography": {
+            "fonts": "Times New Roman / Consolas (code)",
+            "header": "右上角页码（无 running head）",
+            "body": "12pt, 双倍行距, 首行缩进 0.5in, en-US",
+            "tables": "三线表（无竖线）",
+            "citations": "APA 7th（默认）",
         },
     },
     "en-nature": {
@@ -237,7 +266,7 @@ def create_mcp_server() -> Any:
             format: A format file path OR raw format content. This is the typography contract
                 (the `format.txt` file), not Python dependency requirements. A preset name
                 (`zh-academic`) is rejected here; pass it as `preset`.
-            preset: Built-in preset name ('zh-academic', 'zh-tw-academic', 'zh-report', 'en-nature').
+            preset: Built-in preset name (see `list_presets` / `get_contract`).
                 Only used when `format` is absent. A preset is a starting baseline; provide a format
                 file or customize it for deliverable specs.
             generate_pdf: Whether to also generate a PDF (requires Word on macOS).
@@ -311,6 +340,7 @@ def create_mcp_server() -> Any:
                 "messages": result.messages,
                 "warnings": result.warnings,
                 "errors": result.errors,
+                "diagnostics": [d.as_dict() for d in result.diagnostics],
                 "lang": result.lang,
                 "doc_lang": result.doc_lang,
             }
@@ -327,6 +357,7 @@ def create_mcp_server() -> Any:
                 "messages": [],
                 "warnings": [],
                 "errors": [str(exc)],
+                "diagnostics": [],
                 "lang": lang or "unknown",
             }
         finally:
@@ -385,6 +416,7 @@ def create_mcp_server() -> Any:
                         "valid": False,
                         "errors": [str(exc)],
                         "warnings": [],
+                        "diagnostics": [],
                         "format_source": "format" if fmt_path else "none",
                         "lang": lang or "unknown",
                     }
@@ -402,6 +434,7 @@ def create_mcp_server() -> Any:
                         "valid": False,
                         "errors": [f"Preset not found: {preset_name}"],
                         "warnings": [],
+                        "diagnostics": [],
                         "format_source": f"preset:{preset_name}",
                         "lang": doc_lang,
                         "message_lang": message_lang,
@@ -418,6 +451,7 @@ def create_mcp_server() -> Any:
                 "valid": report.valid,
                 "errors": report.errors,
                 "warnings": report.warnings,
+                "diagnostics": [d.as_dict() for d in report.diagnostics],
                 "format_source": format_source,
                 "lang": doc_lang,
                 "message_lang": message_lang,
@@ -429,6 +463,7 @@ def create_mcp_server() -> Any:
                 "valid": False,
                 "errors": [str(exc)],
                 "warnings": [],
+                "diagnostics": [],
                 "format_source": "format" if fmt_path else "none",
                 "lang": lang or "unknown",
             }
@@ -470,6 +505,21 @@ def create_mcp_server() -> Any:
         return _read_manual(lang)
 
     @server.tool(
+        name="get_contract",
+        title="Read the machine-readable contract",
+        description=(
+            "Return the stable contract as one JSON object: version, agent guide and manual "
+            "paths, built-in presets with sha256, accepted style names (Chinese and English), "
+            "YAML keys, block markers, figure formats, exit codes and the --json result keys. "
+            "Read this instead of parsing prose; keys and style names do not change between "
+            "minor versions."
+        ),
+    )
+    def get_contract(lang: str = "zh") -> dict[str, Any]:
+        """Same payload as `md-to-word --contract --json`."""
+        return contract_payload(lang if lang in ("zh", "en") else "zh")
+
+    @server.tool(
         name="extract_format_from_docx",
         title="Reverse-engineer a format file from a .docx",
         description=(
@@ -502,37 +552,73 @@ def create_mcp_server() -> Any:
             }
 
     @server.tool(
+        name="inspect_base_template",
+        title="Inspect a school/base .docx template",
+        description=(
+            "Check a .docx template before passing it as `base_template`: whether it can be "
+            "read, how many sections it has, and the first text of each section so a cut point "
+            "(`keep_until`) can be chosen without guessing. Run this instead of trial-and-error "
+            "compilation."
+        ),
+    )
+    def inspect_base_template(docx_path: str) -> dict[str, Any]:
+        """Return readability, section count and section outline for a base template."""
+        from md_to_word.template.base_inject import inspect_base, section_count, section_outline
+
+        path = Path(docx_path).expanduser().resolve()
+        if not path.is_file():
+            return {
+                "ok": False, "path": str(path), "section_count": None,
+                "sections": [], "blocking": [f"File not found: {path}"], "notes": [],
+            }
+        report = inspect_base(path)
+        sections: list[str] = []
+        count = None
+        if report.ok:
+            try:
+                count = section_count(path)
+                sections = section_outline(path)
+            except Exception as exc:  # 结构坏到读不出节：体检已经给过原因，这里不重复抛
+                report.notes.append(str(exc))
+        return {
+            "ok": report.ok,
+            "path": str(path),
+            "section_count": count,
+            "sections": sections,
+            "blocking": report.blocking,
+            "notes": report.notes,
+        }
+
+    @server.tool(
         name="list_presets",
         title="List Built-in Style Presets",
-        description="List all available built-in style presets (Simplified/Traditional Chinese Academic, Tech Report, Nature English Paper) with typography specifications.",
+        description="List every preset that exists on disk, with its path, sha256 and typography summary. The preset directory is the only source of the list.",
     )
     def list_presets() -> list[dict[str, Any]]:
-        """List all available built-in style presets with target domains and typographic highlights."""
-        presets_dir = get_presets_dir()
+        """List the presets that actually exist, with their fingerprints.
+
+        The preset directory is the only source of the list; `PRESET_METADATA` adds a
+        curated note for the built-ins but never invents a preset that is not on disk.
+        """
+        import hashlib
+
         result = []
-        found_ids = set()
-
-        for meta_id, meta in PRESET_METADATA.items():
-            preset_file = presets_dir / f"{meta_id}.txt"
+        for pid in list_available_presets():
+            path = resolve_preset_path(pid)
+            if path is None:
+                continue
+            meta = PRESET_METADATA.get(pid) or {
+                "name": f"Custom Preset ({pid})",
+                "target": "Custom defined specification",
+                "description": f"Preset file at {path}",
+                "typography": {},
+            }
             item = dict(meta)
-            item["available_on_disk"] = preset_file.is_file()
+            item["id"] = pid
+            item["path"] = str(path)
+            item["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            item["available_on_disk"] = True
             result.append(item)
-            found_ids.add(meta_id)
-
-        # Scan any additional custom presets placed in presets/ directory
-        if presets_dir.is_dir():
-            for p in sorted(presets_dir.glob("*.txt")):
-                pid = p.stem
-                if pid not in found_ids:
-                    result.append({
-                        "id": pid,
-                        "name": f"Custom Preset ({pid})",
-                        "target": "Custom defined specification",
-                        "description": f"Custom preset file found at {p.name}",
-                        "typography": {},
-                        "available_on_disk": True,
-                    })
-
         return result
 
     @server.tool(
@@ -590,7 +676,7 @@ def create_mcp_server() -> Any:
 
         Args:
             topic: The subject or title of the paper/report to write.
-            preset: Target style preset ('zh-academic', 'zh-tw-academic', 'zh-report', or 'en-nature').
+            preset: Target style preset; see `list_presets` for the current names.
             lang: Language for the manuscript ('zh' or 'en').
         """
         prompt_content = f"""Please draft a manuscript on the topic: "{topic}".

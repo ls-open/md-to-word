@@ -24,10 +24,11 @@ from docx.image.exceptions import (
 from docx.image.image import Image as DocxImage
 
 from md_to_word.config import get_csl_dir
+from md_to_word.diagnostics import Diagnostic
 from md_to_word.i18n import style_name, t
 # 残符提醒与解析器共用同一条行内判据：预检另写一套，迟早对不上。
 from md_to_word.model.reader import inline_residue
-from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, PAGE_NUMBER_FMT, ROW_NAME_EN
+from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, PAGE_NUMBER_FMT, ROW_NAME_EN, YAML_KEYS
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_format
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
@@ -70,34 +71,72 @@ from md_to_word.utils.skill_utils import (
 _GROUP_LIMIT = 8  # 一类提醒最多列这么多个行号，其余只报数量
 
 
-def _group_warn(report: ValidationReport, tag: str, items: list[tuple[int, str]], lang: str) -> None:
+def _group_warn(
+    report: ValidationReport,
+    code: str,
+    tag: str,
+    items: list[tuple[int, str]],
+    lang: str,
+) -> None:
     """同一类提醒合并成一条：一处照旧逐行说，多处只列行号。
 
     门禁的提醒是按行产生的，一稿折行三十处就会刷三十行，真正要紧的东西被冲掉。
-    合并后每类只有一条，行号照给，改起来一样清楚。
+    合并后每类只有一条，行号照给，改起来一样清楚。`code` 是给程序读的类别名，
+    合并后仍带首个行号。
     """
     if not items:
         return
     if len(items) == 1:
-        report.warnings.append(
-            t("gate.line", lang, line=items[0][0], tag=tag, why=items[0][1])
+        report.warning(
+            code,
+            t("gate.line", lang, line=items[0][0], tag=tag, why=items[0][1]),
+            line=items[0][0],
         )
         return
     sep = t("gate.list_sep", lang)
     lines = sep.join(str(line_no) for line_no, _ in items[:_GROUP_LIMIT])
     if len(items) > _GROUP_LIMIT:
         lines += t("gate.line_more", lang, count=len(items) - _GROUP_LIMIT)
-    report.warnings.append(
-        t("gate.line_grouped", lang, tag=tag, count=len(items), lines=lines, why=items[0][1])
+    report.warning(
+        code,
+        t("gate.line_grouped", lang, tag=tag, count=len(items), lines=lines, why=items[0][1]),
+        line=items[0][0],
     )
 
 @dataclass
 class ValidationReport:
-    """导前校验结果报告。"""
+    """导前校验结果报告。
+
+    `errors` / `warnings` 给人读，`diagnostics` 给程序读——同一条问题只产生一次，
+    两个视图由 `error()` / `warning()` 同时写入，避免两套判据各说各话。
+    """
 
     valid: bool = True
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    diagnostics: list[Diagnostic] = field(default_factory=list)
+    source_file: str = ""  # 没显式给 `file=` 的诊断默认指向这份稿件
+
+    def error(
+        self, code: str, message: str, *, line: Optional[int] = None,
+        file: Optional[str] = None,
+    ) -> None:
+        """记一条阻断项。`code` 是稳定标识，`message` 是已按语言排版好的句子。"""
+        self.valid = False
+        self.errors.append(message)
+        self.diagnostics.append(Diagnostic(
+            "error", code, message, file=file or self.source_file or None, line=line,
+        ))
+
+    def warning(
+        self, code: str, message: str, *, line: Optional[int] = None,
+        file: Optional[str] = None,
+    ) -> None:
+        """记一条提醒。提醒不影响 `valid`。"""
+        self.warnings.append(message)
+        self.diagnostics.append(Diagnostic(
+            "warning", code, message, file=file or self.source_file or None, line=line,
+        ))
 
 
 def caption_adjacency_issues(md_text: str, lang: str = "zh") -> list[tuple[int, str]]:
@@ -300,25 +339,37 @@ def validate_manuscript(
     英文只是新增的一条路径。判据、阈值、阻断/提醒的划分与语言无关。
     """
     md_path = Path(md_path)
-    report = ValidationReport()
+    report = ValidationReport(source_file=str(md_path))
 
     if not md_path.exists():
         report.valid = False
-        report.errors.append(t("gate.manuscript.missing", lang, path=md_path))
+        report.error(
+            "gate.manuscript.missing",
+            t("gate.manuscript.missing", lang, path=md_path),
+            line=None,
+        )
         return report
 
     try:
         md_text, _ = read_text_file(md_path)
     except TextDecodeError:
         report.valid = False
-        report.errors.append(t(
-            "textio.unreadable", lang,
-            label=t("textio.label.manuscript", lang), path=md_path,
-        ))
+        report.error(
+            "textio.unreadable",
+            t(
+                "textio.unreadable", lang,
+                label=t("textio.label.manuscript", lang), path=md_path,
+            ),
+            line=None,
+        )
         return report
     except OSError as e:
         report.valid = False
-        report.errors.append(t("gate.manuscript.unreadable", lang, path=md_path, err=e))
+        report.error(
+            "gate.manuscript.unreadable",
+            t("gate.manuscript.unreadable", lang, path=md_path, err=e),
+            line=None,
+        )
         return report
 
     # 注释在导出时会被无条件剔除；预检若还拿原文字面量去查图片、脚注、引文、样式行，
@@ -337,29 +388,45 @@ def validate_manuscript(
         fmt_file = Path(spec_path)
         if not fmt_file.is_file():
             report.valid = False
-            report.errors.append(t("gate.format.missing", lang, path=fmt_file))
+            report.error(
+                "gate.format.missing",
+                t("gate.format.missing", lang, path=fmt_file),
+                line=None,
+                file=str(fmt_file),
+            )
             return report
         try:
             fmt_text, _ = read_text_file(fmt_file)
         except TextDecodeError:
             report.valid = False
-            report.errors.append(t(
-                "textio.unreadable", lang,
-                label=t("textio.label.format", lang), path=fmt_file,
-            ))
+            report.error(
+                "textio.unreadable",
+                t(
+                    "textio.unreadable", lang,
+                    label=t("textio.label.format", lang), path=fmt_file,
+                ),
+                line=None,
+                file=str(fmt_file),
+            )
             return report
         except OSError as e:
             report.valid = False
-            report.errors.append(
-                t("gate.format.parse_failed", lang, path=fmt_file, err=e)
+            report.error(
+                "gate.format.parse_failed",
+                t("gate.format.parse_failed", lang, path=fmt_file, err=e),
+                line=None,
+                file=str(fmt_file),
             )
             return report
         try:
             spec = parse_format(fmt_text)
         except Exception as e:
             report.valid = False
-            report.errors.append(
-                t("gate.format.parse_failed", lang, path=fmt_file, err=e)
+            report.error(
+                "gate.format.parse_failed",
+                t("gate.format.parse_failed", lang, path=fmt_file, err=e),
+                line=None,
+                file=str(fmt_file),
             )
             return report
 
@@ -372,27 +439,43 @@ def validate_manuscript(
             fm_data = yaml.safe_load(fm_raw) or {}
         except Exception as e:
             report.valid = False
-            report.errors.append(t("gate.yaml.parse_failed", lang, err=e))
+            report.error(
+                "gate.yaml.parse_failed",
+                t("gate.yaml.parse_failed", lang, err=e),
+                line=None,
+            )
 
     if isinstance(fm_data, dict):
         # 1a. bibliography 路径
         bib_value = fm_data.get("bibliography")
         if isinstance(bib_value, list) and len(bib_value) > 1:
             report.valid = False
-            report.errors.append(t("gate.bib.multiple", lang, count=len(bib_value)))
+            report.error(
+                "gate.bib.multiple",
+                t("gate.bib.multiple", lang, count=len(bib_value)),
+                line=None,
+            )
         elif bib_value:
             single = bib_value[0] if isinstance(bib_value, list) else bib_value
             bib_path, how = resolve_manuscript_path(str(single), md_path)
             if not how:
                 report.valid = False
-                report.errors.append(t("gate.bib.missing", lang, path=single))
+                report.error(
+                    "gate.bib.missing",
+                    t("gate.bib.missing", lang, path=single),
+                    line=None,
+                )
 
         # 1b. csl 路径
         if fm_data.get("csl"):
             csl_path, how = resolve_manuscript_path(str(fm_data["csl"]), md_path, csl_dir)
             if not how:
                 report.valid = False
-                report.errors.append(t("gate.csl.missing", lang, path=fm_data["csl"]))
+                report.error(
+                    "gate.csl.missing",
+                    t("gate.csl.missing", lang, path=fm_data["csl"]),
+                    line=None,
+                )
 
         # 1b2. 写在 YAML 里的内容性字段：引擎只认正文的样式行，这里不静默丢。
         # 判据是「位置」——标题、副标题、作者、日期、摘要、关键词各自该落在哪一页哪一段，
@@ -409,17 +492,19 @@ def validate_manuscript(
             if fm_data.get(key):
                 message = t("gate.yaml.key_unused", lang, key=key, form=t(form_key, lang))
                 if key == "reference-section-title":
-                    report.warnings.append(message)
+                    report.warning("gate.yaml.key_unused", message, line=None)
                 else:
                     report.valid = False
-                    report.errors.append(message)
+                    report.error("gate.yaml.key_unused", message, line=None)
 
         # 1c. 未写 csl 的提示（默认样式由 config.default_csl_path 决定）
         if fm_data.get("bibliography") and not fm_data.get("csl"):
             from md_to_word.config import default_csl_path
 
-            report.warnings.append(
-                t("gate.csl.default", lang, name=default_csl_path(md_text).name)
+            report.warning(
+                "gate.csl.default",
+                t("gate.csl.default", lang, name=default_csl_path(md_text).name),
+                line=None,
             )
 
         # 1c2. `[-@key]`（只出年份）：引擎不实现，静默当普通引用就等于改写了作者的话。
@@ -430,53 +515,74 @@ def validate_manuscript(
             for group in re.findall(r"\[[^\]\n]*\]", line):
                 if re.search(r"(?:^|[\s;,\[])-\s*@[\w:.-]+", group):
                     report.valid = False
-                    report.errors.append(
-                        t("gate.citation.suppress_author", lang, line=line_no)
+                    report.error(
+                        "gate.citation.suppress_author",
+                        t("gate.citation.suppress_author", lang, line=line_no),
+                        line=line_no,
                     )
                     break
 
-        known = {"bibliography", "csl", "crossref", "link-citations"}
+        known = set(YAML_KEYS)
         blocked = {"title", "subtitle", "author", "date", "abstract", "keywords"}
         unknown = [
             key for key in (fm_data or {})
             if key not in known and key not in blocked and not str(key).startswith("reference-section")
         ]
         if unknown:
-            report.warnings.append(
-                t("gate.yaml.unknown", lang, keys=", ".join(sorted(map(str, unknown))))
+            report.warning(
+                "gate.yaml.unknown",
+                t("gate.yaml.unknown", lang, keys=", ".join(sorted(map(str, unknown)))),
+                line=None,
             )
 
-        # 1d. 正文引用的 key 是否在 .bib 里
+        # 1d. 正文引用的 key 是否在文献库里
         if fm_data.get("bibliography"):
             bib_path, how = resolve_manuscript_path(str(fm_data["bibliography"]), md_path)
             if how:
+                from md_to_word.transform.biblio import bibliography_problem
+
+                problem = None
                 try:
                     bib_text, _ = read_text_file(bib_path)
                 except TextDecodeError:
                     report.valid = False
-                    report.errors.append(t(
-                        "textio.unreadable", lang,
-                        label=t("textio.label.bibliography", lang), path=bib_path,
-                    ))
+                    report.error(
+                        "textio.unreadable",
+                        t(
+                            "textio.unreadable", lang,
+                            label=t("textio.label.bibliography", lang), path=bib_path,
+                        ),
+                        line=None,
+                    )
                     bib_text = ""
                 except OSError:
                     bib_text = ""
+                # 坏 JSON 与「文献库为空」是两回事：前者要说清楚哪一行读不了，
+                # 后者是作者确实没给条目。混成一句「没有可用条目」会把人指向错误的方向。
+                problem = bibliography_problem(bib_text, lang)
+                if problem:
+                    report.error("gate.bib.json", problem, file=str(bib_path))
+                    bib_text = ""
                 known_keys = parse_bib_keys(bib_text)
-                if not known_keys:
+                if not known_keys and not problem:
                     bare = citations_without_bibliography(body_text, fm_offset)
                     if bare:
                         report.valid = False
-                        report.errors.append(
+                        report.error(
+                            "gate.bib.empty",
                             t("gate.bib.empty", lang,
-                              name=Path(bib_path).name, count=len(bare))
+                              name=Path(bib_path).name, count=len(bare)),
+                            line=None,
                         )
                 cite_issues = citation_key_issues(body_text, known_keys, fm_offset, lang)
                 if cite_issues:
                     report.valid = False
                     for line_no, why in cite_issues:
-                        report.errors.append(
+                        report.error(
+                            "gate.citation.key",
                             t("gate.line", lang,
-                              line=line_no, tag=t("gate.tag.citation_key", lang), why=why)
+                              line=line_no, tag=t("gate.tag.citation_key", lang), why=why),
+                            line=line_no,
                         )
         else:
             bare_cites = citations_without_bibliography(body_text, fm_offset)
@@ -484,9 +590,11 @@ def validate_manuscript(
                 report.valid = False
                 sep = t("gate.list_sep", lang)
                 shown = sep.join(t("gate.line_item", lang, line=n) for n in bare_cites[:5])
-                report.errors.append(
+                report.error(
+                    "gate.citation.no_bibliography",
                     t("gate.citation.no_bibliography", lang,
-                      count=len(bare_cites), shown=shown)
+                      count=len(bare_cites), shown=shown),
+                    line=None,
                 )
 
     # 1e. 编号格式用了 {c}（章号），稿件却没说按章编号：两个文件各写一半，等式不成立
@@ -502,16 +610,20 @@ def validate_manuscript(
         by_chapter = isinstance(crossref, dict) and bool(crossref.get("chapters"))
         if not by_chapter:
             report.valid = False
-            report.errors.append(
-                t("gate.equation.chapters", lang, fmt=eq_format, name=t(name_key, lang))
+            report.error(
+                "gate.equation.chapters",
+                t("gate.equation.chapters", lang, fmt=eq_format, name=t(name_key, lang)),
+                line=None,
             )
 
     # 1f. 文档网格：声明的行数超过版心能放下的行数时兑现不了，而且结果比不声明还差
     if spec and spec.doc_grid_lines:
         limit = max_doc_grid_lines(spec)
         if limit and spec.doc_grid_lines > limit:
-            report.warnings.append(
-                t("gate.doc_grid.unreachable", lang, want=spec.doc_grid_lines, limit=limit)
+            report.warning(
+                "gate.doc_grid.unreachable",
+                t("gate.doc_grid.unreachable", lang, want=spec.doc_grid_lines, limit=limit),
+                line=None,
             )
 
     # 2. 图片路径空格与存在性
@@ -521,18 +633,30 @@ def validate_manuscript(
             # 远程图片本引擎不下载：放过去只会在写出阶段把它当本地路径，报成"磁盘满"
             if raw_path.startswith(("http://", "https://", "data:")):
                 report.valid = False
-                report.errors.append(t("gate.image.remote", lang, line=i, path=raw_path[:60]))
+                report.error(
+                    "gate.image.remote",
+                    t("gate.image.remote", lang, line=i, path=raw_path[:60]),
+                    line=i,
+                )
                 continue
             # 空格检查
             if " " in raw_path and not raw_path.startswith("<") and not re.search(r'["\'].*["\']', raw_path):
                 report.valid = False
-                report.errors.append(t("gate.image.path_space", lang, line=i, path=raw_path))
+                report.error(
+                    "gate.image.path_space",
+                    t("gate.image.path_space", lang, line=i, path=raw_path),
+                    line=i,
+                )
             # 存在性检查
             clean_path = raw_path.split()[0].strip("<>\"'")
             img_file = md_path.parent / clean_path
             if not img_file.exists():
                 report.valid = False
-                report.errors.append(t("gate.image.missing", lang, line=i, path=clean_path))
+                report.error(
+                    "gate.image.missing",
+                    t("gate.image.missing", lang, line=i, path=clean_path),
+                    line=i,
+                )
                 continue
             # 格式检查：Word 的内联图片只认位图，PDF 由导出流程在渲染阶段转成位图。
             # 其余格式（svg、webp、eps…）python-docx 会抛 UnrecognizedImageError——
@@ -543,18 +667,24 @@ def validate_manuscript(
                     pages = page_count(img_file)
                 except PdfFigureError as exc:
                     report.valid = False
-                    report.errors.append(
-                        t("gate.image.pdf_unreadable", lang, line=i, path=clean_path, err=exc)
+                    report.error(
+                        "gate.image.pdf_unreadable",
+                        t("gate.image.pdf_unreadable", lang, line=i, path=clean_path, err=exc),
+                        line=i,
                     )
                 else:
                     if pages > 1:
-                        report.warnings.append(
-                            t("gate.image.pdf_multipage", lang, line=i, path=clean_path, pages=pages)
+                        report.warning(
+                            "gate.image.pdf_multipage",
+                            t("gate.image.pdf_multipage", lang, line=i, path=clean_path, pages=pages),
+                            line=i,
                         )
             elif suffix not in RASTER_SUFFIXES:
                 report.valid = False
-                report.errors.append(
-                    t("gate.image.unsupported", lang, line=i, path=clean_path, ext=suffix or "（无扩展名）")
+                report.error(
+                    "gate.image.unsupported",
+                    t("gate.image.unsupported", lang, line=i, path=clean_path, ext=suffix or "（无扩展名）"),
+                    line=i,
                 )
             else:
                 # 扩展名对不代表文件能解码：把 txt 改名成 .png 很常见，python-docx
@@ -566,10 +696,14 @@ def validate_manuscript(
                     UnexpectedEndOfFileError, OSError, ValueError,
                 ) as exc:
                     report.valid = False
-                    report.errors.append(t(
-                        "gate.image.unreadable", lang,
-                        line=i, path=clean_path, err=type(exc).__name__,
-                    ))
+                    report.error(
+                        "gate.image.unreadable",
+                        t(
+                            "gate.image.unreadable", lang,
+                            line=i, path=clean_path, err=type(exc).__name__,
+                        ),
+                        line=i,
+                    )
 
     # 2b. 图片必须独立成行：行内图片不会落成图段，只会印出一个 `!`
     for i, line in enumerate(visible.split("\n"), 1):
@@ -578,7 +712,7 @@ def validate_manuscript(
             continue
         if not re.fullmatch(r"!\[[^\]]*\]\([^)]*\)(?:\{[^}]*\})?", stripped):
             report.valid = False
-            report.errors.append(t("gate.image.inline", lang, line=i))
+            report.error("gate.image.inline", t("gate.image.inline", lang, line=i), line=i)
 
     # 2c. 脚注引用必须有定义：缺定义的脚注会印成空号，整段注释丢字
     defined = set(re.findall(r"^\s*\[\^([^\]]+)\]:", visible, re.M))
@@ -586,20 +720,32 @@ def validate_manuscript(
         for label in re.findall(r"\[\^([^\]]+)\](?!:)", line):
             if label not in defined:
                 report.valid = False
-                report.errors.append(t("gate.footnote.undefined", lang, line=i, label=label))
+                report.error(
+                    "gate.footnote.undefined",
+                    t("gate.footnote.undefined", lang, line=i, label=label),
+                    line=i,
+                )
 
     # 2d. 表格行缺少行尾竖线：那一行会掉出表格、变成正文，竖线原样印出来
     for i, line in enumerate(visible.split("\n"), 1):
         stripped = line.strip()
         if stripped.startswith("|") and not stripped.endswith("|"):
             report.valid = False
-            report.errors.append(t("gate.table.row_unclosed", lang, line=i))
+            report.error(
+                "gate.table.row_unclosed",
+                t("gate.table.row_unclosed", lang, line=i),
+                line=i,
+            )
 
     # 2e. 样式行 `%%` 后面必须有空格，否则整行原样印成正文
     for i, line in enumerate(visible.split("\n"), 1):
         if line.startswith("%%") and not line.startswith("%% "):
             report.valid = False
-            report.errors.append(t("gate.style_line.no_space", lang, line=i))
+            report.error(
+                "gate.style_line.no_space",
+                t("gate.style_line.no_space", lang, line=i),
+                line=i,
+            )
 
     # 2f. 分节标记的参数：写错就被静默丢掉，页码格式与起始值等于没写
     for i, line in enumerate(md_text.split("\n"), 1):
@@ -610,73 +756,91 @@ def validate_manuscript(
             if key in ("页码", "page_number", "format"):
                 if value not in PAGE_NUMBER_FMT:
                     report.valid = False
-                    report.errors.append(
-                        t("gate.section.page_format", lang, line=i, value=value)
+                    report.error(
+                        "gate.section.page_format",
+                        t("gate.section.page_format", lang, line=i, value=value),
+                        line=i,
                     )
             elif key in ("起始", "start") and not value.isdigit():
                 report.valid = False
-                report.errors.append(t("gate.section.start", lang, line=i, value=value))
+                report.error(
+                    "gate.section.start",
+                    t("gate.section.start", lang, line=i, value=value),
+                    line=i,
+                )
 
     # 3. Obsidian WikiLinks 与 4. LaTeX 分页符：代码块里是数据，不是写法
     for i, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         if re.search(r"!\[\[.*?\]\]|\[\[.*?\]\]", line):
             report.valid = False
-            report.errors.append(t("gate.wikilink", lang, line=i))
+            report.error("gate.wikilink", t("gate.wikilink", lang, line=i), line=i)
         elif re.search(r"\\(?:newpage|pagebreak|clearpage)", line):
             report.valid = False
-            report.errors.append(t("gate.latex.pagebreak", lang, line=i))
+            report.error("gate.latex.pagebreak", t("gate.latex.pagebreak", lang, line=i), line=i)
 
     # 4b. 本引擎没实现的 Markdown 方言：写了不会报错，只会把原始语法印进成品
     for line_no, why in dialect_issues(md_text, lang):
         report.valid = False
-        report.errors.append(
+        report.error(
+            "gate.tag.unsupported_syntax",
             t("gate.line", lang, line=line_no,
-              tag=t("gate.tag.unsupported_syntax", lang), why=why)
+              tag=t("gate.tag.unsupported_syntax", lang), why=why),
+            line=line_no,
         )
 
     # 4c. 交叉引用写成了引文方括号：`[@eq-x]` 会被当条目去查，渲染期才炸
     for line_no, why in bracketed_crossref_issues(md_text, lang=lang):
         report.valid = False
-        report.errors.append(
+        report.error(
+            "gate.crossref.syntax",
             t("gate.line", lang, line=line_no,
-              tag=t("gate.tag.crossref_syntax", lang), why=why)
+              tag=t("gate.tag.crossref_syntax", lang), why=why),
+            line=line_no,
         )
 
     # 5. 块级标记空行分隔
     for line_no, why in block_marker_issues(md_text, lang):
         report.valid = False
-        report.errors.append(
+        report.error(
+            "gate.block_marker",
             t("gate.line", lang, line=line_no,
-              tag=t("gate.tag.block_marker", lang), why=why)
+              tag=t("gate.tag.block_marker", lang), why=why),
+            line=line_no,
         )
 
     # 6. 未知短代码
     for line_no, why in unknown_shortcode_issues(md_text):
         report.valid = False
-        report.errors.append(
+        report.error(
+            "gate.shortcode.unknown",
             t("gate.line", lang, line=line_no,
-              tag=t("gate.tag.unknown_shortcode", lang), why=why)
+              tag=t("gate.tag.unknown_shortcode", lang), why=why),
+            line=line_no,
         )
 
     # 7. 分节符后又写分页：多顶出一页空白。看得见，只提醒
-    _group_warn(report, t("gate.tag.section_marker", lang),
+    _group_warn(report, "gate.section.pagebreak_after", t("gate.tag.section_marker", lang),
                 section_pagebreak_issues(md_text, lang), lang)
 
     # 8. 标题层级：跳级会让大纲级别错位，但内容与样式都还在，提醒即可
-    _group_warn(report, t("gate.tag.heading", lang), heading_issues(md_text, lang), lang)
+    _group_warn(report, "gate.heading.level", t("gate.tag.heading", lang), heading_issues(md_text, lang), lang)
 
     # 9. 未定义交叉引用标签
     for line_no, why in undefined_crossref_issues(md_text, lang=lang):
         report.valid = False
-        report.errors.append(
-            t("gate.line", lang, line=line_no, tag=t("gate.tag.crossref", lang), why=why)
+        report.error(
+            "gate.crossref.undefined",
+            t("gate.line", lang, line=line_no, tag=t("gate.tag.crossref", lang), why=why),
+            line=line_no,
         )
 
     # 10. 畸变表格
     for line_no, why in malformed_table_issues(md_text, lang):
         report.valid = False
-        report.errors.append(
-            t("gate.line", lang, line=line_no, tag=t("gate.tag.table", lang), why=why)
+        report.error(
+            "gate.table.malformed",
+            t("gate.line", lang, line=line_no, tag=t("gate.tag.table", lang), why=why),
+            line=line_no,
         )
 
     # 10b. 公式标签重复：两条公式共用一个标签，后面那条的编号会盖掉前面，引用只能指到一条
@@ -685,9 +849,11 @@ def validate_manuscript(
         for label in re.findall(r"\{#(eq-[\w:.\-]+)\}", line):
             if label in labels_seen:
                 report.valid = False
-                report.errors.append(
+                report.error(
+                    "gate.equation.duplicate_label",
                     t("gate.equation.duplicate_label", lang, label=label,
-                      first=labels_seen[label], line=i)
+                      first=labels_seen[label], line=i),
+                    line=i,
                 )
             else:
                 labels_seen[label] = i
@@ -700,48 +866,58 @@ def validate_manuscript(
             if re.match(r"^#\s+", line):
                 seen_heading = True
             elif not seen_heading and re.search(r"\$\$.*\{#(eq-[\w:.\-]+)\}", line):
-                report.warnings.append(t("gate.equation.before_chapter", lang, line=i))
+                report.warning(
+                    "gate.equation.before_chapter",
+                    t("gate.equation.before_chapter", lang, line=i),
+                    line=i,
+                )
 
     # 11. 图表题注邻近性：题注离表格/图片远了，样式仍会生效，只是位置不对，提醒即可
-    _group_warn(report, t("gate.tag.caption_adjacency", lang),
+    _group_warn(report, "gate.caption.adjacency", t("gate.tag.caption_adjacency", lang),
                 caption_adjacency_issues(md_text, lang), lang)
 
     # 11b. 折行段落：按「一行一段」读取会拆成几段，每段都吃一次首行缩进，看得见但内容没丢
-    _group_warn(report, t("gate.tag.soft_wrap", lang),
+    _group_warn(report, "gate.paragraph.soft_wrap", t("gate.tag.soft_wrap", lang),
                 [(line_no, t("gate.soft_wrap", lang, snippet=snippet))
                  for line_no, snippet in soft_wrap_issues(md_text)], lang)
 
     # 11c. 公式里的裸 `%`：LaTeX 当注释起始，后面整段静默消失
     for line_no, snippet in math_comment_issues(md_text):
         report.valid = False
-        report.errors.append(
+        report.error(
+            "gate.math.comment",
             t("gate.line", lang, line=line_no,
               tag=t("gate.tag.math_comment", lang),
-              why=t("gate.math.comment", lang, snippet=snippet))
+              why=t("gate.math.comment", lang, snippet=snippet)),
+            line=line_no,
         )
 
     # 11d. 公式花括号不配对：转换器不报错，只会静默丢内容
     for line_no, snippet in unbalanced_math_issues(md_text):
         report.valid = False
-        report.errors.append(
+        report.error(
+            "gate.equation.brace",
             t("gate.line", lang, line=line_no,
               tag=t("gate.tag.equation_brace", lang),
-              why=t("gate.equation.brace", lang, snippet=snippet))
+              why=t("gate.equation.brace", lang, snippet=snippet)),
+            line=line_no,
         )
 
     # 11d. 星号形态像强调、却没被解析成强调：这些星号会原样印出。词内乘号本来就是字面
     # 星号，只提醒不阻断，并给出去路
-    _group_warn(report, t("gate.tag.literal_asterisk", lang),
+    _group_warn(report, "gate.emphasis.literal_asterisk", t("gate.tag.literal_asterisk", lang),
                 [(line_no, t("gate.literal_asterisk", lang, snippet=snippet))
                  for line_no, snippet in literal_asterisk_issues(md_text)], lang)
 
     # 12. `\tag{}` 公式编号（不认这个写法，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):
         report.valid = False
-        report.errors.append(
+        report.error(
+            "gate.equation.latex_tag",
             t("gate.line", lang, line=line_no,
               tag=t("gate.tag.equation_number", lang),
-              why=t("gate.latex.tag", lang, snippet=snippet))
+              why=t("gate.latex.tag", lang, snippet=snippet)),
+            line=line_no,
         )
 
     # 13/14. 依赖格式要求文件的两道门禁
@@ -749,17 +925,23 @@ def validate_manuscript(
         # 13. 图片声明宽度超过版心：会被钳到版心宽，但图还在页内，提醒即可
         width_cm = content_width_cm(spec)
         if width_cm:
-            _group_warn(report, t("gate.tag.image_width", lang),
+            _group_warn(report, "gate.image.width", t("gate.tag.image_width", lang),
                         image_width_issues(md_text, width_cm, lang), lang)
         elif has_declared_image_width(md_text):
-            report.warnings.append(t("gate.image_width.no_margins", lang))
+            report.warning(
+                "gate.image_width.no_margins",
+                t("gate.image_width.no_margins", lang),
+                line=None,
+            )
 
         # 14. 稿件结构 vs 要求文件声明的样式（缺一条就静默回退默认样式）
         for line_no, why in required_style_issues(md_text, spec, fm_data, lang):
             report.valid = False
-            report.errors.append(
+            report.error(
+                "gate.style.missing",
                 t("gate.line", lang, line=line_no,
-                  tag=t("gate.tag.style_missing", lang), why=why)
+                  tag=t("gate.tag.style_missing", lang), why=why),
+                line=line_no,
             )
 
         # 14a. {.unlisted} / {不入目录} 与 {样式标题:Heading ...} 并用提醒（非阻断）
@@ -774,19 +956,23 @@ def validate_manuscript(
                 if m_unlisted:
                     title = m_unlisted.group(2).rstrip().rstrip("#").rstrip()
                     if title:
-                        report.warnings.append(
+                        report.warning(
+                            "gate.heading.unlisted_with_styleref",
                             t("gate.heading.unlisted_with_styleref", lang,
-                              line=body_start + offset_idx, title=title[:30])
+                              line=body_start + offset_idx, title=title[:30]),
+                            line=body_start + offset_idx,
                         )
 
     # 14b. `:::` 不是本工具的写法
     for line_no, line in enumerate(mask_code_fences(md_text).split("\n"), 1):
         if re.match(r"^\s*:::", line):
             report.valid = False
-            report.errors.append(
+            report.error(
+                "gate.style.triple_colon",
                 t("gate.line", lang, line=line_no,
                   tag=t("gate.tag.style_line", lang),
-                  why=t("gate.style.triple_colon", lang))
+                  why=t("gate.style.triple_colon", lang)),
+                line=line_no,
             )
 
     # 14c. 题注写进图片的方括号里：方括号只放无障碍替代文字
@@ -794,10 +980,12 @@ def validate_manuscript(
         m = re.search(r"!\[([^\]]+)\]\(", line)
         if m and re.match(r"^\s*(?:图|圖|表|Figure|Table)\s*\d", m.group(1)):
             report.valid = False
-            report.errors.append(
+            report.error(
+                "gate.caption.in_alt",
                 t("gate.line", lang, line=line_no,
                   tag=t("gate.tag.caption_image", lang),
-                  why=t("gate.caption.in_alt", lang, text=m.group(1).strip()))
+                  why=t("gate.caption.in_alt", lang, text=m.group(1).strip())),
+                line=line_no,
             )
 
     # 14d. 文献区标题：列表是引擎生成的，标题得稿子里写，两种写法都认
@@ -818,14 +1006,20 @@ def validate_manuscript(
             )
         )
         if not (has_style_title or has_heading):
-            report.warnings.append(t("gate.bib.title_missing", lang))
+            report.warning(
+                "gate.bib.title_missing",
+                t("gate.bib.title_missing", lang),
+                line=None,
+            )
 
     # 15. 段落样式行 `%% 样式名 内容`
     for line_no, why in style_line_issues(md_text, lang):
         report.valid = False
-        report.errors.append(
+        report.error(
+            "gate.style_line.invalid",
             t("gate.line", lang, line=line_no,
-              tag=t("gate.tag.style_line", lang), why=why)
+              tag=t("gate.tag.style_line", lang), why=why),
+            line=line_no,
         )
 
     return report

@@ -649,6 +649,10 @@ def crossref_keys(text: str) -> list[str]:
     那是「子条目从父条目继承字段」的写法（会议论文引用同一条 proceedings，省得每条都
     抄一遍会议名、出版社、年份）。本工具不做继承，这些条目会缺字段——要说得出来。
     """
+    from md_to_word.transform.biblio import looks_like_csl_json
+
+    if looks_like_csl_json(text):
+        return []  # CSL-JSON 没有 crossref 继承这回事
     keys: list[str] = []
     for kind, key, body in _iter_entries(text or ""):
         if kind in _SKIP_KINDS:

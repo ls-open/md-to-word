@@ -51,6 +51,9 @@ SIZE_MAP: dict[str, Pt] = {
     "八号": Pt(5),
 }
 
+# ── YAML 键（与位置无关的配置；标题、作者、摘要写在正文样式行里）──
+YAML_KEYS = ("bibliography", "csl", "crossref", "link-citations")
+
 # ── 样式名映射（中英双语键名 → Word 内部 style_name）──
 STYLE_MAP: dict[str, str] = {
     # ── 中文写法 ──

@@ -13,6 +13,8 @@ def test_presets_exist():
     assert "zh-tw-academic" in presets
     assert "zh-report" in presets
     assert "en-nature" in presets
+    assert "zh-gb9704" in presets
+    assert "en-apa-student" in presets
 
 
 def test_zh_tw_academic_preset():

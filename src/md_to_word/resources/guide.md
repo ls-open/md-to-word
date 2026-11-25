@@ -16,8 +16,10 @@ suffices. Without `--lang en`, `--guide` prints the shorter Chinese quickstart f
 
 **The facts live in the manual. This file is the order of work.** `md-to-word --contract` prints the
 manual's absolute path (Chinese or English, following the manuscript), the built-in preset paths and
-a one-screen contract summary. When a spelling is not certain, read the manual rather than guess:
-every word outside the vocabulary is a hard error with a line number.
+a one-screen contract summary. `--contract --json` returns the same facts as one object — version,
+preset paths and `sha256`, style names in both languages, exit codes, the exact `--json` keys — so
+read it instead of guessing when you can parse JSON. When a spelling is not certain, read the manual
+rather than guess: every word outside the vocabulary is a hard error with a line number.
 
 The manual ships as **one file**, `md-to-word --contract` prints its path. §9 is the thesis part:
 cover and front matter, section and page numbering, chapter/appendix numbering, and
@@ -35,7 +37,7 @@ Before editing files, understand how **three inputs combine** to produce the fin
 
 Workflow:
 
-1. **Confirm requirements & decide format** (§3): choose a built-in preset (`zh-academic` / `zh-tw-academic` / `zh-report` / `en-nature`), edit a copy of one, use the user's `format.txt`, or extract one from a reference `.docx`.
+1. **Confirm requirements & decide format** (§3): choose a built-in preset (`zh-academic` / `zh-tw-academic` / `zh-report` / `zh-gb9704` / `en-nature` / `en-apa-student`), edit a copy of one, use the user's `format.txt`, or extract one from a reference `.docx`.
 2. **Normalize the manuscript**: map structures beyond standard Markdown (title/abstract lines, captions, TOC, page breaks, section breaks, numbered equations) using the contract in §2, and keep inline emphasis/super/sub/code/links directly in Markdown. Write a new file; never overwrite the user's source if adapting one.
 3. **Export** (§4), adding `--base-template` only when an existing `.docx` cover/front-matter template must be preserved untouched.
 4. **Read the gates** (§4), fix reported line numbers, and re-run until exit code is `0`.
@@ -122,7 +124,10 @@ manuscript, or a target `.docx` worth reverse-engineering.
    manuscript that exports as-is. Useful when the user has no format file and no template.
 1. **Built-in preset** — auto-selected by manuscript language (`zh-academic` for Chinese, `en-nature`
    for other languages), or explicitly pass `--preset zh-tw-academic` (Traditional Chinese, `zh-TW`,
-   uncompressed punctuation) or `--preset zh-report` (Chinese technical report). Use as-is when the
+   uncompressed punctuation), `--preset zh-report` (Chinese technical report), `--preset zh-gb9704`
+   (GB/T 9704-2012 official-document body: A4, 16pt 仿宋, 22 lines per page — **not** the red-header
+   letterhead or 版记; keep those with `--base-template`), or `--preset en-apa-student` (APA 7
+   student paper: Letter, double spacing, 0.5in indent, page number top-right). Use as-is when the
    user has no custom template or spec.
 2. **Copy and edit a preset** — change only the lines the user mentioned. Field order is fixed: font,
    size, bold, italic, alignment, line spacing, space before, space after, indent. Every style line
@@ -135,8 +140,10 @@ key names are not accepted in `format.txt`, even for `zh-TW` manuscripts); anyth
 error with a line number (manual §3.1). `format.txt` in these instructions means *the format file* —
 any filename works, `-f` takes it.
 
-Citation style comes from `csl:` with a bundled name (manual §7) or a path to the user's own CSL.
-Without `csl:`, Chinese manuscripts get GB/T 7714 numeric and everything else APA 7th.
+`bibliography:` accepts BibTeX / BibLaTeX (`.bib`) **or CSL-JSON** (Zotero, Mendeley and Crossref
+exports) — the file content decides, not the extension. Citation style comes from `csl:` with a
+bundled name (manual §7) or a path to the user's own CSL. Without `csl:`, Chinese manuscripts get
+GB/T 7714 numeric and everything else APA 7th.
 
 Without `-f` the only file picked up is one named exactly `format.txt` beside the manuscript;
 anything else there is ignored and named in a reminder. With no `format.txt`, the preset follows the
@@ -151,6 +158,7 @@ md-to-word manuscript.md -f format.txt -o manuscript.docx      # explicit format
 md-to-word manuscript.md --validate-only                       # pre-flight only; writes nothing
 md-to-word --guide --lang en                                   # this agent guide (pip-only entry)
 md-to-word manuscript.md --contract                            # contract + guide, manual and preset paths
+md-to-word --contract --json                                   # the same facts, machine-readable
 ```
 
 Run every command from the manuscript's directory: relative image and `.bib` paths resolve against
@@ -158,10 +166,17 @@ it. Add `--pdf` (macOS with Word) to expand fields and spot-check the result.
 
 Add `--json` whenever the result has to be read back programmatically: stdout then carries one JSON
 object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `doc_lang`, `format_source`,
-`messages`, `warnings`, `errors` — while progress logs stay on stderr. The keys are fixed; the
-sentences inside them follow the manuscript's language. `lang` is the message language; `doc_lang`
-is the manuscript language that chose the default preset and CSL; `format_source` is `file:/abs/path`
-or `preset:zh-academic`.
+`messages`, `warnings`, `errors`, `diagnostics` — while progress logs stay on stderr. The keys are
+fixed; the sentences inside them follow the manuscript's language. `lang` is the message language;
+`doc_lang` is the manuscript language that chose the default preset and CSL; `format_source` is
+`file:/abs/path` or `preset:zh-academic`.
+
+`diagnostics` is the same findings as structured data, one object each:
+`{severity: "error"|"warning", code, file, line, message}`. Branch on `code` (for example
+`gate.image.missing`), show `message`; `line` is null when a finding has no single line. Never parse
+the prose. `--contract --json` returns version, guide/manual paths, preset paths and `sha256`,
+accepted style names in both languages, YAML keys, block markers, figure formats, exit codes and
+the exact `--json` keys.
 
 `--validate-only` runs the same pre-flight check as an export and stops there: exit `0` means it
 would proceed, exit `1` carries the line-numbered errors, and no `.docx` is touched. Use it in CI or
@@ -217,9 +232,11 @@ interface in both directions is a Markdown file plus a `format.txt`.
 - the commands `md-to-word`, `md-to-word-template` and `init`; every flag named in this file
   (`-o`, `-f`, `--preset`, `--contract`, `--guide`, `--version`, `--json`, `--pdf`, `--lang`,
   `--validate-only`) keeps its name and meaning
-- exit codes `0` / `1` / `2` / `3`, and the JSON keys under `--json`
+- exit codes `0` / `1` / `2` / `3`, the JSON keys under `--json`, and the naming of diagnostic
+  `code` values (`gate.*`, `pipeline.*`, `textio.*`; a code never changes meaning)
 - the manuscript contract in §2, the vocabulary in §3, the preset names `zh-academic` and
-  `en-nature` (plus `zh-tw-academic` and `zh-report`), and the fixed file name `format.txt`
+  `en-nature` (plus `zh-tw-academic`, `zh-report`, `zh-gb9704` and `en-apa-student`), and the
+  fixed file name `format.txt`
 
 Everything else — message wording, the layout inside the installed package, the version number — may
 change. Never parse the prose of a message: pass `--json` and read the keys.

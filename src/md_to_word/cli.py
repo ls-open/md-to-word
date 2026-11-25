@@ -9,6 +9,7 @@ import traceback
 from pathlib import Path
 
 from md_to_word import __version__
+from md_to_word.contract import contract_payload, style_names
 from md_to_word.i18n import SUPPORTED, resolve_lang, t
 from md_to_word.pipeline import (
     ExportOptions,
@@ -42,21 +43,8 @@ def _message_lang(argv: list[str]) -> str:
 
 
 def _style_names(ascii_only: bool) -> list[str]:
-    """每个样式取第一个名字，按词表声明顺序。
-
-    排序会排成「一级、三级、二级」，读的人以为词表就这么乱。`ascii_only` 取英文
-    正典名（`Body Text`），否则取中文名（`正文`）。
-    """
-    from md_to_word.spec.constants import STYLE_MAP
-
-    seen: set[str] = set()
-    names: list[str] = []
-    for name, target in STYLE_MAP.items():
-        if name.isascii() != ascii_only or target in seen:
-            continue
-        seen.add(target)
-        names.append(name)
-    return names
+    """速查表里的样式名；词表来自 `contract.style_names`，不在这里再维护一份。"""
+    return style_names(ascii_only)
 
 
 def contract_cheatsheet(lang: str = "zh") -> str:
@@ -116,6 +104,7 @@ Manual (full vocabulary, YAML keys, equation numbering, CSL inventory, limits,
 and §9 for theses: cover, front matter, sections, `--base-template`): {manual}
 Built-in presets:
 {presets}
+Machine-readable contract (for agents): md-to-word --contract --json
 """
     return f"""稿件 = 普通 Markdown + 三条约定
 ================================
@@ -146,7 +135,13 @@ Built-in presets:
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界；前置封面/多节页码与 `--base-template` 看 §9）：{manual}
 内置预设：
 {presets}
+机器可读契约（给 Agent）：md-to-word --contract --json
 """
+
+
+def contract_json(lang: str = "zh") -> str:
+    """`--contract --json`：给 Agent 的一屏结构化契约。"""
+    return json.dumps(contract_payload(lang), ensure_ascii=False)
 
 
 def guide_document(lang: str = "zh") -> str:
@@ -279,7 +274,7 @@ def main(args: list[str] | None = None) -> int:
         print(guide_document(lang))
         return EXIT_OK
     if parsed.contract:
-        print(contract_cheatsheet(lang))
+        print(contract_json(lang) if parsed.as_json else contract_cheatsheet(lang))
         return EXIT_OK
     if not parsed.input:
         # 没有参数时给人一段能照着敲的简述（描述 + 三条示例 + 去哪儿读全部），
@@ -338,6 +333,7 @@ def _emit_result(result: ExportResult, parsed) -> int:
             "messages": list(result.messages),
             "warnings": list(result.warnings),
             "errors": list(result.errors),
+            "diagnostics": [d.as_dict() for d in result.diagnostics],
         }, ensure_ascii=False))
         return result.returncode
 

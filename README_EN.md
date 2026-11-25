@@ -24,7 +24,7 @@ Real documents exported by the compiler (rendered via PDF, not mockups; download
 |:--:|:--:|:--:|:--:|
 | **Minimal Quickstart**<br>One-page shortest path | **Chinese Thesis**<br>TOC field / Roman pages / Header rules | **Modern Technical Report**<br>Grid tables / Callouts / Heading colors | **English Journal Paper**<br>APA author-date / Cross-references |
 
-> 💡 Also includes Traditional Chinese journal sample ([`demo/04_zh_tw_paper`](demo/04_zh_tw_paper)); see [demo/](demo/) for full source files and specs.
+> 💡 Also includes Traditional Chinese journal, GB/T 9704 official-document body and APA 7 student-paper samples ([`demo/04_zh_tw_paper`](demo/04_zh_tw_paper), [`demo/05_gb9704`](demo/05_gb9704), [`demo/06_apa_student`](demo/06_apa_student)); see [demo/](demo/) for full source files and specs.
 
 ---
 
@@ -51,6 +51,10 @@ md-to-word hello.md --validate-only
 
 # (Optional) Export with a built-in preset when no format file is ready
 md-to-word hello.md --preset zh-academic -o hello.docx
+
+# (Optional) Machine-readable contract and structured diagnostics for agents
+md-to-word --contract --json
+md-to-word hello.md -o hello.docx --json
 ```
 
 #### 2. AI Agents (Claude Code / Terminal Agents)
@@ -85,7 +89,7 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
 - **Native Vector Equations**: Renders native Word OMML math objects (vector, double-click editable in Word, not raster images), centered with equation numbers right-aligned, supporting `@eq-` cross-references.
 - **Three-Line Tables**: Rule weights declared per style; header rows repeat across page breaks automatically.
 - **Independent Section Pagination**: Roman front-matter numerals (`i, ii`) and Arabic body numerals (`1, 2`) with native Word Table of Contents field (F9 to refresh) and dynamic chapter running headers.
-- **29 Built-in CSL Styles**: Supports GB/T 7714, Nature, IEEE, APA, Science, and more; bibliography generated automatically from `.bib` references.
+- **29 Built-in CSL Styles**: Supports GB/T 7714, Nature, IEEE, APA, Science, and more; bibliography generated automatically from `.bib` or CSL-JSON (Zotero, Mendeley, Crossref exports).
 - **Line-Numbered Quality Gates**: Pre-flight manuscript validation, post-flight content-loss check, and OpenXML styling reconciliation with line numbers for fast remediation. `--validate-only` runs the pre-flight check without writing a file.
 - **Tolerant Input Encoding**: Manuscripts, format files and `.bib` files may be UTF-8 (with or without BOM), UTF-16 or GB18030; non-UTF-8 input is read and reported with a reminder to save it as UTF-8.
 - **Byte-Identical on Same Platform**: Fixed timestamps, file permissions, and packaging sequencing ensure byte-identical outputs on the same platform for reliable Git diffs.

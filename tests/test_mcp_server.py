@@ -36,6 +36,43 @@ def test_mcp_list_presets():
     asyncio.run(_run())
 
 
+def test_mcp_get_contract():
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool("get_contract", {"lang": "en"})
+        assert not res.is_error
+        payload = res.structured_content
+        assert payload["version"]
+        assert any(p["id"] == "zh-academic" for p in payload["presets"])
+        assert any(s["style"] == "Body Text" for s in payload["styles"])
+        assert set(payload["exit_codes"]) == {"0", "1", "2", "3"}
+        assert "diagnostics" in payload["json_keys"]
+    asyncio.run(_run())
+
+
+def test_mcp_inspect_base_template():
+    async def _run():
+        from md_to_word.config import get_base_template_path
+
+        server = create_mcp_server()
+        res = await server.call_tool(
+            "inspect_base_template", {"docx_path": str(get_base_template_path())}
+        )
+        assert not res.is_error
+        payload = res.structured_content
+        assert payload["ok"] is True
+        assert payload["section_count"] >= 1
+        assert len(payload["sections"]) >= 1
+        assert payload["blocking"] == []
+
+        missing = await server.call_tool(
+            "inspect_base_template", {"docx_path": "/nonexistent/base.docx"}
+        )
+        assert missing.structured_content["ok"] is False
+        assert missing.structured_content["blocking"]
+    asyncio.run(_run())
+
+
 def test_mcp_inspect_preset():
     async def _run():
         server = create_mcp_server()

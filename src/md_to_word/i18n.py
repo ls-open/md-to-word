@@ -44,8 +44,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Format file (.txt); without it, only a format.txt beside the manuscript is used, else a preset",
     ),
     "cli.preset": (
-        "内置格式预设：zh-academic / zh-tw-academic / zh-report / en-nature",
-        "Built-in preset: zh-academic / zh-tw-academic / zh-report / en-nature",
+        "内置格式预设：zh-academic / zh-tw-academic / zh-report / zh-gb9704 / en-nature / en-apa-student",
+        "Built-in preset: zh-academic / zh-tw-academic / zh-report / zh-gb9704 / en-nature / en-apa-student",
     ),
     "cli.lang": ("消息语言：auto=按稿件语种 / zh / en", "Message language: auto / zh / en"),
     "cli.validate_only": (
@@ -79,8 +79,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Log every style as it is applied (for diagnosing formats that did not take effect)",
     ),
     "cli.contract": (
-        "打印稿件契约速查、手册与预设的路径后退出（--lang en 得英文版）",
-        "Print the manuscript contract, manual and preset paths, then exit (--lang en for English)",
+        "打印稿件契约速查、手册与预设的路径后退出（--lang en 得英文版；--json 得机器可读版本）",
+        "Print the manuscript contract, manual and preset paths, then exit (--lang en for English; --json for a machine-readable object)",
     ),
     "init.description": (
         "在当前目录生成一份格式声明与一份能直接导出的样例稿件",
@@ -88,8 +88,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "init.directory": ("目标目录（默认当前目录）", "Target directory (default: current)"),
     "init.preset": (
-        "内置格式预设：zh-academic / zh-tw-academic / zh-report / en-nature（默认按语种）",
-        "Built-in preset: zh-academic / zh-tw-academic / zh-report / en-nature (default: by language)",
+        "内置格式预设：zh-academic / zh-tw-academic / zh-report / zh-gb9704 / en-nature / en-apa-student（默认按语种）",
+        "Built-in preset: zh-academic / zh-tw-academic / zh-report / zh-gb9704 / en-nature / en-apa-student (default: by language)",
     ),
     "init.force": ("覆盖已存在的同名文件", "Overwrite existing files"),
     "init.done": (
@@ -101,8 +101,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Workflow and full vocabulary: md-to-word --guide",
     ),
     "init.preset_missing": (
-        "未找到预设: {name}\n  内置预设是 zh-academic、zh-tw-academic、zh-report 与 en-nature；也可以直接给一份自定义格式文件。",
-        "Preset not found: {name}\n  Built-in presets are zh-academic, zh-tw-academic, zh-report, and en-nature.",
+        "未找到预设: {name}\n  内置预设是 zh-academic、zh-tw-academic、zh-report、zh-gb9704、en-nature 与 en-apa-student；也可以直接给一份自定义格式文件。",
+        "Preset not found: {name}\n  Built-in presets are zh-academic, zh-tw-academic, zh-report, zh-gb9704, en-nature, and en-apa-student.",
     ),
     "init.exists": (
         "未覆盖已存在的文件：{paths}（要覆盖加 --force）",
@@ -116,6 +116,16 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "cli.json": (
         "把结果写成一行 JSON 到 stdout（给程序与 Agent 解析，键名不随版本变）",
         "Print the result as one JSON object on stdout (for programs and agents; keys are stable)",
+    ),
+    "contract.exit.ok": ("0 = 全部门禁通过", "0 = every gate passed"),
+    "contract.exit.error": (
+        "1 = 稿件、门禁或依赖问题（错误带行号）",
+        "1 = manuscript, gate or dependency problem (errors carry line numbers)",
+    ),
+    "contract.exit.usage": ("2 = 参数用法错误", "2 = usage error"),
+    "contract.exit.pdf_skipped": (
+        "3 = .docx 已写出，--pdf 未渲染",
+        "3 = .docx written, --pdf not rendered",
     ),
     "cli.internal_error": (
         "导出中断，发生了未预料到的内部错误：{reason}\n"
@@ -166,6 +176,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "pipeline.format_missing": ("指定的格式文件不存在: {path}", "Format file not found: {path}"),
     "pipeline.preset_missing": ("未找到预设: {name}", "Preset not found: {name}"),
+    "pipeline.format_preset_conflict": (
+        "同时给了 -f/--format 与 --preset：两者只能选一个。\n"
+        "  -f 指向一份格式文件，--preset 指向一个内置预设；同时给时不知道该听谁的。",
+        "Both -f/--format and --preset were given: choose one.\n"
+        "  -f names a format file, --preset names a built-in preset; with both it is unclear which wins.",
+    ),
     "pipeline.preset_auto": (
         "未指定格式文件，按语种用内置预设 {name}（仅预览；交付请用 -f）。",
         "No format file given; using the {name} preset (preview only; pass -f for delivery).",
@@ -331,6 +347,22 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "`split` environment, or split it into separate numbered equations.",
     ),
     "citations.empty_library": ("文献库里没有可用条目", "the bibliography has no usable entries"),
+    "biblio.json_invalid": (
+        "CSL-JSON 文献库无法解析：{reason}",
+        "the CSL-JSON bibliography could not be parsed: {reason}",
+    ),
+    "biblio.json_shape": (
+        "CSL-JSON 顶层应是条目数组，或含 items 数组的对象",
+        "CSL-JSON must be an array of items, or an object with an `items` array",
+    ),
+    "biblio.json_item": (
+        "CSL-JSON 的每个条目都应是对象",
+        "every CSL-JSON item must be an object",
+    ),
+    "biblio.json_id": (
+        "CSL-JSON 有条目缺少 id（引用键）；正文里 `[@id]` 靠它对应",
+        "a CSL-JSON item has no `id` (citation key); `[@id]` in the text resolves by it",
+    ),
     "bib.crossref_not_inherited": (
         "这些条目用了 `crossref`（从父条目继承会议名、出版社、年份等字段）：{keys}。"
         "本工具不做继承，文献表里这几条会缺项——把字段直接写进每个条目里",
@@ -409,6 +441,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.base_missing": (
         "找不到底模文件：{path}",
         "Base template not found: {path}",
+    ),
+    "pipeline.base_multi_cut": (
+        "同时给了多个切点（--keep-until / --cover-sections / --keep-pages）：只能选一个。\n"
+        "  --keep-until 按内容、--cover-sections 按节数、--keep-pages 按页数；同时给时不知道该听谁的。",
+        "More than one cut point was given (--keep-until / --cover-sections / --keep-pages): choose one.\n"
+        "  --keep-until cuts by content, --cover-sections by section count, --keep-pages by page count.",
     ),
     "pipeline.base_need_sections": (
         "用 --base-template 时要说清前置件到哪儿结束：--keep-until 某段文字（推荐，"

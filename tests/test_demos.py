@@ -24,6 +24,8 @@ CASES = [
     ("02_modern_report", "report_sample.md", "format.txt", None),
     ("03_english_paper", "paper.md", None, "en-nature"),
     ("04_zh_tw_paper", "paper_zh_tw.md", "format.txt", None),
+    ("05_gb9704", "gongwen_sample.md", None, "zh-gb9704"),
+    ("06_apa_student", "paper.md", None, "en-apa-student"),
 ]
 
 

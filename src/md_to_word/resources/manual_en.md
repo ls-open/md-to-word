@@ -54,12 +54,15 @@ md-to-word manuscript.md -o out.docx                     # auto preset: zh-acade
 md-to-word manuscript.md --preset zh-tw-academic -o out.docx  # Traditional Chinese academic preset (zh-TW)
 md-to-word manuscript.md --preset zh-report -o out.docx       # Chinese technical report preset
 md-to-word manuscript.md --preset en-nature -o out.docx       # international journal preset
+md-to-word manuscript.md --preset en-apa-student -o out.docx  # APA 7 student paper
+md-to-word gongwen.md --preset zh-gb9704 -o out.docx          # GB/T 9704 official-document body
 md-to-word manuscript.md -f format.txt -o out.docx            # explicit format file
 md-to-word manuscript.md --validate-only                      # pre-flight only; writes no .docx
 md-to-word init                                               # format.txt + a hello.md that exports as-is
 md-to-word --guide                                            # getting-started guide (pipeline entry)
 md-to-word --contract                                         # cheatsheet + guide, manual and preset paths
 md-to-word --contract --lang en                               # same, in English (canonical English style names)
+md-to-word --contract --json                                  # the same contract, machine-readable (agents)
 md-to-word manuscript.md -o out.docx --verbose                # per-style log, for "the format had no effect"
 md-to-word thesis.md --base-template base.docx --cover-sections 3 -o thesis.docx   # see §9.3
 ```
@@ -68,8 +71,10 @@ md-to-word thesis.md --base-template base.docx --cover-sections 3 -o thesis.docx
 `format.txt` beside the manuscript is used; otherwise a built-in preset — auto-selected by the
 **manuscript's language** (`zh-academic` for Chinese, `en-nature` for every other language), or
 selected explicitly with `--preset zh-tw-academic` (Traditional Chinese, `zh-TW`, uncompressed
-punctuation) or `--preset zh-report` (Chinese technical report). No other `.txt` is guessed at —
-if there is one, the run names it in a reminder. Which file was used is always reported.
+punctuation), `--preset zh-report` (Chinese technical report), `--preset zh-gb9704` (GB/T 9704-2012
+official-document body: A4, 16pt 仿宋, 22 lines per page; **not** the red-header letterhead or 版记),
+or `--preset en-apa-student` (APA 7 student paper). No other `.txt` is guessed at — if there is one,
+the run names it in a reminder. Which file was used is always reported.
 
 `--lang` changes the **message language** only; the default preset and default CSL follow the
 **manuscript's prose**, never `--lang`. Manuscripts, format files and `.bib` files may be UTF-8
@@ -86,7 +91,9 @@ to stderr:
 ```json
 {"ok": true, "returncode": 0, "input": "paper.md", "output": "…/paper.docx", "pdf": null,
  "lang": "en", "doc_lang": "en", "format_source": "preset:en-nature",
- "messages": ["…"], "warnings": [], "errors": []}
+ "messages": ["…"], "warnings": [], "errors": [],
+ "diagnostics": [{"severity": "warning", "code": "gate.heading.level",
+                  "file": "…/paper.md", "line": 7, "message": "…"}]}
 ```
 
 The keys are fixed and do not change between versions; the values of `messages` and `errors` are
@@ -95,8 +102,15 @@ closing check prompt (one merged line per reminder kind, listing up to eight lin
 relaying on a successful run is there — no need to parse stderr. `warnings` is the subset of
 `messages` that are reminders, for consumers that need to tell them apart. `lang` is the message
 language, `doc_lang` is the manuscript language that chose the default preset and CSL, and
-`format_source` is `file:/abs/path` or `preset:zh-academic`. Parse the keys, not the wording. A usage
-error (exit code `2`) happens during argument parsing, so no JSON is produced.
+`format_source` is `file:/abs/path` or `preset:zh-academic`. Parse the keys, not the wording.
+
+`diagnostics` is the same set of findings as structured data, five fixed keys each: `severity`
+(`error` / `warning`), `code` (a stable identifier such as `gate.image.missing`), `file`, `line`
+(`null` when no single line applies) and `message`. **Branch on `code`**; use `message` for display.
+`--contract --json` returns the full contract: version, guide/manual paths, preset paths and
+`sha256`, accepted style names in both languages, YAML keys, block markers, figure formats, exit
+codes and the exact `--json` keys. A usage error (exit code `2`) happens during argument parsing,
+so no JSON is produced.
 
 **Library call**:
 
@@ -575,7 +589,7 @@ defaults.
 `.docx` first, then fine-tune from feedback — and when the user gave no explicit format
 requirements, use a built-in preset instead of interrogating them about format details.
 
-### References: `.bib` is the only route
+### References: `.bib` or CSL-JSON
 
 - **No references**: do not write `bibliography:` or `csl:` in YAML, and do not use `[@key]` in the
   body.
@@ -583,6 +597,11 @@ requirements, use a built-in preset instead of interrogating them about format d
   list is generated by the engine; the user **does not write** the list and does not write
   `%% Bibliography` (the pre-flight check rejects it) — the engine inserts it after the references
   section title line.
+- **`bibliography:` also accepts CSL-JSON** (the `.json` Zotero, Mendeley and Crossref export):
+  the top level is an array of items, or `{"items": [...]}`; every item needs an `id` (the
+  `[@id]` key). The **content** decides, not the extension — a `.json` file holding BibTeX works
+  too. Malformed JSON is reported by pre-flight as `gate.bib.json` with the file; CSL-JSON has no
+  `crossref` inheritance.
 - **Hand-written reference lists are not supported**: if only hand-written entries exist, first turn
   them into `references.bib`, then cite from it.
 - When `csl:` names a built-in file (such as `apa.csl`), the package looks it up automatically; it

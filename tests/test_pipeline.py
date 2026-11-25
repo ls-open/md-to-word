@@ -331,10 +331,9 @@ def test_json_output_is_one_machine_readable_object(tmp_path: Path, capsys) -> N
     assert payload["ok"] is True
     assert payload["output"].endswith("out.docx")
     assert payload["errors"] == []
-    assert set(payload) == {
-        "ok", "returncode", "input", "output", "pdf", "lang", "doc_lang",
-        "format_source", "messages", "warnings", "errors",
-    }
+    from md_to_word.contract import RESULT_JSON_KEYS
+
+    assert tuple(payload) == RESULT_JSON_KEYS
 
 
 def test_json_output_reports_a_missing_manuscript(tmp_path: Path, capsys) -> None:

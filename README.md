@@ -26,7 +26,7 @@
 |:--:|:--:|:--:|:--:|
 | **最小起步样例**<br>一页纸最短路径 | **中文学位论文**<br>目录域 / 罗马页码 / 章名双线页眉 | **现代技术报告**<br>全网格表 / 引用块 / 彩色标题 | **英文期刊投稿**<br>APA 作者-年份制 / 交叉引用 |
 
-> 💡 另含繁体中文期刊样例（[`demo/04_zh_tw_paper`](demo/04_zh_tw_paper)），5 套样张的完整源码与格式文件详见 [demo/ 目录](demo/)。
+> 💡 另含繁体中文期刊、党政机关公文正文（GB/T 9704）与 APA 7 学生论文样例（[`demo/04_zh_tw_paper`](demo/04_zh_tw_paper)、[`demo/05_gb9704`](demo/05_gb9704)、[`demo/06_apa_student`](demo/06_apa_student)），7 套样张的完整源码与格式文件详见 [demo/ 目录](demo/)。
 
 ---
 
@@ -53,6 +53,10 @@ md-to-word hello.md --validate-only
 
 # （可选）没有格式文件时，使用内置学术预设快速出稿
 md-to-word hello.md --preset zh-academic -o hello.docx
+
+# （可选）给 Agent / 脚本的机器可读契约与结构化诊断
+md-to-word --contract --json
+md-to-word hello.md -o hello.docx --json
 ```
 
 #### 2. AI 智能体（Claude Code / 终端 Agent）
@@ -88,7 +92,7 @@ npx skills add ls-open/md-to-word
 - **Word 原生数学公式**：输出原生 OMML 矢量公式（Word 中双击可二次编辑，非位图），公式绝对居中、编号精准靠右对齐，支持 `@eq-` 交叉引用。
 - **学术三线表**：边框线宽精准可控，长表格跨页自动重复表头。
 - **独立分节与页码**：支持前置页罗马页码（`i, ii`）、正文阿拉伯页码（`1, 2`）独立计数，生成 Word 原生动态目录域（按 F9 刷新）与随章变换页眉。
-- **29 套 CSL 参考文献**：内置国标 GB/T 7714、Nature、IEEE、APA 等常用样式，由 `.bib` 自动生成引文列表。
+- **29 套 CSL 参考文献**：内置国标 GB/T 7714、Nature、IEEE、APA 等常用样式，由 `.bib` 或 CSL-JSON（Zotero / Mendeley / Crossref 导出）自动生成引文列表。
 - **带精确行号的双向门禁**：导前语法预检、导后防丢数核对、底模 XML 样式对账。格式不合规时带行号报错中止，方便人类与 AI Agent 定位修改；`--validate-only` 可单独跑预检、不写文件。
 - **输入编码从宽**：稿件、格式文件与 `.bib` 支持 UTF-8（含 BOM）、UTF-16 与 GB18030；非 UTF-8 会照常读取并提醒另存。
 - **同一平台逐字节一致**：固定时间戳、权限与打包顺序，相同源文件在同系统下重复编译产物二进制完全一致，便于 Git 差异比对。
