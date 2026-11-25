@@ -19,6 +19,8 @@ from pathlib import Path
 
 from lxml import etree
 
+from md_to_word.i18n import t
+
 _CORE = "http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
 _DC = "http://purl.org/dc/elements/1.1/"
 _DCTERMS = "http://purl.org/dc/terms/"
@@ -194,7 +196,7 @@ def _strip_comment_anchors(blob: bytes) -> bytes:
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
 
-def _verify_scrubbed(path: Path) -> None:
+def _verify_scrubbed(path: Path, lang: str = "zh") -> None:
     """清理后的包必须仍然自洽。
 
     清理在所有验真门禁之后运行，写坏了的包不会被前面的检查发现——这里就是在原子替换
@@ -218,20 +220,21 @@ def _verify_scrubbed(path: Path) -> None:
                 else:
                     resolved = posixpath.normpath(posixpath.join(base, target))
                 if resolved not in names:
-                    raise MetadataError(f"关系目标不存在：{name} → {target}")
+                    raise MetadataError(t("metadata.verify.missing_rel", lang,
+                                          name=name, target=target))
         if "word/document.xml" in names:
             document = archive.read("word/document.xml").decode("utf-8")
             for tag in ("commentRangeStart", "commentRangeEnd", "commentReference"):
                 if tag in document:
-                    raise MetadataError(f"批注锚点未清理：{tag}")
+                    raise MetadataError(t("metadata.verify.comment_anchor", lang, tag=tag))
         for name in names:
             if name.endswith((".xml", ".rels")):
                 etree.fromstring(archive.read(name))
         if any(name.startswith("docProps/custom.xml") for name in names):
-            raise MetadataError("自定义属性未删除")
+            raise MetadataError(t("metadata.verify.custom_props", lang))
 
 
-def scrub_metadata(path: Path | str) -> None:
+def scrub_metadata(path: Path | str, lang: str = "zh") -> None:
     """就地清理一份 .docx 的文档属性；写临时文件后原子替换，失败不留下半成品。"""
     target = Path(path)
     temp = target.with_name(f".{target.name}.blind-review")
@@ -262,7 +265,7 @@ def scrub_metadata(path: Path | str) -> None:
                     data = _neutralize_authors(data)
                 # 用原 ZipInfo 写回：保留条目顺序与时间戳，同一输入产出同样的字节
                 sink.writestr(info, data)
-        _verify_scrubbed(temp)
+        _verify_scrubbed(temp, lang)
         os.replace(temp, target)
     except Exception:
         temp.unlink(missing_ok=True)

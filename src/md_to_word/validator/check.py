@@ -684,7 +684,7 @@ def validate_manuscript(
                 report.valid = False
                 report.error(
                     "gate.image.unsupported",
-                    t("gate.image.unsupported", lang, line=i, path=clean_path, ext=suffix or "（无扩展名）"),
+                    t("gate.image.unsupported", lang, line=i, path=clean_path, ext=suffix or t("common.no_suffix", lang)),
                     line=i,
                 )
             else:
@@ -771,7 +771,8 @@ def validate_manuscript(
         report.error(
             "gate.section.role_unknown",
             t("gate.section.role_unknown", lang, line=i, role=role,
-              roles="、".join(declared_roles) or "（无）"),
+              roles=(", " if lang == "en" else "、").join(declared_roles)
+              or t("common.none", lang)),
             line=i,
         )
 

@@ -429,23 +429,28 @@ def create_mcp_server() -> Any:
             doc_lang = resolve_lang(lang_text, None)
             message_lang = resolve_lang(lang_text, lang)
 
-            spec_path = fmt_path
-            format_source = "format" if fmt_path else ""
-            if spec_path is None:
-                preset_name = preset or default_preset_name(doc_lang)
-                spec_path = resolve_preset_path(preset_name)
-                if spec_path is None:
-                    return {
-                        "valid": False,
-                        "errors": [f"Preset not found: {preset_name}"],
-                        "warnings": [],
-                        "diagnostics": [],
-                        "format_source": f"preset:{preset_name}",
-                        "lang": doc_lang,
-                        "message_lang": message_lang,
-                        "document_lang": doc_lang,
-                    }
-                format_source = "preset:%s" % preset_name
+            # 格式来源与 CLI 共用同一份判断：`-f` / 预设 / 稿件同目录的 format.txt，
+            # 以及「format 与 preset ��时给」的拒绝。各写一套时，校验说没问题、
+            # 真正导出却换了另一份格式。
+            from md_to_word.pipeline import ExportResult, resolve_format
+
+            res = ExportResult(returncode=0)
+            res.lang = message_lang
+            spec_path, fmt_content = resolve_format(
+                in_path, res, format_path=fmt_path, preset=preset, doc_lang=doc_lang,
+            )
+            if fmt_content is None:
+                return {
+                    "valid": False,
+                    "errors": res.errors,
+                    "warnings": res.warnings,
+                    "diagnostics": [d.as_dict() for d in res.diagnostics],
+                    "format_source": res.format_source or "none",
+                    "lang": doc_lang,
+                    "message_lang": message_lang,
+                    "document_lang": doc_lang,
+                }
+            format_source = res.format_source
 
             report = md_to_word.validate_manuscript(
                 in_path,
@@ -566,7 +571,7 @@ def create_mcp_server() -> Any:
             "compilation."
         ),
     )
-    def inspect_base_template(docx_path: str) -> dict[str, Any]:
+    def inspect_base_template(docx_path: str, lang: str | None = None) -> dict[str, Any]:
         """Return readability, section count and section outline for a base template."""
         from md_to_word.template.base_inject import inspect_base, section_count, section_outline
 
@@ -576,13 +581,13 @@ def create_mcp_server() -> Any:
                 "ok": False, "path": str(path), "section_count": None,
                 "sections": [], "blocking": [f"File not found: {path}"], "notes": [],
             }
-        report = inspect_base(path)
+        report = inspect_base(path, lang=resolve_lang("", lang))
         sections: list[str] = []
         count = None
         if report.ok:
             try:
                 count = section_count(path)
-                sections = section_outline(path)
+                sections = section_outline(path, resolve_lang("", lang))
             except Exception as exc:  # 结构坏到读不出节：体检已经给过原因，这里不重复抛
                 report.notes.append(str(exc))
         return {

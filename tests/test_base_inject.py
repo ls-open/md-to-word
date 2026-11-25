@@ -29,6 +29,19 @@ from md_to_word.template.base_inject import (
 from md_to_word.template.builder import build_template
 from md_to_word.writer import write_docx
 
+@pytest.fixture(autouse=True)
+def _no_live_word(monkeypatch):
+    """单元测试不启动 Microsoft Word。
+
+    底模测试里跑的是结构验真；真实排版验真在 `test_base_inject_render.py`，那台机器
+    没有 Word 时整份跳过。让每次 `pytest` 都打开 Word，慢且会弹窗口。
+    """
+    from md_to_word.visual_qa import word_pdf
+
+    monkeypatch.setattr(word_pdf, "can_render_word_pdf",
+                        lambda: (False, "disabled in unit tests"))
+
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 

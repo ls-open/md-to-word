@@ -433,6 +433,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "the base has a single section: a section break is inserted after the paragraph "
         "containing {text!r}, keeping the front matter in that first section",
     ),
+    "pipeline.section_line": (
+        "  第 {index} 节：{text}",
+        "  section {index}: {text}",
+    ),
     "pipeline.base_until_resolved": (
         "保留到「{text}」所在的第 {sections} 节（以后可以直接用 --cover-sections {sections}）",
         "Keeping through section {sections}, the one containing \"{text}\" "
@@ -511,6 +515,18 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "底模带有可识别信息（{fields}）：盲审提交请加 --blind-review；正文里的姓名仍需自行替换。",
         "The base template carries identifying metadata ({fields}): add --blind-review for blind "
         "submission; names in the text still need to be replaced.",
+    ),
+    "metadata.verify.missing_rel": (
+        "关系目标不存在：{name} → {target}",
+        "Relationship target is missing: {name} → {target}",
+    ),
+    "metadata.verify.comment_anchor": (
+        "批注锚点未清理：{tag}",
+        "A comment anchor was left behind: {tag}",
+    ),
+    "metadata.verify.custom_props": (
+        "自定义属性未删除",
+        "Custom properties were not removed",
     ),
     "metadata.field.title": ("标题", "title"),
     "metadata.field.subject": ("主题", "subject"),
@@ -1410,6 +1426,219 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Line {line}: the image is {ext}, and Word's inline pictures accept only PNG, JPEG, GIF, BMP "
         "or TIFF, so the export would stop here. Save it as PNG first, or reference a PDF directly "
         "(PDF figures are rasterised at 300 dpi during export)",
+    ),
+    "common.no_suffix": ("无扩展名", "no extension"),
+    "common.none": ("（无）", "(none)"),
+    "base.common.unset": ("未设置", "unset"),
+    "base.common.on": ("开", "on"),
+    "base.common.empty": ("（空）", "(empty)"),
+    "base.cut.spot": ("  第 {section} 节：{text}…", "  section {section}: {text}…"),
+    "base.verify.rel_wrong_type": (
+        "{member} 里的 <{tag}> 指向的 {rid} 是另一种关系，不是它要的那种",
+        "<{tag}> in {member} points to {rid}, which is a different kind of relationship.",
+    ),
+    "base.inspect.suffix": (
+        "只收 .docx，不收 {suffix}（宏文档会带 vbaProject.bin）",
+        "Only .docx is accepted; {suffix} files are refused (macro documents carry vbaProject.bin).",
+    ),
+    "base.inspect.unreadable": (
+        "打不开这个 .docx（不是有效的 Word 文件）",
+        "This .docx cannot be opened (it is not a valid Word file).",
+    ),
+    "base.inspect.macro": (
+        "这是带宏的文档（vbaProject.bin），改不了也不该改",
+        "This document carries macros (vbaProject.bin); it cannot be rewritten and should not be.",
+    ),
+    "base.inspect.dangling": (
+        "包里的关系指向不存在的部件（{first}），这份文件本身是坏的",
+        "A relationship points to a missing part ({first}); the file itself is broken.",
+    ),
+    "base.inspect.not_enough_sections": (
+        "文件里只有 {count} 节，切不出前 {need} 节做前置件",
+        "The file has only {count} section(s), so {need} front-matter sections cannot be kept.",
+    ),
+    "base.inspect.single_section": (
+        "这份模板只有 1 节（用分页符分页），按节切不开。"
+        "改用 --keep-until 某段文字：工具会在那一段之后插入分节符再灌入；"
+        "或者换一份用分节符把前置件单独分开的模板",
+        "This template has a single section (it pages with manual breaks), so it cannot be cut by "
+        "section. Use --keep-until <text>: a section break is inserted after that paragraph; or use "
+        "a template that separates the front matter with a section break.",
+    ),
+    "base.inspect.all_sections": (
+        "前 {need} 节已经是整份文件，切完没有正文节可换。少留一节，或者换一份带正文的模板",
+        "The first {need} sections are the whole file, leaving no body section to replace. "
+        "Keep one section fewer, or use a template that has a body.",
+    ),
+    "base.inspect.toc_first": (
+        "底模的目录就在第 1 节，没有能保留的前置件——先把目录挪到正文之后再来",
+        "The base's contents page is in section 1, leaving no front matter to keep; move the TOC "
+        "after the body first.",
+    ),
+    "base.inspect.toc_section": (
+        "底模第 {toc} 节是目录。目录由你的稿件生成（{{{{< toc >}}}}），模板那份留着只会印出"
+        "模板作者的条目——最多保留前 {limit} 节",
+        "Section {toc} of the base is its contents page. The manuscript generates the TOC "
+        "({{{{< toc >}}}}); keeping the template's copy would print its own entries, so at most "
+        "{limit} sections can be kept.",
+    ),
+    "base.inspect.no_trailing_sectpr": (
+        "这份模板的末节分节符不在正文末尾（挂在段落上），注入时切不开正文节。"
+        "请用 Word「另存为」一次再试，或换一份模板",
+        "The base's final section break is not at the end of the body (it hangs on a paragraph), so "
+        "the body cannot be cut. Save it once from Word and try again, or use another template.",
+    ),
+    "base.inspect.altchunk": (
+        "含有 altChunk（外部文档块），合并后内容会错位",
+        "It contains an altChunk (external document block), which would shift content when merged.",
+    ),
+    "base.inspect.revisions": (
+        "文件里有修订痕迹，封面可能显示为“修订状态”，提交前请在 Word 里接受修订",
+        "The file carries tracked changes; the front matter may show them as revisions. Accept them "
+        "in Word before submitting.",
+    ),
+    "base.inspect.protection": (
+        "底模开着文档保护，产物也带着它——导出后在 Word 里「限制编辑 → 停止保护」再改",
+        "The base has document protection and the result keeps it — stop protection in Word "
+        "(Review → Restrict Editing) before editing.",
+    ),
+    "base.inspect.comments": (
+        "文件里有批注，封面会带批注气泡，提交前请删除",
+        "The file has comments; the front matter will show their balloons. Delete them before "
+        "submitting.",
+    ),
+    "base.inspect.external": (
+        "前置件里有 {count} 个外部链接，会原样保留",
+        "The front matter has {count} external link(s); they are kept as they are.",
+    ),
+    "base.settings.proofing": (
+        "校对语言没搬进底模：要求 {want}，产物 {got}",
+        "The proofing language did not carry into the base: expected {want}, got {got}.",
+    ),
+    "base.settings.option": (
+        "{label}没搬进底模：要求 {want}，产物 {got}",
+        "{label} did not carry into the base: expected {want}, got {got}.",
+    ),
+    "base.settings.label.punctuation": ("标点压缩", "Punctuation compression"),
+    "base.settings.label.mirror": ("对称页边距", "Mirror margins"),
+    "base.verify.unreadable": ("打不开文件：{err}", "The file cannot be opened: {err}"),
+    "base.verify.node_count": (
+        "前置件的节点数变了：原件 {want}，产物 {got}",
+        "The front matter's node count changed: {want} in the original, {got} in the result.",
+    ),
+    "base.verify.node_changed": (
+        "前置件第 {index} 个节点被改动了",
+        "Node {index} of the front matter was modified.",
+    ),
+    "base.verify.last_sectpr": (
+        "前置件最后一节的分节属性被改动了",
+        "The last section's properties in the front matter were modified.",
+    ),
+    "base.verify.style_missing": (
+        "产物里丢了原件样式 {style}",
+        "The result lost the original style {style}.",
+    ),
+    "base.verify.style_changed": (
+        "原件样式 {style} 的定义被改动了",
+        "The definition of the original style {style} was modified.",
+    ),
+    "base.verify.style_duplicate_name": (
+        "样式名重复：{name}（Word 会挑错定义）",
+        "Duplicate style name: {name} (Word may pick the wrong definition).",
+    ),
+    "base.verify.style_duplicate_default": (
+        "同一类型有两个默认样式：{kind}",
+        "Two default styles of the same type: {kind}.",
+    ),
+    "base.verify.numbering_missing": ("产物里丢了 numbering.xml", "The result lost numbering.xml."),
+    "base.verify.numbering_def_missing": (
+        "原件的编号定义 {id} 丢了",
+        "The original numbering definition {id} is missing.",
+    ),
+    "base.verify.theme_changed": ("主题部件被改动了", "The theme part was modified."),
+    "base.verify.document_unparsable": ("document.xml 解析不了", "document.xml cannot be parsed."),
+    "base.verify.notes_part_missing": (
+        "有 {ref} 却没有 {part}",
+        "There is a {ref} but no {part}.",
+    ),
+    "base.verify.footnote_missing": (
+        "脚注引用指向不存在的脚注：{ids}",
+        "Footnote references point to missing footnotes: {ids}.",
+    ),
+    "base.verify.rel_missing": (
+        "{member} 里的 <{tag}> 指向不存在的 {rid}，Word 会判文件损坏",
+        "<{tag}> in {member} points to missing {rid}; Word will treat the file as corrupted.",
+    ),
+    "base.verify.style_ref_missing": (
+        "{member} 引用了不存在的样式「{style}」",
+        "{member} references a missing style {style!r}.",
+    ),
+    "base.verify.no_body": ("document.xml 里没有 body", "document.xml has no body."),
+    "base.verify.last_not_sectpr": (
+        "body 的最后一个元素不是 sectPr",
+        "The last element of the body is not sectPr.",
+    ),
+    "base.verify.multiple_body_sectpr": ("body 层有多个 sectPr", "The body has more than one sectPr."),
+    "base.verify.prefix": ("结构验真没通过：{why}", "Structure verification failed: {why}"),
+    "base.layout.need_word": (
+        "需要本机 Microsoft Word 才能验真（{why}）；验不了就不产出文件",
+        "Verifying the layout needs Microsoft Word on this machine ({why}); without it no file is written.",
+    ),
+    "base.layout.need_tool": (
+        "需要 {tool} 才能逐词比对；验不了就不产出文件",
+        "Comparing word by word needs {tool}; without it no file is written.",
+    ),
+    "base.layout.word_failed": (
+        "Word 打不开 {name}：{reason}",
+        "Word cannot open {name}: {reason}.",
+    ),
+    "base.layout.anchors_in_front": (
+        "正文前几句话在底模的前置件里也出现过（模板里常带示例目录），"
+        "没法用它定位正文从哪一页开始。请人工核对前置件页数",
+        "The body's opening sentences also appear in the base's front matter (templates often carry "
+        "a sample contents page), so the page where the body starts cannot be located. Check the "
+        "front-matter page count by hand.",
+    ),
+    "base.layout.anchor_missing": (
+        "产物里找不到正文首句「{text}」，没法定位前置件到哪一页",
+        "The body's opening {text!r} is not found in the result, so the front-matter pages cannot "
+        "be located.",
+    ),
+    "base.layout.zero_pages": (
+        "前置件在产物里只有 0 页，说明切点不对",
+        "The front matter takes 0 pages in the result, so the cut point is wrong.",
+    ),
+    "base.layout.page_words": (
+        "第 {page} 页对不上：原件 {want} 个词，产物 {got} 个",
+        "Page {page} does not match: {want} words in the original, {got} in the result.",
+    ),
+    "base.layout.page_position": (
+        "第 {page} 页位置对不上：「{word}」",
+        "Page {page} does not match at {word!r}.",
+    ),
+    "base.pages.word_failed": (
+        "试切到第 {n} 节时 Word 打不开：{why}",
+        "Word cannot open the probe at section {n}: {why}.",
+    ),
+    "base.pages.too_many": (
+        "切到第 {n} 节是 {got} 页，已经超过你要的 {pages} 页",
+        "Keeping {n} section(s) gives {got} pages, already more than the {pages} requested.",
+    ),
+    "base.pages.not_enough": (
+        "切到 {total} 节也凑不出 {pages} 页前置件",
+        "Even {total} sections do not add up to {pages} front-matter pages.",
+    ),
+    "base.cut.too_few_sections": ("切不出前 {keep} 节", "Cannot keep {keep} sections."),
+    "base.note.retained": (
+        "保留前 {sections} 节；切点之后第一段是「{head}」，确认没切错",
+        "Kept the first {sections} section(s); the first paragraph after the cut is {head!r} — "
+        "check that the cut is right.",
+    ),
+    "base.note.layout_skipped": (
+        "这台机器没有 Microsoft Word，只做了结构验真（封面内容逐节点一致）；"
+        "版面请自己用 Word 打开对照原件看一遍",
+        "This machine has no Microsoft Word, so only the structure was verified (front matter "
+        "identical node by node); open both files in Word to compare the layout.",
     ),
     "base.cut.no_paragraph": (
         "在底模的段落里找不到「{text}」：这段文字可能只出现在表格或页眉里。换一段正文里的文字。",

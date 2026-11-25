@@ -70,6 +70,11 @@ _EMPTY = {
 _TOL = 0.5
 
 
+def _join(parts, lang: str = "zh") -> str:
+    """把若干条原因拼成一句：分隔符跟着消息语言走。"""
+    return ("; " if lang == "en" else "；").join(parts)
+
+
 class BaseTemplateError(Exception):
     """底模不能这么用。消息直接给人看，带上具体原因。"""
 
@@ -104,7 +109,9 @@ class BaseReport:
         return not self.blocking
 
 
-def inspect_base(path: Path, cover_sections: int | None = None) -> BaseReport:
+def inspect_base(
+    path: Path, cover_sections: int | None = None, lang: str = "zh"
+) -> BaseReport:
     """先体检再动手：改不了、验不了的文件，一开始就拒绝，不产出一个"大概能用"的。
 
     这里只拦**确定会出事**的特征。可疑但不致命的记进 notes，让人自己判断。
@@ -113,83 +120,70 @@ def inspect_base(path: Path, cover_sections: int | None = None) -> BaseReport:
     """
     report = BaseReport()
     if path.suffix.lower() != ".docx":
-        report.blocking.append(f"只收 .docx，不收 {path.suffix or '无扩展名'}（宏文档会带 vbaProject.bin）")
+        report.blocking.append(t("base.inspect.suffix", lang, suffix=path.suffix or t("common.no_suffix", lang)))
         return report
     try:
         with zipfile.ZipFile(path) as z:
             names = set(z.namelist())
             document = z.read("word/document.xml")
     except (OSError, KeyError, zipfile.BadZipFile):
-        report.blocking.append("打不开这个 .docx（不是有效的 Word 文件）")
+        report.blocking.append(t("base.inspect.unreadable", lang))
         return report
 
     if "word/vbaProject.bin" in names:
-        report.blocking.append("这是带宏的文档（vbaProject.bin），改不了也不该改")
+        report.blocking.append(t("base.inspect.macro", lang))
 
     # 关系指着包里不存在的部件：这份文件自己就是坏的，python-docx 打开时直接抛 KeyError。
     # 学校模板经过邮件、网盘几道手，页眉部件被剥掉的情况真见过。
     broken = _dangling_rels(path)
     if broken:
-        report.blocking.append(f"包里的关系指向不存在的部件（{broken[0]}），这份文件本身是坏的")
+        report.blocking.append(t("base.inspect.dangling", lang, first=broken[0]))
 
     root = etree.fromstring(document)
     sections = list(root.iter(W + "sectPr"))
     if cover_sections is not None and len(sections) < cover_sections:
-        report.blocking.append(
-            f"文件里只有 {len(sections)} 节，切不出前 {cover_sections} 节做前置件"
-        )
+        report.blocking.append(t(
+            "base.inspect.not_enough_sections", lang,
+            count=len(sections), need=cover_sections,
+        ))
     elif cover_sections is not None and len(sections) == cover_sections:
         # 全切走就没有"正文节"可替了，我们的内容会挤进最后一节，沿用它页眉页脚
         if len(sections) == 1:
-            report.blocking.append(
-                "这份模板只有 1 节（用分页符分页），按节切不开。"
-                "改用 --keep-until 某段文字：工具会在那一段之后插入分节符再灌入；"
-                "或者换一份用分节符把前置件单独分开的模板"
-            )
+            report.blocking.append(t("base.inspect.single_section", lang))
         else:
-            report.blocking.append(
-                f"前 {cover_sections} 节已经是整份文件，切完没有正文节可换。"
-                f"少留一节，或者换一份带正文的模板"
-            )
+            report.blocking.append(t("base.inspect.all_sections", lang, need=cover_sections))
     if cover_sections is not None:
         toc = _toc_section(root)
         if toc is not None and cover_sections >= toc:
             if toc == 1:
-                report.blocking.append(
-                    "底模的目录就在第 1 节，没有能保留的前置件——先把目录挪到正文之后再来")
+                report.blocking.append(t("base.inspect.toc_first", lang))
             else:
-                report.blocking.append(
-                    f"底模第 {toc} 节是目录。目录由你的稿件生成（{{{{< toc >}}}}），"
-                    f"模板那份留着只会印出模板作者的条目——最多保留前 {toc - 1} 节"
-                )
+                report.blocking.append(t(
+                    "base.inspect.toc_section", lang, toc=toc, limit=toc - 1))
     # 末节的 sectPr 必须在 body 级。挂在段落 pPr 里的那种，注入时找不到"最后一个"，
     # 会抛一个裸 ValueError 冒到 CLI 兜底里报成"内部错误"——这里先拦住，说清楚是哪份模板的问题。
     body_el = root.find(W + "body")
     if body_el is not None and body_el.find(W + "sectPr") is None:
-        report.blocking.append(
-            "这份模板的末节分节符不在正文末尾（挂在段落上），注入时切不开正文节。"
-            "请用 Word「另存为」一次再试，或换一份模板"
-        )
+        report.blocking.append(t("base.inspect.no_trailing_sectpr", lang))
 
     if any(n.tag == W + "altChunk" for n in root.iter()):
-        report.blocking.append("含有 altChunk（外部文档块），合并后内容会错位")
+        report.blocking.append(t("base.inspect.altchunk", lang))
 
     if any(n.tag in (W + "ins", W + "del") for n in root.iter()):
-        report.notes.append("文件里有修订痕迹，封面可能显示为“修订状态”，提交前请在 Word 里接受修订")
+        report.notes.append(t("base.inspect.revisions", lang))
     settings = _part_bytes(path, "settings.xml")
     if settings:
         protection = etree.fromstring(settings).find(W + "documentProtection")
         if protection is not None and protection.get(W + "enforcement") in ("1", "true"):
-            report.notes.append(
-                "底模开着文档保护，产物也带着它——导出后在 Word 里「限制编辑 → 停止保护」再改")
+            report.notes.append(t("base.inspect.protection", lang))
     if any(n.tag == W + "commentReference" for n in root.iter()):
-        report.notes.append("文件里有批注，封面会带批注气泡，提交前请删除")
+        report.notes.append(t("base.inspect.comments", lang))
 
     rels = _rels_of(path, "word/_rels/document.xml.rels")
     external = [t for t in rels if t.get("TargetMode") == "External"]
     if external:
         # 这些是前置件自己的链接，原样保留才对——剥掉就违背了「封面一个字节不动」
-        report.notes.append(f"前置件里有 {len(external)} 个外部链接，会原样保留")
+        report.notes.append(t("base.inspect.external", lang, count=len(external)))
     return report
 
 
@@ -365,7 +359,7 @@ def paragraph_cut(base: Path, needle: str, out: Path, lang: str = "zh") -> int:
         raise BaseTemplateError(t("base.cut.no_paragraph", lang, text=needle))
     if len(hits) > 1:
         spots = "\n".join(
-            f"  第 {sect} 节：{text}…" for sect, text, _ in hits[:6]
+            t("base.cut.spot", lang, section=sect, text=text) for sect, text, _ in hits[:6]
         )
         raise BaseTemplateError(t("base.cut.ambiguous", lang,
                                   text=needle, count=len(hits), spots=spots))
@@ -422,7 +416,7 @@ def sections_until_text(base: Path, needle: str) -> list[int]:
     return hits
 
 
-def section_outline(base: Path) -> list[str]:
+def section_outline(base: Path, lang: str = "zh") -> list[str]:
     """每节的第一句非空文字：定位失败时摆给人看，好让他自己数该留几节。"""
     with zipfile.ZipFile(base) as z:
         root = etree.fromstring(z.read("word/document.xml"))
@@ -433,7 +427,7 @@ def section_outline(base: Path) -> list[str]:
             outline.append(text[:34])
         if el.tag == W + "sectPr" or el.find(".//" + W + "sectPr") is not None:
             if len(outline) < sect:
-                outline.append("（空）")
+                outline.append(t("base.common.empty", lang))
             sect += 1
     return outline
 
@@ -459,7 +453,7 @@ def _rels_of(path: Path, member: str) -> list:
 
 
 def inject_into_base(
-    base: Path, rendered: Path, cover_sections: int, out: Path
+    base: Path, rendered: Path, cover_sections: int, out: Path, lang: str = "zh"
 ) -> None:
     """把 rendered（我们导出的产物）灌进 base（学校模板），写到 out。
 
@@ -473,7 +467,7 @@ def inject_into_base(
     from docx.oxml.ns import qn
 
     school, ours = Document(str(base)), Document(str(rendered))
-    _cut_after_section(school.element.body, cover_sections, qn)
+    _cut_after_section(school.element.body, cover_sections, qn, lang)
 
     style_ids: dict[str, str] = {}
     style_names: dict[str, str] = {}
@@ -628,7 +622,7 @@ def dropped_head(base: Path, cover_sections: int) -> str:
     return ""
 
 
-def _cut_after_section(body, keep: int, qn) -> None:
+def _cut_after_section(body, keep: int, qn, lang: str = "zh") -> None:
     """留下前 keep 节（含收尾那个分节符），其余全删，body 级 sectPr 保留。"""
     seen = 0
     for idx, child in enumerate(list(body)):
@@ -639,7 +633,7 @@ def _cut_after_section(body, keep: int, qn) -> None:
                     if extra.tag != qn("w:sectPr"):
                         body.remove(extra)
                 return
-    raise BaseTemplateError(f"切不出前 {keep} 节")
+    raise BaseTemplateError(t("base.cut.too_few_sections", lang, keep=keep))
 
 
 def _merge_styles(src, dst, ids: dict[str, str], names: dict[str, str], qn) -> None:
@@ -698,7 +692,7 @@ def _merge_styles(src, dst, ids: dict[str, str], names: dict[str, str], qn) -> N
                 ref.set(qn("w:val"), ids[ref.get(qn("w:val"))])
 
 
-def verify_doc_level_settings(rendered: Path, injected: Path) -> None:
+def verify_doc_level_settings(rendered: Path, injected: Path, lang: str = "zh") -> None:
     """灌完之后，我们声明的文档级设置还在不在。
 
     这两项不属于任何一条样式，丢了不会在 Word 里报错，只会安静地不起作用：校对语言退回
@@ -718,23 +712,24 @@ def verify_doc_level_settings(rendered: Path, injected: Path) -> None:
     want_east = None if wanted_lang is None else wanted_lang.get(W + "eastAsia")
     got_east = None if got_lang is None else got_lang.get(W + "eastAsia")
     if want_east and got_east != want_east:
-        raise BaseTemplateError(
-            f"校对语言没搬进底模：要求 {want_east}，产物 {got_east or '未设置'}"
-        )
+        raise BaseTemplateError(t(
+            "base.settings.proofing", lang, want=want_east, got=got_east or t("base.common.unset", lang)
+        ))
 
     want_s = read(rendered, "word/settings.xml")
     got_s = read(injected, "word/settings.xml")
-    for tag, label in (("characterSpacingControl", "标点压缩"),
-                       ("mirrorMargins", "对称页边距")):
+    for tag, label_key in (("characterSpacingControl", "base.settings.label.punctuation"),
+                           ("mirrorMargins", "base.settings.label.mirror")):
         source = want_s.find(W + tag)
         if source is None:
             continue
         actual = got_s.find(W + tag)
         if actual is None or actual.get(W + "val") != source.get(W + "val"):
-            raise BaseTemplateError(
-                f"{label}没搬进底模：要求 {source.get(W + 'val') or '开'}，"
-                f"产物 {None if actual is None else (actual.get(W + 'val') or '开')}"
-            )
+            raise BaseTemplateError(t(
+                "base.settings.option", lang, label=t(label_key, lang),
+                want=source.get(W + "val") or t("base.common.on", lang),
+                got=None if actual is None else (actual.get(W + "val") or t("base.common.on", lang)),
+            ))
 
 
 def _merge_doc_level_settings(src, dst, qn) -> None:
@@ -973,7 +968,9 @@ def _part(doc, member: str):
 # ── 验收一：封面一个字节都不许动（跨平台，永远跑） ──────────────────────
 
 
-def verify_structure(base: Path, result: Path, cover_sections: int) -> tuple[bool, str]:
+def verify_structure(
+    base: Path, result: Path, cover_sections: int, lang: str = "zh"
+) -> tuple[bool, str]:
     """结构层面能确定的东西：前置件逐节点一致、原件的东西一样没少、没引入致命冲突。
 
     这条不依赖 Word，Windows 上也跑。它保证的是"我们没动封面"，**保证不了"Word 排出来
@@ -986,35 +983,36 @@ def verify_structure(base: Path, result: Path, cover_sections: int) -> tuple[boo
         base_nodes, base_sect = _front_signature(base_doc, cover_sections)
         result_nodes, result_sect = _front_signature(result_doc, cover_sections)
     except Exception as exc:  # noqa: BLE001 - 打不开就是打不开，不必细分
-        return False, f"打不开文件：{exc}"
+        return False, t("base.verify.unreadable", lang, err=exc)
 
     if len(base_nodes) != len(result_nodes):
-        return False, f"前置件的节点数变了：原件 {len(base_nodes)}，产物 {len(result_nodes)}"
+        return False, t("base.verify.node_count", lang,
+                        want=len(base_nodes), got=len(result_nodes))
     for i, (a, b) in enumerate(zip(base_nodes, result_nodes), 1):
         if a != b:
-            return False, f"前置件第 {i} 个节点被改动了"
+            return False, t("base.verify.node_changed", lang, index=i)
     if base_sect is not None and base_sect != result_sect:
-        return False, "前置件最后一节的分节属性被改动了"
+        return False, t("base.verify.last_sectpr", lang)
 
-    ok, why = _check_styles_preserved(base_doc, result_doc)
+    ok, why = _check_styles_preserved(base_doc, result_doc, lang)
     if not ok:
         return False, why
-    ok, why = _check_numbering_preserved(base, result)
+    ok, why = _check_numbering_preserved(base, result, lang)
     if not ok:
         return False, why
-    ok, why = _check_theme_preserved(base, result)
+    ok, why = _check_theme_preserved(base, result, lang)
     if not ok:
         return False, why
-    ok, why = _check_notes_resolvable(result)
+    ok, why = _check_notes_resolvable(result, lang)
     if not ok:
         return False, why
-    ok, why = _check_rels_resolvable(result)
+    ok, why = _check_rels_resolvable(result, lang)
     if not ok:
         return False, why
-    ok, why = _check_style_refs_resolvable(result)
+    ok, why = _check_style_refs_resolvable(result, lang)
     if not ok:
         return False, why
-    ok, why = _check_body_shape(result)
+    ok, why = _check_body_shape(result, lang)
     if not ok:
         return False, why
     return True, ""
@@ -1043,7 +1041,7 @@ def _front_signature(doc, cover_sections: int) -> tuple[list[bytes], bytes | Non
     return nodes, None
 
 
-def _check_styles_preserved(base_doc, result_doc) -> tuple[bool, str]:
+def _check_styles_preserved(base_doc, result_doc, lang: str = "zh") -> tuple[bool, str]:
     """原件每一条样式都得原样还在；另外不能有重名、每种类型只能有一个默认。"""
     result_styles = result_doc.styles.element.findall(W + "style")
     by_id = {s.get(W + "styleId"): s for s in result_styles}
@@ -1051,40 +1049,42 @@ def _check_styles_preserved(base_doc, result_doc) -> tuple[bool, str]:
         sid = st.get(W + "styleId")
         got = by_id.get(sid)
         if got is None:
-            return False, f"产物里丢了原件样式 {sid}"
+            return False, t("base.verify.style_missing", lang, style=sid)
         if _canon(st) != _canon(got):
-            return False, f"原件样式 {sid} 的定义被改动了"
+            return False, t("base.verify.style_changed", lang, style=sid)
     names, defaults = set(), set()
     for st in result_styles:
         name = st.find(W + "name")
         if name is not None:
             key = name.get(W + "val").lower()
             if key in names:
-                return False, f"样式名重复：{name.get(W + 'val')}（Word 会挑错定义）"
+                return False, t("base.verify.style_duplicate_name", lang,
+                                name=name.get(W + "val"))
             names.add(key)
         if st.get(W + "default") == "1":
             kind = st.get(W + "type")
             if kind in defaults:
-                return False, f"同一类型有两个默认样式：{kind}"
+                return False, t("base.verify.style_duplicate_default", lang, kind=kind)
             defaults.add(kind)
     return True, ""
 
 
-def _check_numbering_preserved(base: Path, result: Path) -> tuple[bool, str]:
+def _check_numbering_preserved(base: Path, result: Path, lang: str = "zh") -> tuple[bool, str]:
     b, r = _part_bytes(base, "numbering.xml"), _part_bytes(result, "numbering.xml")
     if b is None:
         return True, ""
     if r is None:
-        return False, "产物里丢了 numbering.xml"
+        return False, t("base.verify.numbering_missing", lang)
     src, dst = etree.fromstring(b), etree.fromstring(r)
     have = {n.get(W + "abstractNumId") for n in dst.iter(W + "abstractNum")}
     for n in src.iter(W + "abstractNum"):
         if n.get(W + "abstractNumId") not in have:
-            return False, f"原件的编号定义 {n.get(W + 'abstractNumId')} 丢了"
+            return False, t("base.verify.numbering_def_missing", lang,
+                            id=n.get(W + "abstractNumId"))
     return True, ""
 
 
-def _check_theme_preserved(base: Path, result: Path) -> tuple[bool, str]:
+def _check_theme_preserved(base: Path, result: Path, lang: str = "zh") -> tuple[bool, str]:
     """主题部件必须一个字节都没变。
 
     主题决定字体表与默认配色，改了它，封面上任何没显式指定字体的字都会跟着变——而这种
@@ -1103,16 +1103,16 @@ def _check_theme_preserved(base: Path, result: Path) -> tuple[bool, str]:
 
     before, after = themes(base), themes(result)
     if before != after:
-        return False, "主题部件被改动了"
+        return False, t("base.verify.theme_changed", lang)
     return True, ""
 
 
-def _check_notes_resolvable(result: Path) -> tuple[bool, str]:
+def _check_notes_resolvable(result: Path, lang: str = "zh") -> tuple[bool, str]:
     """脚注/尾注引用指向不存在的 id，Word 直接判文件损坏——这条得挡住。"""
     try:
         document = etree.fromstring(_part_bytes(result, "document.xml") or b"")
     except etree.XMLSyntaxError:
-        return False, "document.xml 解析不了"
+        return False, t("base.verify.document_unparsable", lang)
     for ref_tag, part, note_tag in (
         ("footnoteReference", "footnotes.xml", "footnote"),
         ("endnoteReference", "endnotes.xml", "endnote"),
@@ -1122,15 +1122,15 @@ def _check_notes_resolvable(result: Path) -> tuple[bool, str]:
             continue
         blob = _part_bytes(result, part)
         if blob is None:
-            return False, f"有 {ref_tag} 却没有 {part}"
+            return False, t("base.verify.notes_part_missing", lang, ref=ref_tag, part=part)
         defined = {n.get(W + "id") for n in etree.fromstring(blob).iter(W + note_tag)}
         missing = used - defined
         if missing:
-            return False, f"脚注引用指向不存在的脚注：{sorted(missing)[:3]}"
+            return False, t("base.verify.footnote_missing", lang, ids=sorted(missing)[:3])
     return True, ""
 
 
-def _check_rels_resolvable(result: Path) -> tuple[bool, str]:
+def _check_rels_resolvable(result: Path, lang: str = "zh") -> tuple[bool, str]:
     """每个 `r:id` / `r:embed` / `r:link` 都必须在同一部件的 .rels 里找得到，且类型对得上。
 
     关系是**包**级的：正文搬了家，`rId8` 就不再是原来那个东西。这条不查，装了 Word 的机器
@@ -1159,17 +1159,18 @@ def _check_rels_resolvable(result: Path) -> tuple[bool, str]:
                         continue
                     local = etree.QName(el).localname
                     if rid not in rels:
-                        return False, f"{member} 里的 <{local}> 指向不存在的 {rid}，Word 会判文件损坏"
+                        return False, t("base.verify.rel_missing", lang,
+                                        member=member, tag=local, rid=rid)
                     want = expect.get(local)
                     if want and not rels[rid].endswith("/" + want.split("/")[-1]):
-                        return False, (
-                            f"{member} 里的 <{local}> 指向的 {rid} 是"
-                            f"{rels[rid].rsplit('/', 1)[-1]}，不是它要的那种关系"
+                        return False, t(
+                            "base.verify.rel_wrong_type", lang,
+                            member=member, tag=local, rid=rid,
                         )
     return True, ""
 
 
-def _check_style_refs_resolvable(result: Path) -> tuple[bool, str]:
+def _check_style_refs_resolvable(result: Path, lang: str = "zh") -> tuple[bool, str]:
     """正文和页眉页脚引用的每条样式都得在 styles.xml 里找得到。
 
     改名的意义就在这儿：样式 ID 改成了 `mdw-` 前缀，正文里的引用也要跟着改。漏一处，
@@ -1186,18 +1187,19 @@ def _check_style_refs_resolvable(result: Path) -> tuple[bool, str]:
                 for node in root.iter(W + tag):
                     val = node.get(W + "val")
                     if val and val not in have:
-                        return False, f"{member} 引用了不存在的样式「{val}」"
+                        return False, t("base.verify.style_ref_missing", lang,
+                                        member=member, style=val)
     return True, ""
 
 
-def _check_body_shape(result: Path) -> tuple[bool, str]:
+def _check_body_shape(result: Path, lang: str = "zh") -> tuple[bool, str]:
     body = etree.fromstring(_part_bytes(result, "document.xml") or b"").find(W + "body")
     if body is None:
-        return False, "document.xml 里没有 body"
+        return False, t("base.verify.no_body", lang)
     if body[-1].tag != W + "sectPr":
-        return False, "body 的最后一个元素不是 sectPr"
+        return False, t("base.verify.last_not_sectpr", lang)
     if sum(1 for c in body if c.tag == W + "sectPr") > 1:
-        return False, "body 层有多个 sectPr"
+        return False, t("base.verify.multiple_body_sectpr", lang)
     return True, ""
 
 
@@ -1212,7 +1214,9 @@ def _part_bytes(path: Path, member: str) -> bytes | None:
 # ── 验收二：版面得和原件一样（要有 Word，macOS） ────────────────────────
 
 
-def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> tuple[bool, str]:
+def verify_cover_pages(
+    base: Path, result: Path, sentinels: str | list[str], lang: str = "zh"
+) -> tuple[bool, str]:
     """拿原件和产物逐词比坐标，比到我们的正文出现为止。
 
     比对基准**不能**是「把前置件单独切出来」——实测切出来的那份会多出一页：前置件最后
@@ -1228,10 +1232,10 @@ def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> 
 
     ok, why = word_pdf.can_render_word_pdf()
     if not ok:
-        return False, f"需要本机 Microsoft Word 才能验真（{why}）；验不了就不产出文件"
+        return False, t("base.layout.need_word", lang, why=why)
     for tool in ("pdftotext", "pdfinfo"):
         if shutil.which(tool) is None:
-            return False, f"需要 {tool} 才能逐词比对；验不了就不产出文件"
+            return False, t("base.layout.need_tool", lang, tool=tool)
 
     work = result.parent
     base_pdf, out_pdf = work / ".base.pdf", work / ".result.pdf"
@@ -1239,36 +1243,34 @@ def verify_cover_pages(base: Path, result: Path, sentinels: str | list[str]) -> 
         for src, pdf in ((base, base_pdf), (result, out_pdf)):
             rendered, reason = render_pdf_via_word(src, pdf)
             if not rendered:
-                return False, f"Word 打不开 {src.name}：{reason}"
+                return False, t("base.layout.word_failed", lang, name=src.name, reason=reason)
 
         candidates = [sentinels] if isinstance(sentinels, str) else list(sentinels)
         candidates = [c for c in candidates if c]
         front_text = "".join(_page_texts(base_pdf))
         usable = [c for c in candidates if c not in front_text]
         if not usable:
-            return False, (
-                "正文前几句话在底模的前置件里也出现过（模板里常带示例目录），"
-                "没法用它定位正文从哪一页开始。请人工核对前置件页数"
-            )
+            return False, t("base.layout.anchors_in_front", lang)
         start = None
         for cand in usable:
             start = _first_page_with(out_pdf, cand)
             if start is not None:
                 break
         if start is None:
-            return False, f"产物里找不到正文首句「{usable[0]}」，没法定位前置件到哪一页"
+            return False, t("base.layout.anchor_missing", lang, text=usable[0])
         cover_pages = start - 1
         if cover_pages < 1:
-            return False, "前置件在产物里只有 0 页，说明切点不对"
+            return False, t("base.layout.zero_pages", lang)
 
         for page in range(1, cover_pages + 1):
             want, got = _words(base_pdf, page), _words(out_pdf, page)
             if len(want) != len(got):
-                return False, f"第 {page} 页对不上：原件 {len(want)} 个词，产物 {len(got)} 个"
+                return False, t("base.layout.page_words", lang,
+                                page=page, want=len(want), got=len(got))
             for (x, y, word), (x2, y2, word2) in zip(want, got):
                 if word != word2 or abs(float(x) - float(x2)) > _TOL \
                         or abs(float(y) - float(y2)) > _TOL:
-                    return False, f"第 {page} 页位置对不上：「{word}」"
+                    return False, t("base.layout.page_position", lang, page=page, word=word)
         return True, ""
     finally:
         for pdf in (base_pdf, out_pdf):
@@ -1315,7 +1317,7 @@ def _words(pdf: Path, page: int) -> list[tuple[str, str, str]]:
 
 
 def resolve_sections_for_pages(
-    base: Path, rendered: Path, pages: int, work: Path, sentinel: str
+    base: Path, rendered: Path, pages: int, work: Path, sentinel: str, lang: str = "zh"
 ) -> int:
     """按"保留前几页"反推该切在第几节——页是人说的话，节是机器说的话。
 
@@ -1332,57 +1334,55 @@ def resolve_sections_for_pages(
     pdf = work / ".probe.pdf"
     try:
         for n in range(1, min(pages + 2, total + 1)):
-            inject_into_base(base, rendered, n, staged)
+            inject_into_base(base, rendered, n, staged, lang=lang)
             ok, why = render_pdf_via_word(staged, pdf)
             if not ok:
-                raise BaseTemplateError(f"试切到第 {n} 节时 Word 打不开：{why}")
+                raise BaseTemplateError(t("base.pages.word_failed", lang, n=n, why=why))
             start = _first_page_with(pdf, sentinel)
             got = (start - 1) if start else _pages(pdf)
             if got == pages:
                 return n
             if got > pages:
-                raise BaseTemplateError(f"切到第 {n} 节是 {got} 页，已经超过你要的 {pages} 页")
-        raise BaseTemplateError(f"切到 {total} 节也凑不出 {pages} 页前置件")
+                raise BaseTemplateError(t("base.pages.too_many", lang,
+                                          n=n, got=got, pages=pages))
+        raise BaseTemplateError(t("base.pages.not_enough", lang, total=total, pages=pages))
     finally:
         staged.unlink(missing_ok=True)
         pdf.unlink(missing_ok=True)
 
 
 def apply_base_template(
-    base: Path, rendered: Path, cover_sections: int, out: Path, sentinels: str | list[str]
+    base: Path, rendered: Path, cover_sections: int, out: Path,
+    sentinels: str | list[str], lang: str = "zh",
 ) -> BaseOutcome:
     """体检 → 注入 → 验真。任何一步不过都抛 BaseTemplateError，**不写出 out**。"""
-    report = inspect_base(base, cover_sections)
+    report = inspect_base(base, cover_sections, lang)
     if not report.ok:
-        raise BaseTemplateError("；".join(report.blocking), report.notes)
+        raise BaseTemplateError(_join(report.blocking, lang), report.notes)
     head = dropped_head(base, cover_sections)
     if head:
-        report.notes.append(
-            f"保留前 {cover_sections} 节；切点之后第一段是「{head}」，确认没切错"
-        )
+        report.notes.append(t(
+            "base.note.retained", lang, sections=cover_sections, head=head))
 
     staged = out.with_suffix(".base-staged.docx")
     try:
-        inject_into_base(base, rendered, cover_sections, staged)
+        inject_into_base(base, rendered, cover_sections, staged, lang=lang)
 
-        ok, why = verify_structure(base, staged, cover_sections)
+        ok, why = verify_structure(base, staged, cover_sections, lang)
         if not ok:
-            raise BaseTemplateError(f"结构验真没通过：{why}", report.notes)
+            raise BaseTemplateError(t("base.verify.prefix", lang, why=why), report.notes)
 
-        verify_doc_level_settings(rendered, staged)
+        verify_doc_level_settings(rendered, staged, lang)
 
         # 版面验真只有在装了 Word 的机器上才做得了。做不了不等于不做——
         # 结构那一关已经保证封面一个字节没动，剩下的"排出来一样不一样"只能请人看。
         layout_verified = word_pdf.can_render_word_pdf()[0]
         if layout_verified:
-            ok, why = verify_cover_pages(base, staged, sentinels)
+            ok, why = verify_cover_pages(base, staged, sentinels, lang)
             if not ok:
                 raise BaseTemplateError(why, report.notes)
         else:
-            report.notes.append(
-                "这台机器没有 Microsoft Word，只做了结构验真（封面内容逐节点一致）；"
-                "版面请自己用 Word 打开对照原件看一遍"
-            )
+            report.notes.append(t("base.note.layout_skipped", lang))
         staged.replace(out)
     finally:
         staged.unlink(missing_ok=True)

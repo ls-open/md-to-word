@@ -221,7 +221,8 @@ def test_mcp_invalid_preset_is_an_error_not_a_skipped_gate() -> None:
         assert not res.is_error
         data = res.structured_content
         assert data["valid"] is False
-        assert any("preset" in error.lower() for error in data["errors"]), data["errors"]
+        # 报错语言跟稿件走（中文稿），所以断言只认预设名，不认英文外壳
+        assert any("zh_academic" in error for error in data["errors"]), data["errors"]
     asyncio.run(_run())
 
 

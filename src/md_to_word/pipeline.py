@@ -79,6 +79,11 @@ class ExportResult:
         return self.returncode in (EXIT_OK, EXIT_PDF_SKIPPED)
 
 
+def _join(parts, lang: str) -> str:
+    """拼多条原因：分隔符跟着消息语言走。"""
+    return ("; " if lang == "en" else "；").join(parts)
+
+
 def _fail(
     res: ExportResult, code: str, message: str, *,
     line: Optional[int] = None, file: Optional[Path | str] = None,
@@ -105,7 +110,7 @@ def _warn(res: ExportResult, code: str, message: str, *, file: Optional[Path | s
 def _blind_review(res: ExportResult, target: Path, out_p: Path) -> bool:
     """在临时产物上清理文档属性；成功返回 True，失败记错误且不发布。"""
     try:
-        scrub_metadata(target)
+        scrub_metadata(target, res.lang)
     except Exception as exc:  # zip 坏了、磁盘满：都归「没清理干净」，不该带着身份发布
         _fail(res, "pipeline.blind_review_failed", t(
             "pipeline.blind_review_failed", res.lang,
@@ -192,7 +197,7 @@ def _read_user_text(
     return text
 
 
-def _resolve_format(
+def resolve_format(
     in_p: Path,
     res: ExportResult,
     *,
@@ -302,10 +307,10 @@ def _prepare_base_plan(
               t("pipeline.base_missing", res.lang, path=base_p), file=base_p)
         return False, None
 
-    report = inspect_base(base_p)
+    report = inspect_base(base_p, lang=res.lang)
     if not report.ok:
         _fail(res, "pipeline.base_failed",
-              t("pipeline.base_failed", res.lang, reason="；".join(report.blocking)),
+              t("pipeline.base_failed", res.lang, reason=_join(report.blocking, res.lang)),
               file=base_p)
         res.errors.extend(f"  {n}" for n in report.notes)
         return False, None
@@ -315,11 +320,12 @@ def _prepare_base_plan(
     if not options.blind_review:
         findings = identifying_metadata(base_p)
         if findings:
-            fields = "；".join(
+            sep = ": " if res.lang == "en" else "："
+            fields = _join((
                 t(f"metadata.field.{f.code}", res.lang)
-                + (f"：{f.detail[:40]}" if f.detail else "")
+                + (sep + f.detail[:40] if f.detail else "")
                 for f in findings
-            )
+            ), res.lang)
             _warn(res, "pipeline.base_metadata", t(
                 "pipeline.base_metadata", res.lang, fields=fields,
             ), file=base_p)
@@ -357,8 +363,8 @@ def _prepare_base_plan(
         hits = sections_until_text(base_p, options.keep_until)
         if not hits:
             outline = "\n".join(
-                f"  第 {i} 节：{line}"
-                for i, line in enumerate(section_outline(base_p), 1)
+                t("pipeline.section_line", res.lang, index=i, text=line)
+                for i, line in enumerate(section_outline(base_p, res.lang), 1)
             )
             _fail(res, "pipeline.base_until_missing",
                   t("pipeline.base_until_missing", res.lang,
@@ -387,16 +393,16 @@ def _prepare_base_plan(
     if cut_at_paragraph:
         res.messages.append(t(
             "pipeline.base_paragraph_cut", res.lang, text=options.keep_until))
-        report = inspect_base(base_p)
+        report = inspect_base(base_p, lang=res.lang)
     else:
         if options.keep_until:
             res.messages.append(t(
                 "pipeline.base_until_resolved", res.lang,
                 text=options.keep_until, sections=sections))
-        report = inspect_base(base_p, sections)
+        report = inspect_base(base_p, sections, res.lang)
     if not report.ok:
         _fail(res, "pipeline.base_failed",
-              t("pipeline.base_failed", res.lang, reason="；".join(report.blocking)),
+              t("pipeline.base_failed", res.lang, reason=_join(report.blocking, res.lang)),
               file=base_p)
         res.errors.extend(f"  {n}" for n in report.notes)
         return False, None
@@ -436,7 +442,7 @@ def run_validation(options: ExportOptions) -> ExportResult:
     res.doc_lang = doc_lang
     _note_encoding("textio.label.manuscript", manuscript_encoding, res, file=in_p)
 
-    fmt_file, fmt_content = _resolve_format(
+    fmt_file, fmt_content = resolve_format(
         in_p,
         res,
         format_path=options.format_path,
@@ -578,7 +584,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         return res
 
     # 2. 确定格式 (Format Spec)
-    fmt_file, fmt_content = _resolve_format(
+    fmt_file, fmt_content = resolve_format(
         in_p,
         res,
         format_path=options.format_path,
@@ -858,11 +864,11 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                           t("pipeline.base_failed", res.lang, reason=exc.reason), file=base_p)
                     return res
                 base_p = derived
-                report = inspect_base(base_p, 1)
+                report = inspect_base(base_p, 1, res.lang)
                 if not report.ok:
                     _fail(res, "pipeline.base_failed",
                           t("pipeline.base_failed", res.lang,
-                            reason="；".join(report.blocking)), file=base_p)
+                            reason=_join(report.blocking, res.lang)), file=base_p)
                     return res
             try:
                 if sections is None:
@@ -871,7 +877,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                     from md_to_word.template.base_inject import resolve_sections_for_pages
 
                     sections = resolve_sections_for_pages(
-                        base_p, render_target, options.keep_pages, Path(temp_dir), sentinel
+                        base_p, render_target, options.keep_pages, Path(temp_dir), sentinel,
+                        res.lang,
                     )
                     res.messages.append(
                         t("pipeline.base_resolved", res.lang,
@@ -891,7 +898,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 injected_target = Path(tmp_name)
                 outcome = apply_base_template(
                     base_p, render_target, sections, injected_target,
-                    _first_texts(model.blocks),
+                    _first_texts(model.blocks), res.lang,
                 )
             except BaseTemplateError as exc:
                 _fail(res, "pipeline.base_failed",

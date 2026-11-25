@@ -565,11 +565,11 @@ def apply_mirror_margins(doc, enabled: bool) -> None:
         doc.settings.element.remove(el)
 
 
-def get_default_template():
+def get_default_template(lang: str = "zh"):
     """取纯净现代 Word 365 基底模板（resources/pure_modern_base.docx）。"""
     local_base = get_base_template_path()
     if not local_base.exists():
-        raise TemplateError(t('template.base_template_missing', 'zh', path=local_base))
+        raise TemplateError(t('template.base_template_missing', lang, path=local_base))
     logger.debug(f"使用内置纯净现代 Word 365 基底模板: {local_base}")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
     shutil.copyfile(str(local_base), tmp.name)
@@ -1457,7 +1457,7 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
         raise TemplateError(msg)
 
     logger.debug('加载纯净现代 Word 365 底模...')
-    tmp_path = get_default_template()
+    tmp_path = get_default_template(lang)
     doc = Document(tmp_path)
     cleanup_temp(tmp_path)
 
