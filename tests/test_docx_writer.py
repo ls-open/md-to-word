@@ -175,6 +175,19 @@ def test_toc_field_and_section_break(template: Path, tmp_path: Path) -> None:
     assert '<w:pgNumType w:fmt="decimal" w:start="1"/>' in xml
 
 
+def test_toc_field_is_dirty_so_word_fills_it_on_open(template: Path, tmp_path: Path) -> None:
+    """目录域故意不留缓存结果；`dirty` 让 Word 在打开那一刻自己算出来。
+
+    真 Word 里「打开就是好目录」由 tests/test_toc_render.py 验；这条守住那个标记——
+    删掉它以后 OOXML 看着一切正常，用户却要先按 F9 才看得到目录。
+    """
+    model = read_markdown("{{< toc 2 >}}\n\n# 一 引言\n\n正文。\n")
+    out = write_docx(model, template, tmp_path / "toc.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+
+    assert 'w:dirty="true"' in xml
+
+
 def test_equations_become_omml_with_numbers(template: Path, tmp_path: Path) -> None:
     """公式要写成原生 OMML（Word 里可编辑），编号按出现顺序，交叉引用解析成「式N」。"""
     model = read_markdown(

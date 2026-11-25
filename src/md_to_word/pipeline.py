@@ -12,6 +12,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -526,7 +527,51 @@ def _postflight_failure(in_p: Path, target: Path, res: ExportResult) -> Optional
     return None
 
 
+def _resolved_output(options: ExportOptions) -> Optional[Path]:
+    """这次真正会写的 docx 路径；解析不了就返回 None，交给流水线自己报错。"""
+    try:
+        if options.output_path:
+            return Path(options.output_path).resolve()
+        return Path(options.input_path).resolve().with_suffix(".docx")
+    except OSError:
+        return None
+
+
+def _output_snapshot(path: Optional[Path]) -> Optional[tuple[int, int, float]]:
+    """输出文件的 (mtime_ns, size, mtime)；不是现存的 .docx 就是 None。"""
+    if path is None or path.suffix.lower() != ".docx" or not path.is_file():
+        return None
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_mtime_ns, st.st_size, st.st_mtime)
+
+
 def run_export_pipeline(options: ExportOptions) -> ExportResult:
+    """执行导出；失败时若目标位置还躺着上一次的成品，明确提醒别拿错。"""
+    out_p = _resolved_output(options)
+    before = _output_snapshot(out_p)
+    res = _run_export_pipeline(options)
+    if res.ok or out_p is None or before is None:
+        return res
+    try:
+        # 输出就是稿件本身时，流水线已经按「会覆盖原稿」拦下了；这里不用再补一句旧产物
+        same_as_input = os.path.samefile(Path(options.input_path), out_p)
+    except OSError:
+        same_as_input = False
+    if same_as_input:
+        return res
+    after = _output_snapshot(out_p)
+    # 原子替换成功会同时改 mtime 和大小；两者都没动，说明这次根本没写到目标路径
+    if after is not None and after[:2] == before[:2]:
+        when = time.strftime("%Y-%m-%d %H:%M", time.localtime(before[2]))
+        _warn(res, "pipeline.stale_output",
+              t("pipeline.stale_output", res.lang, path=out_p, when=when), file=out_p)
+    return res
+
+
+def _run_export_pipeline(options: ExportOptions) -> ExportResult:
     """执行完整的纯 Python 学术导出流水线。"""
     res = ExportResult(returncode=0)
     # 稿件还没读到时也要能按 --lang 说人话

@@ -856,11 +856,17 @@ def _auto_lang(docx: Path) -> str:
     return 'zh' if any(is_cjk_font(f) for f in fonts if f) else 'en'
 
 
+def build_parser(lang: str = 'zh') -> argparse.ArgumentParser:
+    """命令行参数。单独成函数，测试才能拿它核对手册里的示例是否还写得对。"""
+    ap = argparse.ArgumentParser(description=t('extractor.cli.description', lang))
+    ap.add_argument('docx', help=t('extractor.cli.docx', lang))
+    ap.add_argument('-o', '--output', help=t('extractor.cli.output', lang))
+    ap.add_argument('--lang', default='auto', help=t('extractor.cli.lang', lang))
+    return ap
+
+
 def main(argv=None):
-    ap = argparse.ArgumentParser(description=t('extractor.cli.description', 'zh'))
-    ap.add_argument('docx', help=t('extractor.cli.docx', 'zh'))
-    ap.add_argument('-o', '--output', help=t('extractor.cli.output', 'zh'))
-    ap.add_argument('--lang', default='auto', help=t('extractor.cli.lang', 'zh'))
+    ap = build_parser('zh')
     args = ap.parse_args(argv)
 
     lang = args.lang if args.lang in ('zh', 'en') else _auto_lang(Path(args.docx))

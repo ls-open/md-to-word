@@ -597,3 +597,43 @@ def test_an_unreadable_base_is_refused_before_sections_are_counted(tmp_path: Pat
         assert "打不开" in joined, joined
         assert "本工具的缺陷" not in joined, joined
         assert not (tmp_path / "o.docx").exists()
+
+
+def _invalid_manuscript(path: Path) -> None:
+    # 分节标记不接受参数：读取器与预检都会拦，必然导不出东西
+    path.write_text("# 一\n\n{{< section 页眉=无 >}}\n\n正文。\n", encoding="utf-8")
+
+
+def test_a_failed_export_says_the_old_docx_is_stale(tmp_path: Path) -> None:
+    """失败时目标位置若还躺着上一次的成品，必须点名说清——它看起来完全正常。"""
+    manuscript = tmp_path / "m.md"
+    out = tmp_path / "m.docx"
+    manuscript.write_text("# 一\n\n正文。\n", encoding="utf-8")
+    first = run_export_pipeline(ExportOptions(
+        input_path=manuscript, output_path=out, preset="zh-academic",
+    ))
+    assert first.ok, first.errors
+    old_bytes = out.read_bytes()
+
+    _invalid_manuscript(manuscript)
+    again = run_export_pipeline(ExportOptions(
+        input_path=manuscript, output_path=out, preset="zh-academic",
+    ))
+
+    assert not again.ok
+    assert any(d.code == "pipeline.stale_output" for d in again.diagnostics), again.diagnostics
+    assert any(out.name in w and "上一次" in w for w in again.warnings), again.warnings
+    assert any(out.name in m for m in again.messages), again.messages
+    assert out.read_bytes() == old_bytes, "失败不能动上一次的成品"
+
+
+def test_a_failed_export_without_an_old_docx_adds_no_stale_notice(tmp_path: Path) -> None:
+    manuscript = tmp_path / "m.md"
+    _invalid_manuscript(manuscript)
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=manuscript, output_path=tmp_path / "m.docx", preset="zh-academic",
+    ))
+
+    assert not result.ok
+    assert not any(d.code == "pipeline.stale_output" for d in result.diagnostics)

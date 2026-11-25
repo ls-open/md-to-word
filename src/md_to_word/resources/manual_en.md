@@ -641,6 +641,11 @@ uses the same format resolution and pre-flight check as an export: exit `0` mean
 exit `1` carries line-numbered errors, and no template or `.docx` is produced. Pair it with `--json`
 in CI or agent workflows.
 
+A failed export (pre-flight, writing, or the audit) never leaves a half-written `.docx`: the product
+is built in a temporary file in the same folder and swapped into place only after every gate passes.
+If the target already holds the previous build, it is left untouched and the result says so (code
+`pipeline.stale_output` in `--json` `warnings`), so that file is not mistaken for this run's output.
+
 - **Default preset & Traditional Chinese**: without `-f` / `--preset`, Chinese text defaults to
   `zh-academic`. For **Traditional Chinese (Taiwan/HK/Macau)** submissions, pass
   `--preset zh-tw-academic` (uses `PMingLiU` body, `Microsoft JhengHei` headings,

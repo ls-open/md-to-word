@@ -174,6 +174,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "稿件无法读成文档模型：{reason}",
         "The manuscript could not be read into the document model: {reason}",
     ),
+    "pipeline.stale_output": (
+        "本次没有写出新的 docx：{path} 还是上一次的成品（{when}），别把它当成这次的结果。",
+        "No new docx was written: {path} is still the previous build ({when}); "
+        "do not treat it as this run's output.",
+    ),
     "pipeline.output_dir_missing": (
         "输出目录不存在: {dir}\n  先建目录，或用 -o 指到已存在的目录里。",
         "Output directory does not exist: {dir}\n  Create it first, or point -o at an existing directory.",
