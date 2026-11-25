@@ -341,6 +341,8 @@ def create_mcp_server() -> Any:
 
         Args:
             markdown: The Markdown manuscript content as a string, OR an existing .md file path.
+                Raw content is compiled from a temporary directory, so relative `bibliography:`,
+                `csl:` and image paths cannot resolve; pass the manuscript path when it uses them.
             output_path: Target .docx path. If omitted, the output is written next to the input
                 file without overwriting an existing file (`.out.docx` is used on collision);
                 raw Markdown goes to a temporary file and its path is returned.
@@ -494,6 +496,8 @@ def create_mcp_server() -> Any:
 
         Args:
             markdown: The Markdown manuscript content as a string, OR an existing .md file path.
+                Raw content is compiled from a temporary directory, so relative `bibliography:`,
+                `csl:` and image paths cannot resolve; pass the manuscript path when it uses them.
             format: A format file path OR raw format content; a preset name is rejected here.
             preset: Built-in preset to validate against when `format` is absent.
             lang: Message language only ('zh' or 'en'); auto-detected if omitted. The document

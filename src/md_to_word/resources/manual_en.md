@@ -678,6 +678,11 @@ Word. If they blocked, the only way out would be `--no-check`, which would also 
 blockers. `--no-postflight` (number integrity) and `--no-audit` (the post-export audit) are the same
 kind of switch; all three exist for debugging the tool itself, not for delivery.
 
+The post-flight check compares **every Chinese character** and **numbers with three or more
+decimals**; it does not compare Latin words or short numbers. A dropped English paragraph is
+therefore not caught by the gates — spot-check English prose before delivery. This is the boundary
+of that check, not a whole-document integrity promise.
+
 Reminders of one kind are **merged into a single line** listing up to eight line numbers, rather than one
 line per occurrence; they are also carried in `--json` `messages`, so skills and scripts can relay
 them.
