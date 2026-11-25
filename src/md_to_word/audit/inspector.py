@@ -191,7 +191,7 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
     """
     problems = []
     fmt_text, _ = read_text_file(fmt_path)
-    spec = parse_format(fmt_text)
+    spec = parse_format(fmt_text, lang=lang)
     z = zipfile.ZipFile(docx)
     styles = _styles_by_name(z)
 

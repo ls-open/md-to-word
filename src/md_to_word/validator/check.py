@@ -420,7 +420,7 @@ def validate_manuscript(
             )
             return report
         try:
-            spec = parse_format(fmt_text)
+            spec = parse_format(fmt_text, lang=lang)
         except Exception as e:
             report.valid = False
             report.error(

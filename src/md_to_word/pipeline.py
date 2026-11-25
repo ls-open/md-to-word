@@ -602,7 +602,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
     # 要求文件写错时预检会给出带行号的原因；这里只取公式编号这一项，读不出就用默认
     try:
-        spec = parse_format(fmt_content)
+        spec = parse_format(fmt_content, lang=res.lang)
     except ValueError:
         spec = None
 

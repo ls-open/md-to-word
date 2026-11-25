@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import contextvars
 import re
 from typing import Any, Callable, Optional
 from docx.shared import Pt
@@ -286,8 +287,18 @@ _CLAUSE_TABLE: list[tuple[str, re.Pattern, Callable]] = [
     ),
 ]
 
+# 消息语言：`parse_format(lang=…)` 在解析期间设置；显式语言优先，否则跟随这一行的文字。
+# 用 ContextVar 而不是全局变量：MCP 会在同一进程里并发处理请求，模块级状态会串语言。
+_MSG_LANG: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "mdw_spec_msg_lang", default=None
+)
+
+
 def _english(desc: str) -> bool:
-    """错误文案跟随输入语言：这一行没有中日韩字符，就说英文。"""
+    """错误文案跟随输入语言：显式语言优先；否则这一行没有中日韩字符就说英文。"""
+    lang = _MSG_LANG.get()
+    if lang in ("zh", "en"):
+        return lang == "en"
     return not re.search(r"[\u4e00-\u9fff]", desc or "")
 
 
@@ -584,6 +595,13 @@ def parse_decor_content(text: str, lineno: Optional[int] = None, key: Optional[s
         tok = m.group(1).strip()
         instr = decor_token_to_field(tok)
         if instr is None:
+            if _english(text):
+                where = f"Line {lineno}: " if lineno else ""
+                whose = f"{key}: " if key else ""
+                raise ValueError(
+                    f'{where}{whose}unknown header/footer field "{{{tok}}}"; '
+                    "use {page}, {total-pages} or {styleref:<style name>}"
+                )
             where = f"第 {lineno} 行" if lineno else ""
             whose = f"「{key}」" if key else ""
             raise ValueError(
@@ -601,6 +619,11 @@ def parse_page_number(desc: str, lineno: Optional[int] = None) -> tuple[str, int
     tokens = desc.split()
     if not (1 <= len(tokens) <= 3) or tokens[0] not in PAGE_NUMBER_FMT:
         valid = " ".join(PAGE_NUMBER_FMT.keys())
+        if _english(desc):
+            raise ValueError(
+                f"Line {lineno}: unrecognised page-number format: {desc}\n"
+                f"  Write: Page Number: <format> [start <N>]; formats: {valid}"
+            )
         raise ValueError(
             f"第 {lineno} 行「页码/Page Number」格式不认识：{desc}\n  应写：页码：<格式> [起始<N>]；可用格式：{valid}"
         )
@@ -620,11 +643,18 @@ def parse_role_page_number(desc: str, lineno: Optional[int] = None) -> tuple[str
     """节角色的页码：`小写罗马 起始1`；不写起始表示接着上一节编。"""
     tokens = desc.split()
     valid = " ".join(PAGE_NUMBER_FMT.keys())
-    bad = ValueError(
-        f"第 {lineno} 行「节页码」格式不认识：{desc}\n"
-        f"  应写：<节名>页码：<格式> [起始<N>]；可用格式：{valid}"
-        "；不写「起始」表示接着上一节编"
-    )
+    if _english(desc):
+        bad = ValueError(
+            f"Line {lineno}: unrecognised section page-number format: {desc}\n"
+            f"  Write: <role> page-number: <format> [start <N>]; formats: {valid}. "
+            "Omit `start` to continue numbering from the previous section."
+        )
+    else:
+        bad = ValueError(
+            f"第 {lineno} 行「节页码」格式不认识：{desc}\n"
+            f"  应写：<节名>页码：<格式> [起始<N>]；可用格式：{valid}"
+            "；不写「起始」表示接着上一节编"
+        )
     if not tokens or tokens[0] not in PAGE_NUMBER_FMT:
         raise bad
     fmt = PAGE_NUMBER_FMT[tokens[0]]
@@ -663,18 +693,30 @@ def parse_margins(desc: str, lineno: Optional[int] = None) -> dict[str, float]:
             margins[k] = float(m.group(2))
             i += 1
             continue
+        if _english(desc):
+            raise ValueError(f"Line {lineno}: unrecognised margin item: {tok}")
         raise ValueError(f"第 {lineno} 行页边距项不认识：{tok}")
     if len(margins) != 4:
+        if _english(desc):
+            raise ValueError(
+                f"Line {lineno}: margins need all four sides (top/bottom/left/right): {desc}")
         raise ValueError(f"第 {lineno} 行页边距必须包含上/下/左/右（top/bottom/left/right）四项：{desc}")
     return margins
 
 
-def _bad_value(lineno: Optional[int], key: str, desc: str, should: str, why: str = "") -> ValueError:
+def _bad_value(
+    lineno: Optional[int], key: str, desc: str, should: str, why: str = "",
+    *, should_en: Optional[str] = None, why_en: Optional[str] = None,
+) -> ValueError:
+    """值不认识。英文分支要有自己的 `should_en` / `why_en`，不能只把标签折成英文。"""
     if _english(desc):
+        label = key.split("/")[-1].strip() if "/" in key else key
+        should_text = should_en if should_en is not None else should
+        why_text = why_en if why_en is not None else why
         return ValueError(
-            f"Line {lineno}: unrecognised value for `{key}`: {desc}"
-            + (f"\n  {why}" if why else "")
-            + f"\n  Expected: {key}: {should}"
+            f"Line {lineno}: unrecognised value for `{label}`: {desc}"
+            + (f"\n  {why_text}" if why_text else "")
+            + f"\n  Expected: {label}: {should_text}"
         )
     return ValueError(
         f"第 {lineno} 行「{key}」的值不认识：{desc}"
@@ -719,7 +761,8 @@ def _line_gutter(spec: TemplateSpec, desc: str, lineno: int) -> None:
 def _line_mirror_margins(spec: TemplateSpec, desc: str, lineno: int) -> None:
     val = MIRROR_MARGINS_MAP.get(desc.strip().lower())
     if val is None:
-        raise _bad_value(lineno, "对称页边距/Mirror Margins", desc, "开 / 关 (on / off)")
+        raise _bad_value(lineno, "对称页边距/Mirror Margins", desc, "开 / 关 (on / off)",
+                         should_en="on / off")
     spec.mirror_margins = val
 
 
@@ -731,6 +774,7 @@ def _line_punctuation_compression(spec: TemplateSpec, desc: str, lineno: int) ->
             "标点压缩/Punctuation Compression",
             desc,
             "压缩 / 不压缩 / 压缩含日文假名 (compress / none / kana)",
+            should_en="compress / none / kana",
         )
     spec.punctuation_compression = val
 
@@ -741,7 +785,11 @@ def _line_doc_grid(spec: TemplateSpec, desc: str, lineno: int) -> None:
         raise _bad_value(lineno, "文档网格/Document Grid", desc, "每页22行 (22 lines)")
     n = int(m.group(1) or m.group(2))
     if not 1 <= n <= 200:
-        raise _bad_value(lineno, "文档网格/Document Grid", desc, "每页22行 (22 lines)", why="行数要在 1–200 之间 / line count must be 1–200")
+        raise _bad_value(
+            lineno, "文档网格/Document Grid", desc, "每页22行 (22 lines)",
+            why="行数要在 1–200 之间 / line count must be 1–200",
+            should_en="22 lines per page", why_en="line count must be 1–200",
+        )
     spec.doc_grid_lines = n
 
 
@@ -768,9 +816,13 @@ def _line_equation_number(spec: TemplateSpec, desc: str, lineno: int) -> None:
     value = {"右侧": "right", "右对齐": "right", "right": "right",
              "紧跟": "inline", "紧随": "inline", "inline": "inline"}.get(desc.strip().lower())
     if value is None:
-        raise _bad_value(lineno, "公式编号/Equation Number", desc,
-                         "右侧 (right) 或 紧跟 (inline)",
-                         why="右侧=编号靠版心右边；紧跟=编号直接跟在公式后面")
+        raise _bad_value(
+            lineno, "公式编号/Equation Number", desc,
+            "右侧 (right) 或 紧跟 (inline)",
+            why="右侧=编号靠版心右边；紧跟=编号直接跟在公式后面",
+            should_en="right or inline",
+            why_en="right = at the right margin; inline = right after the equation",
+        )
     spec.equation_number = value
 
 
@@ -785,17 +837,29 @@ def _make_equation_format(attr: str, what: str) -> Callable[[TemplateSpec, str, 
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
             value = value[1:-1]
         if value.count("{") != value.count("}"):
-            raise _bad_value(lineno, what, desc,
-                             "（{c}-{n}）", why="花括号要成对：{n} 是序号，{c} 是章号")
+            raise _bad_value(
+                lineno, what, desc, "（{c}-{n}）",
+                why="花括号要成对：{n} 是序号，{c} 是章号",
+                should_en="({c}-{n})",
+                why_en="braces must pair: {n} is the sequence number, {c} is the chapter number",
+            )
         found = set(re.findall(r"\{[^{}]*\}", value))
         unknown = found - set(_EQ_FORMAT_KNOWN)
         if unknown:
-            raise _bad_value(lineno, what, desc,
-                             "（{c}-{n}）",
-                             why=f"只认 {{n}}（序号）与 {{c}}（章号），认不出 {'、'.join(sorted(unknown))}")
+            raise _bad_value(
+                lineno, what, desc, "（{c}-{n}）",
+                why=f"只认 {{n}}（序号）与 {{c}}（章号），认不出 {'、'.join(sorted(unknown))}",
+                should_en="({c}-{n})",
+                why_en="only {n} (sequence) and {c} (chapter) are understood; unknown: "
+                       + ", ".join(sorted(unknown)),
+            )
         if "{n}" not in found:
-            raise _bad_value(lineno, what, desc,
-                             "（{n}）", why="必须包含 {n}——它是编号里的序号")
+            raise _bad_value(
+                lineno, what, desc, "（{n}）",
+                why="必须包含 {n}——它是编号里的序号",
+                should_en="({n})",
+                why_en="must contain {n}: it is the sequence number",
+            )
         setattr(spec, attr, value)
 
     return handler
@@ -839,11 +903,18 @@ def _role_key(key: str) -> Optional[tuple[str, str]]:
 def _line_section_role(spec: TemplateSpec, desc: str, lineno: int) -> None:
     name = desc.strip()
     if not ROLE_NAME_RE.match(name):
+        if _english(desc):
+            raise ValueError(
+                f"Line {lineno}: invalid section role name: {name!r}\n"
+                "  Use letters, digits, underscores, hyphens or CJK characters, no spaces."
+            )
         raise ValueError(
             f"第 {lineno} 行「分节」的角色名不合法：{name!r}\n"
             "  角色名用字母、数字、下划线、连字符或汉字，不能含空格。"
         )
     if name in spec.section_roles:
+        if _english(desc):
+            raise ValueError(f"Line {lineno}: section role {name!r} is declared twice: {desc}")
         raise ValueError(f"第 {lineno} 行节角色「{name}」重复声明：{desc}")
     spec.section_roles[name] = SectionRole(name)
 
@@ -910,10 +981,35 @@ def _read_schema_version(text: str) -> int:
     return CURRENT_SCHEMA
 
 
-def parse_format(text: str) -> TemplateSpec:
-    """解析格式要求文本（中英双语） → TemplateSpec。"""
+def parse_format(text: str, lang: Optional[str] = None) -> TemplateSpec:
+    """解析格式要求文本（中英双语） → TemplateSpec。
+
+    `lang` 是**消息语言**（`zh` / `en`）。不传时沿用「跟着这一行的文字走」；
+    流水线/校验/生成器都会传，英文用户看到的报错因此不再混中文。
+    """
+    token = _MSG_LANG.set(lang if lang in ("zh", "en") else None)
+    try:
+        return _parse_format(text, lang)
+    finally:
+        _MSG_LANG.reset(token)
+
+
+def _parse_format(text: str, lang: Optional[str]) -> TemplateSpec:
+    if lang in ("zh", "en"):
+        english = lang == "en"
+    else:
+        visible = "\n".join(
+            line for line in text.split("\n") if not line.strip().startswith("#")
+        )
+        english = _english(visible)
     schema = _read_schema_version(text)
     if schema > CURRENT_SCHEMA:
+        if english:
+            raise ValueError(
+                f"This format file declares `# schema: {schema}`, but this version supports up to "
+                f"{CURRENT_SCHEMA}.\n  Upgrade md-to-word, or remove the declaration and check the "
+                f"file against schema {CURRENT_SCHEMA}."
+            )
         raise ValueError(
             f"这份格式要求文件声明了 `# schema: {schema}`，本版本只支持到 {CURRENT_SCHEMA}。\n"
             f"  请升级 md-to-word（或删掉该声明，按 schema {CURRENT_SCHEMA} 的写法核对一遍）。"
@@ -929,6 +1025,11 @@ def parse_format(text: str) -> TemplateSpec:
 
         parts = line.split("：", 1) if "：" in line else line.split(":", 1)
         if len(parts) != 2:
+            if english:
+                raise ValueError(
+                    f"Line {lineno} has no colon and cannot be parsed: {line!r}\n"
+                    "  Write every line as `Key: Value` (both : and ： are accepted)."
+                )
             raise ValueError(
                 f"第 {lineno} 行缺少冒号，无法解析：{line!r}\n"
                 f"  每行须写成「Key: Value」或「键名：属性值」（冒号支持 : 或 ：）。"
@@ -937,6 +1038,11 @@ def parse_format(text: str) -> TemplateSpec:
         key = parts[0].strip()
         desc = parts[1].strip()
         if not desc:
+            if english:
+                raise ValueError(
+                    f"Line {lineno}: `{key}` has no value: {line!r}\n"
+                    "  Write `none` to empty a container."
+                )
             raise ValueError(
                 f"第 {lineno} 行的「{key}」没有提供参数值：{line!r}\n"
                 f"  如需设置为空容器请填写「无」或「none」。"
@@ -946,6 +1052,11 @@ def parse_format(text: str) -> TemplateSpec:
         if handler is not None:
             # 「分节：X」可以出现多次（每个角色一行），不算重复键
             if key in seen_keys and key not in ("分节", "Section", "节"):
+                if english:
+                    raise ValueError(
+                        f"Line {lineno}: `{key}` is declared twice (first at line "
+                        f"{seen_keys[key]}): {line}"
+                    )
                 raise ValueError(
                     f"第 {lineno} 行「{key}」重复定义（前一次在第 {seen_keys[key]} 行）：{line}"
                 )
@@ -958,6 +1069,12 @@ def parse_format(text: str) -> TemplateSpec:
             role_name, field = role_key
             owner = spec.section_roles.get(role_name)
             if owner is None:
+                if english:
+                    declared = ", ".join(spec.section_roles) or "(the format file declares none)"
+                    raise ValueError(
+                        f"Line {lineno}: `{key}` uses undeclared section role {role_name!r}.\n"
+                        f"  Declare it first with `Section: {role_name}`; declared: {declared}"
+                    )
                 declared = "、".join(spec.section_roles) or "（格式文件还没声明任何节角色）"
                 raise ValueError(
                     f"第 {lineno} 行「{key}」：节角色「{role_name}」没有声明。\n"
@@ -965,6 +1082,11 @@ def parse_format(text: str) -> TemplateSpec:
                 )
             seen = f"role:{role_name}:{field}"
             if seen in seen_keys:
+                if english:
+                    raise ValueError(
+                        f"Line {lineno}: `{key}` is declared twice (first at line "
+                        f"{seen_keys[seen]}): {line}"
+                    )
                 raise ValueError(
                     f"第 {lineno} 行「{key}」重复定义（前一次在第 {seen_keys[seen]} 行）：{line}"
                 )
@@ -978,8 +1100,14 @@ def parse_format(text: str) -> TemplateSpec:
             continue
 
         if key not in STYLE_MAP:
-            hint = f"（提示：{WRONG_KEY_HINTS[key]}）" if key in WRONG_KEY_HINTS else ""
             valid_styles = "、".join(list(STYLE_MAP.keys())[:15]) + "..."
+            if english:
+                valid_styles = ", ".join(list(STYLE_EN.values())[:15]) + "..."
+                raise ValueError(
+                    f"Line {lineno}: unknown key {key!r}: {line}\n"
+                    f"  Style names include: {valid_styles}"
+                )
+            hint = f"（提示：{WRONG_KEY_HINTS[key]}）" if key in WRONG_KEY_HINTS else ""
             raise ValueError(
                 f"第 {lineno} 行不认识的键名「{key}」{hint}：{line}\n"
                 f"  可填样式名例如：{valid_styles}"
@@ -987,6 +1115,11 @@ def parse_format(text: str) -> TemplateSpec:
 
         style_name = STYLE_MAP[key]
         if style_name in seen_keys:
+            if english:
+                raise ValueError(
+                    f"Line {lineno}: `{key}` is declared twice (first at line "
+                    f"{seen_keys[style_name]}): {line}"
+                )
             raise ValueError(
                 f"第 {lineno} 行「{key}」重复定义（前一次在第 {seen_keys[style_name]} 行）：{line}"
             )

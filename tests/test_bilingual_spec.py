@@ -84,7 +84,7 @@ Footer Content: {page}
 
 def test_unknown_keyword_raises_error():
     text = "InvalidKey: Arial 12pt bold"
-    with pytest.raises(ValueError, match="不认识的键名"):
+    with pytest.raises(ValueError, match="unknown key"):
         parse_format(text)
 
 
@@ -93,7 +93,7 @@ def test_duplicate_style_raises_error():
 Body Text: Times New Roman 12pt left
 Body Text: Arial 10pt right
 """
-    with pytest.raises(ValueError, match="重复定义"):
+    with pytest.raises(ValueError, match="declared twice"):
         parse_format(text)
 
 
