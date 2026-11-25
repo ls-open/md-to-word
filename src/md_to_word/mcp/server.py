@@ -26,7 +26,6 @@ from md_to_word.config import (
 from md_to_word.contract import contract_payload
 from md_to_word.i18n import resolve_lang, t
 from md_to_word.spec.presets import list_available_presets
-from md_to_word.utils.textio import TextDecodeError, read_text_file
 from md_to_word.template.extractor import extract_spec_from_docx
 
 logger = logging.getLogger("md_to_word.mcp")
@@ -477,33 +476,34 @@ def create_mcp_server() -> Any:
             in_path, in_is_tmp = _resolve_markdown_source(markdown)
             fmt_path, fmt_is_tmp = _resolve_format_source(format)
 
-            if in_is_tmp:
-                lang_text = markdown
-            else:
-                try:
-                    lang_text, _ = read_text_file(in_path)
-                except (TextDecodeError, OSError) as exc:
-                    return {
-                        "valid": False,
-                        "errors": [str(exc)],
-                        "warnings": [],
-                        "diagnostics": [],
-                        "format_source": "format" if fmt_path else "none",
-                        "lang": lang or "unknown",
-                    }
-            # 默认预设跟**稿件语言**走；`--lang` 只换报错语言。
-            doc_lang = resolve_lang(lang_text, None)
-            message_lang = resolve_lang(lang_text, lang)
+            # 读稿、定语言与导出共用同一段：同一个临时文件、同一套编码与语种规则。
+            from md_to_word.pipeline import (
+                ExportOptions, prepare_manuscript, resolve_format,
+            )
+
+            prep = prepare_manuscript(ExportOptions(
+                input_path=in_path, format_path=fmt_path, preset=preset, lang=lang,
+            ))
+            res = prep.res
+            doc_lang = prep.doc_lang
+            message_lang = res.lang
+            if not prep.ok:
+                return {
+                    "valid": False,
+                    "errors": res.errors,
+                    "warnings": res.warnings,
+                    "diagnostics": [d.as_dict() for d in res.diagnostics],
+                    "format_source": res.format_source or "none",
+                    "lang": doc_lang or (lang or "unknown"),
+                    "message_lang": message_lang,
+                    "document_lang": doc_lang,
+                }
 
             # 格式来源与 CLI 共用同一份判断：`-f` / 预设 / 稿件同目录的 format.txt，
-            # 以及「format 与 preset ��时给」的拒绝。各写一套时，校验说没问题、
+            # 以及「format 与 preset 同时给」的拒绝。各写一套时，校验说没问题、
             # 真正导出却换了另一份格式。
-            from md_to_word.pipeline import ExportResult, resolve_format
-
-            res = ExportResult(returncode=0)
-            res.lang = message_lang
             spec_path, fmt_content = resolve_format(
-                in_path, res, format_path=fmt_path, preset=preset, doc_lang=doc_lang,
+                prep.path, res, format_path=fmt_path, preset=preset, doc_lang=doc_lang,
             )
             if fmt_content is None:
                 return {

@@ -12,7 +12,12 @@ from pathlib import Path
 from md_to_word.spec import parser
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "md_to_word"
-WRITERS = {"产物的写出": SRC / "template" / "generator.py", "文档写出": SRC / "writer" / "docx_writer.py"}
+# 模板生成拆成了几个模块；关键字落在哪一块都算「写进了产物」，但只能查这些写出方，
+# 不能把整个 template/ 扫进来——反推器与底模注入不该替写出环节作证。
+WRITERS = {
+    "模板生成": [SRC / "template" / n for n in ("core.py", "decor.py", "tables.py", "footnotes.py")],
+    "文档写出": [SRC / "writer" / "docx_writer.py"],
+}
 AUDIT = SRC / "audit" / "inspector.py"
 
 # 落点不在两个写出器里的少数几项，逐个说明为什么
@@ -41,7 +46,11 @@ def test_the_scan_still_sees_the_whole_vocabulary() -> None:
 
 
 def test_every_keyword_reaches_the_output_and_the_audit() -> None:
-    texts = {name: path.read_text(encoding="utf-8") for name, path in WRITERS.items()}
+    texts = {
+        f"{name}:{path.name}": path.read_text(encoding="utf-8")
+        for name, paths in WRITERS.items()
+        for path in paths
+    }
     audit_text = AUDIT.read_text(encoding="utf-8")
     missing = []
     for key, pattern in sorted(_keywords().items()):

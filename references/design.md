@@ -103,7 +103,7 @@
 ### 1.5 页面尺寸、装订线与图片宽度（pgSz + pgMar）
 
 版心宽 = `pgSz.w - pgMar.left - pgMar.right - pgMar.gutter`；模板保存前由
-`src/md_to_word/template/generator.py` 按 `纸张：`/`页边距：`/`装订线：` 写入 `pgSz` 与 `pgMar`，
+`src/md_to_word/template/core.py` 按 `纸张：`/`页边距：`/`装订线：` 写入 `pgSz` 与 `pgMar`，
 缺任一项按 A4 + 2.54cm 兜底。
 
 **装订线改为原生 `w:gutter`**：`section.gutter = Cm(spec.gutter_cm or 0)`，不再把装订线折进
@@ -132,7 +132,7 @@ PDF，所以转换放在导出流程里，三个决定都有具体理由：
 
 ### 1.7 缩进单位换算技术细节
 
-`src/md_to_word/template/generator.py` 的缩进子句支持两种单位（单写法收敛，厘米单位已移除）：
+`src/md_to_word/template/core.py` 的缩进子句支持两种单位（单写法收敛，厘米单位已移除）：
 
 | 单位 | OOXML 属性 | 换算关系 | 用途 |
 |------|-----------|---------|------|
@@ -303,7 +303,7 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 
 症状：MD 中写 `{width=15cm}`，导出后图片实际宽度只有 14.817cm。
 原因与解决见 §1.5——模板 sectPr 缺 `pgSz`/`pgMar` 时只能按兜底值算版心；用
-`src/md_to_word/template/generator.py` 重新生成模板即可（它按格式文件的 `纸张：` 行写入这两个元素）。
+`src/md_to_word/template/core.py` 重新生成模板即可（它按格式文件的 `纸张：` 行写入这两个元素）。
 
 ### 2.6 图片因文件名空格无法加载
 
@@ -339,25 +339,25 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 
 症状：format.txt 写了 `表格：居中`，但导出的表格仍左对齐，右边剩大片空白。
 原因：写出器**不输出**表格级 `<w:jc>`，表格会**继承** Table 样式的 `tblPr/jc`（OOXML 规范 ECMA-376 §17.7.6 规定 Table 样式属性 "always applied" 除非被表格实例覆盖）。所以只要模板的 Table 样式 `tblPr` 里有 `<w:jc w:val="center"/>`，所有表格自动居中。
-解决：在 format.txt 中写 `表格：居中`，`src/md_to_word/template/generator.py` 会在 Table 样式的 tblPr 中插入 jc 元素。
+解决：在 format.txt 中写 `表格：居中`，`src/md_to_word/template/tables.py` 会在 Table 样式的 tblPr 中插入 jc 元素。
 
 ### 2.12 OOXML schema 顺序要求（jc 必须在 tblBorders 之前）
 
 症状：Table 样式 tblPr 中有 jc 元素，但表格仍左对齐，Word 忽略了 jc。
 原因：`jc` 元素必须在 `tblBorders` **之前**（OOXML schema 顺序：`tblStyle → tblW → jc → tblInd → tblBorders → tblLayout → tblLook`）。如果 jc 在 tblBorders 之后，Word 会忽略 jc。
-解决：`src/md_to_word/template/generator.py` 按 OOXML schema 顺序插入（`ensure_ordered_child(tbl_pr, 'jc', _TBLPR_ORDER)`，`jc` 排在 `tblBorders` 之前）——不是 append/insert(0)：`w:tblPr` 的顺序错了 Word 会整段忽略。
+解决：`src/md_to_word/template/tables.py` 按 OOXML schema 顺序插入（`ensure_ordered_child(tbl_pr, 'jc', _TBLPR_ORDER)`，`jc` 排在 `tblBorders` 之前）——不是 append/insert(0)：`w:tblPr` 的顺序错了 Word 会整段忽略。
 
 ### 2.13 First Paragraph 必填原理
 
 症状：format.txt 只定义了 `正文 Body Text`，未定义 `首段 First Paragraph`，章节首段格式错误（无缩进或缩进错误）。
 原因：章节首段落 `First Paragraph` 样式（不是 `Body Text`）。只定义 `Body Text` 而没定义 `First Paragraph` 时，首段会继承底模默认。
-解决：format.txt 必须显式定义 `首段` 样式，通常 `首行缩进0字符`（APA 标准章节首段不缩进），与正文（`首行缩进2字符`）区分。src/md_to_word/template/generator.py 将 First Paragraph 列为必填样式之一（必填样式清单见 `REQUIRED_STYLES`，会随需求演进）。
+解决：format.txt 必须显式定义 `首段` 样式，通常 `首行缩进0字符`（APA 标准章节首段不缩进），与正文（`首行缩进2字符`）区分。`src/md_to_word/template/checks.py` 将 First Paragraph 列为必填样式之一（必填样式清单见 `REQUIRED_STYLES`，会随需求演进）。
 
 ### 2.14 间距清零原理（段前段后显式写 0）
 
 症状：format.txt 写 `行距2倍` 但未写段前段后，导出后正文段落之间仍有额外间距，"双倍行距贯穿全文"未实现。
 原因：底模里大多数样式自带段前/段后间距（如 Body Text 默认段前段后各 9pt）。仅设置行距不清零段间距，最终间距 = 双倍行距 + 段前 9pt + 段后 9pt。
-解决：在 format.txt 中显式写 `段前0磅 段后0磅`（必须显式写 `0` 才能覆盖默认值）。src/md_to_word/template/generator.py 将段前段后列为必填字段。
+解决：在 format.txt 中显式写 `段前0磅 段后0磅`（必须显式写 `0` 才能覆盖默认值）。`src/md_to_word/template/checks.py` 将段前段后列为必填字段。
 
 ### 2.15 LaTeX 分页符对 docx 无效
 
@@ -424,7 +424,7 @@ Word 见到脏域就询问一次，点「是」当场把页码算好。
 ### 2.23 目录条目样式必须声明成 Word 的**内置**样式
 
 Word 更新目录域时按自己的内置定义重建条目样式，自建样式（`customStyle="1"`、大写 `TOC 1`）上写的
-字体、字号、加粗、行距全部被覆盖。生成器（`template/generator.py::_ensure_builtin_toc_style`）
+字体、字号、加粗、行距全部被覆盖。生成器（`template/core.py::_ensure_builtin_toc_style`）
 因此去掉 `customStyle`，`styleId` 用 `TOC1/2/3`、`w:name` 用小写 `toc 1/2/3`；
 `tests/test_template_toc.py` 断言这三条是内置形态。
 

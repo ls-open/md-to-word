@@ -175,6 +175,53 @@ def _note_encoding(
     )
 
 
+@dataclass
+class PreparedManuscript:
+    """读稿结果。`ok=False` 时 `res` 里已有阻断项，调用方直接返回即可。"""
+
+    res: ExportResult
+    path: Path
+    text: str = ""
+    encoding: str = ""
+    doc_lang: str = ""
+    ok: bool = True
+
+
+def prepare_manuscript(options: ExportOptions) -> PreparedManuscript:
+    """读稿、定语言、记编码：导出、导前预检、MCP 校验共用的第一步。
+
+    三处各写一遍时，语言判定与编码提醒很容易只改到其中一处；这里统一之后，
+    「同一份稿子换个入口报出不同语言」就不会再发生。
+    """
+    res = ExportResult(returncode=0)
+    res.lang = resolve_lang("", options.lang)
+    in_p = Path(options.input_path).resolve()
+    if not in_p.is_file():
+        _fail(res, "pipeline.input_missing",
+              t("pipeline.input_missing", res.lang, path=in_p), file=in_p)
+        return PreparedManuscript(res, in_p, ok=False)
+    try:
+        text, encoding = read_text_file(in_p)
+    except TextDecodeError:
+        _fail(res, "textio.unreadable", t(
+            "textio.unreadable", res.lang,
+            label=t("textio.label.manuscript", res.lang), path=in_p,
+        ), file=in_p)
+        return PreparedManuscript(res, in_p, ok=False)
+    except OSError as exc:
+        _fail(res, "pipeline.read_failed", t(
+            "pipeline.read_failed", res.lang,
+            label=t("textio.label.manuscript", res.lang), path=in_p, err=exc,
+        ), file=in_p)
+        return PreparedManuscript(res, in_p, ok=False)
+    # 消息语言可以覆盖；**稿件语言**只按正文判，它决定默认预设与默认 CSL。
+    res.lang = resolve_lang(text, options.lang)
+    doc_lang = resolve_lang(text, None)
+    res.doc_lang = doc_lang
+    _note_encoding("textio.label.manuscript", encoding, res, file=in_p)
+    return PreparedManuscript(res, in_p, text, encoding, doc_lang)
+
+
 def _read_user_text(
     path: Path, label_key: str, res: ExportResult, *, warn_fallback: bool = True
 ) -> Optional[str]:
@@ -415,33 +462,15 @@ def _prepare_base_plan(
 def run_validation(options: ExportOptions) -> ExportResult:
     """只跑导前预检：读稿、选格式、校验，不生成模板也不写 .docx。
 
-    与导出共用 `_resolve_format`，所以“校验用哪份格式”和“导出用哪份格式”不会分叉。
+    与导出共用 `prepare_manuscript` 与 `resolve_format`，所以「读的是哪份稿、用的是哪份格式」
+    在预检与导出之间不会分叉。
     """
-    res = ExportResult(returncode=0)
-    res.lang = resolve_lang("", options.lang)
-    in_p = Path(options.input_path).resolve()
-    if not in_p.is_file():
-        _fail(res, "pipeline.input_missing",
-              t("pipeline.input_missing", res.lang, path=in_p), file=in_p)
+    prep = prepare_manuscript(options)
+    res = prep.res
+    if not prep.ok:
         return res
-    try:
-        manuscript_text, manuscript_encoding = read_text_file(in_p)
-    except TextDecodeError:
-        _fail(res, "textio.unreadable", t(
-            "textio.unreadable", res.lang,
-            label=t("textio.label.manuscript", res.lang), path=in_p,
-        ), file=in_p)
-        return res
-    except OSError as exc:
-        _fail(res, "pipeline.read_failed", t(
-            "pipeline.read_failed", res.lang,
-            label=t("textio.label.manuscript", res.lang), path=in_p, err=exc,
-        ), file=in_p)
-        return res
-    res.lang = resolve_lang(manuscript_text, options.lang)
-    doc_lang = resolve_lang(manuscript_text, None)
-    res.doc_lang = doc_lang
-    _note_encoding("textio.label.manuscript", manuscript_encoding, res, file=in_p)
+    in_p = prep.path
+    doc_lang = prep.doc_lang
 
     fmt_file, fmt_content = resolve_format(
         in_p,
@@ -573,33 +602,14 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
 def _run_export_pipeline(options: ExportOptions) -> ExportResult:
     """执行完整的纯 Python 学术导出流水线。"""
-    res = ExportResult(returncode=0)
-    # 稿件还没读到时也要能按 --lang 说人话
-    res.lang = resolve_lang("", options.lang)
-    in_p = Path(options.input_path).resolve()
-    if not in_p.is_file():
-        _fail(res, "pipeline.input_missing",
-              t("pipeline.input_missing", res.lang, path=in_p), file=in_p)
+    prep = prepare_manuscript(options)
+    res = prep.res
+    if not prep.ok:
         return res
-    try:
-        manuscript_text, manuscript_encoding = read_text_file(in_p)
-    except TextDecodeError:
-        _fail(res, "textio.unreadable", t(
-            "textio.unreadable", res.lang,
-            label=t("textio.label.manuscript", res.lang), path=in_p,
-        ), file=in_p)
-        return res
-    except OSError as exc:
-        _fail(res, "pipeline.read_failed", t(
-            "pipeline.read_failed", res.lang,
-            label=t("textio.label.manuscript", res.lang), path=in_p, err=exc,
-        ), file=in_p)
-        return res
-    # 消息语言可以覆盖；**稿件语言**只按正文判，它决定默认预设与默认 CSL。
-    res.lang = resolve_lang(manuscript_text, options.lang)
-    doc_lang = resolve_lang(manuscript_text, None)
-    res.doc_lang = doc_lang
-    _note_encoding("textio.label.manuscript", manuscript_encoding, res, file=in_p)
+    in_p = prep.path
+    manuscript_text = prep.text
+    manuscript_encoding = prep.encoding
+    doc_lang = prep.doc_lang
 
     # 1. 确定最终输出路径
     if options.output_path:
