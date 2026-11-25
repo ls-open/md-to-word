@@ -3,7 +3,9 @@
 A short English paper compiled with the `en-nature` preset: numbered headings, a
 three-line table with a caption and note, a captioned figure, a centred equation with a
 right-aligned number, an `@eq-model` cross-reference, and an APA bibliography generated
-from `refs.bib`.
+from `refs.bib`. The `en-nature` preset is a generic single-column journal layout; APA is
+its default citation style, and `csl:` in the YAML switches it (for example `nature.csl` or
+`ieee.csl`).
 
 ```bash
 md-to-word paper.md -o paper.docx                      # an English manuscript selects en-nature by itself

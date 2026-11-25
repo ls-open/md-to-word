@@ -1,5 +1,9 @@
 # APA Style 7th edition, student paper
 #
+# APA 7 defines two formats: student paper and professional paper. This preset is the
+# student one — no running head, page number top right. The professional format adds a
+# running head and an author note and is not covered here.
+#
 # Usage: md-to-word paper.md --preset en-apa-student -o paper.docx
 #
 # Covers: US Letter, 1in margins, 12pt Times New Roman, double spacing,

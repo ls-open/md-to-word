@@ -1,3 +1,10 @@
+# 现代技术白皮书 / 机构分析报告（zh-report）
+#
+# 用法：md-to-word 报告.md --preset zh-report -o 报告.docx
+#
+# 覆盖：单线页眉（章名 STYLEREF）、彩色一级标题、全网格表、目录与引用块。
+# 引文默认按稿件语种（中文稿 GB/T 7714、英文稿 APA）；要指定就写 YAML `csl:`。
+
 纸张：A4
 页边距：上2.54cm 下2.54cm 左2.54cm 右2.54cm
 西文字体：Times New Roman

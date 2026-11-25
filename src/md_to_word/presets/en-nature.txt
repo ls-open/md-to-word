@@ -1,12 +1,16 @@
-# English Nature / international journal preset (en-nature)
+# English journal preset (en-nature) — generic single-column layout
 #
 # Usage: md-to-word manuscript.md --preset en-nature
 #
-# Tune per journal: the body is set to 1.5 line spacing for readable review copies.
-# Journals that require double spacing only need `line-spacing 1.5` -> `line-spacing 2.0` on the body lines.
+# This is a generic single-column journal/preprint layout, not a reproduction of any
+# publisher's template. The preset id `en-nature` is kept stable for existing scripts;
+# the layout itself is generic. Tune per journal: the body is set to 1.5 line spacing
+# for readable review copies; journals that require double spacing only need
+# `line-spacing 1.5` -> `line-spacing 2.0` on the body lines.
 #
-# Citation numbering is not set here: pick it in the manuscript YAML with `csl:`, e.g.
+# Citation style is not set here: pick it in the manuscript YAML with `csl:`, e.g.
 #   csl: nature.csl   -> superscript numeric (Nature style)
+#   csl: ieee.csl     -> bracketed numeric
 # Without `csl:` the default is APA author-date, e.g. (Smith, 2024).
 
 Paper: A4
@@ -15,8 +19,8 @@ Font: Times New Roman
 Proofing Language: en-US
 
 Title: Times New Roman 18pt bold not-italic left line-spacing 1.5 space-before 0pt space-after 12pt indent 0
-Author: Times New Roman 12pt not-bold not-italic center line-spacing 1.5 space-before 0pt space-after 6pt indent 0
-Date: Times New Roman 12pt not-bold not-italic center line-spacing 1.5 space-before 0pt space-after 12pt indent 0
+Author: Times New Roman 12pt not-bold not-italic left line-spacing 1.5 space-before 0pt space-after 6pt indent 0
+Date: Times New Roman 12pt not-bold not-italic left line-spacing 1.5 space-before 0pt space-after 12pt indent 0
 Heading 1: Times New Roman 14pt bold not-italic left line-spacing 1.5 space-before 18pt space-after 6pt indent 0 keep-with-next
 Heading 2: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 12pt space-after 6pt indent 0 keep-with-next
 Heading 3: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 6pt space-after 0pt indent 0 keep-with-next
