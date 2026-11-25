@@ -222,16 +222,15 @@ class Toc:
 
 @dataclass(frozen=True)
 class SectionBreak:
-    """分节符。page_format 如「罗马」「小写罗马」「阿拉伯」；start 为起始页码。
+    """分节符：给**它下面那一节**命名。
 
-    `no_header` / `no_footer`：这一节不要页眉/页脚（封面那种）。OOXML 里没写引用是
-    「沿用上一节」，而第一节没有可沿用的，所以「不要」必须显式表达。
+    `role` 为 None 表示普通分节，外观沿用格式文件的全局默认。节名对应的页码格式、
+    页眉、页脚由格式文件声明；稿件只说「这是哪一节、从哪里开始」。
+
+    标记出现在文档开头时只设置节名，不产生一个空节。
     """
 
-    page_format: str = "阿拉伯"
-    start: int = 1
-    no_header: bool = False
-    no_footer: bool = False
+    role: Optional[str] = None
 
 
 Block = Union[

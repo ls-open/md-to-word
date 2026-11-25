@@ -22,6 +22,7 @@ from pathlib import Path
 
 from lxml import etree
 
+from md_to_word.i18n import t
 from md_to_word.visual_qa import word_pdf
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -139,10 +140,17 @@ def inspect_base(path: Path, cover_sections: int | None = None) -> BaseReport:
         )
     elif cover_sections is not None and len(sections) == cover_sections:
         # 全切走就没有"正文节"可替了，我们的内容会挤进最后一节，沿用它页眉页脚
-        report.blocking.append(
-            f"前 {cover_sections} 节已经是整份文件，切完没有正文节可换。"
-            f"少留一节，或者换一份带正文的模板"
-        )
+        if len(sections) == 1:
+            report.blocking.append(
+                "这份模板只有 1 节（用分页符分页），按节切不开。"
+                "改用 --keep-until 某段文字：工具会在那一段之后插入分节符再灌入；"
+                "或者换一份用分节符把前置件单独分开的模板"
+            )
+        else:
+            report.blocking.append(
+                f"前 {cover_sections} 节已经是整份文件，切完没有正文节可换。"
+                f"少留一节，或者换一份带正文的模板"
+            )
     if cover_sections is not None:
         toc = _toc_section(root)
         if toc is not None and cover_sections >= toc:
@@ -193,16 +201,18 @@ def _toc_section(root) -> int | None:
     用户自己写 `{{< toc >}}` 生成，页码才是对的。
     """
     body = root if root.tag == W + "body" else root.find(W + "body")
+    if body is None:
+        return None
     seen = 0
-    for child in (body if body is not None else []):
-        if child.tag == W + "sectPr":
-            seen += 1
-            continue
-        if child.tag != W + "p":
-            continue
-        if _is_toc_paragraph(child):
-            return seen + 1
-        if child.find(f"{W}pPr/{W}sectPr") is not None:
+    # 目录可能在 `w:sdt`（Word 的目录控件）里，也可能直接是 body 的段落；按文档顺序
+    # 遍历所有段落，遇到段落自带的分节符就进入下一节。
+    for el in body.iter():
+        if el.tag == W + "p":
+            if _is_toc_paragraph(el):
+                return seen + 1
+            if el.find(f"{W}pPr/{W}sectPr") is not None:
+                seen += 1
+        elif el.tag == W + "sectPr" and el.getparent() is body:
             seen += 1
     return None
 
@@ -283,6 +293,109 @@ def _drop_attached_template(doc, set_part_xml) -> str | None:
     return target
 
 
+def _is_body_paragraph(p) -> bool:
+    """正文段落：祖先链上不能有表格（表格单元格里的段落不能收尾一节）。"""
+    parent = p.getparent()
+    while parent is not None:
+        if parent.tag == W + "body":
+            return True
+        if parent.tag in (W + "tbl", W + "tc"):
+            return False
+        parent = parent.getparent()
+    return False
+
+
+def _paragraph_hits(root, needle: str) -> list[tuple[int, str, object]]:
+    """命中文字的正文档落：[(节号, 摘要, 元素)]。目录节里的条目不算——那是模板的目录。"""
+    want = re.sub(r"\s+", "", needle or "")
+    if not want:
+        return []
+    body = root.find(W + "body")
+    if body is None:
+        return []
+    toc = _toc_section(root)
+    hits: list[tuple[int, str, object]] = []
+    seen = 0
+    for el in body.iter():
+        if el.tag == W + "sectPr" and el.getparent() is body:
+            seen += 1
+            continue
+        if el.tag != W + "p" or not _is_body_paragraph(el):
+            continue
+        sect = seen + 1
+        text = re.sub(r"\s+", "", "".join(t.text or "" for t in el.iter(W + "t")))
+        # 目录条目不是内容：真找一个章名时，目录页会先命中一次。
+        if want in text and not _is_toc_paragraph(el):
+            hits.append((sect, text[:40], el))
+        if el.find(f"{W}pPr/{W}sectPr") is not None:
+            seen += 1
+    return hits
+
+
+def toc_before_cut(root, cut_paragraph) -> bool:
+    """目录段落是否在切点之前（在的话，切完目录会留在前置件里）。"""
+    body = root.find(W + "body")
+    if body is None:
+        return False
+    toc_el = None
+    for el in body.iter(W + "p"):
+        if _is_toc_paragraph(el):
+            toc_el = el
+            break
+    if toc_el is None:
+        return False
+    # lxml：按文档顺序比较两个元素的位置
+    order = {id(el): i for i, el in enumerate(body.iter(W + "p"))}
+    return order.get(id(toc_el), 0) < order.get(id(cut_paragraph), 0)
+
+
+def paragraph_cut(base: Path, needle: str, out: Path, lang: str = "zh") -> int:
+    """在命中文字的那一段之后插入分节符，把单节底模切成「前置件 + 正文」两节。
+
+    真实模板大量用分页符而不是分节符；单节模板按「保留前 N 节」根本切不开。这里只在
+    **单节模板**上兜底：命中唯一一段，就把文末 sectPr 克隆一份挂到那一段的 pPr 里，
+    前置件的版式、页眉页脚、页面设置原样留在上面那一节。
+
+    返回切出来的前置件节数（永远是 1）。
+    """
+    with zipfile.ZipFile(base) as z:
+        root = etree.fromstring(z.read("word/document.xml"))
+    hits = _paragraph_hits(root, needle)
+    if not hits:
+        raise BaseTemplateError(t("base.cut.no_paragraph", lang, text=needle))
+    if len(hits) > 1:
+        spots = "\n".join(
+            f"  第 {sect} 节：{text}…" for sect, text, _ in hits[:6]
+        )
+        raise BaseTemplateError(t("base.cut.ambiguous", lang,
+                                  text=needle, count=len(hits), spots=spots))
+    # 目录页在切点之前时不能切：目录留着会和稿件自己的目录重复。
+    if toc_before_cut(root, hits[0][2]):
+        raise BaseTemplateError(t("base.cut.toc_retained", lang, text=needle))
+    body = root.find(W + "body")
+    body_sect = body.find(W + "sectPr")
+    if body_sect is None:
+        raise BaseTemplateError(t("base.cut.no_trailing_sectpr", lang))
+    p = hits[0][2]
+    if p.find(f"{W}pPr/{W}sectPr") is not None:
+        raise BaseTemplateError(t("base.cut.already_split", lang, text=needle))
+    ppr = p.find(W + "pPr")
+    if ppr is None:
+        ppr = etree.Element(W + "pPr")
+        p.insert(0, ppr)
+    ppr.append(copy.deepcopy(body_sect))
+
+    blob = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    with zipfile.ZipFile(base) as zin, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
+        for info in zin.infolist():
+            data = blob if info.filename == "word/document.xml" else zin.read(info.filename)
+            zout.writestr(info, data)
+    from md_to_word.utils.docx_zip import normalize_zip
+
+    normalize_zip(out)
+    return 1
+
+
 def sections_until_text(base: Path, needle: str) -> list[int]:
     """底模里包含这段文字的节号（从 1 起）。找不到返回空列表。
 
@@ -302,6 +415,10 @@ def sections_until_text(base: Path, needle: str) -> list[int]:
             hits.append(sect)
         if el.tag == W + "sectPr" or el.find(".//" + W + "sectPr") is not None:
             sect += 1  # sectPr 归它上面那一节，所以先记内容再进一节
+    # 目录页会重复出现正文里的章名。有别的命中时，目录那一节不算切点。
+    toc = _toc_section(root)
+    if toc is not None and len(hits) > 1 and toc in hits:
+        hits = [h for h in hits if h != toc]
     return hits
 
 

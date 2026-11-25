@@ -117,7 +117,7 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
 | **Numbered Equation** | `$$E=mc^2$$ {#eq-mass}` | Standalone line; referenced in body text via `@eq-mass` |
 | **Captions** | `%% Table Caption **Table 1** Performance`<br>`%% Figure Caption Figure 1 Architecture` | Captions keep with next/previous to prevent separation across page breaks |
 | **Citations** | Body `[@smith2024]`, YAML `bibliography: refs.bib` | Formatted according to selected CSL style |
-| **Structure Tags** | `{{< toc >}}`, `{{< section page_number=lowerRoman start=1 >}}` | Table of contents, section breaks, and pagination controls |
+| **Structure Tags** | `{{< toc >}}`, `{{< section body >}}` | Table of contents, named sections with their own numbering and headers |
 
 > For the full vocabulary and contract specifications, see the [Manual](src/md_to_word/resources/manual_en.md) or run `md-to-word --contract`.
 

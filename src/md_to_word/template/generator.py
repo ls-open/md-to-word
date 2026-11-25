@@ -508,6 +508,7 @@ from md_to_word.spec.parser import (  # noqa: E402
     parse_format,
     parse_style_props,
 )
+from md_to_word.utils.docx_decor import write_decor_container  # noqa: E402
 
 def apply_proofing_language(doc, lang):
     """把校对语言写进 docDefaults。
@@ -959,43 +960,16 @@ def _check_required_fields(
 _XML_SPACE = '{http://www.w3.org/XML/1998/namespace}space'
 
 
-def _clear_runs(paragraph):
-    for r in list(paragraph.runs):
-        r._r.getparent().remove(r._r)
-
-
-def append_field(paragraph, instr):
-    """在段落里插入一个 Word 域（begin → instrText → separate → end）。
-
-    不写缓存结果：值由 Word 在更新域/打印时算出，故导出链在出 PDF 前会
-    调用 Word 的 update field（页眉里的 STYLEREF 尤其需要）。
-    """
-    r = paragraph.add_run()._r
-    etree.SubElement(r, W('fldChar')).set(W('fldCharType'), 'begin')
-    it = etree.SubElement(r, W('instrText'))
-    it.set(_XML_SPACE, 'preserve')
-    it.text = instr
-    etree.SubElement(r, W('fldChar')).set(W('fldCharType'), 'separate')
-    etree.SubElement(r, W('fldChar')).set(W('fldCharType'), 'end')
-
-
-def write_decor_container(container, parts, style_name):
-    """把要求文件里解析出来的页眉/页脚内容写进容器"""
-    container.is_linked_to_previous = False   # 先强制建出部件，否则写进去会被继承覆盖
-    p = container.paragraphs[0] if container.paragraphs else container.add_paragraph()
-    _clear_runs(p)
-    p.style = style_name
-    for kind, val in parts:
-        if kind == 'text':
-            p.add_run(val)
-        else:
-            append_field(p, val)
-
-
 def collect_styleref_names(spec):
-    """取出所有 {样式标题:X} 里的 X（去重、保序）"""
+    """取出所有 {样式标题:X} 里的 X（去重、保序），含节角色自己的页眉页脚。"""
     names = []
-    for parts in spec.decor.values():
+    sources = list(spec.decor.values())
+    for role in spec.section_roles.values():
+        if role.header:
+            sources.append(role.header)
+        if role.footer:
+            sources.append(role.footer)
+    for parts in sources:
         for kind, val in parts:
             if kind != 'field':
                 continue
@@ -1042,7 +1016,7 @@ def apply_page_decorations(doc, spec, lang: str = "zh"):
     只在格式文件里**真的出现了**的容器上动手：没写的容器保持"链接上一节"，
     不会凭空建出空页眉把偶数页刷白。
     """
-    if not spec.decor and not spec.page_number:
+    if not spec.decor and not spec.page_number and not spec.section_roles:
         return
 
     if len(doc.sections) != 1:
@@ -1102,6 +1076,14 @@ def apply_page_decorations(doc, spec, lang: str = "zh"):
             kind == 'field' and val.split()[0] == 'PAGE'
             for parts in spec.decor.values() for kind, val in parts):
         raise TemplateError(t('template.page_number_without_field', lang))
+
+    # 节角色声明了页码，就必须有地方印出来：这一节自己的页脚，或者全局页脚内容。
+    for role in spec.section_roles.values():
+        if not role.page_number:
+            continue
+        footer = role.footer if role.footer is not None else spec.decor.get(('footer', 'default'), [])
+        if not any(kind == 'field' and val.split()[0] == 'PAGE' for kind, val in footer):
+            raise TemplateError(t('template.section_page_number_without_field', lang, role=role.name))
 
     if spec.page_number:
         fmt, start = spec.page_number

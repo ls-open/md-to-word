@@ -100,8 +100,10 @@ paragraph; table caption above, note below. Do not put `{#fig-...}` labels on im
 follow the separator row's dash lengths.
 
 **Block markers** — three, each on its own line with blank lines around it: `{{< pagebreak >}}`,
-`{{< toc >}}`, `{{< section page_number=lowerRoman start=1 >}}` (Chinese parameters `页码=` `起始=`
-also work). A section marker closes *the section above it*; never add a page break next to one.
+`{{< toc >}}`, and `{{< section >}}` / `{{< section body >}}`. A section marker names *the section
+below it*; that name's page numbering, header and footer are declared once in the format file
+(`Section: body`, `body page-number: …`, `body header: …`, `body footer: …`). A marker at the very
+start names the first section without adding a blank page; never add a page break next to one.
 
 **Unsupported Markdown is blocked with a replacement, never printed literally** — the list is manual §2.8.
 

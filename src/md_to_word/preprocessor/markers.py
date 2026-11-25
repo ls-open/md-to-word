@@ -82,37 +82,43 @@ def toc_xml(level: Optional[int] = None, lang: str = "zh") -> str:
 
 
 
-def section_paragraph_xml(params: dict, template_sect) -> str:
-    """分节段落：pPr 里挂 sectPr，结束它上面那一节。"""
+def new_section_sectpr(template_sect):
+    """分节用的 sectPr：复制模板末尾那一个，去掉只属于「最后一节」的设置。"""
     sect = (
         copy.deepcopy(template_sect)
         if template_sect is not None
         else etree.Element(_W + "sectPr", nsmap={"w": _NS})
     )
-    # 页眉/页脚的引用**要留着**：OOXML 里「没写引用」等于「沿用上一节」，而第一节
-    # 没有可沿用的，结果就是前置部分整段没有页眉。要「这一节不要」由参数显式说。
-    for tag in ("titlePg", "type", "pgNumType"):
+    for tag in ("titlePg", "type"):
         for el in sect.findall(_W + tag):
             sect.remove(el)
-    if params.get("no_header"):
-        for el in sect.findall(_W + "headerReference"):
-            sect.remove(el)
-    if params.get("no_footer"):
-        for el in sect.findall(_W + "footerReference"):
-            sect.remove(el)
+    return sect
 
+
+def set_next_page(sect) -> None:
     type_el = etree.Element(_W + "type")
     type_el.set(_W + "val", "nextPage")
     _insert_ordered(sect, type_el, "type")
 
-    pg = etree.Element(_W + "pgNumType")
-    if "fmt" in params:
-        pg.set(_W + "fmt", params["fmt"])
-    if "start" in params:
-        pg.set(_W + "start", str(params["start"]))
-    _insert_ordered(sect, pg, "pgNumType")
 
-    # 外层 p/pPr 也带命名空间声明：sectPr 上的声明只覆盖它自己，外层没有 w 前缀会解析失败
+def set_page_number(sect, fmt: Optional[str], start: Optional[int]) -> None:
+    """页码格式与起始：`start=None` 表示接着上一节编（去掉起始值）。"""
+    pg = sect.find(_W + "pgNumType")
+    if pg is None:
+        if fmt is None and start is None:
+            return
+        pg = etree.Element(_W + "pgNumType")
+        _insert_ordered(sect, pg, "pgNumType")
+    if fmt is not None:
+        pg.set(_W + "fmt", fmt)
+    if start is None:
+        pg.attrib.pop(_W + "start", None)
+    else:
+        pg.set(_W + "start", str(start))
+
+
+def section_paragraph_xml(sect) -> str:
+    """承载 sectPr 的空段落。外层 p/pPr 也带命名空间声明：sectPr 上的声明只覆盖它自己。"""
     return (
         f'<w:p xmlns:w="{_NS}"><w:pPr>'
         + etree.tostring(sect, encoding="unicode")

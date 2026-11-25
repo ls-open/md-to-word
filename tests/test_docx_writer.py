@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from md_to_word.model.reader import read_markdown
+from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
 from md_to_word.writer import UnsupportedFeature, write_docx
 
@@ -163,14 +164,15 @@ def test_toc_depth_follows_the_template_when_not_given(template: Path, tmp_path:
 def test_toc_field_and_section_break(template: Path, tmp_path: Path) -> None:
     """目录是 Word 域，分节是挂在 pPr 里的 sectPr——都不是普通段落。"""
     model = read_markdown(
-        "{{< toc 2 >}}\n\n{{< section 页码=小写罗马 起始=1 >}}\n\n# 一 引言\n\n正文。\n"
+        "{{< toc 2 >}}\n\n{{< section 正文 >}}\n\n# 一 引言\n\n正文。\n"
     )
-    out = write_docx(model, template, tmp_path / "sec.docx")
+    roles = parse_format(PRESET.read_text(encoding="utf-8")).section_roles
+    out = write_docx(model, template, tmp_path / "sec.docx", section_roles=roles)
     xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
 
     assert "instrText" in xml and "TOC" in xml, "目录必须是域，否则页码不会更新"
     assert xml.count("<w:sectPr") == 2, "分节段落一个 + 文末一个"
-    assert '<w:pgNumType w:fmt="lowerRoman" w:start="1"/>' in xml
+    assert '<w:pgNumType w:fmt="decimal" w:start="1"/>' in xml
 
 
 def test_equations_become_omml_with_numbers(template: Path, tmp_path: Path) -> None:

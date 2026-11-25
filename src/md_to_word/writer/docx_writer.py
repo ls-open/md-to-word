@@ -26,16 +26,26 @@ from docx.enum.style import WD_STYLE_TYPE
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.opc.packuri import PackURI
 from docx.opc.part import Part
+from docx.enum.section import WD_HEADER_FOOTER
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import parse_xml
 from docx.oxml.ns import nsdecls, nsmap, qn
+from docx.section import Section
 from docx.shared import Cm, Emu
 
 from md_to_word.config import default_crossref_prefixes, looks_chinese
 from md_to_word.i18n import t
 from md_to_word.utils.docx_zip import normalize_zip
 from md_to_word.utils.pdf_figure import PdfFigureError, is_pdf, rasterize
-from md_to_word.preprocessor.markers import MarkerError, section_paragraph_xml, toc_xml
+from md_to_word.preprocessor.markers import (
+    MarkerError,
+    new_section_sectpr,
+    section_paragraph_xml,
+    set_next_page,
+    set_page_number,
+    toc_xml,
+)
+from md_to_word.utils.docx_decor import clear_decor_container, write_decor_container
 from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, PAGE_NUMBER_FMT
 from md_to_word.template.generator import (
     _PPR_ORDER,
@@ -66,6 +76,20 @@ _ALIGN = {
     "left": WD_ALIGN_PARAGRAPH.LEFT,
     "center": WD_ALIGN_PARAGRAPH.CENTER,
     "right": WD_ALIGN_PARAGRAPH.RIGHT,
+}
+
+_DECOR_INDEX = {
+    "default": WD_HEADER_FOOTER.PRIMARY,
+    "even": WD_HEADER_FOOTER.EVEN_PAGE,
+    "first": WD_HEADER_FOOTER.FIRST_PAGE,
+}
+_DECOR_CONTAINERS = {
+    ("header", "default"): "header",
+    ("header", "even"): "even_page_header",
+    ("header", "first"): "first_page_header",
+    ("footer", "default"): "footer",
+    ("footer", "even"): "even_page_footer",
+    ("footer", "first"): "first_page_footer",
 }
 
 
@@ -217,6 +241,7 @@ class _Writer:
         header_styles: Optional[set[str]] = None,
         lang: Optional[str] = None,
         doc_lang: Optional[str] = None,
+        section_roles=None,
     ) -> None:
         self.model = document
         self.docx = docx
@@ -238,6 +263,12 @@ class _Writer:
         self.repeat_header = repeat_header  # 表头跨页重复（要求文件写「跨页重复」）
         self.table_space_after = table_space_after  # 表后留白磅数（要求文件写「表后间距」）
         self.header_styles = set(header_styles or ())  # 显式声明「加入页眉 / join-header」的样式名集合
+        # 分节：稿件用 `{{< section 正文 >}}` 给**下面那一节**命名，外观在这里查。
+        self.section_roles = dict(section_roles or {})
+        self._role: Optional[str] = None  # 当前这一节的名字；None=格式文件的全局默认
+        self._saw_section = False        # 出现过语义分节标记
+        self._wrote_content = False      # 文档开头的分节标记不产生空节
+        self._decor_rids: dict[tuple, str] = {}  # (缓存键) → 页眉/页脚部件的关系 id
         self._table_gap_pending = False  # 上一块是表格：下一块开写前补那个垫片
         # 文档语言决定交叉引用前缀与公式编号外观。流水线按**整篇稿件**判好传进来；
         # 直接调库没传时，才退回「看前 800 字」的启发式。
@@ -275,7 +306,7 @@ class _Writer:
         self._write_bibliography()
         if self._footnote_ids:
             self._write_footnotes()
-        self._trailing_page_number()
+        self._finish_sections()
 
     # ── 块 ───────────────────────────────────────────────────────────
     def block(self, block: Block) -> None:
@@ -315,6 +346,8 @@ class _Writer:
             raise UnsupportedFeature(t("writer.unsupported_block", self.lang,
                                        type=type(block).__name__))
 
+        if not isinstance(block, SectionBreak):
+            self._wrote_content = True
         if not isinstance(block, Paragraph):
             self._after_heading = True
         elif prev:
@@ -449,21 +482,127 @@ class _Writer:
         return max(levels) if levels else 3
 
     def _section(self, block: SectionBreak) -> None:
-        """分节符：它描述的是**上面那一节**（OOXML 里 sectPr 归前一节）。"""
-        params: dict = {}
-        fmt = PAGE_NUMBER_FMT.get(block.page_format)
-        if fmt:
-            params["fmt"] = fmt
-        if block.start:
-            params["start"] = block.start
-        if block.no_header:
-            params["no_header"] = True
-        if block.no_footer:
-            params["no_footer"] = True
+        """分节符：给**它下面那一节**命名，并结束上面那一节。
 
-        template_sect = self._body_sectpr()
-        xml = section_paragraph_xml(params, copy.deepcopy(template_sect) if template_sect is not None else None)
-        self._insert_before_sectpr(parse_xml(xml))
+        出现在文档最前面时只命名第一节，不落 sectPr——否则会先造出一个空节，
+        封面或前置件就多出一页空白。
+        """
+        if not self._wrote_content:
+            self._role = block.role
+            self._saw_section = True
+            return
+
+        sect = new_section_sectpr(self._body_sectpr())
+        self._apply_role(sect, self._role, page_numbers=True)
+        self._ensure_explicit_decor(sect)
+        set_next_page(sect)
+        self._insert_before_sectpr(parse_xml(section_paragraph_xml(sect)))
+        self._role = block.role
+        self._saw_section = True
+
+    # ── 节外观 ──────────────────────────────────────────────────────
+    def _finish_sections(self) -> None:
+        """末节：它是最后一节，sectPr 在 body 末尾，没有分节符来收尾。"""
+        if not self._saw_section:
+            return
+        body_sect = self._body_sectpr()
+        role = self.section_roles.get(self._role) if self._role else None
+        declared = bool(role and role.page_number)
+        self._apply_role(body_sect, self._role, page_numbers=declared)
+        self._ensure_explicit_decor(body_sect)
+        if not declared:
+            # 没声明编号的末节沿用格式文件的页码设置；「起始」是否保留按既有规则判断
+            self._trailing_page_number()
+
+    def _apply_role(self, sect, role_name: Optional[str], *, page_numbers: bool) -> None:
+        """把节角色的页码与页眉页脚落到这个 sectPr 上。
+
+        `page_numbers=False` 表示末节暂不动编号（交给 `_trailing_page_number` 判断）。
+        """
+        role = self.section_roles.get(role_name) if role_name else None
+        if role is not None and role.page_number:
+            fmt, start = role.page_number
+            set_page_number(sect, fmt, start)
+        elif page_numbers:
+            # 没声明格式的节：沿用格式文件的页码格式，接着上一节编。
+            set_page_number(sect, None, None)
+
+        if role is None:
+            return
+        for kind, content in (("header", role.header), ("footer", role.footer)):
+            if content is not None:
+                self._replace_decor(sect, kind, role, content)
+
+    def _decor_types(self, sect, kind: str) -> list[str]:
+        tag = qn("w:headerReference") if kind == "header" else qn("w:footerReference")
+        types = [ref.get(qn("w:type")) or "default" for ref in sect.findall(tag)]
+        if types:
+            return list(dict.fromkeys(types))
+        types = ["default"]
+        if self.docx.settings.odd_and_even_pages_header_footer:
+            types.append("even")
+        if sect.find(qn("w:titlePg")) is not None:
+            types.append("first")
+        return types
+
+    def _replace_decor(self, sect, kind: str, role, content) -> None:
+        """这一节换成角色自己的页眉/页脚部件，三种类型（默认/偶数页/首页）一起换。
+
+        只换一部分会让偶数页仍用上一节的页眉。无用部件会被落到空部件，而不是删引用：
+        OOXML 里删引用等于「沿用上一节」。
+        """
+        tag = qn("w:headerReference") if kind == "header" else qn("w:footerReference")
+        types = self._decor_types(sect, kind)
+        for ref in list(sect.findall(tag)):
+            sect.remove(ref)
+        for which in types:
+            if content == []:
+                key = ("empty", kind, which)
+                self._put_decor(sect, kind, which, None, key)
+            else:
+                key = ("role", role.name, kind, which)
+                self._put_decor(sect, kind, which, content, key)
+
+    def _ensure_explicit_decor(self, sect) -> None:
+        """每一节都带显式引用：前一节有页眉、这一节没写，不能靠继承拿到别人的。"""
+        for kind in ("header", "footer"):
+            tag = qn("w:headerReference") if kind == "header" else qn("w:footerReference")
+            if sect.findall(tag):
+                continue
+            for which in self._decor_types(sect, kind):
+                self._put_decor(sect, kind, which, None, ("empty", kind, which))
+
+    def _put_decor(self, sect, kind: str, which: str, content, cache_key: tuple) -> None:
+        """取得（或用缓存）一个页眉/页脚部件，并挂到这一节上。"""
+        rid = self._decor_rids.get(cache_key)
+        if rid is not None:
+            self._attach_decor(sect, kind, which, rid)
+            return
+        attr = _DECOR_CONTAINERS[(kind, which)]
+        container = getattr(Section(sect, self.docx.part), attr)
+        container.is_linked_to_previous = False  # 建出这一节自己的部件
+        if content is None:
+            clear_decor_container(container)
+        else:
+            write_decor_container(container, content, "Header" if kind == "header" else "Footer")
+        rid = self._decor_rid(sect, kind, which)
+        self._decor_rids[cache_key] = rid
+
+    @staticmethod
+    def _attach_decor(sect, kind: str, which: str, rid: str) -> None:
+        index = _DECOR_INDEX[which]
+        if kind == "header":
+            sect.add_headerReference(index, rid)
+        else:
+            sect.add_footerReference(index, rid)
+
+    @staticmethod
+    def _decor_rid(sect, kind: str, which: str) -> str:
+        tag = qn("w:headerReference") if kind == "header" else qn("w:footerReference")
+        for ref in sect.findall(tag):
+            if (ref.get(qn("w:type")) or "default") == which:
+                return ref.get(qn("r:id"))
+        raise KeyError(f"{kind}/{which} reference missing after creation")
 
     def _equation(self, block: Equation) -> None:
         """独立公式：居中，编号靠右。编号用中心制表位 + 右制表位实现，是 Word 里的常规写法。
@@ -1363,6 +1502,7 @@ def write_docx(
     header_styles: Optional[set[str]] = None,
     lang: Optional[str] = None,
     doc_lang: Optional[str] = None,
+    section_roles=None,
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
 
@@ -1397,6 +1537,7 @@ def write_docx(
         header_styles=effective_header_styles,
         lang=lang,
         doc_lang=doc_lang,
+        section_roles=section_roles,
     )
     writer.write()
     if header_styles is not None:

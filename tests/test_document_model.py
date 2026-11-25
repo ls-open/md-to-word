@@ -101,10 +101,10 @@ def test_lists_quote_and_code() -> None:
 
 
 def test_shortcodes() -> None:
-    doc = read_markdown("{{< pagebreak >}}\n\n{{< toc 2 >}}\n\n{{< section 页码=小写罗马 起始=1 >}}\n")
+    doc = read_markdown("{{< pagebreak >}}\n\n{{< toc 2 >}}\n\n{{< section 正文 >}}\n")
     assert isinstance(doc.blocks[0], PageBreak)
     assert isinstance(doc.blocks[1], Toc) and doc.blocks[1].depth == 2
-    assert isinstance(doc.blocks[2], SectionBreak) and doc.blocks[2].start == 1
+    assert isinstance(doc.blocks[2], SectionBreak) and doc.blocks[2].role == "正文"
 
 
 @pytest.mark.parametrize(

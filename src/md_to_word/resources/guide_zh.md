@@ -30,7 +30,7 @@ md-to-word hello.md -o hello.docx
 | 公式 | `$$…$$ {#eq-model1}` 独立成行；正文引用写 `@eq-model1`，**不加方括号** |
 | 图 | `![说明](图.png)` 必须独立成行，题注用 `%% 图片题注 …` 另起一段 |
 | 参考文献 | YAML 写 `bibliography: refs.bib` 与 `csl: chinese-gb7714-2015-numeric.csl`，正文写 `[@key]` |
-| 目录 / 分节 / 分页 | `{{< toc >}}`、`{{< section >}}`、`{{< pagebreak >}}` |
+| 目录 / 分节 / 分页 | `{{< toc >}}`、`{{< section 正文 >}}`（节名由格式文件声明）、`{{< pagebreak >}}` |
 
 参考文献给 `.bib`（BibTeX / BibLaTeX）或 **CSL-JSON**（Zotero、Mendeley、Crossref 直接导出的
 `.json`）都行，工具按文件内容判断，不看扩展名。手写文献列表会被预检拒绝。

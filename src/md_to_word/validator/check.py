@@ -28,7 +28,8 @@ from md_to_word.diagnostics import Diagnostic
 from md_to_word.i18n import style_name, t
 # 残符提醒与解析器共用同一条行内判据：预检另写一套，迟早对不上。
 from md_to_word.model.reader import inline_residue
-from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, PAGE_NUMBER_FMT, ROW_NAME_EN, YAML_KEYS
+from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, ROW_NAME_EN, YAML_KEYS
+from md_to_word.utils.section_syntax import SectionSyntaxError, parse_section_arg
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_format
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
@@ -747,27 +748,32 @@ def validate_manuscript(
                 line=i,
             )
 
-    # 2f. 分节标记的参数：写错就被静默丢掉，页码格式与起始值等于没写
-    for i, line in enumerate(md_text.split("\n"), 1):
+    # 2f. 分节标记只接受一个节名；节名必须是格式文件声明过的角色。
+    #     写法不对或名字不存在时，读取器/写出器就没法给这一节定外观，必须在导前拦下。
+    declared_roles = list(spec.section_roles) if spec is not None else []
+    for i, line in enumerate(visible.split("\n"), 1):
         m = re.search(r"\{\{<\s*section\b([^>]*)>\}\}", line)
         if not m:
             continue
-        for key, value in re.findall(r"([^\s=]+)\s*=\s*([^\s>]+)", m.group(1)):
-            if key in ("页码", "page_number", "format"):
-                if value not in PAGE_NUMBER_FMT:
-                    report.valid = False
-                    report.error(
-                        "gate.section.page_format",
-                        t("gate.section.page_format", lang, line=i, value=value),
-                        line=i,
-                    )
-            elif key in ("起始", "start") and not value.isdigit():
-                report.valid = False
-                report.error(
-                    "gate.section.start",
-                    t("gate.section.start", lang, line=i, value=value),
-                    line=i,
-                )
+        try:
+            role = parse_section_arg(m.group(1))
+        except SectionSyntaxError as exc:
+            report.valid = False
+            report.error(
+                "gate.section.argument",
+                t("gate.section.argument", lang, line=i, arg=exc.arg),
+                line=i,
+            )
+            continue
+        if role is None or spec is None or role in spec.section_roles:
+            continue
+        report.valid = False
+        report.error(
+            "gate.section.role_unknown",
+            t("gate.section.role_unknown", lang, line=i, role=role,
+              roles="、".join(declared_roles) or "（无）"),
+            line=i,
+        )
 
     # 3. Obsidian WikiLinks 与 4. LaTeX 分页符：代码块里是数据，不是写法
     for i, line in enumerate(mask_code_fences(md_text).split("\n"), 1):

@@ -93,6 +93,8 @@ def _fail(
 
 def _warn(res: ExportResult, code: str, message: str, *, file: Optional[Path | str] = None) -> None:
     """记一条提醒：`messages` 给人、`warnings` 供 CLI 加标记、`diagnostics` 给程序。"""
+    if message in res.warnings:  # 同一份底模会被体检两次，同一条提醒只说一遍
+        return
     res.messages.append(message)
     res.warnings.append(message)
     res.diagnostics.append(Diagnostic(
@@ -110,7 +112,9 @@ def _blind_review(res: ExportResult, target: Path, out_p: Path) -> bool:
             reason=f"{type(exc).__name__}: {exc}",
         ), file=out_p)
         return False
-    res.messages.append(t("pipeline.blind_review_done", res.lang))
+    done = t("pipeline.blind_review_done", res.lang)
+    if done not in res.messages:
+        res.messages.append(done)
     return True
 
 
@@ -271,6 +275,7 @@ class BasePlan:
 
     base: Path
     sections: Optional[int]  # None = `--keep-pages`，要排一次版才能换算成节数
+    cut_at_paragraph: bool = False  # 单节模板：导出时在命中段落之后插入分节符
 
 
 def _prepare_base_plan(
@@ -362,16 +367,29 @@ def _prepare_base_plan(
                     sections="、".join(str(h) for h in hits)), file=base_p)
             return False, None
         sections = hits[0]
-        res.messages.append(t(
-            "pipeline.base_until_resolved", res.lang,
-            text=options.keep_until, sections=sections))
 
     if not sections:
         _fail(res, "pipeline.base_need_sections",
               t("pipeline.base_need_sections", res.lang), file=base_p)
         return False, None
 
-    report = inspect_base(base_p, sections)
+    # 单节模板（用分页符分页）按节切不开；`--keep-until` 还能救：导出时在命中的段落
+    # 之后插入一个分节符，把前置件和正文分开。这里只拦住它，不产生文件。
+    cut_at_paragraph = False
+    if options.keep_until and sections == 1:
+        from md_to_word.template.base_inject import section_count
+
+        cut_at_paragraph = section_count(base_p) == 1
+    if cut_at_paragraph:
+        res.messages.append(t(
+            "pipeline.base_paragraph_cut", res.lang, text=options.keep_until))
+        report = inspect_base(base_p)
+    else:
+        if options.keep_until:
+            res.messages.append(t(
+                "pipeline.base_until_resolved", res.lang,
+                text=options.keep_until, sections=sections))
+        report = inspect_base(base_p, sections)
     if not report.ok:
         _fail(res, "pipeline.base_failed",
               t("pipeline.base_failed", res.lang, reason="；".join(report.blocking)),
@@ -380,7 +398,7 @@ def _prepare_base_plan(
         return False, None
     for note in report.notes:
         _warn(res, "pipeline.base_note", note, file=base_p)
-    return True, BasePlan(base_p, sections)
+    return True, BasePlan(base_p, sections, cut_at_paragraph)
 
 
 def run_validation(options: ExportOptions) -> ExportResult:
@@ -760,11 +778,12 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 ),
                 lang=res.lang,
                 doc_lang=doc_lang,
+                section_roles=spec.section_roles if spec else None,
             )
         except MarkdownError as exc:
             _fail(res, "pipeline.markdown_error", t(
                 "pipeline.markdown_error", res.lang,
-                reason=t("reader.unclosed_code_fence", res.lang, line=exc.line),
+                reason=t(exc.code, res.lang, line=exc.line, **exc.params),
             ), line=exc.line, file=in_p)
             return res
         except UnsupportedFeature as exc:
@@ -814,11 +833,33 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
 
         # 10. 灌进学校模板：封面原样保留，正文换成我们排的
         if options.base_template and base_plan is not None:
-            from md_to_word.template.base_inject import BaseTemplateError, apply_base_template
+            from md_to_word.template.base_inject import (
+                BaseTemplateError,
+                apply_base_template,
+                inspect_base,
+            )
 
             base_p = base_plan.base
             sections = base_plan.sections
             sentinel = _first_text(model.blocks)
+            if base_plan.cut_at_paragraph:
+                # 单节模板：先切出一节前置件，再按「保留 1 节」灌入。
+                derived = Path(temp_dir) / "base-cut.docx"
+                try:
+                    from md_to_word.template.base_inject import paragraph_cut
+
+                    paragraph_cut(base_p, options.keep_until, derived, res.lang)
+                except BaseTemplateError as exc:
+                    _fail(res, "pipeline.base_failed",
+                          t("pipeline.base_failed", res.lang, reason=exc.reason), file=base_p)
+                    return res
+                base_p = derived
+                report = inspect_base(base_p, 1)
+                if not report.ok:
+                    _fail(res, "pipeline.base_failed",
+                          t("pipeline.base_failed", res.lang,
+                            reason="；".join(report.blocking)), file=base_p)
+                    return res
             try:
                 if sections is None:
                     # `--keep-pages`：按页换算节数要先真的排一次版。Word 能不能用、

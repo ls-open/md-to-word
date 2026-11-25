@@ -23,6 +23,7 @@ from md_to_word.model.document import (
     Superscript, Table, Text, Toc, Underline,
 )
 from md_to_word.preprocessor.blocks import hard_break, resolve_style_name, split_style_line
+from md_to_word.utils.section_syntax import SectionSyntaxError, parse_section_arg
 from md_to_word.utils.typography import smart_quotes
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
@@ -40,21 +41,18 @@ _TABLE_SEP_RE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 
 
 class MarkdownError(ValueError):
-    """稿件结构无法读成文档模型。`line` 是 1 起的源行号，调用方负责本地化。"""
+    """稿件结构无法读成文档模型。`line` 是 1 起的源行号。
 
-    def __init__(self, line: int, detail: str = "unclosed code fence") -> None:
+    `code` 是 i18n 文案键，`params` 是它的占位符；文案由调用方按消息语言渲染。
+    """
+
+    def __init__(self, line: int, code: str = "reader.unclosed_code_fence", **params) -> None:
         self.line = line
-        self.detail = detail
-        super().__init__(f"{detail} opened at line {line}")
+        self.code = code
+        self.params = params
+        super().__init__(f"{code} at line {line}" + (f" ({params})" if params else ""))
 
-_SECTION_PARAM_RE = re.compile(r"(\S+?)=(\S+)")
 _QUOTE_LINE_RE = re.compile(r"^\s*>\s?")
-_SECTION_ALIAS = {"页码": "page_format", "page_number": "page_format", "format": "page_format",
-                  "起始": "start", "start": "start",
-                  "页眉": "no_header", "header": "no_header",
-                  "页脚": "no_footer", "footer": "no_footer"}
-# 只有「不要」需要写出来；默认就是有（格式文件写了页眉内容，就该每节都有）
-_SECTION_OFF = {"无", "none", "no", "false", "不要"}
 
 
 def _indent_width(indent: str) -> int:
@@ -440,27 +438,20 @@ def _alignments(separator: str) -> list[str | None]:
     return out
 
 
-def _parse_section_params(rest: str) -> SectionBreak:
-    kwargs: dict = {}
-    for key, value in _SECTION_PARAM_RE.findall(rest or ""):
-        field = _SECTION_ALIAS.get(key)
-        if field == "start":
-            kwargs["start"] = int(value) if value.isdigit() else 1
-        elif field == "page_format":
-            kwargs["page_format"] = value
-        elif field in ("no_header", "no_footer") and value.strip().lower() in _SECTION_OFF:
-            kwargs[field] = True
-    return SectionBreak(**kwargs)
-
-
-def _parse_shortcode(name: str, rest: str) -> Optional[Block]:
+def _parse_shortcode(name: str, rest: str, line: int) -> Optional[Block]:
     if name == "pagebreak":
         return PageBreak()
     if name == "toc":
+        # 目录深度写错（`{{< toc 三 >}}`）不该被静默当成默认值：那会让用户以为设置生效了。
         arg = rest.strip()
-        return Toc(depth=int(arg) if arg.isdigit() else None)
+        if arg and not arg.isdigit():
+            raise MarkdownError(line, "reader.toc_depth", arg=arg)
+        return Toc(depth=int(arg) if arg else None)
     if name == "section":
-        return _parse_section_params(rest)
+        try:
+            return SectionBreak(role=parse_section_arg(rest))
+        except SectionSyntaxError as exc:
+            raise MarkdownError(line, "gate.section.argument", arg=exc.arg) from exc
     return None
 
 
@@ -580,7 +571,7 @@ class _Reader:
             # 短代码
             shortcode = _SHORTCODE_RE.match(stripped)
             if shortcode:
-                block = _parse_shortcode(shortcode.group(1), shortcode.group(2))
+                block = _parse_shortcode(shortcode.group(1), shortcode.group(2), i + 1)
                 if block is not None:
                     self._flush_pending()
                     self._append(block)
@@ -641,7 +632,7 @@ class _Reader:
             i += 1
         if i >= len(self.lines):
             # 没有收尾：后面所有内容都会被当成代码。静默吞掉比报错难查得多。
-            raise MarkdownError(start + 1, detail="unclosed code fence")
+            raise MarkdownError(start + 1)
         return CodeBlock(value="\n".join(body), language=language), i + 1
 
     def _read_code_block(self, start: int, fence: re.Match) -> int:

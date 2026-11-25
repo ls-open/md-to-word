@@ -120,7 +120,7 @@ npx skills add ls-open/md-to-word
 | **编号公式** | `$$E=mc^2$$ {#eq-mass}` | 独立成行；正文使用 `@eq-mass` 交叉引用 |
 | **图表题注** | 表前 `%% 表题 **表 1** 数据对比`<br>图后 `%% 图片题注 图 1 架构图` | 题注与图表同页绑定，换页不分离 |
 | **参考文献** | 正文 `[@smith2024]`，YAML 中声明 `bibliography: refs.bib` | 文献表按 CSL 样式自动渲染 |
-| **结构标记** | `{{< toc >}}`、`{{< section page_number=lowerRoman start=1 >}}` | 目录域、分节换页码；各自独立成行 |
+| **结构标记** | `{{< toc >}}`、`{{< section 正文 >}}` | 目录域、按节名切换页码与页眉页脚；各自独立成行 |
 
 > 完整词表与规范详见[使用手册](src/md_to_word/resources/manual.md)，亦可运行 `md-to-word --contract` 打印。
 

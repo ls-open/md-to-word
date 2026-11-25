@@ -240,7 +240,7 @@ def test_a_chapter_name_header_mid_document_follows_the_renamed_style(tmp_path: 
 
     manuscript = (
         "---\n---\n\n%% 摘要标题 摘要\n\n%% 摘要 本文提出一种方法。\n\n"
-        "{{< section 页码=小写罗马 起始=1 >}}\n\n# 第一章 绪论\n\n正文。\n"
+        "{{< section 正文 >}}\n\n# 第一章 绪论\n\n正文。\n"
     )
     template = tmp_path / "tpl.docx"
     build_template(_chapter_header_format(), template)
@@ -730,3 +730,106 @@ def test_injected_output_is_byte_reproducible(tmp_path: Path) -> None:
     with zipfile.ZipFile(first) as z:
         stamps = {info.date_time for info in z.infolist()}
     assert stamps == {(1980, 1, 1, 0, 0, 0)}, f"zip 时间戳没钉死：{stamps}"
+
+
+def _single_section_base(path: Path) -> Path:
+    """单节模板：用分页符分页，没有可切的节——真实模板里最常见的那一种。"""
+    doc = Document()
+    doc.add_paragraph("论文题目：某某研究")
+    doc.add_paragraph("摘  要")
+    doc.add_paragraph("本文研究了一种方法。")
+    doc.save(path)
+    return path
+
+
+def test_single_section_template_cuts_after_the_matched_paragraph(tmp_path: Path) -> None:
+    """`--keep-until` 在单节模板上兜底：命中段落之后插入分节符，前置件留在上面。"""
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    base = _single_section_base(tmp_path / "base.docx")
+    md = tmp_path / "m.md"
+    md.write_text("# 第一章 引言\n\n本文研究了一种新方法。\n", encoding="utf-8")
+    fmt = tmp_path / "f.txt"
+    fmt.write_text(PRESET, encoding="utf-8")
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=tmp_path / "o.docx", format_path=fmt,
+        base_template=base, keep_until="论文题目",
+    ))
+
+    assert result.ok, result.errors
+    with zipfile.ZipFile(result.output_docx) as z:
+        xml = z.read("word/document.xml").decode("utf-8")
+    assert xml.count("<w:sectPr") == 2, "切出来的前置件一节 + 灌入后的正文一节"
+    assert any("插入分节符" in m for m in result.messages), result.messages
+
+
+def test_single_section_template_still_blocks_a_bad_cut(tmp_path: Path) -> None:
+    """切点文字对不上时照样失败，不能因为换了切法就放行。"""
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    base = _single_section_base(tmp_path / "base.docx")
+    md = tmp_path / "m.md"
+    md.write_text("# 第一章\n\n正文。\n", encoding="utf-8")
+    fmt = tmp_path / "f.txt"
+    fmt.write_text(PRESET, encoding="utf-8")
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=tmp_path / "o.docx", format_path=fmt,
+        base_template=base, keep_until="不存在的文字",
+    ))
+
+    assert not result.ok and result.output_docx is None
+    assert any("找不到" in e for e in result.errors), result.errors
+
+
+def _sdt_toc_base(path: Path) -> Path:
+    """目录放在 `w:sdt` 里（Word 的目录控件）——模板里很常见。"""
+    doc = Document()
+    doc.add_paragraph("封面")
+    body = doc.element.body
+    sdt = parse_xml(
+        f'<w:sdt {nsdecls("w")}><w:sdtContent><w:p><w:r>'
+        '<w:instrText xml:space="preserve"> TOC \\o "1-3" \\h \\z \\u </w:instrText>'
+        "</w:r></w:p></w:sdtContent></w:sdt>"
+    )
+    body[-2].addnext(sdt)
+    doc.add_paragraph("正文开始")
+    doc.save(path)
+    return path
+
+
+def test_a_toc_inside_sdt_is_found(tmp_path: Path) -> None:
+    """目录藏在 `w:sdt` 里时，也要被认出来——否则会产出双目录且门禁全绿。"""
+    from md_to_word.template.base_inject import _toc_section
+
+    base = _sdt_toc_base(tmp_path / "base.docx")
+    with zipfile.ZipFile(base) as z:
+        root = etree.fromstring(z.read("word/document.xml"))
+
+    assert _toc_section(root) == 1
+
+    report = inspect_base(base, 1)
+    assert not report.ok
+    assert any("目录就在第 1 节" in msg for msg in report.blocking), report.blocking
+
+
+def test_keep_until_ignores_the_contents_page(tmp_path: Path) -> None:
+    """目录页会重复正文里的章名：有别的命中时，目录那一节不算切点。"""
+    from md_to_word.template.base_inject import sections_until_text
+
+    doc = Document()
+    doc.add_paragraph("目  录")
+    toc = parse_xml(
+        f'<w:p {nsdecls("w")}><w:r>'
+        '<w:instrText xml:space="preserve"> TOC \\o "1-3" \\h \\z \\u </w:instrText>'
+        "</w:r></w:p>"
+    )
+    doc.element.body[-2].addnext(toc)
+    doc.add_paragraph("Chapter 1 Introduction")
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.add_paragraph("Chapter 1 Introduction")
+    base = tmp_path / "base.docx"
+    doc.save(base)
+
+    assert sections_until_text(base, "Chapter 1") == [2]

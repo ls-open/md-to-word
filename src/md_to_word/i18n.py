@@ -281,6 +281,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "第 {line} 行打开的代码块没有收尾，后面的内容都成了代码",
         "the code block opened on line {line} is never closed, so everything after it becomes code",
     ),
+    "reader.toc_depth": (
+        "第 {line} 行：目录只接受数字级数，例如 {{{{< toc 2 >}}}}；无法识别「{arg}」",
+        "Line {line}: the table-of-contents marker takes a numeric depth, e.g. {{{{< toc 2 >}}}}; "
+        "{arg!r} cannot be read",
+    ),
     "writer.quote_children": (
         "引用块里目前只支持段落、列表与代码块",
         "a blockquote currently supports only paragraphs, lists and code blocks",
@@ -422,6 +427,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "按内容说：底模里出现这段文字的那一节为止，前面的原样保留（如 --keep-until 版权使用授权书）",
         "Say it by content: keep through the section containing this text "
         "(e.g. --keep-until \"copyright authorization\")",
+    ),
+    "pipeline.base_paragraph_cut": (
+        "底模只有 1 节：在「{text}」这一段之后插入分节符，前置件保留在上面那一节",
+        "the base has a single section: a section break is inserted after the paragraph "
+        "containing {text!r}, keeping the front matter in that first section",
     ),
     "pipeline.base_until_resolved": (
         "保留到「{text}」所在的第 {sections} 节（以后可以直接用 --cover-sections {sections}）",
@@ -678,6 +688,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "template.base_template_missing": (
         "未找到基础模板 {path}；请运行 scripts/create_pure_modern_base.py 重新生成。",
         "Base template not found: {path}; regenerate it with scripts/create_pure_modern_base.py.",
+    ),
+    "template.section_page_number_without_field": (
+        "节「{role}」声明了页码，但这一节的页脚（或全局「页脚内容：」）里没有 {{页码}} 域，"
+        "页码不会印出来。补上 {{页码}}，或删掉「{role}页码：」这一行。",
+        "Section {role!r} declares page numbering, but its footer (or the global `Footer Content:` row) "
+        "carries no {{page}} field, so no number reaches the page. Add {{page}}, or drop the "
+        "`{role} page-number:` row.",
     ),
     "template.multiple_sections": (
         "模板必须是单节（当前 {count} 节），多节模板的页眉页脚会错位。",
@@ -1387,17 +1404,41 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "or TIFF, so the export would stop here. Save it as PNG first, or reference a PDF directly "
         "(PDF figures are rasterised at 300 dpi during export)",
     ),
-    "gate.section.page_format": (
-        "行 {line}: 分节标记的页码格式「{value}」认不出，会被丢掉，页码格式不生效。"
-        "可用：阿拉伯 / 罗马 / 小写罗马 / 字母 / 大写字母",
-        "Line {line}: the section marker's page format {value!r} is not recognised and would be "
-        "dropped, so the page numbering would not change. Use decimal, upperRoman, lowerRoman, "
-        "lowerLetter or upperLetter",
+    "base.cut.no_paragraph": (
+        "在底模的段落里找不到「{text}」：这段文字可能只出现在表格或页眉里。换一段正文里的文字。",
+        "The text {text!r} does not appear in any body paragraph of the base (it may only be in a "
+        "table or header). Pick a phrase from the body text.",
     ),
-    "gate.section.start": (
-        "行 {line}: 分节标记的起始页码「{value}」不是数字，会被当成 1",
-        "Line {line}: the section marker's start page {value!r} is not a number and would fall back "
-        "to 1",
+    "base.cut.ambiguous": (
+        "「{text}」出现在 {count} 个段落里，切点不唯一：\n{spots}\n换一段更独特的文字。",
+        "{text!r} appears in {count} paragraphs, so the cut point is ambiguous:\n{spots}\n"
+        "Pick a more distinctive phrase.",
+    ),
+    "base.cut.no_trailing_sectpr": (
+        "底模正文末尾没有分节符，无法复制出前置件那一节的页面设置。请用 Word「另存为」一次再试。",
+        "The base has no trailing section break, so the front matter's page setup cannot be "
+        "copied. Save it once from Word and try again.",
+    ),
+    "base.cut.toc_retained": (
+        "底模的目录在「{text}」之前，切点之后目录会留在前置件里，和稿件自己的目录重复。"
+        "把切点放在目录之前，或先删掉底模的目录。",
+        "The base's contents page comes before {text!r}, so cutting there keeps it next to the "
+        "manuscript's own TOC. Cut before the contents page, or delete the template's TOC first.",
+    ),
+    "base.cut.already_split": (
+        "「{text}」所在的段落已经带分节符，按节切就够了。去掉 --keep-until，改用 --cover-sections。",
+        "The paragraph containing {text!r} already carries a section break; cut by section "
+        "instead: drop --keep-until and use --cover-sections.",
+    ),
+    "gate.section.argument": (
+        "行 {line}: 分节标记只接受一个节名，例如 {{{{< section 正文 >}}}}；无法识别「{arg}」。"
+        "节名由格式文件用「分节：正文」这一行声明。",
+        "Line {line}: a section marker takes one section name, e.g. {{{{< section body >}}}}; "
+        "{arg!r} cannot be read. Section names are declared in the format file with a `Section: body` row.",
+    ),
+    "gate.section.role_unknown": (
+        "行 {line}: 格式文件没有声明节「{role}」。已声明：{roles}",
+        "Line {line}: the format file has no section named {role!r}. Declared: {roles}",
     ),
     "gate.table.row_unclosed": (
         "行 {line}: 表格行缺少行尾竖线——这一行会掉出表格变成正文，竖线原样印出来。补上结尾的 `|`",

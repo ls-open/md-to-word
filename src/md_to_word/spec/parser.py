@@ -28,7 +28,8 @@ from md_to_word.spec.constants import (
     WRONG_KEY_HINTS,
     parse_font_name,
 )
-from md_to_word.spec.models import MinLineSpacing, TemplateSpec
+from md_to_word.spec.models import MinLineSpacing, SectionRole, TemplateSpec
+from md_to_word.utils.section_syntax import ROLE_NAME_RE
 
 _S = "style"
 _T = "table"
@@ -615,6 +616,31 @@ def parse_page_number(desc: str, lineno: Optional[int] = None) -> tuple[str, int
     return fmt, start
 
 
+def parse_role_page_number(desc: str, lineno: Optional[int] = None) -> tuple[str, Optional[int]]:
+    """节角色的页码：`小写罗马 起始1`；不写起始表示接着上一节编。"""
+    tokens = desc.split()
+    valid = " ".join(PAGE_NUMBER_FMT.keys())
+    bad = ValueError(
+        f"第 {lineno} 行「节页码」格式不认识：{desc}\n"
+        f"  应写：<节名>页码：<格式> [起始<N>]；可用格式：{valid}"
+        "；不写「起始」表示接着上一节编"
+    )
+    if not tokens or tokens[0] not in PAGE_NUMBER_FMT:
+        raise bad
+    fmt = PAGE_NUMBER_FMT[tokens[0]]
+    rest = tokens[1:]
+    start: Optional[int] = None
+    if rest:
+        m = re.fullmatch(r"(?:起始|start)(\d+)", rest[0], re.I)
+        if m and len(rest) == 1:
+            start = int(m.group(1))
+        elif rest[0] in ("起始", "start") and len(rest) == 2 and rest[1].isdigit():
+            start = int(rest[1])
+        else:
+            raise bad
+    return fmt, start
+
+
 def parse_margins(desc: str, lineno: Optional[int] = None) -> dict[str, float]:
     margins: dict[str, float] = {}
     tokens = desc.split()
@@ -792,6 +818,36 @@ def _line_decor(container: str, key: str) -> Callable[[TemplateSpec, str, int], 
     return handler
 
 
+ROLE_FIELD_SUFFIXES = (
+    ("页眉内容", "header"),
+    ("页脚内容", "footer"),
+    ("页码", "page"),
+    (" header", "header"),
+    (" footer", "footer"),
+    (" page-number", "page"),
+)
+
+
+def _role_key(key: str) -> Optional[tuple[str, str]]:
+    """`正文页码` → ("正文", "page")；不是节角色专用键时返回 None。"""
+    for suffix, field in ROLE_FIELD_SUFFIXES:
+        if key.endswith(suffix) and len(key) > len(suffix):
+            return key[: -len(suffix)].strip(), field
+    return None
+
+
+def _line_section_role(spec: TemplateSpec, desc: str, lineno: int) -> None:
+    name = desc.strip()
+    if not ROLE_NAME_RE.match(name):
+        raise ValueError(
+            f"第 {lineno} 行「分节」的角色名不合法：{name!r}\n"
+            "  角色名用字母、数字、下划线、连字符或汉字，不能含空格。"
+        )
+    if name in spec.section_roles:
+        raise ValueError(f"第 {lineno} 行节角色「{name}」重复声明：{desc}")
+    spec.section_roles[name] = SectionRole(name)
+
+
 _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     # 中文
     "西文字体": lambda s, d, ln: setattr(s, "default_latin", d),
@@ -808,6 +864,8 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "公式编号格式": _line_equation_format,
     "附录公式编号格式": _line_appendix_equation_format,
     "页码": lambda s, d, ln: setattr(s, "page_number", parse_page_number(d, ln)),
+    "分节": _line_section_role,
+    "Section": _line_section_role,
     "表格": lambda s, d, ln: setattr(s, "table", parse_table_props(d, ln)),
     "表头": lambda s, d, ln: setattr(s, "table_header", parse_style_props("表头", d, ln)),
     # 英文
@@ -828,6 +886,7 @@ _LINE_KEYS: dict[str, Callable[[TemplateSpec, str, int], None]] = {
     "Equation Number Format": _line_equation_format,
     "Appendix Equation Number Format": _line_appendix_equation_format,
     "Page Number": lambda s, d, ln: setattr(s, "page_number", parse_page_number(d, ln)),
+    "节": _line_section_role,
     "Table": lambda s, d, ln: setattr(s, "table", parse_table_props(d, ln)),
     "Table Header": lambda s, d, ln: setattr(s, "table_header", parse_style_props("表头", d, ln)),
     **{key: _line_decor(container, key) for key, container in DECOR_CONTENT_KEYS.items()},
@@ -885,12 +944,37 @@ def parse_format(text: str) -> TemplateSpec:
 
         handler = _LINE_KEYS.get(key)
         if handler is not None:
-            if key in seen_keys:
+            # 「分节：X」可以出现多次（每个角色一行），不算重复键
+            if key in seen_keys and key not in ("分节", "Section", "节"):
                 raise ValueError(
                     f"第 {lineno} 行「{key}」重复定义（前一次在第 {seen_keys[key]} 行）：{line}"
                 )
             seen_keys[key] = lineno
             handler(spec, desc, lineno)
+            continue
+
+        role_key = _role_key(key)
+        if role_key is not None:
+            role_name, field = role_key
+            owner = spec.section_roles.get(role_name)
+            if owner is None:
+                declared = "、".join(spec.section_roles) or "（格式文件还没声明任何节角色）"
+                raise ValueError(
+                    f"第 {lineno} 行「{key}」：节角色「{role_name}」没有声明。\n"
+                    f"  先在格式文件里写一行「分节：{role_name}」；已声明：{declared}"
+                )
+            seen = f"role:{role_name}:{field}"
+            if seen in seen_keys:
+                raise ValueError(
+                    f"第 {lineno} 行「{key}」重复定义（前一次在第 {seen_keys[seen]} 行）：{line}"
+                )
+            seen_keys[seen] = lineno
+            if field == "page":
+                owner.page_number = parse_role_page_number(desc, lineno)
+            elif desc in ("无", "none", "None"):
+                setattr(owner, field, [])
+            else:
+                setattr(owner, field, parse_decor_content(desc, lineno, key))
             continue
 
         if key not in STYLE_MAP:

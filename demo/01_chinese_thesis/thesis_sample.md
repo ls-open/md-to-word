@@ -6,6 +6,8 @@ crossref:
   chapters: true          # 公式按章编号（第 2 章第 1 式 → 2.1），学位论文的通行要求
 ---
 
+{{< section 前置 >}}
+
 %% 文档标题 基于声明式规则与 OOXML 重构的 Markdown 学术排版引擎设计与实现
 
 %% 摘要标题 摘要
@@ -22,7 +24,7 @@ crossref:
 
 {{< pagebreak >}}
 
-{{< section 页码=小写罗马 起始=1 >}}
+{{< section 正文 >}}
 
 # 第一章 绪论
 

@@ -54,9 +54,9 @@ def test_a_missing_character_stops_the_export(tmp_path):
 
 
 def test_shortcode_arguments_are_not_required_text(tmp_path):
-    """`{{< section 页码=小写罗马 >}}` 的参数是指令，不落成文字，不能算丢字。"""
+    """`{{< section 正文 >}}` 的节名是指令，不落成文字，不能算丢字。"""
     md, docx = _export(tmp_path)
-    text = md.read_text(encoding="utf-8") + "\n{{< section 页码=小写罗马 起始=1 >}}\n"
+    text = md.read_text(encoding="utf-8") + "\n{{< section 正文 >}}\n"
     md.write_text(text, encoding="utf-8")
     assert verify_chinese_integrity(md, docx)[0]
 

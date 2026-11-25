@@ -86,7 +86,7 @@ A break inside one paragraph: end the line with a backslash or two spaces (other
 line is its own paragraph).
 
 Block markers (one per line, blank lines around): `{{{{< pagebreak >}}}}`, `{{{{< toc 2 >}}}}`,
-`{{{{< section page_number=lowerRoman start=1 >}}}}`.
+`{{{{< section body >}}}}`.
 
 Check without writing a file: `md-to-word manuscript.md --validate-only`.
 
@@ -121,7 +121,7 @@ Machine-readable contract (for agents): md-to-word --contract --json
 同一段落内换行：行尾写一个 `\\` 或两个空格（不写标记时，每一行各自成段）。
 
 块级标记（独占一行，前后留空行）：`{{{{< pagebreak >}}}}`、`{{{{< toc 2 >}}}}`、
-`{{{{< section 页码=小写罗马 起始=1 >}}}}`。
+`{{{{< section 正文 >}}}}`。
 
 只检查不导出：`md-to-word 稿件.md --validate-only`。
 

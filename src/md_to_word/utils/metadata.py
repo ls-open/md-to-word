@@ -26,6 +26,12 @@ _APP = "http://schemas.openxmlformats.org/officeDocument/2006/extended-propertie
 _W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 _REL_CUSTOM = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties"
+# 删掉 comments 部件后，正文里仍指着它们的这些标记必须一并剥掉，否则包是坏的。
+_COMMENT_ANCHORS = (
+    f"{{{_W}}}commentRangeStart",
+    f"{{{_W}}}commentRangeEnd",
+    f"{{{_W}}}commentReference",
+)
 _REL_THUMBNAIL = "http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail"
 
 # 这些部件带的是身份，不是正文：整件丢弃，同时清掉关系与内容类型。
@@ -48,9 +54,14 @@ _CORE_FIELDS = (
     (f"{{{_CORE}}}lastModifiedBy", "lastModifiedBy"),
     (f"{{{_CORE}}}category", "category"),
     (f"{{{_CORE}}}contentStatus", "contentStatus"),
-    (f"{{{_CORE}}}lastPrinted", "lastPrinted"),
 )
-_CORE_DATES = (f"{{{_DCTERMS}}}created", f"{{{_DCTERMS}}}modified")
+# 这几个元素要**整件删除**，不能把文本清空：Word 把空的 `cp:lastPrinted` 判成损坏，
+# 打开时直接弹「文件已损坏」，而且是在所有门禁之后才发生。日期元素同理。
+_CORE_DROP = (
+    f"{{{_DCTERMS}}}created",
+    f"{{{_DCTERMS}}}modified",
+    f"{{{_CORE}}}lastPrinted",
+)
 _APP_FIELDS = (
     (f"{{{_APP}}}Company", "company"),
     (f"{{{_APP}}}Manager", "manager"),
@@ -146,7 +157,7 @@ def _clear_core(blob: bytes) -> bytes:
         el = root.find(tag)
         if el is not None:
             el.text = None
-    for tag in _CORE_DATES:
+    for tag in _CORE_DROP:
         el = root.find(tag)
         if el is not None:
             root.remove(el)
@@ -174,6 +185,52 @@ def _neutralize_authors(blob: bytes) -> bytes:
     return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
 
 
+def _strip_comment_anchors(blob: bytes) -> bytes:
+    root = etree.fromstring(blob)
+    for el in list(root.iter(*_COMMENT_ANCHORS)):
+        parent = el.getparent()
+        if parent is not None:
+            parent.remove(el)
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+def _verify_scrubbed(path: Path) -> None:
+    """清理后的包必须仍然自洽。
+
+    清理在所有验真门禁之后运行，写坏了的包不会被前面的检查发现——这里就是在原子替换
+    之前最后过一遍：关系都有目标、XML 都能解析、批注锚点确实没了、身份部件确实删了。
+    """
+    import posixpath
+
+    with zipfile.ZipFile(path) as archive:
+        names = set(archive.namelist())
+        for name in names:
+            if not name.endswith(".rels"):
+                continue
+            base = posixpath.dirname(posixpath.dirname(name))
+            root = etree.fromstring(archive.read(name))
+            for rel in root:
+                if rel.get("TargetMode") == "External":
+                    continue
+                target = rel.get("Target", "")
+                if target.startswith("/"):
+                    resolved = target.lstrip("/")
+                else:
+                    resolved = posixpath.normpath(posixpath.join(base, target))
+                if resolved not in names:
+                    raise MetadataError(f"关系目标不存在：{name} → {target}")
+        if "word/document.xml" in names:
+            document = archive.read("word/document.xml").decode("utf-8")
+            for tag in ("commentRangeStart", "commentRangeEnd", "commentReference"):
+                if tag in document:
+                    raise MetadataError(f"批注锚点未清理：{tag}")
+        for name in names:
+            if name.endswith((".xml", ".rels")):
+                etree.fromstring(archive.read(name))
+        if any(name.startswith("docProps/custom.xml") for name in names):
+            raise MetadataError("自定义属性未删除")
+
+
 def scrub_metadata(path: Path | str) -> None:
     """就地清理一份 .docx 的文档属性；写临时文件后原子替换，失败不留下半成品。"""
     target = Path(path)
@@ -196,11 +253,16 @@ def scrub_metadata(path: Path | str) -> None:
                 elif name == "[Content_Types].xml":
                     data = _drop_content_type_overrides(data)
                 elif name.startswith("word/") and name.endswith(".xml") and (
+                    b"w:commentRange" in data or b"w:commentReference" in data
+                ):
+                    data = _strip_comment_anchors(data)
+                elif name.startswith("word/") and name.endswith(".xml") and (
                     b"w:author=" in data or b"w:initials=" in data
                 ):
                     data = _neutralize_authors(data)
                 # 用原 ZipInfo 写回：保留条目顺序与时间戳，同一输入产出同样的字节
                 sink.writestr(info, data)
+        _verify_scrubbed(temp)
         os.replace(temp, target)
     except Exception:
         temp.unlink(missing_ok=True)

@@ -266,15 +266,23 @@ Only three are recognised, **each on its own line** and separated from body text
 |:--|:--|
 | `{{< pagebreak >}}` | page break |
 | `{{< toc >}}` / `{{< toc 2 >}}` | table-of-contents field; the depth follows the `TOC 1/2/3` styles declared in the format file, or is given directly by the number |
-| `{{< section page_number=lowerRoman start=1 >}}` | section break that closes **the section above it** |
+| `{{< section >}}` | plain section break; the section uses the format file's global settings |
+| `{{< section body >}}` | names **the section below it**; page numbering, header and footer come from that name's declarations in the format file |
 
-Headers and footers on sections: **every section gets them by default** (if the format file
-declares header content, every page should show it). To opt a section out, write `header=none` /
-`footer=none` on that marker — the usual cover reads
-`{{< section page_number=lowerRoman start=1 header=none footer=none >}}`. A `start` value belongs to
-the section that declares it. **The last section (the body) numbers itself from the format file's `Page Number:` line** — it restarts at `start` when the section before it uses another numbering
-style or shows no page numbers at all (a cover), and keeps counting when that section is already
-decimal, so references after the body never fall back to 1.
+**A section name is a name, not a parameter.** Declare it once in the format file (`Section: body`),
+then add `body page-number: lowerRoman start 1`, `body header: none`, `body footer: {page}` as
+needed; the manuscript only says which section starts where. The `zh-academic` preset declares
+封面 / 前置 / 正文 / 附录 out of the box. A name that was never declared stops the export and lists
+the declared ones.
+
+- **It names the section below it**: to close the front matter, write `{{< section body >}}` after
+  the contents and before chapter one; write `{{< section front >}}` after the cover and the front
+  matter follows the front-matter header, footer and page numbering.
+- **At the very start of the manuscript**, it names the first section directly and does not add a
+  blank page.
+- **Do not put a `{{< pagebreak >}}` after it**: the section break already starts a new page, and
+  stacking them pushes out an extra page (the pre-flight check warns). A single-section document
+  (report, technical proposal) can use decimal numbering throughout and does not need this marker.
 
 - All three write OOXML nodes (the `w:sdt` TOC field, `sectPr`) and are valid only in this tool.
 - `\newpage` / `\pagebreak` / `\clearpage` have no effect in docx.
@@ -283,17 +291,6 @@ decimal, so references after the body never fall back to 1.
 - Entries come from the **outline level**: `#` headings have one natively (opt a single heading out
   by appending `{.unlisted}` or `{不入目录}`); non-heading section-title styles use `join-toc` /
   `no-toc` (not valid on body styles or `Heading 1–6`).
-
-**Two rules for `{{< section … >}}`**:
-
-- **It describes "the section above it"** (in OOXML `sectPr` belongs to the preceding section):
-  written after the TOC and before chapter 1, yet it declares the front matter's lowercase Roman
-  numerals — **the body section's page numbers come from `Page Number:` in the format file**.
-  Its parameter names are the same set as `Page Number:`.
-- **Do not put a `{{< pagebreak >}}` after it**: the section break already starts a new page, and
-  stacking them pushes out an extra page (the pre-flight check warns). A single-section document
-  (report, technical proposal) can use Arabic page numbers throughout and does not need this
-  marker.
 
 **Which side must be blank** (varies by marker; each case was checked against the output):
 
@@ -867,7 +864,7 @@ Three routes, ordered by how much can be guaranteed:
    institution's or journal's `.docx` as front matter and replace the rest with our typeset body.
    See the next section.
 2. **Text-only covers**: if the cover is plain text with no crest or fixed rules, Markdown can do it
-   (`%%` style lines, a picture, and a closing `{{< section header=none footer=none >}}`). Check
+   (`%%` style lines, a picture, and a marker naming a no-header role, e.g. `{{< section front >}}`). Check
    first whether your guidelines allow this.
 3. **Lay it out yourself in Word**: the tool produces the body, you merge the cover by hand. Most
    robust, most manual. **Never paste an existing cover into the output** — Word redefines
@@ -882,6 +879,10 @@ md-to-word manuscript.md -f format.txt --base-template base.docx --keep-until "c
 `--keep-until <text>` keeps everything through the section containing that text and reports the number;
 when it is not found it lists how each section starts. `--cover-sections N` says it in sections.
 `--keep-pages P` says it in pages and needs Word, because the conversion takes a real layout.
+
+On a single-section base (many real templates page with manual breaks, not section breaks)
+`--keep-until` inserts a section break after the matching paragraph, splitting front matter from
+body; `--cover-sections` cannot cut such a template.
 
 **The contents page is never kept**: if the base has one (a field or entries typed by hand, either
 counts), the cut must stop before it — the manuscript writes `{{< toc >}}` to generate it. Cutting too
@@ -916,16 +917,16 @@ the body, cover and headers still need to be replaced by the author.
 
 ### 9.4 Sections and page numbers
 
-**One rule**: `{{< section … >}}` describes **the section above it**, not the one after. So "front
-matter in lower-case Roman" goes after the table of contents, before chapter one.
+**One rule**: a section marker names **the section below it**, and the format file defines that
+name's look. So "front matter in lower-case Roman" is declared as `front page-number: lowerRoman
+start 1` (`front header: none`, `front footer: none`), and the manuscript writes
+`{{< section body >}}` after the contents, before chapter one.
 
-- For a cover: `{{< section page_number=lowerRoman start=1 header=none footer=none >}}` — give all
-  three, or the cover will carry a header and a page number.
-- **The body's numbering comes from the format file's `Page Number:` line**: it restarts at `start`
-  when the preceding section uses another numbering style or shows no numbers at all, and keeps
-  counting when that section is already decimal (references after the body never fall back to 1).
-- A section break already starts a new page: **do not add `{{< pagebreak >}}` after it**, or you get
-  one extra page (the pre-check warns).
+- `zh-academic` declares 封面 / 前置 / 正文 / 附录 for you; in your own format file, name the
+  sections as you like (`front`, `body`, `appendix`) and declare each with a `Section:` row.
+- A marker at the very start names the first section without adding a blank page.
+- A section break already starts a new page: **do not add a `{{< pagebreak >}}` after it**, or you
+  get one extra page (the pre-check warns).
 
 ### 9.5 Numbering equations by chapter and by appendix
 
@@ -961,4 +962,4 @@ None of the situations below raises an error; they only make the output wrong:
 | References missing from the table of contents | `References Title` omitted `join-toc` (or the heading carries `{.unlisted}` / `{不入目录}`) |
 | Page numbers continue from the front matter | See §9.4: the body restarts from the format file's `start` |
 | Appendix equations numbered (1-1) | The appendix heading has no identifier, or no appendix number format is set |
-| Front matter needs page numbers but no header | `header=none` only drops the header; page numbers ride on the footer, so do not write `footer=none` |
+| Front matter needs page numbers but no header | Declare only `front header: none`; keep `front footer: {page}`, do not write `front footer: none` |

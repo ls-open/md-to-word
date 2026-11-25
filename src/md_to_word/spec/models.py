@@ -29,6 +29,22 @@ class MinLineSpacing:
 
 
 @dataclass
+class SectionRole:
+    """格式文件里声明的节角色：稿件写 `{{< section 正文 >}}`，外观在这里定义。
+
+    `page_number` 为 (格式, 起始)。起始为 None 表示接着上一节编。
+    `header` / `footer` 为 None 表示没有单独声明（沿用全局页眉/页脚内容）；
+    空列表表示这一节明确不要（挂一个空部件，而不是删引用——删引用在 OOXML 里
+    等于「沿用上一节」）。
+    """
+
+    name: str
+    page_number: Optional[tuple[str, Optional[int]]] = None
+    header: Optional[list[tuple[str, str]]] = None
+    footer: Optional[list[tuple[str, str]]] = None
+
+
+@dataclass
 class TemplateSpec:
     """format.txt 的完整强类型数据模型。"""
 
@@ -40,6 +56,7 @@ class TemplateSpec:
     table_header: Optional[dict[str, Any]] = None
     decor: dict[tuple[str, str], list[tuple[str, str]]] = field(default_factory=dict)
     page_number: Optional[tuple[str, int]] = None
+    section_roles: dict[str, SectionRole] = field(default_factory=dict)
     page_size: str = "a4"
     gutter_cm: Optional[float] = None
     mirror_margins: bool = False
