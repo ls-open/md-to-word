@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 
 from md_to_word.config import get_presets_dir, resolve_preset_path
+from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
 
@@ -190,3 +191,30 @@ def test_apa_student_header_carries_page_number(tmp_path: Path) -> None:
             for n in archive.namelist() if re.match(r"word/header\d*\.xml", n)
         )
     assert "PAGE" in header
+
+
+def test_zh_report_can_generate_a_toc(tmp_path: Path) -> None:
+    """报告预设必须能生成目录，且页眉跟随章节，不是写死的一句宣传语。"""
+    manuscript = tmp_path / "report.md"
+    manuscript.write_text(
+        "%% 文档标题 2026 年度技术白皮书\n\n{{< toc >}}\n\n"
+        "# 一、背景\n\n正文。\n\n## 1.1 现状\n\n正文。\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "report.docx"
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=manuscript, output_path=out, preset="zh-report",
+    ))
+
+    assert result.ok, result.errors
+    with zipfile.ZipFile(out) as archive:
+        document = archive.read("word/document.xml").decode("utf-8")
+        headers = "".join(
+            archive.read(name).decode("utf-8")
+            for name in archive.namelist()
+            if re.match(r"word/header\d*\.xml", name)
+        )
+    assert "TOC" in document
+    assert "智能体与数字化交付技术白皮书" not in headers
+    assert "STYLEREF" in headers or "PAGEREF" in headers

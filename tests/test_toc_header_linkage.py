@@ -34,6 +34,18 @@ def _strip_clauses(line: str) -> str:
     return line
 
 
+def _without_toc_or_styleref(spec_text: str) -> str:
+    """去掉目录样式与动态页眉的「普通报告」：验证零负担原则时不受预设升级影响。"""
+    lines = []
+    for line in spec_text.splitlines():
+        if line.startswith(("目录标题：", "目录一级：", "目录二级：", "目录三级：")):
+            continue
+        if line.startswith("页眉内容："):
+            line = "页眉内容：测试报告"
+        lines.append(line)
+    return "\n".join(lines) + "\n"
+
+
 def _without_linkage(spec_text: str) -> str:
     return "\n".join(
         _strip_clauses(line)
@@ -46,7 +58,7 @@ def _without_linkage(spec_text: str) -> str:
 # 1. 零负担原则：未用目录与 STYLEREF 的文档，无需写任何目录/页眉开关
 def test_plain_report_without_toc_or_styleref_needs_no_linkage_clauses(tmp_path: Path) -> None:
     fmt = tmp_path / "format.txt"
-    fmt.write_text(ZH_REPORT, encoding="utf-8")
+    fmt.write_text(_without_linkage(_without_toc_or_styleref(ZH_REPORT)), encoding="utf-8")
     md = tmp_path / "report.md"
     md.write_text("%% 文档标题 测试报告\n\n%% 摘要标题 摘要\n\n%% 摘要 内容。\n\n# 第一节\n\n正文。\n", encoding="utf-8")
     res = run_export_pipeline(

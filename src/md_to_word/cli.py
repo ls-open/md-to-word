@@ -200,6 +200,12 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
         action="store_true",
         help=t("cli.validate_only", lang),
     )
+    parser.add_argument(
+        "--blind-review",
+        dest="blind_review",
+        action="store_true",
+        help=t("cli.blind_review", lang),
+    )
     parser.add_argument("--no-check", action="store_true", help=t("cli.no_check", lang))
     parser.add_argument("--no-postflight", action="store_true", help=t("cli.no_postflight", lang))
     parser.add_argument("--no-audit", action="store_true", help=t("cli.no_audit", lang))
@@ -299,6 +305,7 @@ def main(args: list[str] | None = None) -> int:
         audit=not parsed.no_audit,
         make_pdf=parsed.pdf,
         lang=None if parsed.lang == "auto" else parsed.lang,
+        blind_review=parsed.blind_review,
     )
 
     try:

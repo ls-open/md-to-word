@@ -908,6 +908,12 @@ only, and the export says so.
 Two things it cannot verify: whether the cut point is right (the export reports "the first paragraph
 after the cut is ..."), and whether fields or macro buttons in the cover need a click when opened.
 
+**Blind submission**: the base's `docProps/` travels into the output verbatim — author, company,
+custom properties (student ID), cover thumbnail, comment authors. Pass `--blind-review` to strip those
+file properties before publishing (core/app, custom properties, thumbnail, comment and revision
+authors); without it, an identifying base is reported in the result. Text is not anonymised: names in
+the body, cover and headers still need to be replaced by the author.
+
 ### 9.4 Sections and page numbers
 
 **One rule**: `{{< section … >}}` describes **the section above it**, not the one after. So "front

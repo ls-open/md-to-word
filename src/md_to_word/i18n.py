@@ -56,6 +56,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "`--validate-only` 与 `--no-check` 不能同时使用：前者的全部工作就是预检",
         "`--validate-only` and `--no-check` cannot be combined: the former is the pre-flight check",
     ),
+    "cli.blind_review": (
+        "清理文档属性（作者/单位/自定义属性/缩略图/批注作者），用于盲审提交；正文中的姓名仍需自行替换",
+        "Strip identifying document properties (author, company, custom properties, thumbnail, comment authors) for blind review; names in the text are not anonymised",
+    ),
     "cli.no_check": ("跳过导前语法与排版契约预检（不推荐）", "Skip the pre-flight check (not recommended)"),
     "cli.no_postflight": ("跳过产物数值防丢检查（不推荐）", "Skip the numeric-integrity check (not recommended)"),
     "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against the format file"),
@@ -475,6 +479,39 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "rendering is macOS-only). The base has {sections} sections; count the front matter "
         "and pass --cover-sections N instead",
     ),
+    "pipeline.blind_review_done": (
+        "已清理文档属性（盲审）：作者、单位、自定义属性、缩略图与批注作者不再随成品带出。"
+        "正文、封面与页眉里的姓名仍需作者自己替换。",
+        "Document properties were stripped for blind review: author, company, custom properties, "
+        "thumbnail and comment authors no longer travel with the file. Names in the body, cover "
+        "and headers still need to be replaced by the author.",
+    ),
+    "pipeline.blind_review_failed": (
+        "清理文档属性失败：{reason}",
+        "Could not strip document properties: {reason}",
+    ),
+    "pipeline.base_metadata": (
+        "底模带有可识别信息（{fields}）：盲审提交请加 --blind-review；正文里的姓名仍需自行替换。",
+        "The base template carries identifying metadata ({fields}): add --blind-review for blind "
+        "submission; names in the text still need to be replaced.",
+    ),
+    "metadata.field.title": ("标题", "title"),
+    "metadata.field.subject": ("主题", "subject"),
+    "metadata.field.creator": ("作者", "author"),
+    "metadata.field.keywords": ("关键词", "keywords"),
+    "metadata.field.description": ("备注", "description"),
+    "metadata.field.lastModifiedBy": ("最后修改者", "last modified by"),
+    "metadata.field.category": ("类别", "category"),
+    "metadata.field.contentStatus": ("内容状态", "content status"),
+    "metadata.field.lastPrinted": ("上次打印时间", "last printed"),
+    "metadata.field.company": ("单位", "company"),
+    "metadata.field.manager": ("经理", "manager"),
+    "metadata.field.template": ("模板", "template"),
+    "metadata.field.hyperlinkBase": ("超链接基址", "hyperlink base"),
+    "metadata.field.custom": ("自定义属性", "custom properties"),
+    "metadata.field.thumbnail": ("封面缩略图", "thumbnail"),
+    "metadata.field.comments": ("批注", "comments"),
+    "metadata.field.people": ("修订作者", "revision authors"),
     "pipeline.reminder": (
         "版面仍须在 Word 中人工核验。",
         "The layout still needs a manual check in Word.",

@@ -30,6 +30,7 @@ from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED
 from md_to_word.template.generator import TemplateError
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
+from md_to_word.utils.metadata import identifying_metadata, scrub_metadata
 from md_to_word.utils.skill_utils import split_frontmatter, resolve_manuscript_path
 from md_to_word.utils.textio import TextDecodeError, UTF8_ENCODINGS, read_text_file
 
@@ -53,6 +54,7 @@ class ExportOptions:
     cover_sections: int = 0  # 底模的前几节是前置件（封面、声明等），原样保留
     keep_pages: int = 0  # 按"前几页"说：要排版才能换算成节数
     keep_until: str = ""  # 按内容说：底模里出现这段文字的那一节为止
+    blind_review: bool = False  # 清理文档属性：作者、单位、自定义属性、缩略图、批注作者
 
 
 @dataclass
@@ -96,6 +98,20 @@ def _warn(res: ExportResult, code: str, message: str, *, file: Optional[Path | s
     res.diagnostics.append(Diagnostic(
         "warning", code, message, file=str(file) if file else None,
     ))
+
+
+def _blind_review(res: ExportResult, target: Path, out_p: Path) -> bool:
+    """在临时产物上清理文档属性；成功返回 True，失败记错误且不发布。"""
+    try:
+        scrub_metadata(target)
+    except Exception as exc:  # zip 坏了、磁盘满：都归「没清理干净」，不该带着身份发布
+        _fail(res, "pipeline.blind_review_failed", t(
+            "pipeline.blind_review_failed", res.lang,
+            reason=f"{type(exc).__name__}: {exc}",
+        ), file=out_p)
+        return False
+    res.messages.append(t("pipeline.blind_review_done", res.lang))
+    return True
 
 
 def _inline_text(inline) -> str:
@@ -288,6 +304,20 @@ def _prepare_base_plan(
               file=base_p)
         res.errors.extend(f"  {n}" for n in report.notes)
         return False, None
+
+    # 底模的 docProps 会原样跟着成品走。没开盲审清理时至少要说一声——
+    # 作者、单位、学号、封面缩略图都可能在这份文件里，交去盲审就是身份泄漏。
+    if not options.blind_review:
+        findings = identifying_metadata(base_p)
+        if findings:
+            fields = "；".join(
+                t(f"metadata.field.{f.code}", res.lang)
+                + (f"：{f.detail[:40]}" if f.detail else "")
+                for f in findings
+            )
+            _warn(res, "pipeline.base_metadata", t(
+                "pipeline.base_metadata", res.lang, fields=fields,
+            ), file=base_p)
 
     # 三个切点只能选一个。旧行为是「谁先命中谁生效」（keep_until 曾压过 keep_pages），
     # 调用方以为另一个生效了，切出来的前置件却不是自己要的——宁可当场拒绝。
@@ -729,6 +759,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                     else None
                 ),
                 lang=res.lang,
+                doc_lang=doc_lang,
             )
         except MarkdownError as exc:
             _fail(res, "pipeline.markdown_error", t(
@@ -765,6 +796,10 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                     res.errors.append(f"  [{cat}] {msg}")
                 return res
             logger.info("✓ " + t("pipeline.audit_ok", res.lang))
+
+        # 9.4 盲审清理：在临时产物上做，清理失败不发布
+        if options.blind_review and not _blind_review(res, render_target, out_p):
+            return res
 
         # 9.5 普通导出：门禁全过之后才把临时产物换到目标路径
         if not options.base_template:
@@ -830,6 +865,8 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                     _fail(res, failure[0], failure[1], file=out_p)
                     return res
                 logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
+            if options.blind_review and not _blind_review(res, injected_target, out_p):
+                return res
             try:
                 os.replace(injected_target, out_p)
             except OSError as exc:

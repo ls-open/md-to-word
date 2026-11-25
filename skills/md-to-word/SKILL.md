@@ -165,6 +165,8 @@ md-to-word manuscript.md --validate-only                       # pre-flight only
 md-to-word --guide --lang en                                   # this agent guide (pip-only entry)
 md-to-word manuscript.md --contract                            # contract + guide, manual and preset paths
 md-to-word --contract --json                                   # the same facts, machine-readable
+md-to-word thesis.md --base-template base.docx --keep-until "目录" --blind-review
+                                                               # keep the cover, strip identifying metadata
 ```
 
 Run every command from the manuscript's directory: relative image and `.bib` paths resolve against
@@ -187,6 +189,12 @@ the exact `--json` keys.
 `--validate-only` runs the same pre-flight check as an export and stops there: exit `0` means it
 would proceed, exit `1` carries the line-numbered errors, and no `.docx` is touched. Use it in CI or
 before an expensive export; `-f` / `--preset` choose the format exactly as they do for export.
+
+`--blind-review` strips identifying **document properties** from the final file: author, company,
+custom properties (student ID), cover thumbnail, comment and revision authors. It does not anonymise
+text — names in the body, cover and headers still need to be replaced. With `--base-template`, an
+identifying base is reported in the result when the flag is absent; that metadata otherwise travels
+into the output verbatim.
 
 Two gate levels, split by "would the mistake be visible afterwards" (criteria: manual §5):
 

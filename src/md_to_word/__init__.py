@@ -26,6 +26,7 @@ def export(
     cover_sections=0,
     keep_pages=0,
     keep_until="",
+    blind_review=False,
 ) -> "ExportResult":
     """一行导出：`export("稿.md", "稿.docx", format="format.txt")`。
 
@@ -33,7 +34,8 @@ def export(
     这一层只是把 `ExportOptions` 的默认值摆好——等价于命令行 `md-to-word`。
 
     `base_template` / `cover_sections` / `keep_pages` / `keep_until` 与命令行同名同义，
-    见手册 §9.3。
+    见手册 §9.3。`blind_review=True` 清理文档属性（作者、单位、自定义属性、缩略图、
+    批注作者），只清文件元数据，正文里的姓名仍需自行替换。
     """
     return run_export_pipeline(
         ExportOptions(
@@ -47,6 +49,7 @@ def export(
             cover_sections=cover_sections,
             keep_pages=keep_pages,
             keep_until=keep_until,
+            blind_review=blind_review,
         )
     )
 

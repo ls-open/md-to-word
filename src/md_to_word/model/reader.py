@@ -189,8 +189,11 @@ def unparsed_stars(line: str) -> str:
 
 # 定位符：`,` 之后写 `p. 33`、`chap. 3`、`3, 7` 都认。标签换成 CSL 的变量名，
 # 单复数由 CSL 自己生成，所以 `p.` / `pp.` 一律按 page 传。
+from md_to_word.utils.citation_syntax import CITE_KEY_PATTERN
+
 _CITE_TOKEN_RE = re.compile(
-    r"(?P<suppress>-)?@(?P<key>[\w:.\-]+)(?P<rest>(?:,\s*[^;\[\]]+)?)"
+    rf"(?<![A-Za-z0-9_@])(?P<suppress>-)?@(?P<key>{CITE_KEY_PATTERN})"
+    r"(?P<rest>(?:,\s*[^;\[\]]+)?)"
 )
 
 # 叙述式引用的定位符：`@a [p. 33]`、`@a [chap. 3]`

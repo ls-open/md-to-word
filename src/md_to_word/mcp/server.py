@@ -255,6 +255,7 @@ def create_mcp_server() -> Any:
         cover_sections: int = 0,
         keep_pages: int = 0,
         keep_until: str = "",
+        blind_review: bool = False,
     ) -> dict[str, Any]:
         """Compile Markdown into a Word (.docx) document.
 
@@ -280,6 +281,9 @@ def create_mcp_server() -> Any:
             keep_pages: Say it in pages instead; requires Word to convert pages to sections.
             keep_until: Say it by content (recommended) — keep through the section containing
                 this text, e.g. "版权使用授权书".
+            blind_review: Strip identifying document properties (author, company, custom
+                properties, thumbnail, comment authors) from the final .docx. Cleans file
+                metadata only; names in the body/cover/headers are not anonymised.
 
         Returns:
             Compilation status, output paths, the format source, warnings and errors.
@@ -312,6 +316,7 @@ def create_mcp_server() -> Any:
                 cover_sections=cover_sections,
                 keep_pages=keep_pages,
                 keep_until=keep_until,
+                blind_review=blind_review,
             )
 
             file_size = out_docx.stat().st_size if out_docx.exists() else None

@@ -216,6 +216,7 @@ class _Writer:
         table_space_after: float = 0.0,
         header_styles: Optional[set[str]] = None,
         lang: Optional[str] = None,
+        doc_lang: Optional[str] = None,
     ) -> None:
         self.model = document
         self.docx = docx
@@ -238,7 +239,12 @@ class _Writer:
         self.table_space_after = table_space_after  # 表后留白磅数（要求文件写「表后间距」）
         self.header_styles = set(header_styles or ())  # 显式声明「加入页眉 / join-header」的样式名集合
         self._table_gap_pending = False  # 上一块是表格：下一块开写前补那个垫片
-        chinese = looks_chinese(self._prose_text())
+        # 文档语言决定交叉引用前缀与公式编号外观。流水线按**整篇稿件**判好传进来；
+        # 直接调库没传时，才退回「看前 800 字」的启发式。
+        if doc_lang in ("zh", "en"):
+            chinese = doc_lang == "zh"
+        else:
+            chinese = looks_chinese(self._prose_text())
         # 报错语言：流水线按 `--lang`/稿件语种传进来；直接调库时按正文自己判
         self.lang = lang or ("zh" if chinese else "en")
         self._crossref_prefixes = {
@@ -1356,6 +1362,7 @@ def write_docx(
     provenance: str = "",
     header_styles: Optional[set[str]] = None,
     lang: Optional[str] = None,
+    doc_lang: Optional[str] = None,
 ) -> Path:
     """把文档模型写成 .docx。模板提供 styles.xml（由格式要求文件生成）。
 
@@ -1368,6 +1375,7 @@ def write_docx(
     `appendix_equation_number_format`：附录里的编号外观；空串沿用上面那套。
     `header_styles`：声明了「加入页眉 / join-header」的样式名集合；为 None 时从模板
     `/customXml/mdw_meta.xml` 读取。
+    `doc_lang`：稿件语言（`zh` / `en`），决定交叉引用前缀与默认编号外观；不传才看正文启发式。
     """
     if header_styles is None:
         effective_header_styles = read_header_styles_meta(template) or set()
@@ -1388,6 +1396,7 @@ def write_docx(
         table_space_after=table_space_after,
         header_styles=effective_header_styles,
         lang=lang,
+        doc_lang=doc_lang,
     )
     writer.write()
     if header_styles is not None:
