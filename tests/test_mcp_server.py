@@ -96,6 +96,25 @@ def test_mcp_validate_manuscript():
     asyncio.run(_run())
 
 
+def test_mcp_validate_rejects_a_format_that_cannot_build_a_template():
+    """MCP 的 validate 必须和 CLI 的导出用同一套预检。
+
+    空/只有注释的格式能过词表检查，但生成不了样式模板；这里若说 valid，Agent 会
+    带着一份注定导不出的稿子继续走。
+    """
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool(
+            "validate_manuscript",
+            {"markdown": "# 一\n\n正文。\n", "format": "# 只有注释\n"},
+        )
+        assert not res.is_error
+        data = res.structured_content
+        assert data["valid"] is False
+        assert data["errors"], data
+    asyncio.run(_run())
+
+
 def test_mcp_compile_markdown_success(tmp_path: Path):
     async def _run():
         server = create_mcp_server()
@@ -150,6 +169,25 @@ def test_mcp_extract_format_from_docx():
     asyncio.run(_run())
 
 
+def test_mcp_rejects_format_and_preset_together(tmp_path: Path):
+    """与 CLI 同一条规则：两个格式来源同时给，不替调用方猜，也不静默丢掉一个。"""
+    fmt = tmp_path / "format.txt"
+    fmt.write_text("正文：宋体 小四 行距1.5倍\n", encoding="utf-8")
+
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool("compile_markdown", {
+            "markdown": "# 一\n\n正文。\n",
+            "format": str(fmt),
+            "preset": "zh-academic",
+        })
+        assert not res.is_error
+        data = res.structured_content
+        assert data["success"] is False
+        assert any("preset" in error.lower() for error in data["errors"]), data["errors"]
+    asyncio.run(_run())
+
+
 def test_mcp_compile_does_not_overwrite_existing(tmp_path: Path):
     """MCP 默认输出不能覆盖稿件旁边已有的同名 .docx。"""
     md = tmp_path / "doc.md"
@@ -165,6 +203,71 @@ def test_mcp_compile_does_not_overwrite_existing(tmp_path: Path):
         assert data["success"] is True
         assert Path(data["output_docx"]).name == "doc.out.docx"
         assert existing.read_bytes() == b"sentinel"
+    asyncio.run(_run())
+
+
+def test_single_line_content_with_a_slash_is_not_a_missing_path(tmp_path: Path):
+    """`Accuracy 3/4.` 与含 `/` 的字体对都不是文件路径。"""
+    from md_to_word.mcp.server import _resolve_format_source
+
+    path, is_tmp = _resolve_markdown_source("Accuracy improved to 3/4.")
+    try:
+        assert is_tmp is True and path.is_file()
+    finally:
+        path.unlink()
+
+    fmt, fmt_tmp = _resolve_format_source("正文：宋体/Times New Roman 小四 行距1.5倍")
+    try:
+        assert fmt_tmp is True and fmt.is_file()
+    finally:
+        fmt.unlink()
+
+    async def _run():
+        server = create_mcp_server()
+        out = tmp_path / "content.docx"
+        res = await server.call_tool(
+            "compile_markdown",
+            {"markdown": "Accuracy improved to 3/4.", "output_path": str(out)},
+        )
+        assert res.structured_content["success"] is True, res.structured_content
+    asyncio.run(_run())
+
+
+def test_mcp_failure_does_not_report_a_previous_output_as_this_run(tmp_path: Path):
+    out = tmp_path / "paper.docx"
+    out.write_bytes(b"OLD-BUILD")
+
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool(
+            "compile_markdown",
+            {
+                "markdown": "# 一\n\n![](missing.png)\n",
+                "output_path": str(out),
+                "preset": "zh-academic",
+            },
+        )
+        data = res.structured_content
+        assert data["success"] is False
+        assert data["output_docx"] is None
+        assert data["file_size_bytes"] is None, data
+        assert data["notice"] == ""
+        assert data["errors"]
+    asyncio.run(_run())
+
+
+def test_mcp_validate_keeps_the_same_keys_on_success_and_failure(tmp_path: Path):
+    async def _run():
+        server = create_mcp_server()
+        ok = await server.call_tool(
+            "validate_manuscript", {"markdown": "# 一\n\n正文。\n", "preset": "zh-academic"}
+        )
+        bad = await server.call_tool(
+            "validate_manuscript", {"markdown": str(tmp_path / "missing.md")}
+        )
+        assert set(ok.structured_content) == set(bad.structured_content)
+        assert bad.structured_content["valid"] is False
+        assert bad.structured_content["diagnostics"][0]["code"] == "pipeline.input_missing"
     asyncio.run(_run())
 
 

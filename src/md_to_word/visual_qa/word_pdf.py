@@ -42,6 +42,7 @@ def explain_unavailable(reason: str, lang: str = "zh") -> str:
         ("not-darwin", "word_pdf.not_darwin"),
         ("no-word", "word_pdf.no_word"),
         ("no-render-script", "word_pdf.no_script"),
+        ("timeout", "word_pdf.timeout"),
     ):
         if reason == code:
             return t(key, lang)
@@ -60,11 +61,19 @@ def render_pdf_via_word(
     pdf_p = Path(pdf_path).resolve() if pdf_path else docx_p.with_suffix(".pdf")
     script = _render_script()
 
-    res = subprocess.run(
-        ["bash", str(script), str(docx_p), str(pdf_p)],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        # 脚本里的 AppleScript 自己等 180 秒；外面再包一层，防止 Word 在启动阶段
+        # 就弹模态框、osascript 根本没走到 Apple 事件超时——那时整条命令会无限挂住。
+        res = subprocess.run(
+            ["bash", str(script), str(docx_p), str(pdf_p)],
+            capture_output=True,
+            text=True,
+            timeout=240,
+        )
+    except subprocess.TimeoutExpired:
+        return False, "timeout"
+    except OSError as exc:
+        return False, str(exc)
     if res.returncode == 0 and pdf_p.exists():
         return True, None
     return False, res.stderr or res.stdout

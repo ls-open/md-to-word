@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import os
 import re
 import tempfile
@@ -151,6 +152,19 @@ def _escape(text: str) -> str:
     )
 
 
+def _bookmark_name(key: str) -> str:
+    """引文 key → Word 书签名。
+
+    Word 的书签名不是任意字符串：`&` 直接拼进 XML 属性会让解析器报 `EntityRef`，
+    空格、`:`、`/` 等也不是合法书签字符。这里做确定性净化，并在发生变化时加短哈希，
+    避免 `a-b` 与 `a.b` 落到同一个书签。
+    """
+    safe = re.sub(r"[^0-9A-Za-z_]", "_", key)
+    if safe != key:
+        safe = f"{safe[:28]}_{hashlib.sha1(key.encode('utf-8')).hexdigest()[:8]}"
+    return f"_Ref_{safe or 'item'}"
+
+
 # 附录标题：`附录A`、`附錄A`、`附录2`、`Appendix B`、`Appendix IV` 都认；标识后面必须跟空白或标点，
 # 否则 `# 附录 一些补充` 里的「一」会被当成本附录的编号；英文单词（`Raw`/`One`/`in`）同理，
 # 只收 1 个大写字母或标准罗马数字（II–XIII），避免把未编号英文附录的标题首词抓成编号。
@@ -270,6 +284,9 @@ class _Writer:
         self._wrote_content = False      # 文档开头的分节标记不产生空节
         self._decor_rids: dict[tuple, str] = {}  # (缓存键) → 页眉/页脚部件的关系 id
         self._table_gap_pending = False  # 上一块是表格：下一块开写前补那个垫片
+        # 书签 id 必须每份文档从同一个基数起算。放在类上时，同一进程第二次导出会从
+        # 上次停下的位置继续，MCP 长驻进程里「同源逐字节一致」当场失效。
+        self._bookmark_seq = 100
         # 文档语言决定交叉引用前缀与公式编号外观。流水线按**整篇稿件**判好传进来；
         # 直接调库没传时，才退回「看前 800 字」的启发式。
         if doc_lang in ("zh", "en"):
@@ -367,14 +384,12 @@ class _Writer:
             return
         for key, segments in entries:
             paragraph = self._new_paragraph(self._style_ref("Bibliography"))
-            self._bookmark(paragraph, f"_Ref_{key}", segments)
-
-    _bookmark_seq = 100
+            self._bookmark(paragraph, _bookmark_name(key), segments)
 
     def _bookmark(self, paragraph, name: str, segments) -> None:
         """在文献条目开头放书签，正文引用才能跳过来。条目里的斜体由 CSL 决定，要保留。"""
-        type(self)._bookmark_seq += 1
-        bid = type(self)._bookmark_seq
+        self._bookmark_seq += 1
+        bid = self._bookmark_seq
         paragraph._p.append(
             parse_xml(f'<w:bookmarkStart {nsdecls("w")} w:id="{bid}" w:name="{name}"/>')
         )
@@ -1340,7 +1355,7 @@ class _Writer:
             if not node.narrative:
                 self._trim_cjk_gap(paragraph)
             if self.model.meta.link_citations:
-                self._linked_run(paragraph, segments, f"_Ref_{keys[0][0]}")
+                self._linked_run(paragraph, segments, _bookmark_name(keys[0][0]))
             else:
                 for text, fmt in segments:
                     self._run_element(paragraph._p, text, fmt)

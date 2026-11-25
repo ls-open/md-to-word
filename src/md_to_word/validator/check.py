@@ -433,18 +433,58 @@ def validate_manuscript(
 
     # 1. Frontmatter 检查
     fm_raw, body_text = split_frontmatter(md_text)
+    if not body_text.strip():
+        # 空文件、纯空白、整篇都被 HTML 注释吃掉：导出会得到一份空白 docx。
+        # 这不是排版问题，是「指错文件」或「还没写」；让它绿着出门比报错更伤人。
+        report.valid = False
+        report.error(
+            "gate.manuscript.empty",
+            t("gate.manuscript.empty", lang, path=md_path),
+            line=None,
+            file=str(md_path),
+        )
+        return report
     fm_offset = md_text.count("\n") - body_text.count("\n")
     fm_data = {}
     if fm_raw:
+        # PyYAML 对重复键是「后者胜」，不报错。YAML 层面的重复键通常是合并两份配置
+        # 留下的残渣，采用哪一条用户看不出来；至少要说一声。
+        seen_keys: dict[str, int] = {}
+        for offset, raw_line in enumerate(fm_raw.splitlines()):
+            m = re.match(r"^([A-Za-z_][\w-]*)\s*:", raw_line)
+            if not m:
+                continue
+            key, line_no = m.group(1), 2 + offset
+            if key in seen_keys:
+                report.warning(
+                    "gate.yaml.duplicate_key",
+                    t("gate.yaml.duplicate_key", lang, key=key,
+                      line=line_no, first=seen_keys[key]),
+                    line=line_no,
+                )
+            else:
+                seen_keys[key] = line_no
         try:
             fm_data = yaml.safe_load(fm_raw) or {}
         except Exception as e:
             report.valid = False
+            # frontmatter 从稿件第 2 行开始；PyYAML 的 mark 是 0 起的相对行号。
+            mark = getattr(e, "problem_mark", None)
+            line = 2 + (mark.line if mark is not None else 0)
             report.error(
                 "gate.yaml.parse_failed",
                 t("gate.yaml.parse_failed", lang, err=e),
-                line=None,
+                line=line,
             )
+            fm_data = {}
+        if fm_raw and not isinstance(fm_data, dict):
+            report.valid = False
+            report.error(
+                "gate.yaml.not_mapping",
+                t("gate.yaml.not_mapping", lang, kind=type(fm_data).__name__),
+                line=2,
+            )
+            fm_data = {}
 
     if isinstance(fm_data, dict):
         # 1a. bibliography 路径
@@ -498,13 +538,16 @@ def validate_manuscript(
                     report.valid = False
                     report.error("gate.yaml.key_unused", message, line=None)
 
-        # 1c. 未写 csl 的提示（默认样式由 config.default_csl_path 决定）
+        # 1c. 未写 csl 的提示（默认样式由格式的校对语言决定；格式没写才看正文）
         if fm_data.get("bibliography") and not fm_data.get("csl"):
-            from md_to_word.config import default_csl_path
+            from md_to_word.config import default_csl_path_for_lang, lang_from_proofing, looks_chinese
 
+            effective = (lang_from_proofing(spec.proofing_lang) if spec else None) or (
+                "zh" if looks_chinese(md_text) else "en"
+            )
             report.warning(
                 "gate.csl.default",
-                t("gate.csl.default", lang, name=default_csl_path(md_text).name),
+                t("gate.csl.default", lang, name=default_csl_path_for_lang(effective).name),
                 line=None,
             )
 
@@ -627,98 +670,120 @@ def validate_manuscript(
                 line=None,
             )
 
-    # 2. 图片路径空格与存在性
+    # 2. 图片路径与存在性（与读取器共用同一套目标语法）
+    from md_to_word.utils.image_syntax import IMAGE_HINT_RE, IMAGE_LINE_RE, image_target
+
     for i, line in enumerate(visible.split("\n"), 1):
-        for m in re.finditer(r"!\[(.*?)\]\((.*?)\)", line):
-            raw_path = m.group(2).strip()
-            # 远程图片本引擎不下载：放过去只会在写出阶段把它当本地路径，报成"磁盘满"
-            if raw_path.startswith(("http://", "https://", "data:")):
+        m = IMAGE_LINE_RE.match(line.strip())
+        if m is None:
+            continue
+        raw_path = image_target(m.group("path"))
+        # 远程图片本引擎不下载：放过去只会在写出阶段把它当本地路径，报成"磁盘满"
+        if raw_path.startswith(("http://", "https://", "data:")):
+            report.valid = False
+            report.error(
+                "gate.image.remote",
+                t("gate.image.remote", lang, line=i, path=raw_path[:60]),
+                line=i,
+            )
+            continue
+        # 存在性检查
+        clean_path = raw_path
+        img_file = md_path.parent / clean_path
+        if not img_file.exists():
+            report.valid = False
+            report.error(
+                "gate.image.missing",
+                t("gate.image.missing", lang, line=i, path=clean_path),
+                line=i,
+            )
+            continue
+        # 格式检查：Word 的内联图片只认位图，PDF 由导出流程在渲染阶段转成位图。
+        # 其余格式（svg、webp、eps…）python-docx 会抛 UnrecognizedImageError——
+        # 一屏 traceback、没有行号，所以在这里拦下并给出改法。
+        suffix = img_file.suffix.lower()
+        if suffix == PDF_SUFFIX:
+            try:
+                pages = page_count(img_file)
+            except PdfFigureError as exc:
                 report.valid = False
                 report.error(
-                    "gate.image.remote",
-                    t("gate.image.remote", lang, line=i, path=raw_path[:60]),
-                    line=i,
-                )
-                continue
-            # 空格检查
-            if " " in raw_path and not raw_path.startswith("<") and not re.search(r'["\'].*["\']', raw_path):
-                report.valid = False
-                report.error(
-                    "gate.image.path_space",
-                    t("gate.image.path_space", lang, line=i, path=raw_path),
-                    line=i,
-                )
-            # 存在性检查
-            clean_path = raw_path.split()[0].strip("<>\"'")
-            img_file = md_path.parent / clean_path
-            if not img_file.exists():
-                report.valid = False
-                report.error(
-                    "gate.image.missing",
-                    t("gate.image.missing", lang, line=i, path=clean_path),
-                    line=i,
-                )
-                continue
-            # 格式检查：Word 的内联图片只认位图，PDF 由导出流程在渲染阶段转成位图。
-            # 其余格式（svg、webp、eps…）python-docx 会抛 UnrecognizedImageError——
-            # 一屏 traceback、没有行号，所以在这里拦下并给出改法。
-            suffix = img_file.suffix.lower()
-            if suffix == PDF_SUFFIX:
-                try:
-                    pages = page_count(img_file)
-                except PdfFigureError as exc:
-                    report.valid = False
-                    report.error(
-                        "gate.image.pdf_unreadable",
-                        t("gate.image.pdf_unreadable", lang, line=i, path=clean_path, err=exc),
-                        line=i,
-                    )
-                else:
-                    if pages > 1:
-                        report.warning(
-                            "gate.image.pdf_multipage",
-                            t("gate.image.pdf_multipage", lang, line=i, path=clean_path, pages=pages),
-                            line=i,
-                        )
-            elif suffix not in RASTER_SUFFIXES:
-                report.valid = False
-                report.error(
-                    "gate.image.unsupported",
-                    t("gate.image.unsupported", lang, line=i, path=clean_path, ext=suffix or t("common.no_suffix", lang)),
+                    "gate.image.pdf_unreadable",
+                    t("gate.image.pdf_unreadable", lang, line=i, path=clean_path, err=exc),
                     line=i,
                 )
             else:
-                # 扩展名对不代表文件能解码：把 txt 改名成 .png 很常见，python-docx
-                # 会在写出阶段抛 UnrecognizedImageError，最后被误报成“工具缺陷”。
-                try:
-                    DocxImage.from_file(str(img_file))
-                except (
-                    UnrecognizedImageError, InvalidImageStreamError,
-                    UnexpectedEndOfFileError, OSError, ValueError,
-                ) as exc:
-                    report.valid = False
-                    report.error(
-                        "gate.image.unreadable",
-                        t(
-                            "gate.image.unreadable", lang,
-                            line=i, path=clean_path, err=type(exc).__name__,
-                        ),
+                if pages > 1:
+                    report.warning(
+                        "gate.image.pdf_multipage",
+                        t("gate.image.pdf_multipage", lang, line=i, path=clean_path, pages=pages),
                         line=i,
                     )
+        elif suffix not in RASTER_SUFFIXES:
+            report.valid = False
+            report.error(
+                "gate.image.unsupported",
+                t("gate.image.unsupported", lang, line=i, path=clean_path, ext=suffix or t("common.no_suffix", lang)),
+                line=i,
+            )
+        else:
+            # 扩展名对不代表文件能解码：把 txt 改名成 .png 很常见，python-docx
+            # 会在写出阶段抛 UnrecognizedImageError，最后被误报成“工具缺陷”。
+            try:
+                DocxImage.from_file(str(img_file))
+            except (
+                UnrecognizedImageError, InvalidImageStreamError,
+                UnexpectedEndOfFileError, OSError, ValueError,
+            ) as exc:
+                report.valid = False
+                report.error(
+                    "gate.image.unreadable",
+                    t(
+                        "gate.image.unreadable", lang,
+                        line=i, path=clean_path, err=type(exc).__name__,
+                    ),
+                    line=i,
+                )
 
     # 2b. 图片必须独立成行：行内图片不会落成图段，只会印出一个 `!`
     for i, line in enumerate(visible.split("\n"), 1):
         stripped = line.strip()
-        if not re.search(r"!\[.*?\]\(", line):
+        if not IMAGE_HINT_RE.search(line):
             continue
-        if not re.fullmatch(r"!\[[^\]]*\]\([^)]*\)(?:\{[^}]*\})?", stripped):
+        if IMAGE_LINE_RE.fullmatch(stripped) is None:
             report.valid = False
             report.error("gate.image.inline", t("gate.image.inline", lang, line=i), line=i)
 
-    # 2c. 脚注引用必须有定义：缺定义的脚注会印成空号，整段注释丢字
-    defined = set(re.findall(r"^\s*\[\^([^\]]+)\]:", visible, re.M))
-    for i, line in enumerate(visible.split("\n"), 1):
+    # 2c. 脚注：引用必须有定义；定义不能重复；定义了却没人引用要说一声。
+    lines = visible.split("\n")
+    defined: dict[str, int] = {}
+    for i, line in enumerate(lines, 1):
+        m = re.match(r"^\s*\[\^([^\]]+)\]:", line)
+        if not m:
+            continue
+        label = m.group(1)
+        if label in defined:
+            report.valid = False
+            report.error(
+                "gate.footnote.duplicate",
+                t("gate.footnote.duplicate", lang, line=i, label=label, first=defined[label]),
+                line=i,
+            )
+        else:
+            defined[label] = i
+        # 下一行若缩进，Markdown 会把它当成这条脚注的续行；本引擎只读单行，
+        # 续行会被排成正文——宁可报错，也不能让注释的后半句悄悄跑到正文里。
+        if i < len(lines) and lines[i].strip() and lines[i][:1] in (" ", "\t"):
+            report.valid = False
+            report.error(
+                "gate.footnote.multiline",
+                t("gate.footnote.multiline", lang, line=i),
+                line=i,
+            )
+    referenced: set[str] = set()
+    for i, line in enumerate(lines, 1):
         for label in re.findall(r"\[\^([^\]]+)\](?!:)", line):
+            referenced.add(label)
             if label not in defined:
                 report.valid = False
                 report.error(
@@ -726,6 +791,13 @@ def validate_manuscript(
                     t("gate.footnote.undefined", lang, line=i, label=label),
                     line=i,
                 )
+    for label, line_no in defined.items():
+        if label not in referenced:
+            report.warning(
+                "gate.footnote.unused",
+                t("gate.footnote.unused", lang, line=line_no, label=label),
+                line=line_no,
+            )
 
     # 2d. 表格行缺少行尾竖线：那一行会掉出表格、变成正文，竖线原样印出来
     for i, line in enumerate(visible.split("\n"), 1):

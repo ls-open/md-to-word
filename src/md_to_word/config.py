@@ -58,6 +58,20 @@ DEFAULT_CSL_ZH = "chinese-gb7714-2015-numeric.csl"
 DEFAULT_CSL_EN = "apa.csl"
 
 
+# 常见「只有繁体才这么写」的字。不是完整的简繁对照表，只用来在自动选预设前
+# 提醒一句：简体稿里偶尔出现一两个（人名、书名）很常见，所以要求至少命中 3 个不同字。
+_TRADITIONAL_HINTS = set(
+    "學術確體這說與為來時會開關實應個們無發經對問題國專業務員動產權畫點數變還進遠運過達"
+    "選鄉醫藥車東馬鳥魚龍龜臺灣澳門網路資訊軟硬體設計師錯誤處理檔案編輯器標準規範"
+)
+
+
+def looks_traditional(text: str) -> bool:
+    """正文是否明显是繁体中文（只用于提醒，不改变默认预设）。"""
+    seen = {ch for ch in (text or "") if ch in _TRADITIONAL_HINTS}
+    return len(seen) >= 3
+
+
 def looks_chinese(text: str, threshold: float = 0.05) -> bool:
     """正文是不是中文写的。
 
@@ -77,9 +91,25 @@ def looks_chinese(text: str, threshold: float = 0.05) -> bool:
     return cjk / len(dense) > threshold
 
 
+def lang_from_proofing(value: Optional[str]) -> Optional[str]:
+    """格式文件的 `校对语言：` → 文档语言（`zh` / `en`）。
+
+    格式文件一旦显式声明了语言，它就是这份文档的语言；稿件里夹一段中文引文或英文附录
+    不该把它翻过去。没有声明时才按正文判定。
+    """
+    if not value:
+        return None
+    return "en" if str(value).strip().lower().startswith("en") else "zh"
+
+
+def default_csl_path_for_lang(lang: str) -> Path:
+    """按文档语言挑默认 CSL：中文走 GB/T 7714 数字制，其余走 APA。"""
+    return get_csl_dir() / (DEFAULT_CSL_ZH if lang == "zh" else DEFAULT_CSL_EN)
+
+
 def default_csl_path(text: str) -> Path:
-    """按稿件的字种挑默认 CSL：中文稿走 GB/T 7714 数字制，其余走 APA。"""
-    return get_csl_dir() / (DEFAULT_CSL_ZH if looks_chinese(text) else DEFAULT_CSL_EN)
+    """按稿件的字种挑默认 CSL（没有格式语言可依据时的兜底）。"""
+    return default_csl_path_for_lang("zh" if looks_chinese(text) else "en")
 
 
 def default_crossref_prefixes(chinese: bool) -> dict[str, str]:

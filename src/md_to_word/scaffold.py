@@ -84,10 +84,27 @@ def run_init(
         print(t("init.exists", lang, paths=", ".join(str(p) for p in existing)))
         return 1
 
-    shutil.copyfile(preset_path, targets["format"])
-    # 样例跟着**预设**的语种走，不跟消息语种：格式词表是英文的（Table Caption、Body Text），
-    # 样例里的样式行也得是英文，否则同一目录里两份文件的说法不一致。
-    targets["manuscript"].write_text(_sample("en" if name.startswith("en") else "zh"), encoding="utf-8")
+    created: list[Path] = []
+    try:
+        if not targets["format"].exists():
+            created.append(targets["format"])
+        shutil.copyfile(preset_path, targets["format"])
+        # 样例跟着**预设**的语种走，不跟消息语种：格式词表是英文的（Table Caption、Body Text），
+        # 样例里的样式行也得是英文，否则同一目录里两份文件的说法不一致。
+        if not targets["manuscript"].exists():
+            created.append(targets["manuscript"])
+        targets["manuscript"].write_text(
+            _sample("en" if name.startswith("en") else "zh"), encoding="utf-8"
+        )
+    except OSError as exc:
+        # 只回滚本次新建的文件；`--force` 覆盖掉的旧文件已经回不去了，不动它。
+        for path in created:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        print(t("init.write_failed", lang, path=exc.filename or directory, err=exc))
+        return 1
 
     print(t(
         "init.done",

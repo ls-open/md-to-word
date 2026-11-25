@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -119,7 +120,7 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
             "body": "三号 (16pt), 首行缩进 2 字符, 固定行距 28.9 磅, 每面 22 行, 校对语言 zh-CN",
             "tables": "全网格线 (0.5pt)",
             "citations": "不设参考文献表（公文引用用发文字号）",
-            "known_deviations": "页码数字按西文字体 Times New Roman 渲染；无红头/版记/印章",
+            "known_deviations": "页码数字按西文字体 Times New Roman 渲染；标题的方正小标宋简体需自行安装，缺字体时 Word 会替换；无红头/版记/印章",
         },
         "typography_en": {
             "fonts": "FangSong / SimHei / KaiTi / FangZheng XiaoBiaoSong / SimSun",
@@ -127,7 +128,7 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
             "body": "16pt, 2-char first-line indent, fixed 28.9pt line spacing, 22 lines per page, proofing zh-CN",
             "tables": "Full-grid (0.5pt)",
             "citations": "No reference list (documents cite by document number)",
-            "known_deviations": "Page-number digits render in Times New Roman; no red letterhead, document-tail block or seal",
+            "known_deviations": "Page-number digits render in Times New Roman; the FangZheng XiaoBiaoSong title font must be installed (Word substitutes it when missing); no red letterhead, document-tail block or seal",
         },
     },
     "en-apa-student": {
@@ -202,10 +203,22 @@ def _read_manual(lang: str) -> str:
 
 
 def _looks_like_path(value: str) -> bool:
-    return "\n" not in value and (
-        "/" in value or "\\" in value
-        or value.lower().endswith((".md", ".markdown", ".txt", ".docx", ".bib"))
-    )
+    """单行输入是路径还是正文。
+
+    只看「含 `/`」会把 `Accuracy 3/4.`、`正文：宋体/Times New Roman 12pt` 这类
+    正常内容误判成缺失文件。判据收紧为：绝对/相对路径前缀、盘符、反斜杠，
+    或已知的文件扩展名。
+    """
+    if "\n" in value or not value.strip():
+        return False
+    cleaned = value.strip()
+    if cleaned.startswith(("/", "~", "./", "../")):
+        return True
+    if re.match(r"^[A-Za-z]:[\\/]", cleaned) or "\\" in cleaned:
+        return True
+    return Path(cleaned).suffix.lower() in {
+        ".md", ".markdown", ".txt", ".docx", ".bib"
+    }
 
 
 def _resolve_markdown_source(markdown: str) -> tuple[Path, bool]:
@@ -218,8 +231,9 @@ def _resolve_markdown_source(markdown: str) -> tuple[Path, bool]:
         if candidate.is_file():
             return candidate.resolve(), False
         if _looks_like_path(cleaned):
-            # 路径拼错时不能把路径字符串当正文导出：那会成功生成一份内容是路径的 docx。
-            raise FileNotFoundError(f"Markdown file not found: {cleaned}")
+            # 路径拼错时不能把路径字符串当正文导出；交回一个不存在的绝对路径，
+            # 由流水线统一报 `pipeline.input_missing`（带 code、file、正确语言）。
+            return candidate.resolve(), False
 
     tmp = tempfile.NamedTemporaryFile(
         suffix=".md",
@@ -260,7 +274,8 @@ def _resolve_format_source(format: str | None) -> tuple[Path | None, bool]:
         if candidate.is_file():
             return candidate.resolve(), False
         if _looks_like_path(cleaned):
-            raise FileNotFoundError(f"Format file not found: {cleaned}")
+            # 同上：交给 `resolve_format` 报 `pipeline.format_missing`。
+            return candidate.resolve(), False
         if resolve_preset_path(cleaned):
             raise ValueError(
                 f"`format` accepted a preset name ({cleaned}). "
@@ -368,13 +383,19 @@ def create_mcp_server() -> Any:
                 out_docx = Path(tempfile.gettempdir()) / (
                     "md-to-word-%s.docx" % os.urandom(4).hex()
                 )
-            out_docx.parent.mkdir(parents=True, exist_ok=True)
+            # 稿件不存在时不要先建输出目录：否则 `/missing/paper.md` 会把错误变成
+            # 「只读文件系统」的内部异常，而真正的原因是 input_missing。
+            if in_path.is_file():
+                out_docx.parent.mkdir(parents=True, exist_ok=True)
 
             result = md_to_word.export(
                 manuscript=in_path,
                 output=out_docx,
                 format=fmt_path,
-                preset=preset if not fmt_path else None,
+                # `format` 与 `preset` 同时给时交给流水线当场拒绝。CLI 这么做，
+                # MCP 旧行为是静默丢掉 preset——调用方以为预设生效了，拿到的却是
+                # 另一份格式；两个入口对同一组参数不能有两个答案。
+                preset=preset,
                 pdf=generate_pdf,
                 lang=lang,
                 base_template=base_template,
@@ -384,10 +405,17 @@ def create_mcp_server() -> Any:
                 blind_review=blind_review,
             )
 
-            file_size = out_docx.stat().st_size if out_docx.exists() else None
+            # 失败时目标路径上可能还躺着上一次的成品；它的字节数不是本次产物，
+            # 不能跟着 `success=false` 一起返回——客户端只看这两个字段就会误判。
+            success = result.ok
+            file_size = (
+                out_docx.stat().st_size
+                if success and out_docx.exists()
+                else None
+            )
             pdf_str = (
                 str(result.output_pdf)
-                if result.output_pdf and result.output_pdf.exists()
+                if success and result.output_pdf and result.output_pdf.exists()
                 else None
             )
             format_source = result.format_source or (
@@ -395,14 +423,14 @@ def create_mcp_server() -> Any:
                 else ("preset:%s" % preset if preset else "none")
             )
             notice = ""
-            if format_source.startswith("preset:"):
+            if success and format_source.startswith("preset:"):
                 used_preset = format_source.split(":", 1)[1]
                 notice = t("mcp.preset_notice", result.lang, preset=used_preset)
 
             return {
-                "success": result.ok,
+                "success": success,
                 "returncode": result.returncode,
-                "output_docx": str(out_docx) if result.ok else None,
+                "output_docx": str(out_docx) if success else None,
                 "output_pdf": pdf_str,
                 "file_size_bytes": file_size,
                 "format_source": format_source,
@@ -416,9 +444,12 @@ def create_mcp_server() -> Any:
             }
         except Exception as exc:
             logger.exception("Compilation failed: %s", exc)
+            from md_to_word.diagnostics import Diagnostic
+
+            message = str(exc)
             return {
                 "success": False,
-                "returncode": -1,
+                "returncode": 1,
                 "output_docx": None,
                 "output_pdf": None,
                 "file_size_bytes": None,
@@ -426,9 +457,12 @@ def create_mcp_server() -> Any:
                 "notice": "",
                 "messages": [],
                 "warnings": [],
-                "errors": [str(exc)],
-                "diagnostics": [],
-                "lang": lang or "unknown",
+                "errors": [message],
+                "diagnostics": [
+                    Diagnostic("error", "mcp.internal_error", message).as_dict()
+                ],
+                "lang": lang or "zh",
+                "doc_lang": "",
             }
         finally:
             if in_is_tmp and in_path is not None and in_path.exists():
@@ -476,72 +510,46 @@ def create_mcp_server() -> Any:
             in_path, in_is_tmp = _resolve_markdown_source(markdown)
             fmt_path, fmt_is_tmp = _resolve_format_source(format)
 
-            # 读稿、定语言与导出共用同一段：同一个临时文件、同一套编码与语种规则。
-            from md_to_word.pipeline import (
-                ExportOptions, prepare_manuscript, resolve_format,
-            )
+            # 校验与 CLI 共用 `run_validation`：读稿、选格式、预检、模板可生成性
+            # 都在同一条路径上。这里若另写一套，空格式会被 MCP 说成“没问题”，
+            # 真正编译却失败——对 Agent 是最糟的安全信号。
+            from md_to_word.pipeline import ExportOptions, run_validation
 
-            prep = prepare_manuscript(ExportOptions(
+            result = run_validation(ExportOptions(
                 input_path=in_path, format_path=fmt_path, preset=preset, lang=lang,
             ))
-            res = prep.res
-            doc_lang = prep.doc_lang
-            message_lang = res.lang
-            if not prep.ok:
-                return {
-                    "valid": False,
-                    "errors": res.errors,
-                    "warnings": res.warnings,
-                    "diagnostics": [d.as_dict() for d in res.diagnostics],
-                    "format_source": res.format_source or "none",
-                    "lang": doc_lang or (lang or "unknown"),
-                    "message_lang": message_lang,
-                    "document_lang": doc_lang,
-                }
-
-            # 格式来源与 CLI 共用同一份判断：`-f` / 预设 / 稿件同目录的 format.txt，
-            # 以及「format 与 preset 同时给」的拒绝。各写一套时，校验说没问题、
-            # 真正导出却换了另一份格式。
-            spec_path, fmt_content = resolve_format(
-                prep.path, res, format_path=fmt_path, preset=preset, doc_lang=doc_lang,
-            )
-            if fmt_content is None:
-                return {
-                    "valid": False,
-                    "errors": res.errors,
-                    "warnings": res.warnings,
-                    "diagnostics": [d.as_dict() for d in res.diagnostics],
-                    "format_source": res.format_source or "none",
-                    "lang": doc_lang,
-                    "message_lang": message_lang,
-                    "document_lang": doc_lang,
-                }
-            format_source = res.format_source
-
-            report = md_to_word.validate_manuscript(
-                in_path,
-                spec_path=spec_path,
-                lang=message_lang,
-            )
             return {
-                "valid": report.valid,
-                "errors": report.errors,
-                "warnings": report.warnings,
-                "diagnostics": [d.as_dict() for d in report.diagnostics],
-                "format_source": format_source,
-                "lang": doc_lang,
-                "message_lang": message_lang,
-                "document_lang": doc_lang,
+                "valid": result.returncode == 0 and not result.errors,
+                "errors": result.errors,
+                "warnings": result.warnings,
+                "diagnostics": [d.as_dict() for d in result.diagnostics],
+                "format_source": result.format_source or (
+                    "format" if fmt_path else "none"
+                ),
+                # 与 compile / CLI `--json` 同一语义：`lang` 是消息语言，
+                # `doc_lang` 是文档语言；旧的两个别名保留，避免客户端断掉。
+                "lang": result.lang,
+                "doc_lang": result.doc_lang,
+                "message_lang": result.lang,
+                "document_lang": result.doc_lang,
             }
         except Exception as exc:
             logger.exception("Validation failed: %s", exc)
+            from md_to_word.diagnostics import Diagnostic
+
+            message = str(exc)
             return {
                 "valid": False,
-                "errors": [str(exc)],
+                "errors": [message],
                 "warnings": [],
-                "diagnostics": [],
+                "diagnostics": [
+                    Diagnostic("error", "mcp.internal_error", message).as_dict()
+                ],
                 "format_source": "format" if fmt_path else "none",
-                "lang": lang or "unknown",
+                "lang": lang or "zh",
+                "doc_lang": "",
+                "message_lang": lang or "zh",
+                "document_lang": "",
             }
         finally:
             if in_is_tmp and in_path is not None and in_path.exists():

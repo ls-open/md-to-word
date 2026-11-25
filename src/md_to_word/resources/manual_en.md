@@ -87,6 +87,7 @@ to stderr:
 
 ```json
 {"ok": true, "returncode": 0, "input": "paper.md", "output": "…/paper.docx", "pdf": null,
+ "pdf_skip_reason": null,
  "lang": "en", "doc_lang": "en", "format_source": "preset:en-nature",
  "messages": ["…"], "warnings": [], "errors": [],
  "diagnostics": [{"severity": "warning", "code": "gate.heading.level",
@@ -98,8 +99,12 @@ sentences for humans, in the manuscript's language. `messages` holds progress, *
 closing check prompt (one merged line per reminder kind, listing up to eight line numbers), so everything worth
 relaying on a successful run is there — no need to parse stderr. `warnings` is the subset of
 `messages` that are reminders, for consumers that need to tell them apart. `lang` is the message
-language, `doc_lang` is the manuscript language that chose the default preset and CSL, and
-`format_source` is `file:/abs/path` or `preset:zh-academic`. Parse the keys, not the wording.
+language; `doc_lang` is the document language actually used (it decides the default CSL,
+cross-reference prefixes and default equation-number appearance): the format's proofing language
+wins, and the manuscript is used only when the format declares none. `pdf_skip_reason` carries a
+reason code when `--pdf` produced nothing (`no-word`, `not-darwin`, `timeout`, ...) and is `null`
+on success. `format_source` is `file:/abs/path` or `preset:zh-academic`. Parse the keys, not the
+wording.
 
 `diagnostics` is the same set of findings as structured data, five fixed keys each: `severity`
 (`error` / `warning`), `code` (a stable identifier such as `gate.image.missing`), `file`, `line`
@@ -440,7 +445,7 @@ is reported: it is neither silently dropped nor misread by another rule.
 | Header / footer distance from the edge | `Header Distance: <N>cm` / `Footer Distance: <N>cm` | `Header Distance: 1.40cm` | — |
 | Document grid | `Document Grid: <N> lines` | `Document Grid: 22 lines` | the ceiling is "text-block height ÷ body line height" (12 pt at 1.3 spacing = 34 lines); beyond it you get a warning, because Word rounds the line height up to whole grid units and the result is worse; **there is no "characters per line" switch** |
 | Latin font | `Font: <typeface>` (global Latin default) | `Font: Times New Roman` | — |
-| Proofing language | `Proofing Language: <language code>` | `Proofing Language: en-US`, `zh-CN`, `zh-TW` | `Proofing Language: English` (without it the base template proofreads as English, and Word flags Chinese text as misspelled throughout) |
+| Proofing language | `Proofing Language: <language code>` | `Proofing Language: en-US`, `zh-CN`, `zh-TW` | `Proofing Language: English` (without it the base template proofreads as English, and Word flags Chinese text as misspelled throughout). **It also decides the language of the default CSL, cross-reference prefixes and equation-number appearance**: an explicit format wins; the manuscript is used only when the format declares no proofing language |
 | Punctuation compression | `Punctuation Compression: <compress\|none\|kana>` | `Punctuation Compression: none` | Maps to `w:characterSpacingControl`. Defaults by proofing language when omitted: `zh-CN` → `compress`, `zh-TW`/`zh-HK`/`zh-MO`/`en-*` → `none` (keeps centred Traditional Chinese full-width punctuation intact), `ja-*` → `kana` |
 | Table (required when the manuscript has tables) | `Table: <center\|left\|right> <three-line\|grid\|top-bottom\|none> [border-top/border-bottom/border-header <N>pt (rule widths)] [border-inside <N>pt (grid only)] [valign center\|top\|bottom] [cell-margin <N>cm] [space-after <N>pt] [no-row-split]` | `Table: center three-line border-top 1pt border-bottom 1pt border-header 0.25pt valign center` | writing `border-inside` for three-line or top-bottom (there are no inner rules); writing any border width for `none`; `cell-margin` applies to all four sides and is in cm, not pt; `space-after` falls after the table, table notes included |
 | Paragraphs in tables | `Compact: <paragraph properties, same syntax as a style line>` | `Compact: Times New Roman 10pt center …` | — (the font, size and alignment of table text **can only come from this line**; without it a paragraph inherits the body's 2-character first-line indent) |
@@ -613,9 +618,11 @@ The style template is generated fresh on every export and never cached, and **st
 one source: the format file.
 
 To check a manuscript without writing a file, run `md-to-word manuscript.md --validate-only`. It
-uses the same format resolution and pre-flight check as an export: exit `0` means it would proceed,
-exit `1` carries line-numbered errors, and no template or `.docx` is produced. Pair it with `--json`
-in CI or agent workflows.
+uses the same format resolution and pre-flight check as an export, and also builds the style
+template once in a temporary directory to confirm it can be produced: exit `0` means the manuscript
+and format are exportable, exit `1` carries line-numbered errors, and no `.docx` is written.
+Whether the output directory exists and is writable is only known when the file is actually written.
+Pair it with `--json` in CI or agent workflows.
 
 A failed export (pre-flight, writing, or the audit) never leaves a half-written `.docx`: the product
 is built in a temporary file in the same folder and swapped into place only after every gate passes.
@@ -703,6 +710,16 @@ chapter headers are collected in §9. The `--base-template` path lives there too
 ---
 
 ## 6. Capability limits
+
+**Fonts and the opening environment**: a `.docx` records font *names*, not the fonts themselves;
+what the reader sees depends on the machine that opens the file. The presets declare the fonts
+found on Chinese Windows + Microsoft Word (SimSun/SimHei/FangSong/KaiTi, Times New Roman; PMingLiU
+and Microsoft JhengHei for zh-TW; FangZheng XiaoBiaoSong is not a system font and must be installed
+for GB/T 9704 titles). When a font is missing, Word substitutes it and pagination may shift; the
+declaration inside the file does not change. Check the delivered file on the target machine or with
+`--pdf` before formal delivery. **Microsoft Word is the acceptance target**: WPS opens the `.docx`,
+but does not expand the TOC field and may show `Error! The style is not specified.` in a `STYLEREF`
+chapter header; if the recipient uses WPS, check the file there too.
 
 **Supported**: every paragraph property a style line can declare (font, size, bold and italic,
 style-level colour, alignment, indentation, line spacing, paragraph spacing, borders and table rule

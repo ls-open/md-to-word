@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import sys
@@ -108,13 +109,35 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
     if default_latin:
         logger.debug(f' 全局西文字体: {default_latin}')
 
-    has_errors, linkage_errors = _check_required_fields(spec, lang, format_text)
+    # 必填项的明细一直只进日志：CLI 的人看得到，`--json` 与 MCP 的调用方只拿到
+    # 一句「详见上方逐条提示」。这里把本次检查的日志一起收进异常，两个出口都能读。
+    class _Capture(logging.Handler):
+        def __init__(self) -> None:
+            super().__init__(level=logging.INFO)
+            self.lines: list[str] = []
+
+        def emit(self, record: logging.LogRecord) -> None:
+            self.lines.append(record.getMessage())
+
+    capture = _Capture()
+    old_level = logger.level
+    logger.addHandler(capture)
+    logger.setLevel(logging.INFO)
+    try:
+        has_errors, linkage_errors = _check_required_fields(spec, lang, format_text)
+    finally:
+        logger.removeHandler(capture)
+        logger.setLevel(old_level)
+
     if has_errors:
         msg = t('template.required_missing', lang)
         if linkage_errors:
             # 联动错误**只**随异常一起给出（不再单独打日志）：打一遍再贴一遍，
             # 用户会以为有两处问题；而只打日志的话，`--json` / MCP 这条路读不到。
             msg = msg + "\n" + "\n".join(linkage_errors)
+        details = [line for line in capture.lines if line.strip()]
+        if details:
+            msg = msg + "\n" + "\n".join(details[:24])
         raise TemplateError(msg)
 
     logger.debug('加载纯净现代 Word 365 底模...')

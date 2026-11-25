@@ -128,6 +128,7 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
 - **Byte-identical scope**: Binaries are byte-identical on the same operating system platform; cross-platform builds differ in underlying zlib deflate compression streams.
 - **Unsupported layouts**: Markdown and the single-column document model do not support merged cells, diagonal table headers, multi-column mixing, or text-wrapped floating shapes.
 - **PDF rendering**: The `--pdf` flag requires Word on macOS to expand Word fields; without Word, the `.docx` is produced and PDF is skipped.
+- **Fonts and office suites**: a `.docx` records font names, not the fonts themselves; if the opening machine lacks one, Word substitutes it and pagination can shift. WPS opens the file, but does not expand the TOC field and may show an error in a `STYLEREF` chapter header. Microsoft Word is the acceptance target.
 
 ### Ecosystem
 

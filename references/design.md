@@ -40,7 +40,7 @@
 
 为杜绝"设置了样式却不生效"的隐蔽 Bug，框架在两处净化：
 1. **底模生成阶段（源头零污染）**：`create_pure_modern_base.py` 构建 `styles.xml` 时不写入任何 `asciiTheme`、`eastAsiaTheme`、`themeColor` 属性或非黑颜色；
-2. **模板刷样阶段（过程净化）**：`src/md_to_word/template/generator.py` 保存时刻对 `styles.xml` 再次执行递归清理。
+2. **模板刷样阶段（过程净化）**：`src/md_to_word/template/core.py` 保存时刻对 `styles.xml` 再次执行递归清理。
 
 写出器本身不再引入主题标记，所以没有第三处。剥除范围是字体（`asciiTheme` 等）、颜色
 （`themeColor`/`themeTint`/`themeShade`）与底纹（`themeFill`/`themeFillTint`/`themeFillShade`）

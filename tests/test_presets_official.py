@@ -68,6 +68,28 @@ def _cm_to_twips(value: float) -> int:
 
 
 @pytest.mark.parametrize("name", sorted(p.stem for p in get_presets_dir().glob("*.txt")))
+def test_every_preset_exports_a_minimal_manuscript(name: str, tmp_path: Path) -> None:
+    """每个内置预设都必须能独立完成一次导出，而不只是生成模板。
+
+    预设是用户的第一入口：`--preset X` 选完却报缺样式，等于这个预设不可用。这里用
+    最小稿件过完整流水线（预检、模板、写出、防丢、对账），并确认格式来源就是该预设。
+    """
+    chinese = not name.startswith("en-")
+    text = "# 一级\n\n正文。\n" if chinese else "# Heading\n\nBody text.\n"
+    manuscript = tmp_path / "m.md"
+    manuscript.write_text(text, encoding="utf-8")
+    out = tmp_path / f"{name}.docx"
+
+    result = run_export_pipeline(
+        ExportOptions(input_path=manuscript, output_path=out, preset=name)
+    )
+
+    assert result.ok, f"{name}: {result.errors}"
+    assert result.format_source == f"preset:{name}"
+    assert out.is_file() and out.stat().st_size > 1000
+
+
+@pytest.mark.parametrize("name", sorted(p.stem for p in get_presets_dir().glob("*.txt")))
 def test_declared_geometry_lands_in_the_document(name: str, tmp_path: Path) -> None:
     spec, doc, _styles, settings = _built(name, tmp_path)
     sect = _sect(doc)

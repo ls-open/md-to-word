@@ -304,7 +304,9 @@ def main(args: list[str] | None = None) -> int:
         postflight=not parsed.no_postflight,
         audit=not parsed.no_audit,
         make_pdf=parsed.pdf,
-        lang=None if parsed.lang == "auto" else parsed.lang,
+        # `_message_lang` 已经按稿件判好（读不到稿件时兜底中文）。把它传下去，
+        # 「文件不存在 / 无法解码」这类**读稿前**的错误才不会在中文终端里说英文。
+        lang=parsed.lang if parsed.lang != "auto" else lang,
         blind_review=parsed.blind_review,
     )
 
@@ -334,6 +336,7 @@ def _emit_result(result: ExportResult, parsed) -> int:
             "input": str(parsed.input),
             "output": str(result.output_docx) if result.output_docx else None,
             "pdf": str(result.output_pdf) if result.output_pdf else None,
+            "pdf_skip_reason": result.pdf_skip_reason or None,
             "lang": result.lang,
             "doc_lang": result.doc_lang,
             "format_source": result.format_source,

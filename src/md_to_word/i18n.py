@@ -113,6 +113,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Not overwriting existing files: {paths} (add --force to replace them)",
     ),
     "init.dir_failed": ("无法创建目录 {dir}：{err}", "Cannot create directory {dir}: {err}"),
+    "init.write_failed": (
+        "写入 {path} 失败：{err}\n  目录只读、磁盘已满、或目标位置被同名目录占着时都会这样。",
+        "Could not write {path}: {err}\n"
+        "  The directory may be read-only, the disk full, or a same-name directory may occupy the path.",
+    ),
     "cli.guide": (
         "打印入门文档后退出：按什么顺序做、门禁怎么读、边界在哪（第一次用先读它）",
         "Print the getting-started guide, then exit: order of work, how to read the gates, boundaries",
@@ -183,6 +188,23 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "输出目录不存在: {dir}\n  先建目录，或用 -o 指到已存在的目录里。",
         "Output directory does not exist: {dir}\n  Create it first, or point -o at an existing directory.",
     ),
+    "pipeline.output_not_docx": (
+        "输出路径必须以 .docx 结尾: {path}\n"
+        "  本工具产出 Word 文档；要同时出 PDF 请加 --pdf，PDF 会写在同名的 .pdf。",
+        "The output path must end in .docx: {path}\n"
+        "  This tool produces a Word document; add --pdf for a review PDF, written as the same-name .pdf.",
+    ),
+    "pipeline.output_is_dependency": (
+        "输出路径就是本次导出依赖的输入文件：{path}\n"
+        "  继续会毁掉这份输入。用 -o 指到另一个 .docx 文件。",
+        "The output path is an input this export depends on: {path}\n"
+        "  Continuing would destroy that input. Point -o at a different .docx file.",
+    ),
+    "pipeline.stale_pdf": (
+        "本次没有生成新的 PDF：{path} 还是上一次的（{when}），别把它当成这次的结果。",
+        "No new PDF was produced: {path} is still the previous one ({when}); "
+        "do not treat it as this run's output.",
+    ),
     "pipeline.format_missing": ("指定的格式文件不存在: {path}", "Format file not found: {path}"),
     "pipeline.preset_missing": ("未找到预设: {name}", "Preset not found: {name}"),
     "pipeline.format_preset_conflict": (
@@ -190,6 +212,31 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "  -f 指向一份格式文件，--preset 指向一个内置预设；同时给时不知道该听谁的。",
         "Both -f/--format and --preset were given: choose one.\n"
         "  -f names a format file, --preset names a built-in preset; with both it is unclear which wins.",
+    ),
+    "pipeline.traditional_preset": (
+        "稿件含较多繁体字；没有显式指定格式时，内置默认预设是简体 zh-academic。"
+        "繁体（臺灣/香港）版式请加 --preset zh-tw-academic，或在稿件旁放一份繁体 format.txt。",
+        "The manuscript looks Traditional Chinese; without an explicit format the default preset "
+        "is the Simplified zh-academic. For a Traditional (Taiwan/HK) layout, pass "
+        "--preset zh-tw-academic or place a Traditional format.txt beside the manuscript.",
+    ),
+    "pipeline.optional_font": (
+        "格式声明了「{font}」：它不是 Windows/macOS 自带字体，未安装时 Word 会替换成"
+        "其他字体，字形与分页可能变化。请在最终打开文件的机器上安装该字体。",
+        "The format declares \"{font}\": it is not a system font on Windows or macOS. "
+        "Without it Word substitutes another face, changing glyphs and pagination; "
+        "install it on the machine that will open the file.",
+    ),
+    "pipeline.cut_without_base": (
+        "{flags} 只对 --base-template 生效；本次没有给底模，这些参数已忽略，正文按整篇导出。",
+        "{flags} only applies with --base-template; no base template was given, so it was "
+        "ignored and the whole manuscript was exported.",
+    ),
+    "pipeline.doc_lang_format": (
+        "格式文件的校对语言是「{fmt}」，与按正文判定的「{detected}」不同："
+        "默认文献样式、交叉引用前缀与公式编号按「{fmt}」处理。",
+        "The format file declares proofing language {fmt}, which differs from the manuscript's {detected}: "
+        "default citation style, cross-reference prefixes and equation numbering follow {fmt}.",
     ),
     "pipeline.preset_auto": (
         "未指定格式文件，按语种用内置预设 {name}（仅预览；交付请用 -f）。",
@@ -282,6 +329,22 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "图片「{path}」无法解码（{err}）；请确认文件没有损坏，或另存为 PNG/JPEG",
         "the image {path} could not be decoded ({err}); check that the file is intact or save it as PNG/JPEG",
     ),
+    "reader.quote_style_unsupported": (
+        "第 {line} 行：引用块里不支持 `%% 样式行`。引用块只支持普通段落、列表与代码块；"
+        "需要指定样式的段落请移出引用块。",
+        "Line {line}: `%% style lines` are not supported inside a blockquote. "
+        "A blockquote holds paragraphs, lists and code blocks; move styled paragraphs out of it.",
+    ),
+    "reader.quote_footnote_unsupported": (
+        "第 {line} 行：引用块里不支持脚注定义；请把 `[^注]:` 移到引用块外。",
+        "Line {line}: footnote definitions are not supported inside a blockquote; "
+        "move `[^note]:` outside it.",
+    ),
+    "reader.quote_unsupported": (
+        "第 {line} 行起的引用块含不支持的块：引用块只支持普通段落、列表与代码块。",
+        "The blockquote starting at line {line} contains an unsupported block: "
+        "a blockquote holds paragraphs, lists and code blocks only.",
+    ),
     "reader.unclosed_code_fence": (
         "第 {line} 行打开的代码块没有收尾，后面的内容都成了代码",
         "the code block opened on line {line} is never closed, so everything after it becomes code",
@@ -361,6 +424,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "`split` environment, or split it into separate numbered equations.",
     ),
     "citations.empty_library": ("文献库里没有可用条目", "the bibliography has no usable entries"),
+    "biblio.duplicate_keys": (
+        "文献库里有重复的引用键：{keys}。导出只会保留其中一条，正文的引用指向哪条"
+        "取决于实现顺序——请合并成一条。",
+        "The bibliography defines duplicate citation keys: {keys}. Only one entry survives "
+        "the export, so citations point at an arbitrary one; merge each pair into one entry.",
+    ),
     "biblio.json_invalid": (
         "CSL-JSON 文献库无法解析：{reason}",
         "the CSL-JSON bibliography could not be parsed: {reason}",
@@ -414,6 +483,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "word_pdf.no_script": (
         "包里缺渲染脚本（安装不完整），重装一次 md-to-word。",
         "The render script is missing from the package (incomplete install); reinstall md-to-word.",
+    ),
+    "word_pdf.timeout": (
+        "Word 超过 4 分钟没有响应（可能弹出了首次运行/登录/宏提示）。docx 没问题；"
+        "先在 Word 里处理弹窗，或手动另存 PDF。",
+        "Word did not respond within four minutes (a first-run, sign-in or macro prompt may be open). "
+        "The docx is fine; clear the prompt in Word, or save the PDF manually.",
     ),
     "cli.base": (
         "前置底模（.docx，如学校/机构模板）：正文灌进它，保留其封面/声明等前置节（验不过就不产出）",
@@ -710,8 +785,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "space-after 6pt indent 0`.",
     ),
     "template.required_missing": (
-        "必填样式或必填字段缺失，详见上方逐条提示。",
-        "Required styles or fields are missing; see the items listed above.",
+        "必填样式或必填字段缺失：",
+        "Required styles or fields are missing:",
     ),
     "template.base_template_missing": (
         "未找到基础模板 {path}；请运行 scripts/create_pure_modern_base.py 重新生成。",
@@ -813,6 +888,15 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "extractor.cli.lang": (
         "消息语言：auto=按参考文件语种 / zh / en",
         "Message language: auto (follows the reference file) / zh / en",
+    ),
+    "extractor.output_is_input": (
+        "输出路径就是参考模板本身：{path}\n  继续会毁掉这份 .docx。换一个 .txt 路径。",
+        "The output path is the reference template itself: {path}\n"
+        "  Continuing would destroy that .docx. Choose a .txt path.",
+    ),
+    "extractor.write_failed": (
+        "写入 {path} 失败：{err}",
+        "Could not write {path}: {err}",
     ),
     "extractor.draft_written": (
         "已写出草稿: {path}（样式 {styled} 条，需确认 {notes} 项）",
@@ -1311,6 +1395,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.marker.toc": ("目录", "toc"),
     "gate.marker.section": ("分节", "section"),
     # ── 稿件与要求文件本身 ──
+    "gate.manuscript.empty": (
+        "稿件里没有正文内容：{path}\n  确认文件没指错，且正文没有被 HTML 注释整段包住。",
+        "The manuscript has no body content: {path}\n"
+        "  Check that you pointed at the right file and that the body is not entirely inside HTML comments.",
+    ),
     "gate.manuscript.missing": ("稿件文件不存在: {path}", "Manuscript file not found: {path}"),
     "gate.manuscript.unreadable": ("无法读取稿件 {path}: {err}", "Cannot read the manuscript {path}: {err}"),
     "gate.format.missing": ("格式文件不存在: {path}", "Format file not found: {path}"),
@@ -1319,6 +1408,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Could not parse the format file ({path}): {err}",
     ),
     "gate.yaml.parse_failed": ("YAML frontmatter 解析失败: {err}", "Could not parse the YAML frontmatter: {err}"),
+    "gate.yaml.duplicate_key": (
+        "行 {line}: YAML 键 `{key}` 重复（前一次在第 {first} 行）；解析只保留后一条。",
+        "Line {line}: YAML key `{key}` is duplicated (first at line {first}); only the last one survives.",
+    ),
+    "gate.yaml.not_mapping": (
+        "YAML frontmatter 必须是一组「键: 值」，现在解析出来的是 {kind}。",
+        "The YAML frontmatter must be a mapping of `key: value` pairs; it parsed as {kind}.",
+    ),
     "gate.bib.missing": ("文献库不存在: {path}", "Bibliography file not found: {path}"),
     "gate.csl.missing": ("CSL 样式文件不存在: {path}", "CSL style file not found: {path}"),
     # YAML 里写了内容性字段：引擎只认正文的样式行，位置由作者定
@@ -1728,6 +1825,24 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Line {line}: the image is not on its own line — an inline image does not become a figure "
         "paragraph, only a stray `!` is printed. Put `![](…)` on its own line and give the caption "
         "its own `%% Image Caption` paragraph",
+    ),
+    "gate.footnote.duplicate": (
+        "行 {line}: 脚注 `[^{label}]` 重复定义（前一次在第 {first} 行）。"
+        "导出只会留下一条，引用指向哪条取决于实现顺序——请合并成一条。",
+        "Line {line}: footnote `[^{label}]` is defined twice (first at line {first}). "
+        "Only one survives the export; merge them into one definition.",
+    ),
+    "gate.footnote.unused": (
+        "行 {line}: 脚注 `[^{label}]` 定义了但正文没有引用，导出后不会出现。"
+        "不需要就删掉，需要就补 `[^{label}]`。",
+        "Line {line}: footnote `[^{label}]` is defined but never referenced; it will not appear. "
+        "Delete it, or add `[^{label}]` in the text.",
+    ),
+    "gate.footnote.multiline": (
+        "行 {line}: 脚注定义只支持单行，下一行的缩进续行会被排成正文。"
+        "请把整条脚注写在同一行，或拆成多条。",
+        "Line {line}: footnote definitions must fit on one line; an indented continuation "
+        "would be typeset as body text. Keep the footnote on one line, or split it.",
     ),
     "gate.footnote.undefined": (
         "行 {line}: 脚注引用 `[^{label}]` 没有对应定义（`[^{label}]: …`），"

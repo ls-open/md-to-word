@@ -15,6 +15,7 @@ from typing import Optional
 import yaml
 from html import unescape
 
+from md_to_word.utils.image_syntax import IMAGE_LINE_RE, image_target
 from md_to_word.utils.skill_utils import split_frontmatter
 from md_to_word.model.document import (
     Block, Citation, CitationItem, Code, CodeBlock, CrossRef, Document, Emphasis, Equation,
@@ -30,7 +31,7 @@ _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 _UNLISTED_ATTR_RE = re.compile(r"\s*\{(?:\.unlisted|不入目录)\}\s*$")
 _FENCE_RE = re.compile(r"^(```|~~~)(.*)$")
 _SHORTCODE_RE = re.compile(r"^\{\{<\s*([a-z]+)(.*?)>\}\}\s*$")
-_IMAGE_ONLY_RE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<path>[^)\s]+)\)\s*(?P<attrs>\{[^}]*\})?\s*$")
+_IMAGE_ONLY_RE = IMAGE_LINE_RE
 _WIDTH_RE = re.compile(r"width\s*=\s*([\d.]+)\s*(cm|mm|in|pt|%)?")
 _LABEL_RE = re.compile(r"\{#(?P<label>[\w:.\-]+)\}\s*$")
 _BULLET_RE = re.compile(r"^(?P<indent>\s*)[-*+]\s+(?P<text>.*)$")
@@ -703,17 +704,36 @@ class _Reader:
         if m:
             value, unit = float(m.group(1)), m.group(2) or "cm"
             width_cm = {"cm": value, "mm": value / 10, "in": value * 2.54, "pt": value * 2.54 / 72}.get(unit)
-        return Figure(path=match.group("path"), alt=match.group("alt"), width_cm=width_cm)
+        return Figure(path=image_target(match.group("path")), alt=match.group("alt"), width_cm=width_cm)
 
     def _read_quote(self, start: int) -> int:
-        """引用块：去掉 `>` 之后按普通块再解析一遍，块级写法在引用里也成立。"""
+        """引用块：只支持段落、列表与代码块（写出器的能力边界）。
+
+        以前这里把去掉了 `>` 的行再交给一个完整 `_Reader`：它能读标题、表格、样式行，
+        但写出器只认上面三种，未认出的样式行还会被**整段丢掉**且不留提示。现在先按
+        同一份能力边界把不支持的写法拦下，并给回原始行号。
+        """
         body: list[str] = []
         i = start
         while i < len(self.lines) and self.lines[i].strip().startswith(">"):
             body.append(_QUOTE_LINE_RE.sub("", self.lines[i]))
             i += 1
+        in_fence = False
+        for offset, raw in enumerate(body):
+            stripped = raw.strip()
+            if stripped.startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            if split_style_line(raw) is not None:
+                raise MarkdownError(start + offset + 1, "reader.quote_style_unsupported")
+            if _FOOTNOTE_DEF_RE.match(stripped):
+                raise MarkdownError(start + offset + 1, "reader.quote_footnote_unsupported")
         self._flush_pending()
         inner = _Reader("\n".join(body), self.citation_keys).read().blocks
+        if any(not isinstance(block, (Paragraph, ListBlock, CodeBlock)) for block in inner):
+            raise MarkdownError(start + 1, "reader.quote_unsupported")
         self._append(Quote(blocks=inner))
         return i
 

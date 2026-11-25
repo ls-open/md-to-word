@@ -122,6 +122,51 @@ def test_validate_only_writes_no_docx(tmp_path: Path, capsys) -> None:
     assert not out.exists()
 
 
+@pytest.mark.parametrize("content", ["", "# 只有注释，没有一条样式\n"])
+def test_validate_only_rejects_a_format_without_styles(
+    tmp_path: Path, capsys, content: str
+) -> None:
+    """预检不能对“生成不出模板”的格式说没问题。
+
+    空格式与只有注释的格式能过词表检查（稿件没用到样式），但导出时要生成样式模板，
+    这一步必然失败。旧行为是 `--validate-only` 返回 0、真正导出返回 1——对用户是
+    一个错误的安全信号。
+    """
+    manuscript = _manuscript(tmp_path, "# 引言\n\n正文。\n")
+    fmt = tmp_path / "format.txt"
+    fmt.write_text(content, encoding="utf-8")
+    out = tmp_path / "o.docx"
+
+    code = main([
+        str(manuscript), "-f", str(fmt), "--validate-only", "--json",
+    ])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == payload["returncode"] == 1
+    assert any("样式" in error for error in payload["errors"]), payload
+    assert not out.exists()
+
+
+def test_missing_default_preset_is_an_error_not_an_empty_success(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """包内预设缺失（安装损坏）必须报错，而不是 returncode=0 却没有产物。"""
+    import md_to_word.pipeline as pipeline
+
+    manuscript = _manuscript(tmp_path, "# 引言\n\n正文。\n")
+    out = tmp_path / "o.docx"
+    monkeypatch.setattr(pipeline, "resolve_preset_path", lambda _name: None)
+
+    result = pipeline.run_export_pipeline(
+        ExportOptions(input_path=manuscript, output_path=out)
+    )
+
+    assert result.returncode == 1
+    assert result.output_docx is None
+    assert any("zh-academic" in error for error in result.errors), result.errors
+    assert not out.exists()
+
+
 def test_validate_only_reports_blocking_errors(tmp_path: Path, capsys) -> None:
     manuscript = _manuscript(
         tmp_path,

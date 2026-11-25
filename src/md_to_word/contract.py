@@ -20,7 +20,7 @@ from md_to_word.config import (
     resolve_preset_path,
 )
 from md_to_word.i18n import t
-from md_to_word.spec.constants import STYLE_MAP, YAML_KEYS
+from md_to_word.spec.constants import STYLE_CN, STYLE_EN, STYLE_MAP, YAML_KEYS
 from md_to_word.spec.presets import list_available_presets
 from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED, EXIT_USAGE
 from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES
@@ -32,6 +32,7 @@ RESULT_JSON_KEYS = (
     "input",
     "output",
     "pdf",
+    "pdf_skip_reason",
     "lang",
     "doc_lang",
     "format_source",
@@ -57,19 +58,15 @@ def style_pairs() -> list[dict[str, str]]:
     同一目标有多个别名（`表题` / `表格题注` / `表名` 都指向 Table Caption），
     契约里只给一个正典写法，避免 Agent 以为有几种不同样式。
     """
-    seen: set[str] = set()
+    # 正典名以 `STYLE_CN` / `STYLE_EN` 为准：`STYLE_MAP` 里第一个中文别名不一定是
+    # 报错与文档使用的那个（Table Caption 的第一个别名曾给出「表格题注」，而正典是「表题」）。
     pairs: list[dict[str, str]] = []
-    for name, target in STYLE_MAP.items():
-        if target in seen:
-            continue
-        seen.add(target)
-        english = name if name.isascii() else next(
-            (n for n, tgt in STYLE_MAP.items() if tgt == target and n.isascii()), name
-        )
-        chinese = name if not name.isascii() else next(
-            (n for n, tgt in STYLE_MAP.items() if tgt == target and not n.isascii()), name
-        )
-        pairs.append({"style": target, "zh": chinese, "en": english})
+    for target in dict.fromkeys(STYLE_MAP.values()):
+        pairs.append({
+            "style": target,
+            "zh": STYLE_CN.get(target, target),
+            "en": STYLE_EN.get(target, target),
+        })
     return pairs
 
 

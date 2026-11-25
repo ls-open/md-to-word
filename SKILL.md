@@ -159,9 +159,12 @@ Run every command from the manuscript's directory: relative image and `.bib` pat
 it. Add `--pdf` (macOS with Word) to expand fields and spot-check the result.
 
 Add `--json` whenever the result must be read back programmatically: stdout carries one JSON object
-(`ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `doc_lang`, `format_source`, `messages`,
-`warnings`, `errors`, `diagnostics`); logs stay on stderr. `lang` is the message language, `doc_lang`
-the manuscript language; `format_source` is `file:/abs/path` or `preset:zh-academic`.
+(`ok`, `returncode`, `input`, `output`, `pdf`, `pdf_skip_reason`, `lang`, `doc_lang`, `format_source`, `messages`,
+`warnings`, `errors`, `diagnostics`); logs stay on stderr. `lang` is the message language; `doc_lang`
+is the document language actually used (format proofing language first, manuscript otherwise) and
+drives the default CSL, cross-reference prefixes and equation-number appearance. `pdf_skip_reason`
+is a code when `--pdf` produced nothing, else `null`; `format_source` is `file:/abs/path` or
+`preset:zh-academic`.
 
 `diagnostics` is the same findings as structured data, one object each:
 `{severity: "error"|"warning", code, file, line, message}`. Branch on `code` (for example
@@ -170,7 +173,8 @@ the prose. `--contract --json` returns version, guide/manual paths, preset paths
 accepted style names in both languages, YAML keys, block markers, figure formats, exit codes and
 the exact `--json` keys.
 
-`--validate-only` runs the same pre-flight and writes nothing: exit `0` would proceed, `1` carries
+`--validate-only` runs the same pre-flight, tries building the style template in a temporary
+directory, and writes no `.docx`: exit `0` means the manuscript and format are exportable, `1` carries
 the line-numbered errors.
 
 `--blind-review` strips identifying **document properties** from the final file: author, company,
@@ -213,6 +217,11 @@ skipped. Messages follow the manuscript's language.
 - TOC page numbers are Word fields, filled when Word opens the file. A title excluded from the TOC
   cannot also feed `{style-title:Heading 1}` (`no-toc` + `join-header` is rejected; split sections
   with `{{< section >}}`).
+- **Fonts and office suites**: a `.docx` records font *names*, not the fonts themselves. The
+  declared sets target Chinese Windows + Microsoft Word; if the opening machine lacks one, Word
+  substitutes it and pagination can shift. WPS can open the file, but does not expand the TOC field
+  and may show `Error! The style is not specified.` in a `STYLEREF` chapter header — Microsoft Word
+  is the acceptance target. Check the delivered file in the software the recipient will use.
 
 Full statements: manual §6 (limits) and §8 (symptom → fix).
 

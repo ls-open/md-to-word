@@ -20,7 +20,8 @@ from typing import Optional
 from md_to_word.audit.inspector import audit_docx_against_spec
 from md_to_word.audit.postflight import verify_chinese_integrity, verify_numeric_integrity
 from md_to_word.config import (
-    default_csl_path, default_preset_name, get_csl_dir, resolve_preset_path,
+    default_csl_path_for_lang, default_preset_name, get_csl_dir,
+    lang_from_proofing, looks_traditional, resolve_preset_path,
 )
 from md_to_word.diagnostics import Diagnostic
 from md_to_word.i18n import resolve_lang, t
@@ -99,7 +100,10 @@ def _fail(
 
 def _warn(res: ExportResult, code: str, message: str, *, file: Optional[Path | str] = None) -> None:
     """记一条提醒：`messages` 给人、`warnings` 供 CLI 加标记、`diagnostics` 给程序。"""
-    if message in res.warnings:  # 同一份底模会被体检两次，同一条提醒只说一遍
+    # 同一份底模会被体检两次，同一条提醒只说一遍。按 `(code, message)` 去重：
+    # 两个不同来源恰好用了同一句话时，仍应各留一条。
+    if any(d.severity == "warning" and d.code == code and d.message == message
+           for d in res.diagnostics):
         return
     res.messages.append(message)
     res.warnings.append(message)
@@ -218,6 +222,11 @@ def prepare_manuscript(options: ExportOptions) -> PreparedManuscript:
     res.lang = resolve_lang(text, options.lang)
     doc_lang = resolve_lang(text, None)
     res.doc_lang = doc_lang
+    # 繁体稿在自动选预设时会落到简体 zh-academic；这不改变默认行为，但必须说一声。
+    # 显式给了 --preset 或 -f 时用户已经做了选择，不再打扰。
+    if not options.preset and not options.format_path and looks_traditional(text):
+        _warn(res, "pipeline.traditional_preset",
+              t("pipeline.traditional_preset", res.lang), file=in_p)
     _note_encoding("textio.label.manuscript", encoding, res, file=in_p)
     return PreparedManuscript(res, in_p, text, encoding, doc_lang)
 
@@ -274,11 +283,12 @@ def resolve_format(
             _fail(res, "pipeline.format_missing",
                   t("pipeline.format_missing", res.lang, path=p_fmt), file=p_fmt)
             return None, None
+        # 先记来源再读：读失败时诊断里仍能指出「用的是哪份」。
+        fmt_file = p_fmt
+        res.format_source = f"file:{p_fmt}"
         fmt_content = _read_user_text(p_fmt, "textio.label.format", res)
         if fmt_content is None:
             return None, None
-        fmt_file = p_fmt
-        res.format_source = f"file:{p_fmt}"
     elif preset:
         p_pre = resolve_preset_path(preset)
         if not p_pre or not p_pre.is_file():
@@ -286,10 +296,10 @@ def resolve_format(
                   t("pipeline.preset_missing", res.lang, name=preset))
             return None, None
         fmt_file = p_pre
+        res.format_source = f"preset:{preset}"
         fmt_content = _read_user_text(p_pre, "textio.label.format", res, warn_fallback=False)
         if fmt_content is None:
             return None, None
-        res.format_source = f"preset:{preset}"
     else:
         # 只认一个固定名：稿件同目录的 `format.txt`。不去猜「旁边那个 .txt
         # 也许是要求文件」——猜错是静默用错格式，猜对了也换不来多少方便。
@@ -305,7 +315,9 @@ def resolve_format(
             others = sorted(p.name for p in in_p.parent.glob("*.txt") if p.is_file())
             if others:
                 shown = "、".join(others[:3]) + ("…" if len(others) > 3 else "")
-                res.messages.append(t("pipeline.txt_ignored", res.lang, names=shown))
+                # 这是「你以为在用、其实没用」：必须进 warnings，Agent 才会转述。
+                _warn(res, "pipeline.txt_ignored",
+                      t("pipeline.txt_ignored", res.lang, names=shown))
             # 默认预设跟着**稿件语种**走，不跟 `--lang`（那是消息语言）：中文稿加
             # `--lang en` 只为读英文报错，不能因此套上英文期刊的版式。
             preset_name = default_preset_name(doc_lang)
@@ -319,6 +331,12 @@ def resolve_format(
                     return None, None
                 res.format_source = f"preset:{preset_name}"
                 res.messages.append(t("pipeline.preset_auto", res.lang, name=preset_name))
+            else:
+                # 包内预设缺失是安装损坏，不是“用户可以自己想办法”的情况。旧行为是
+                # 什么也不说地返回空内容，调用方看到 returncode=0 却没有产物。
+                _fail(res, "pipeline.preset_missing",
+                      t("pipeline.preset_missing", res.lang, name=preset_name))
+                return None, None
     return fmt_file, fmt_content
 
 
@@ -341,6 +359,17 @@ def _prepare_base_plan(
     `allow_keep_pages=False` 给 `--validate-only`：它不排版，换算不了页数。
     """
     if not options.base_template:
+        used = [
+            flag for flag, value in (
+                ("--keep-pages", options.keep_pages),
+                ("--keep-until", options.keep_until),
+                ("--cover-sections", options.cover_sections),
+            ) if value
+        ]
+        if used:
+            _warn(res, "pipeline.cut_without_base", t(
+                "pipeline.cut_without_base", res.lang, flags=" / ".join(used)
+            ))
         return True, None
 
     from md_to_word.template.base_inject import (
@@ -459,6 +488,61 @@ def _prepare_base_plan(
     return True, BasePlan(base_p, sections, cut_at_paragraph)
 
 
+def _check_template_buildable(
+    fmt_content: str, res: ExportResult, fmt_file: Optional[Path]
+) -> bool:
+    """格式内容能不能真的生成样式模板。
+
+    预检只看稿件与格式词表；「空格式」「只有注释」「属性组合生成不了模板」这几类
+    问题要到导出中段才会暴露。`--validate-only` 若在这里说没问题，用户会带着一份
+    注定失败的稿件去交付。导出与预检共用同一个 build_template，判据才不会分叉。
+    """
+    try:
+        with tempfile.TemporaryDirectory(prefix="md2word_validate_") as td:
+            build_template(fmt_content, Path(td) / "template.docx", lang=res.lang)
+    except TemplateError as exc:
+        _fail(res, "pipeline.format_template_failed",
+              t("pipeline.format_template_failed", res.lang, reason=exc), file=fmt_file)
+        return False
+    return True
+
+
+def _trial_export(options: ExportOptions, fmt_file: Optional[Path], res: ExportResult) -> bool:
+    """预检通过后，用同一套写出器往临时目录真导一次。
+
+    词表与正则只能拦住一部分问题：`\\xrightarrow` 转 OMML、引用块里的标题、
+    列表项里的代码块这些要走到写出器才知道。预检若在这里说 0，用户会带着一份
+    注定失败的稿子去交付。`check_md` 关掉避免重复预检；`postflight`/`audit`
+    关掉——这里只问「能不能写出来」，不重复做成品核对。
+    """
+    if fmt_file is None:
+        return True
+    with tempfile.TemporaryDirectory(prefix="md2word_trial_") as td:
+        trial = ExportOptions(
+            input_path=options.input_path,
+            output_path=Path(td) / "trial.docx",
+            format_path=fmt_file,
+            preset=None,
+            check_md=False,
+            postflight=False,
+            audit=False,
+            make_pdf=False,
+            lang=res.lang,
+            base_template=options.base_template,
+            cover_sections=options.cover_sections,
+            keep_pages=options.keep_pages,
+            keep_until=options.keep_until,
+            blind_review=options.blind_review,
+        )
+        outcome = _run_export_pipeline(trial)
+    if outcome.ok:
+        return True
+    res.returncode = EXIT_ERROR
+    res.errors.extend(outcome.errors)
+    res.diagnostics.extend(outcome.diagnostics)
+    return False
+
+
 def run_validation(options: ExportOptions) -> ExportResult:
     """只跑导前预检：读稿、选格式、校验，不生成模板也不写 .docx。
 
@@ -497,6 +581,12 @@ def run_validation(options: ExportOptions) -> ExportResult:
         res.messages.append(warning)
         res.warnings.append(warning)
     if report.valid:
+        # 稿件合规不等于格式能落成模板：空格式/只有注释的格式在这里就必须拦住，
+        # 否则 validate-only 返回 0、真正导出立刻失败。
+        if not _check_template_buildable(fmt_content, res, fmt_file):
+            return res
+        if not _trial_export(options, fmt_file, res):
+            return res
         res.messages.append(t("pipeline.validate_ok", res.lang, count=len(report.warnings)))
     else:
         res.returncode = EXIT_ERROR
@@ -566,9 +656,9 @@ def _resolved_output(options: ExportOptions) -> Optional[Path]:
         return None
 
 
-def _output_snapshot(path: Optional[Path]) -> Optional[tuple[int, int, float]]:
-    """输出文件的 (mtime_ns, size, mtime)；不是现存的 .docx 就是 None。"""
-    if path is None or path.suffix.lower() != ".docx" or not path.is_file():
+def _file_snapshot(path: Optional[Path]) -> Optional[tuple[int, int, float]]:
+    """文件的 (mtime_ns, size, mtime)；不存在或读不到就是 None。"""
+    if path is None or not path.is_file():
         return None
     try:
         st = path.stat()
@@ -577,11 +667,26 @@ def _output_snapshot(path: Optional[Path]) -> Optional[tuple[int, int, float]]:
     return (st.st_mtime_ns, st.st_size, st.st_mtime)
 
 
+def _output_snapshot(path: Optional[Path]) -> Optional[tuple[int, int, float]]:
+    """输出 docx 的快照；不是现存的 .docx 就是 None。"""
+    if path is None or path.suffix.lower() != ".docx":
+        return None
+    return _file_snapshot(path)
+
+
 def run_export_pipeline(options: ExportOptions) -> ExportResult:
     """执行导出；失败时若目标位置还躺着上一次的成品，明确提醒别拿错。"""
     out_p = _resolved_output(options)
     before = _output_snapshot(out_p)
+    pdf_p = out_p.with_suffix(".pdf") if (options.make_pdf and out_p) else None
+    before_pdf = _file_snapshot(pdf_p)
     res = _run_export_pipeline(options)
+    if options.make_pdf and pdf_p is not None and before_pdf is not None:
+        after_pdf = _file_snapshot(pdf_p)
+        if res.returncode == EXIT_PDF_SKIPPED and after_pdf is not None and after_pdf[:2] == before_pdf[:2]:
+            when = time.strftime("%Y-%m-%d %H:%M", time.localtime(before_pdf[2]))
+            _warn(res, "pipeline.stale_pdf",
+                  t("pipeline.stale_pdf", res.lang, path=pdf_p, when=when), file=pdf_p)
     if res.ok or out_p is None or before is None:
         return res
     try:
@@ -637,6 +742,12 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
         _fail(res, "pipeline.output_is_input",
               t("pipeline.output_is_input", res.lang, path=in_p), file=out_p)
         return res
+    # `.pdf` 是 `--pdf` 的产物名。把 OOXML 写进 `.pdf` 不只是扩展名难看：加 `--pdf`
+    # 时渲染目标与 docx 目标会重合，PDF 会把刚写好的 docx 覆盖掉。
+    if out_p.suffix.lower() != ".docx":
+        _fail(res, "pipeline.output_not_docx",
+              t("pipeline.output_not_docx", res.lang, path=out_p), file=out_p)
+        return res
 
     # 2. 确定格式 (Format Spec)
     fmt_file, fmt_content = resolve_format(
@@ -654,12 +765,45 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
     ok, base_plan = _prepare_base_plan(options, res, allow_keep_pages=True)
     if not ok:
         return res
+    # 学校模板常常与稿件同名、同目录；不传 -o 时默认输出正好就是底模本身。
+    # 这跟「-o 稿件.md」一样是不可恢复的数据损失，必须在写第一个字节前拦下。
+    if base_plan is not None:
+        try:
+            same_base = os.path.samefile(base_plan.base, out_p)
+        except OSError:
+            same_base = base_plan.base.resolve() == out_p
+        if same_base:
+            _fail(res, "pipeline.output_is_dependency",
+                  t("pipeline.output_is_dependency", res.lang, path=out_p), file=out_p)
+            return res
 
-    # 要求文件写错时预检会给出带行号的原因；这里只取公式编号这一项，读不出就用默认
+    # 格式文件写错时预检会给出带行号的原因；这里读不出就用默认。
+    # 顺带定下本次的**文档语言**：格式的 `校对语言：` 优先，没有才用正文判定。
+    # 否则英文稿里一段长中文引文会把 CSL、交叉引用前缀、公式编号外观一起翻成中文，
+    # 而 `--preset en-nature` 只换了版式，正文里却印着「式（1）」和 GB/T 文献表。
     try:
         spec = parse_format(fmt_content, lang=res.lang)
     except ValueError:
         spec = None
+    # 个别规范字体（尤其公文的「方正小标宋简体」）不是系统自带。缺字体时 Word 会
+    # 静默替换，用户只看「导出成功」发现不了；这里至少提前说一句。
+    if spec:
+        optional = [
+            font for font in ("方正小标宋简体", "方正小标宋_GBK", "方正大标宋简体")
+            if any(font in (s.get("font_name") or []) for s in spec.styles)
+        ]
+        for font in dict.fromkeys(optional):
+            _warn(res, "pipeline.optional_font",
+                  t("pipeline.optional_font", res.lang, font=font), file=fmt_file)
+    fmt_lang = lang_from_proofing(spec.proofing_lang) if spec else None
+    if fmt_lang:
+        if fmt_lang != doc_lang:
+            _warn(res, "pipeline.doc_lang_format", t(
+                "pipeline.doc_lang_format", res.lang,
+                fmt=fmt_lang, detected=doc_lang,
+            ), file=fmt_file)
+        doc_lang = fmt_lang
+        res.doc_lang = doc_lang
 
     # 4. 导前预检门禁 (Validator)
     if options.check_md:
@@ -714,7 +858,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
             and fm_data.get("bibliography")
             and not fm_data.get("csl")  # 作者声明的 csl 优先，哪怕它不是内置样式
         ):
-            builtin_csl = default_csl_path(contract_text)
+            builtin_csl = default_csl_path_for_lang(doc_lang)
 
         # 临时模板生成
         if not fmt_content:
@@ -780,7 +924,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                 if how:
                     csl_path = resolved
             if csl_path is None:
-                csl_path = default_csl_path(contract_text)
+                csl_path = default_csl_path_for_lang(doc_lang)
             # 用户自带的 CSL：现场剥掉会覆盖模板的 direct formatting（内置样式发布前已规范化）。
             # 不这么做的话，同一份要求文件换个 CSL，悬挂缩进与行距就跟着变。
             csl_path = _normalized_csl(csl_path, Path(temp_dir), res)
@@ -989,7 +1133,15 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
         # 11. 可选 PDF 渲染 (Visual QA)
         if options.make_pdf:
             pdf_path = out_p.with_suffix(".pdf")
-            success, reason = render_pdf_via_word(out_p, pdf_path)
+            # 先渲染到临时目录，成功后再替换：Word/AppleScript 中途失败时，不能把
+            # 一半的 PDF 留在最终路径上，也不能让上一次的旧 PDF 混进来。
+            staged_pdf = Path(temp_dir) / "review.pdf"
+            success, reason = render_pdf_via_word(out_p, staged_pdf)
+            if success:
+                try:
+                    os.replace(staged_pdf, pdf_path)
+                except OSError as exc:
+                    success, reason = False, str(exc)
             if success:
                 res.output_pdf = pdf_path
                 logger.info("🖨️ " + t("pipeline.pdf_ok", res.lang, path=pdf_path))

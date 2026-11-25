@@ -99,8 +99,13 @@ def identifying_metadata(path: Path | str) -> list[IdentityFinding]:
                 root = etree.fromstring(archive.read("docProps/core.xml"))
                 for tag, code in _CORE_FIELDS:
                     value = _text_of(root, tag)
-                    if value:
-                        found.append(IdentityFinding(code, value))
+                    if not value:
+                        continue
+                    # 本工具自己写的出处备注不是身份信息：`md-to-word <版本> · <格式文件> · sha256:…`
+                    # 出现在底模里时，提醒「交盲审前请清理作者/单位」就会变成误报。
+                    if code == "description" and value.startswith("md-to-word "):
+                        continue
+                    found.append(IdentityFinding(code, value))
             if "docProps/app.xml" in names:
                 root = etree.fromstring(archive.read("docProps/app.xml"))
                 for tag, code in _APP_FIELDS:

@@ -1329,6 +1329,15 @@ def resolve_sections_for_pages(
 
     render_pdf_via_word = word_pdf.render_pdf_via_word
 
+    # `--keep-pages` 要读页数找切点；工具缺失时不能等 subprocess 抛 FileNotFoundError，
+    # 那会被 CLI 兜底成「工具内部错误」。与 `verify_cover_pages` 同一条提示。
+    ok, why = word_pdf.can_render_word_pdf()
+    if not ok:
+        raise BaseTemplateError(t("base.layout.need_word", lang, why=why))
+    for tool in ("pdftotext", "pdfinfo"):
+        if shutil.which(tool) is None:
+            raise BaseTemplateError(t("base.layout.need_tool", lang, tool=tool))
+
     total = len(Document(str(base)).sections)
     staged = work / ".probe.docx"
     pdf = work / ".probe.pdf"

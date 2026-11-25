@@ -878,11 +878,37 @@ def main(argv=None):
     text, styled, notes = _build_draft(ref, lang)
 
     if args.output:
-        Path(args.output).write_text(text, encoding='utf-8')
+        out = Path(args.output)
+        if out.resolve() == Path(args.docx).resolve():
+            print(t('extractor.output_is_input', lang, path=out), file=sys.stderr)
+            return 1
+        try:
+            _write_text_atomic(out, text)
+        except OSError as exc:
+            print(t('extractor.write_failed', lang, path=out, err=exc), file=sys.stderr)
+            return 1
         print(t('extractor.draft_written', lang, path=args.output, styled=styled, notes=notes))
     else:
         print(text, end='')
     return 0
+
+
+def _write_text_atomic(path: Path, text: str) -> None:
+    """先写同目录临时文件再替换：中途失败不留半份草稿。"""
+    import os
+    import tempfile
+
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(name, path)
+    except Exception:
+        try:
+            os.unlink(name)
+        except OSError:
+            pass
+        raise
 
 
 def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
@@ -991,7 +1017,10 @@ def extract_spec_from_docx(
     ref = Ref(Path(docx_path), lang)
     text, _, _ = _build_draft(ref, lang)
     if output_path:
-        Path(output_path).write_text(text, encoding='utf-8')
+        out = Path(output_path)
+        if out.resolve() == Path(docx_path).resolve():
+            raise ValueError(t('extractor.output_is_input', lang, path=out))
+        _write_text_atomic(out, text)
     return text
 
 

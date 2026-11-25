@@ -66,14 +66,28 @@ def bibliography_problem(text: str, lang: str = "en") -> Optional[str]:
     """能读就说 None，不能读就返回一句可显示的原因。
 
     预检与导出共用：同一种坏文献库不该在一个出口是「文献库为空」、另一个是 traceback。
-    BibTeX 解析是宽容的（认不出的字段丢弃），只有 JSON 会真正失败。
+    JSON 解析会真正失败；两种格式都要检查**重复 key**——引擎只会保留其中一条，
+    而 `[1]` 到底指向哪一条，用户从成品上看不出来。
     """
-    if not looks_like_csl_json(text):
-        return None
     try:
-        parse_csl_json(text, lang)
+        entries = parse_bibliography(text, lang)
     except BiblioError as exc:
         return str(exc)
+    except Exception:
+        # BibTeX 解析器是宽容的：读不动就交给后续的「键不存在」等检查，
+        # 不在这里把它误报成格式错误。
+        return None
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for entry in entries:
+        key = str(entry.get("id") or "")
+        if not key:
+            continue
+        if key in seen and key not in duplicates:
+            duplicates.append(key)
+        seen.add(key)
+    if duplicates:
+        return t("biblio.duplicate_keys", lang, keys=", ".join(duplicates[:5]))
     return None
 
 

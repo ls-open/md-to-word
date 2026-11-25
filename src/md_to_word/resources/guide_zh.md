@@ -37,7 +37,9 @@ md-to-word hello.md -o hello.docx
 
 ## 4. 换一套格式
 
-- **有学校的书面要求或模板**：逐条改进 `format.txt`。要求里没提到的东西不用写，写了就得写全。
+- **有学校的书面要求或模板**：逐条改进 `format.txt`。没提到的样式行可以删，但
+  `文档标题 / 一级标题 / 正文 / 首段 / 普通` 是必填样式，不能删；每条样式行的对齐、行距、
+  缩进也要写全（没写的样式会让导出在模板生成阶段报错，并指出缺哪一项）。
 - **只要一个通用的规范**：`--preset zh-academic`（中文期刊）、`zh-tw-academic`（繁體）、
   `zh-report`（技术报告）、`zh-gb9704`（党政机关公文正文版式，不含红头/版记）、
   `en-nature`（英文期刊）、`en-apa-student`（APA 7 学生论文）。
@@ -47,12 +49,16 @@ md-to-word hello.md -o hello.docx
 
 ## 5. 出问题了看哪
 
-- **先单跑预检**：`md-to-word 稿件.md --validate-only`，只检查、不生成 `.docx`；退出码 `0` 就能继续导出。
+- **先单跑预检**：`md-to-word 稿件.md --validate-only`，只检查、不写 `.docx`；退出码 `0` 表示稿件与格式都能导出（模板会在临时目录试生成一次）。输出目录与写权限要到真正写文件时才知道。
 - **报错带行号**，按行号改那一行。看不出怎么改时，报错里通常有一句「应写: …」。
 - 预检分两级：**会让人看出来的错**直接拦下；**看不出来的**给提醒但不拦。
-- `md-to-word --json` 给机器读：`diagnostics` 里每条都带 `code`、`file`、`line`，按 `code` 分支，
+- `md-to-word 稿件.md --json` 给机器读：`diagnostics` 里每条都带 `code`、`file`、`line`，按 `code` 分支，
   不要去解析句子。完整契约（样式名、预设路径与 sha256、退出码）用 `md-to-word --contract --json`。
 - `--pdf` 只在 macOS 且本机装了 Microsoft Word 时可用；其它平台渲染请自己用 Word 打开。
+- **字体与软件**：`.docx` 只记录字体名、不嵌字体，打开机器缺字体会被 Word 替换，分页可能变。
+  公文的「方正小标宋简体」不是系统自带字体，需另行安装；缺字体时导出会提醒。
+  WPS 能打开，但目录域不会自动展开，`STYLEREF` 章名页眉可能显示 `Error! The style is not specified.`；
+  以 Microsoft Word 为准，交稿前用收件方实际使用的软件核对一次。
 - 导出的 `.docx` 里 `docProps` 记着版本与格式文件的 sha256 前八位——对不上就是拿错了规则。
 
 ## 6. 三个最常见的错误

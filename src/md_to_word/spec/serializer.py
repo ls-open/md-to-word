@@ -9,10 +9,12 @@
 
 from __future__ import annotations
 
+import re
+
 from docx.shared import Pt
 
 from md_to_word.spec.constants import (
-    ALIGN_ENUM_CN, PUNCT_COMPRESSION_CN, TABLE_ALIGN_MAP, TABLE_STYLE_MAP,
+    ALIGN_ENUM_CN, PAGE_NUMBER_FMT, PUNCT_COMPRESSION_CN, TABLE_ALIGN_MAP, TABLE_STYLE_MAP,
 )
 from md_to_word.spec.models import MinLineSpacing, TemplateSpec
 from md_to_word.spec.parser import _BORDER_TEXT
@@ -24,6 +26,46 @@ _TABLE_ALIGN = {v: k for k, v in TABLE_ALIGN_MAP.items()}
 _TABLE_STYLE = {v: k for k, v in TABLE_STYLE_MAP.items()}
 _TABLE_VALIGN = {"center": "单元格垂直居中", "top": "单元格垂直顶端", "bottom": "单元格垂直底端"}
 _BORDER_SIDE = {"top": "线宽上", "bottom": "线宽底", "header_bottom": "线宽表头下", "inside": "线宽内"}
+# 反查取第一次出现的正典写法：`阿拉伯`、`罗马`、`小写罗马`、`字母`、`大写字母`。
+_PAGE_FMT_TEXT: dict[str, str] = {}
+for _text, _fmt in PAGE_NUMBER_FMT.items():
+    _PAGE_FMT_TEXT.setdefault(_fmt, _text)
+_DECOR_KEY_TEXT = {
+    ("header", "default"): "页眉内容",
+    ("header", "even"): "偶数页页眉内容",
+    ("header", "first"): "首页页眉内容",
+    ("footer", "default"): "页脚内容",
+    ("footer", "even"): "偶数页页脚内容",
+    ("footer", "first"): "首页页脚内容",
+}
+_FIELD_TEXT = {
+    "PAGE": "{页码}",
+    "NUMPAGES": "{总页数}",
+}
+
+
+def _decor_text(parts: list[tuple[str, str]]) -> str:
+    """`[('text', …), ('field', …)]` → `{页码}` 这种可解析的写法。"""
+    out: list[str] = []
+    for kind, value in parts:
+        if kind == "text":
+            out.append(value)
+            continue
+        head = value.split()[0] if value.split() else ""
+        if head in _FIELD_TEXT:
+            out.append(_FIELD_TEXT[head])
+        elif head == "STYLEREF":
+            m = re.search(r'STYLEREF\s+"(.*?)"', value)
+            out.append("{样式标题:%s}" % (m.group(1) if m else ""))
+        else:
+            out.append(value)
+    return "".join(out)
+
+
+def _page_number_text(page: tuple[str, int] | tuple[str, int | None]) -> str:
+    fmt, start = page
+    text = _PAGE_FMT_TEXT.get(fmt, "阿拉伯")
+    return f"{text} 起始{start}" if start is not None else text
 
 
 def _pt(value) -> float:
@@ -131,7 +173,7 @@ def serialize_format(spec: TemplateSpec) -> str:
     """把 TemplateSpec 写回格式要求文本（正典写法）。"""
     lines: list[str] = [f"# schema: {spec.schema_version}"]
 
-    lines.append(f"纸张：{spec.page_size.upper() if spec.page_size == 'letter' else spec.page_size}")
+    lines.append(f"纸张：{'Letter' if spec.page_size == 'letter' else 'A4'}")
     if spec.margins:
         lines.append(
             "页边距：上{m[top]:g}cm 下{m[bottom]:g}cm 左{m[left]:g}cm 右{m[right]:g}cm".format(
@@ -150,6 +192,12 @@ def serialize_format(spec: TemplateSpec) -> str:
         lines.append(f"标点压缩：{PUNCT_COMPRESSION_CN[spec.punctuation_compression]}")
     if spec.doc_grid_lines:
         lines.append(f"文档网格：每页{spec.doc_grid_lines}行")
+    if spec.page_number:
+        lines.append(f"页码：{_page_number_text(spec.page_number)}")
+    if spec.header_distance is not None:
+        lines.append(f"页眉距边界：{spec.header_distance:g}cm")
+    if spec.footer_distance is not None:
+        lines.append(f"页脚距边界：{spec.footer_distance:g}cm")
     if spec.equation_number and spec.equation_number != "right":
         lines.append("公式编号：紧跟")
     if spec.equation_number_format:
@@ -163,5 +211,19 @@ def serialize_format(spec: TemplateSpec) -> str:
         lines.append(_table_line(spec.table))
     if spec.table_header:
         lines.append(_style_line(spec.table_header))
+
+    for key in _DECOR_KEY_TEXT:
+        if key in spec.decor:
+            lines.append(f"{_DECOR_KEY_TEXT[key]}：{_decor_text(spec.decor[key]) or '无'}")
+
+    # 节角色必须放在最后：解析器要求先看到 `分节：<名>`，再看到该节的页码/页眉键。
+    for name, role in spec.section_roles.items():
+        lines.append(f"分节：{name}")
+        if role.page_number:
+            lines.append(f"{name}页码：{_page_number_text(role.page_number)}")
+        if role.header is not None:
+            lines.append(f"{name}页眉内容：{_decor_text(role.header) or '无'}")
+        if role.footer is not None:
+            lines.append(f"{name}页脚内容：{_decor_text(role.footer) or '无'}")
 
     return "\n".join(lines) + "\n"
