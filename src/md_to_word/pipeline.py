@@ -64,7 +64,9 @@ class ExportResult:
     messages: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)  # messages 里的提醒条目，供 CLI 加标记
-    lang: str = "zh"
+    lang: str = "zh"  # 消息语言
+    doc_lang: str = ""  # 稿件语言：决定默认预设与默认 CSL，和消息语言分开
+    format_source: str = ""  # file:/abs/path 或 preset:zh-academic
     pdf_skip_reason: str = ""  # `--pdf` 没做成的原因码，见 word_pdf.explain_unavailable
 
     @property
@@ -168,6 +170,7 @@ def _resolve_format(
         if fmt_content is None:
             return None, None
         fmt_file = p_fmt
+        res.format_source = f"file:{p_fmt}"
     elif preset:
         p_pre = resolve_preset_path(preset)
         if not p_pre or not p_pre.is_file():
@@ -177,6 +180,7 @@ def _resolve_format(
         fmt_content = _read_user_text(p_pre, "textio.label.format", res, warn_fallback=False)
         if fmt_content is None:
             return None, None
+        res.format_source = f"preset:{preset}"
     else:
         # 只认一个固定名：稿件同目录的 `format.txt`。不去猜「旁边那个 .txt
         # 也许是要求文件」——猜错是静默用错格式，猜对了也换不来多少方便。
@@ -186,6 +190,7 @@ def _resolve_format(
             if fmt_content is None:
                 return None, None
             fmt_file = named
+            res.format_source = f"file:{named}"
             res.messages.append(t("pipeline.txt_named", res.lang, path=named.name))
         else:
             others = sorted(p.name for p in in_p.parent.glob("*.txt") if p.is_file())
@@ -203,6 +208,7 @@ def _resolve_format(
                 )
                 if fmt_content is None:
                     return None, None
+                res.format_source = f"preset:{preset_name}"
                 res.messages.append(t("pipeline.preset_auto", res.lang, name=preset_name))
     return fmt_file, fmt_content
 
@@ -237,6 +243,7 @@ def run_validation(options: ExportOptions) -> ExportResult:
         return res
     res.lang = resolve_lang(manuscript_text, options.lang)
     doc_lang = resolve_lang(manuscript_text, None)
+    res.doc_lang = doc_lang
     _note_encoding("textio.label.manuscript", manuscript_encoding, res)
 
     fmt_file, fmt_content = _resolve_format(
@@ -249,6 +256,74 @@ def run_validation(options: ExportOptions) -> ExportResult:
     if fmt_content is None:
         res.returncode = EXIT_ERROR
         return res
+
+    # 底模这条路不排版也能验的项：文件能不能读、切点是否唯一、节数够不够。
+    # 不补这一段，`--validate-only` 会对“底模不存在/没给切点/切点歧义”返回 0，
+    # 而真正导出立刻失败——对论文工作流是错误的安全信号。
+    if options.base_template:
+        from md_to_word.template.base_inject import (
+            inspect_base,
+            section_outline,
+            sections_until_text,
+        )
+
+        base_p = Path(options.base_template).resolve()
+        if not base_p.is_file():
+            res.returncode = EXIT_ERROR
+            res.errors.append(t("pipeline.base_missing", res.lang, path=base_p))
+            return res
+        base_report = inspect_base(base_p)
+        if not base_report.ok:
+            res.returncode = EXIT_ERROR
+            res.errors.append(t(
+                "pipeline.base_failed", res.lang,
+                reason="；".join(base_report.blocking),
+            ))
+            res.errors.extend(f"  {n}" for n in base_report.notes)
+            return res
+        if options.keep_pages:
+            res.returncode = EXIT_ERROR
+            res.errors.append(t("pipeline.validate_base_keep_pages", res.lang))
+            return res
+        sections = options.cover_sections
+        if not sections and options.keep_until:
+            hits = sections_until_text(base_p, options.keep_until)
+            if not hits:
+                outline = "\n".join(
+                    f"  第 {i} 节：{line}"
+                    for i, line in enumerate(section_outline(base_p), 1)
+                )
+                res.returncode = EXIT_ERROR
+                res.errors.append(t(
+                    "pipeline.base_until_missing", res.lang,
+                    text=options.keep_until, outline=outline,
+                ))
+                return res
+            if len(hits) > 1:
+                res.returncode = EXIT_ERROR
+                res.errors.append(t(
+                    "pipeline.base_until_ambiguous", res.lang,
+                    text=options.keep_until,
+                    sections="、".join(str(h) for h in hits),
+                ))
+                return res
+            sections = hits[0]
+        if not sections:
+            res.returncode = EXIT_ERROR
+            res.errors.append(t("pipeline.base_need_sections", res.lang))
+            return res
+        base_report = inspect_base(base_p, sections)
+        if not base_report.ok:
+            res.returncode = EXIT_ERROR
+            res.errors.append(t(
+                "pipeline.base_failed", res.lang,
+                reason="；".join(base_report.blocking),
+            ))
+            res.errors.extend(f"  {n}" for n in base_report.notes)
+            return res
+        for note in base_report.notes:
+            res.messages.append(note)
+            res.warnings.append(note)
 
     logger.info("🔍 " + t("pipeline.precheck", res.lang))
     report = validate_manuscript(in_p, spec_path=fmt_file, lang=res.lang)
@@ -343,6 +418,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     # 消息语言可以覆盖；**稿件语言**只按正文判，它决定默认预设与默认 CSL。
     res.lang = resolve_lang(manuscript_text, options.lang)
     doc_lang = resolve_lang(manuscript_text, None)
+    res.doc_lang = doc_lang
     _note_encoding("textio.label.manuscript", manuscript_encoding, res)
 
     # 1. 确定最终输出路径
@@ -361,6 +437,15 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
     if out_p.is_dir():
         res.returncode = EXIT_ERROR
         res.errors.append(t("pipeline.output_is_dir", res.lang, path=out_p))
+        return res
+    # `-o 稿件.md` 会把 Markdown 原地覆盖成 docx。这是不可恢复的数据损失，必须先拦。
+    try:
+        same_file = os.path.samefile(in_p, out_p)
+    except OSError:
+        same_file = out_p == in_p
+    if same_file:
+        res.returncode = EXIT_ERROR
+        res.errors.append(t("pipeline.output_is_input", res.lang, path=in_p))
         return res
 
     # 2. 确定格式 (Format Spec)
@@ -466,7 +551,7 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         tpl_for_render = temp_tpl_path
 
         # 6. 契约文本 → 文档模型 → OOXML
-        from md_to_word.model.reader import read_markdown
+        from md_to_word.model.reader import MarkdownError, read_markdown
         from md_to_word.utils.skill_utils import parse_bib_keys
         from md_to_word.writer import UnsupportedFeature, write_docx
 
@@ -559,6 +644,13 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 ),
                 lang=res.lang,
             )
+        except MarkdownError as exc:
+            res.returncode = EXIT_ERROR
+            res.errors.append(t(
+                "pipeline.markdown_error", res.lang,
+                reason=t("reader.unclosed_code_fence", res.lang, line=exc.line),
+            ))
+            return res
         except UnsupportedFeature as exc:
             res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.unsupported", res.lang, reason=exc))

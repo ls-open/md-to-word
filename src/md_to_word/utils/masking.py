@@ -29,6 +29,24 @@ def mask_html_comments(text: str) -> str:
     return HTML_COMMENT_RE.sub(lambda m: "\n" * m.group(0).count("\n"), text)
 
 
+def unclosed_code_fence_line(content: str) -> int | None:
+    """未闭合围栏的起始行号（从 1 起）；全部闭合返回 None。"""
+    in_fence = False
+    opened_at = 0
+    marker = ""
+    for i, line in enumerate((content or "").split("\n"), 1):
+        stripped = line.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            fence = stripped[:3]
+            if not in_fence:
+                in_fence = True
+                opened_at = i
+                marker = fence
+            elif fence == marker:
+                in_fence = False
+    return opened_at if in_fence else None
+
+
 def mask_code_fences(content: str) -> str:
     """围栏代码块（``` / ~~~）内各行掩码为 '.'，保留总行数与行号不变。"""
     out = []

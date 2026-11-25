@@ -85,15 +85,18 @@ to stderr:
 
 ```json
 {"ok": true, "returncode": 0, "input": "paper.md", "output": "…/paper.docx", "pdf": null,
- "lang": "en", "messages": ["…"], "warnings": [], "errors": []}
+ "lang": "en", "doc_lang": "en", "format_source": "preset:en-nature",
+ "messages": ["…"], "warnings": [], "errors": []}
 ```
 
 The keys are fixed and do not change between versions; the values of `messages` and `errors` are
 sentences for humans, in the manuscript's language. `messages` holds progress, **reminders** and the
 closing check prompt (one merged line per reminder kind, listing up to eight line numbers), so everything worth
 relaying on a successful run is there — no need to parse stderr. `warnings` is the subset of
-`messages` that are reminders, for consumers that need to tell them apart. Parse the keys, not the
-wording. A usage error (exit code `2`) happens during argument parsing, so no JSON is produced.
+`messages` that are reminders, for consumers that need to tell them apart. `lang` is the message
+language, `doc_lang` is the manuscript language that chose the default preset and CSL, and
+`format_source` is `file:/abs/path` or `preset:zh-academic`. Parse the keys, not the wording. A usage
+error (exit code `2`) happens during argument parsing, so no JSON is produced.
 
 **Library call**:
 

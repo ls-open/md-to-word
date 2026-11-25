@@ -38,6 +38,15 @@ _FOOTNOTE_DEF_RE = re.compile(r"^\[\^(?P<label>[^\]]+)\]:\s*(?P<text>.*)$")
 _TABLE_ROW_RE = re.compile(r"^\s*\|(?P<body>.*)\|\s*$")
 _TABLE_SEP_RE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 
+
+class MarkdownError(ValueError):
+    """稿件结构无法读成文档模型。`line` 是 1 起的源行号，调用方负责本地化。"""
+
+    def __init__(self, line: int, detail: str = "unclosed code fence") -> None:
+        self.line = line
+        self.detail = detail
+        super().__init__(f"{detail} opened at line {line}")
+
 _SECTION_PARAM_RE = re.compile(r"(\S+?)=(\S+)")
 _QUOTE_LINE_RE = re.compile(r"^\s*>\s?")
 _SECTION_ALIAS = {"页码": "page_format", "page_number": "page_format", "format": "page_format",
@@ -627,6 +636,9 @@ class _Reader:
         while i < len(self.lines) and not self.lines[i].strip().startswith(marker):
             body.append(self.lines[i])
             i += 1
+        if i >= len(self.lines):
+            # 没有收尾：后面所有内容都会被当成代码。静默吞掉比报错难查得多。
+            raise MarkdownError(start + 1, detail="unclosed code fence")
         return CodeBlock(value="\n".join(body), language=language), i + 1
 
     def _read_code_block(self, start: int, fence: re.Match) -> int:

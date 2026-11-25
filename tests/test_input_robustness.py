@@ -171,6 +171,144 @@ def test_failed_gate_keeps_the_previous_output(tmp_path: Path, monkeypatch) -> N
     assert not list(tmp_path.glob(".o.*.docx")), "临时候选产物没清理干净"
 
 
+def test_output_cannot_overwrite_the_manuscript(tmp_path: Path, capsys) -> None:
+    manuscript = _manuscript(tmp_path, "# 引言\n\n正文。\n")
+    before = manuscript.read_bytes()
+
+    code = main([str(manuscript), "-o", str(manuscript), "--preset", "zh-academic"])
+
+    assert code == 1
+    assert manuscript.read_bytes() == before
+    assert "稿件本身" in capsys.readouterr().err
+
+
+def test_unclosed_code_fence_is_blocked(tmp_path: Path) -> None:
+    from md_to_word.validator.check import validate_manuscript
+
+    manuscript = _manuscript(tmp_path, "# 一\n\n```\ncode\n\n# 二\n")
+    report = validate_manuscript(manuscript, lang="zh")
+    assert not report.valid
+    assert any("没有收尾" in error for error in report.errors), report.errors
+
+    result = run_export_pipeline(
+        ExportOptions(
+            input_path=manuscript,
+            output_path=tmp_path / "o.docx",
+            preset="zh-academic",
+            check_md=False,
+        )
+    )
+    assert result.returncode == 1
+    assert any("没有收尾" in error for error in result.errors), result.errors
+
+
+def test_style_line_without_declaration_is_blocked(tmp_path: Path) -> None:
+    from md_to_word.validator.check import validate_manuscript
+
+    preset = Path(__file__).resolve().parents[1] / "src/md_to_word/presets/zh-academic.txt"
+    fmt = tmp_path / "format.txt"
+    fmt.write_text(
+        "\n".join(
+            line for line in preset.read_text(encoding="utf-8").splitlines()
+            if not line.startswith("摘要：")
+        ),
+        encoding="utf-8",
+    )
+    manuscript = _manuscript(tmp_path, "%% 摘要 本文提出一种方法。\n")
+
+    report = validate_manuscript(manuscript, spec_path=fmt, lang="zh")
+
+    assert not report.valid
+    assert any("摘要" in error and "回退" in error for error in report.errors), report.errors
+
+
+def test_bad_image_is_a_gate_error_not_a_traceback(tmp_path: Path) -> None:
+    from md_to_word.validator.check import validate_manuscript
+
+    (tmp_path / "fig.png").write_text("not an image", encoding="utf-8")
+    manuscript = _manuscript(tmp_path, "# 一\n\n![](fig.png)\n")
+
+    report = validate_manuscript(manuscript, lang="zh")
+    assert not report.valid
+    assert any("无法解码" in error for error in report.errors), report.errors
+
+    result = run_export_pipeline(
+        ExportOptions(
+            input_path=manuscript,
+            output_path=tmp_path / "o.docx",
+            preset="zh-academic",
+        )
+    )
+    assert result.returncode == 1
+    assert any("无法解码" in error for error in result.errors), result.errors
+
+
+def test_no_check_still_reports_a_bad_format_file(tmp_path: Path) -> None:
+    manuscript = _manuscript(tmp_path, "# 引言\n\n正文。\n")
+    fmt = tmp_path / "bad.txt"
+    fmt.write_text("正文：宋体 小四 火星词\n", encoding="utf-8")
+
+    result = run_export_pipeline(
+        ExportOptions(
+            input_path=manuscript,
+            output_path=tmp_path / "o.docx",
+            format_path=fmt,
+            check_md=False,
+        )
+    )
+
+    assert result.returncode == 1
+    assert any("火星词" in error for error in result.errors), result.errors
+    assert not any("内部错误" in error for error in result.errors), result.errors
+
+
+def test_html_comments_are_ignored_by_preflight(tmp_path: Path) -> None:
+    from md_to_word.validator.check import validate_manuscript
+
+    manuscript = _manuscript(
+        tmp_path,
+        "# 一\n\n<!-- ![](missing.png) [@nope] [^1] %% 乱写的样式 说明 -->\n\n正文。\n",
+    )
+
+    report = validate_manuscript(manuscript, lang="zh")
+
+    assert report.valid, report.errors
+
+
+def test_validate_only_checks_the_base_template(tmp_path: Path, capsys) -> None:
+    manuscript = _manuscript(tmp_path, "# 引言\n\n正文。\n")
+
+    code = main([
+        str(manuscript), "--preset", "zh-academic", "--validate-only",
+        "--base-template", str(tmp_path / "missing.docx"),
+        "--keep-until", "版权使用授权书",
+    ])
+    assert code == 1
+    assert "底模" in capsys.readouterr().err
+
+
+def test_validate_only_refuses_keep_pages_without_layout(tmp_path: Path, capsys) -> None:
+    from docx import Document
+    from docx.enum.section import WD_SECTION
+
+    base = tmp_path / "base.docx"
+    doc = Document()
+    doc.add_paragraph("封面")
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.add_paragraph("正文占位")
+    doc.save(base)
+    manuscript = _manuscript(tmp_path, "# 引言\n\n正文。\n")
+
+    code = main([
+        str(manuscript), "--preset", "zh-academic", "--validate-only",
+        "--base-template", str(base), "--keep-pages", "1",
+    ])
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "keep-pages" in captured.err or "keep-pages" in captured.out
+
+
 def test_encoding_fallback_message_is_bilingual() -> None:
     zh = t("textio.fallback", "zh", label="稿件", encoding="gb18030")
     en = t("textio.fallback", "en", label="manuscript", encoding="gb18030")

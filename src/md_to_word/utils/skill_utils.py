@@ -23,6 +23,7 @@ from md_to_word.utils.masking import (
     mask_code_fences,
     mask_html_comments,
     mask_inline_code,
+    unclosed_code_fence_line,
 )
 from md_to_word.preprocessor.blocks import hard_break
 
@@ -749,6 +750,10 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
         return []
     _, body = split_frontmatter(text)
     offset = text.count("\n") - body.count("\n")
+    unclosed = unclosed_code_fence_line(body)
+    if unclosed is not None:
+        # 未闭合时后面的内容全是代码；继续扫只会把每一行都报成正文错误。
+        return [(unclosed + offset, t("gate.dialect.unclosed_code_fence", lang))]
     # 先掩码围栏、再挖掉 HTML 注释（换成等量换行，行号不挪）：注释在导出时会被剔除，
     # 里面的 `<br>` 不该被当成正文字面量拦下来。
     masked = mask_code_fences(body)

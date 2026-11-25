@@ -150,6 +150,16 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "输出路径是一个目录: {path}\n  用 -o 指到一个文件名，例如 -o 稿件.docx。",
         "The output path is a directory: {path}\n  Point -o at a file name, e.g. -o paper.docx.",
     ),
+    "pipeline.output_is_input": (
+        "输出路径就是稿件本身：{path}\n"
+        "  继续会覆盖原稿。用 -o 指到一个 .docx 文件，例如 -o 稿件.docx。",
+        "The output path is the manuscript itself: {path}\n"
+        "  This would overwrite the source. Point -o at a .docx file, e.g. -o paper.docx.",
+    ),
+    "pipeline.markdown_error": (
+        "稿件无法读成文档模型：{reason}",
+        "The manuscript could not be read into the document model: {reason}",
+    ),
     "pipeline.output_dir_missing": (
         "输出目录不存在: {dir}\n  先建目录，或用 -o 指到已存在的目录里。",
         "Output directory does not exist: {dir}\n  Create it first, or point -o at an existing directory.",
@@ -203,6 +213,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "导前预检发现 {count} 个问题；未生成 .docx。",
         "Pre-flight found {count} problem(s); no .docx was written.",
     ),
+    "pipeline.validate_base_keep_pages": (
+        "`--validate-only` 无法验证 `--keep-pages`：它要真排一次版才能把页数换算成节数。"
+        "改用 `--keep-until 某段文字` 或 `--cover-sections N`，或直接导出时再按页换算。",
+        "`--validate-only` cannot verify `--keep-pages`: converting pages to sections needs a real "
+        "layout run. Use `--keep-until TEXT` or `--cover-sections N`, or do the page conversion at "
+        "export time.",
+    ),
     "pipeline.rejected": (
         "稿件共有 {count} 处不符合契约，导出已中止。请按下列行号修改后重新导出。",
         "The manuscript violates the contract in {count} place(s); export stopped. "
@@ -235,6 +252,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "writer.figure_pdf_failed": (
         "PDF 图「{path}」渲染成位图失败：{err}",
         "the PDF figure {path} could not be rasterised: {err}",
+    ),
+    "writer.figure_unreadable": (
+        "图片「{path}」无法解码（{err}）；请确认文件没有损坏，或另存为 PNG/JPEG",
+        "the image {path} could not be decoded ({err}); check that the file is intact or save it as PNG/JPEG",
+    ),
+    "reader.unclosed_code_fence": (
+        "第 {line} 行打开的代码块没有收尾，后面的内容都成了代码",
+        "the code block opened on line {line} is never closed, so everything after it becomes code",
     ),
     "writer.quote_children": (
         "引用块里目前只支持段落、列表与代码块",
@@ -1315,6 +1340,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Unrecognised YAML keys ({keys}) are ignored and change nothing in the layout. Only "
         "bibliography, csl, crossref and link-citations are read",
     ),
+    "gate.image.unreadable": (
+        "行 {line}: 图片无法解码「{path}」（{err}）；请确认文件没有损坏，或另存为 PNG/JPEG",
+        "Line {line}: the image could not be decoded ({path}; {err}); check that the file is intact "
+        "or save it as PNG/JPEG",
+    ),
     "gate.image.inline": (
         "行 {line}: 图片没有独立成行——行内图片不会落成图段，只会印出一个 `!`。"
         "把 `![](…)` 单独放一行，题注用 `%% 图片题注` 另起一段",
@@ -1451,6 +1481,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "用到了 {feat}，要求文件缺少 {label}，将静默回退默认样式",
         "used {feat} but the format file is missing {label}; it will silently fall back to the "
         "default style",
+    ),
+    "gate.style.style_line_missing": (
+        "样式行「{name}」用到的样式，要求文件缺少对应定义，将静默回退默认样式",
+        "\"{name}\" is used by a `%%` style line but the format file does not define it; it will "
+        "silently fall back to a default style",
     ),
     "gate.label.row_settings": ("「{name}：…」配置行", "the `{name}: ...` settings row"),
     "gate.label.style_def": ("「{cn}」（{en}）定义", "the `{en}` style definition"),
@@ -1591,6 +1626,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "独占行公式 `$$` 未闭合；必须成对出现，结尾也应单独一行 `$$`",
         "the display-math `$$` is never closed; `$$` must come in pairs, with a lone `$$` on its own line "
         "at the end",
+    ),
+    "gate.dialect.unclosed_code_fence": (
+        "代码块围栏（``` 或 ~~~）没有收尾；从这里到文末都会被当成代码，后面的标题、表格、"
+        "公式、图片与引文都不会进入产物。补上同一种围栏后重新导出",
+        "the code fence (``` or ~~~) is never closed; everything to the end of the file is treated as "
+        "code, so later headings, tables, equations, images and citations never reach the output. "
+        "Close it with the same fence and export again",
     ),
     "gate.dialect.table_needs_pipes": (
         "表格每一行都要以 `|` 开头、以 `|` 结尾；否则整行会当成正文印出来",

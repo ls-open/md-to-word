@@ -333,6 +333,8 @@ def _emit_result(result: ExportResult, parsed) -> int:
             "output": str(result.output_docx) if result.output_docx else None,
             "pdf": str(result.output_pdf) if result.output_pdf else None,
             "lang": result.lang,
+            "doc_lang": result.doc_lang,
+            "format_source": result.format_source,
             "messages": list(result.messages),
             "warnings": list(result.warnings),
             "errors": list(result.errors),

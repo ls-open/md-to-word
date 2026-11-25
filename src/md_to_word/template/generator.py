@@ -1438,7 +1438,12 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
     output_path = str(output_path)
     logger.debug('生成学术 Word 模板')
 
-    spec = parse_format(format_text)
+    try:
+        spec = parse_format(format_text)
+    except ValueError as exc:
+        # 预检被 --no-check 跳过时，这里就是唯一一道格式解析。原样抛 ValueError
+        # 会冒到 CLI，被误报成“本工具的缺陷”；转成 TemplateError 才能归因到格式文件。
+        raise TemplateError(str(exc)) from exc
     page_size = spec.page_size
     reqs, default_latin = spec.styles, spec.default_latin
     if not reqs:

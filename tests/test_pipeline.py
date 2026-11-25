@@ -332,7 +332,8 @@ def test_json_output_is_one_machine_readable_object(tmp_path: Path, capsys) -> N
     assert payload["output"].endswith("out.docx")
     assert payload["errors"] == []
     assert set(payload) == {
-        "ok", "returncode", "input", "output", "pdf", "lang", "messages", "warnings", "errors"
+        "ok", "returncode", "input", "output", "pdf", "lang", "doc_lang",
+        "format_source", "messages", "warnings", "errors",
     }
 
 

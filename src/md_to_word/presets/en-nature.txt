@@ -15,6 +15,8 @@ Font: Times New Roman
 Proofing Language: en-US
 
 Title: Times New Roman 18pt bold not-italic left line-spacing 1.5 space-before 0pt space-after 12pt indent 0
+Author: Times New Roman 12pt not-bold not-italic center line-spacing 1.5 space-before 0pt space-after 6pt indent 0
+Date: Times New Roman 12pt not-bold not-italic center line-spacing 1.5 space-before 0pt space-after 12pt indent 0
 Heading 1: Times New Roman 14pt bold not-italic left line-spacing 1.5 space-before 18pt space-after 6pt indent 0 keep-with-next
 Heading 2: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 12pt space-after 6pt indent 0 keep-with-next
 Heading 3: Times New Roman 12pt bold not-italic left line-spacing 1.5 space-before 6pt space-after 0pt indent 0 keep-with-next

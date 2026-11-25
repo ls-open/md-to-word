@@ -16,9 +16,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 import yaml
+from docx.image.exceptions import (
+    InvalidImageStreamError,
+    UnexpectedEndOfFileError,
+    UnrecognizedImageError,
+)
+from docx.image.image import Image as DocxImage
 
 from md_to_word.config import get_csl_dir
-from md_to_word.i18n import t
+from md_to_word.i18n import style_name, t
 # 残符提醒与解析器共用同一条行内判据：预检另写一套，迟早对不上。
 from md_to_word.model.reader import inline_residue
 from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, PAGE_NUMBER_FMT, ROW_NAME_EN
@@ -255,6 +261,18 @@ def required_style_issues(
         )
         issues.append((line_no, t("gate.style.required_missing", lang, feat=feat, label=label)))
 
+    # `%% 样式名 …` 是稿件真正使用的样式入口。`missing_styles_for_body` 只认标题、
+    # 列表、表格、图片这些结构触发，样式行必须单独对一遍；否则格式文件漏写「摘要」
+    # 或「表注」时，写出器会静默回退到底模的空壳样式，预检却是绿的。
+    for line_no, style in style_line_names(mask_code_fences(body)):
+        if style in declared or style in reported:
+            continue
+        reported.add(style)
+        issues.append((
+            line_no + start_line - 1,
+            t("gate.style.style_line_missing", lang, name=style_name(style, lang)),
+        ))
+
     if isinstance(fm_data, dict):
         for key, cn, en, feat_key in (
             ("bibliography", "参考文献", "Bibliography", "gate.feat.bibliography_yaml"),
@@ -302,6 +320,10 @@ def validate_manuscript(
         report.valid = False
         report.errors.append(t("gate.manuscript.unreadable", lang, path=md_path, err=e))
         return report
+
+    # 注释在导出时会被无条件剔除；预检若还拿原文字面量去查图片、脚注、引文、样式行，
+    # 合法稿件会被误拦。先挖掉、保留换行与行号，后面所有判据共用这一份。
+    md_text = mask_html_comments(md_text)
 
     csl_dir = csl_dir or get_csl_dir()
 
@@ -534,6 +556,20 @@ def validate_manuscript(
                 report.errors.append(
                     t("gate.image.unsupported", lang, line=i, path=clean_path, ext=suffix or "（无扩展名）")
                 )
+            else:
+                # 扩展名对不代表文件能解码：把 txt 改名成 .png 很常见，python-docx
+                # 会在写出阶段抛 UnrecognizedImageError，最后被误报成“工具缺陷”。
+                try:
+                    DocxImage.from_file(str(img_file))
+                except (
+                    UnrecognizedImageError, InvalidImageStreamError,
+                    UnexpectedEndOfFileError, OSError, ValueError,
+                ) as exc:
+                    report.valid = False
+                    report.errors.append(t(
+                        "gate.image.unreadable", lang,
+                        line=i, path=clean_path, err=type(exc).__name__,
+                    ))
 
     # 2b. 图片必须独立成行：行内图片不会落成图段，只会印出一个 `!`
     for i, line in enumerate(visible.split("\n"), 1):

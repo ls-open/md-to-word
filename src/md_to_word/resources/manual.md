@@ -75,14 +75,16 @@ md-to-word 论文.md --base-template 底模.docx --cover-sections 3 -o 论文.do
 
 ```json
 {"ok": true, "returncode": 0, "input": "稿件.md", "output": "…/稿件.docx", "pdf": null,
- "lang": "zh", "messages": ["…"], "warnings": [], "errors": []}
+ "lang": "zh", "doc_lang": "zh", "format_source": "preset:zh-academic",
+ "messages": ["…"], "warnings": [], "errors": []}
 ```
 
 键名固定、不随版本变；`messages` 与 `errors` 的值是给人读的句子，跟着稿件语种走。
 `messages` 含进度、**提醒**与结尾的核对提示（提醒按类合并成一条，最多列 8 个行号），成功时
 要转述的内容都在这里，不必再解析 stderr；需要单独识别提醒时读 `warnings`，它是 `messages`
-里提醒条目的子集。解析方读键，不读措辞。参数用法错误（退出码 `2`）发生在参数解析阶段，
-此时不产出 JSON。
+里提醒条目的子集。`lang` 是消息语言，`doc_lang` 是稿件语言（决定默认预设与默认 CSL），
+`format_source` 是 `file:/绝对路径` 或 `preset:zh-academic`。解析方读键，不读措辞。参数用法
+错误（退出码 `2`）发生在参数解析阶段，此时不产出 JSON。
 
 **库调用**：
 

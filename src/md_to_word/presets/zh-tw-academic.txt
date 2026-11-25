@@ -15,6 +15,8 @@
 标点压缩：不压缩
 
 文档标题：Microsoft JhengHei/Times New Roman 二号 加粗 不倾斜 居中 行距1.5倍 段前0磅 段后12磅 首行缩进0字符
+作者：PMingLiU/Times New Roman 小四 不加粗 不倾斜 居中 行距1.5倍 段前0磅 段后6磅 首行缩进0字符
+日期：PMingLiU/Times New Roman 小四 不加粗 不倾斜 居中 行距1.5倍 段前0磅 段后12磅 首行缩进0字符
 一级标题：Microsoft JhengHei/Times New Roman 三号 加粗 不倾斜 居中 行距1.5倍 段前18磅 段后12磅 首行缩进0字符 与下段同页
 二级标题：Microsoft JhengHei/Times New Roman 四号 加粗 不倾斜 左对齐 行距1.5倍 段前12磅 段后6磅 首行缩进0字符 与下段同页
 三级标题：Microsoft JhengHei/Times New Roman 小四 加粗 不倾斜 左对齐 行距1.5倍 段前6磅 段后0磅 首行缩进0字符 与下段同页

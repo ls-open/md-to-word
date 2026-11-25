@@ -24,6 +24,7 @@ from md_to_word.config import (
     resolve_preset_path,
 )
 from md_to_word.i18n import resolve_lang, t
+from md_to_word.utils.textio import TextDecodeError, read_text_file
 from md_to_word.template.extractor import extract_spec_from_docx
 
 logger = logging.getLogger("md_to_word.mcp")
@@ -106,6 +107,13 @@ def _read_manual(lang: str) -> str:
 
 
 
+def _looks_like_path(value: str) -> bool:
+    return "\n" not in value and (
+        "/" in value or "\\" in value
+        or value.lower().endswith((".md", ".markdown", ".txt", ".docx", ".bib"))
+    )
+
+
 def _resolve_markdown_source(markdown: str) -> tuple[Path, bool]:
     """Determine whether input is an existing file path or raw markdown content.
     Returns (Path, is_temporary).
@@ -115,6 +123,9 @@ def _resolve_markdown_source(markdown: str) -> tuple[Path, bool]:
         candidate = Path(cleaned)
         if candidate.is_file():
             return candidate.resolve(), False
+        if _looks_like_path(cleaned):
+            # 路径拼错时不能把路径字符串当正文导出：那会成功生成一份内容是路径的 docx。
+            raise FileNotFoundError(f"Markdown file not found: {cleaned}")
 
     tmp = tempfile.NamedTemporaryFile(
         suffix=".md",
@@ -154,6 +165,13 @@ def _resolve_format_source(format: str | None) -> tuple[Path | None, bool]:
         candidate = Path(cleaned)
         if candidate.is_file():
             return candidate.resolve(), False
+        if _looks_like_path(cleaned):
+            raise FileNotFoundError(f"Format file not found: {cleaned}")
+        if resolve_preset_path(cleaned):
+            raise ValueError(
+                f"`format` accepted a preset name ({cleaned}). "
+                "Pass it as `preset`; `format` is a file path or raw format text."
+            )
 
     tmp = tempfile.NamedTemporaryFile(
         suffix=".txt",
@@ -217,12 +235,14 @@ def create_mcp_server() -> Any:
                 file without overwriting an existing file (`.out.docx` is used on collision);
                 raw Markdown goes to a temporary file and its path is returned.
             format: A format file path OR raw format content. This is the typography contract
-                (the `format.txt` file), not Python dependency requirements.
+                (the `format.txt` file), not Python dependency requirements. A preset name
+                (`zh-academic`) is rejected here; pass it as `preset`.
             preset: Built-in preset name ('zh-academic', 'zh-tw-academic', 'zh-report', 'en-nature').
                 Only used when `format` is absent. A preset is a starting baseline; provide a format
                 file or customize it for deliverable specs.
             generate_pdf: Whether to also generate a PDF (requires Word on macOS).
-            lang: Optional message/document language ('zh' or 'en'); auto-detected if omitted.
+            lang: Message language only ('zh' or 'en'); auto-detected if omitted. The document
+                language, default preset and default CSL follow the manuscript, never `lang`.
             base_template: Pre-existing .docx template (with cover pages, declarations, or front
                 matter) to pour the generated body into while preserving its leading front-matter
                 sections unchanged (nothing is written if verification fails). Pair with exactly one
@@ -235,10 +255,13 @@ def create_mcp_server() -> Any:
         Returns:
             Compilation status, output paths, the format source, warnings and errors.
         """
-        in_path, in_is_tmp = _resolve_markdown_source(markdown)
-        fmt_path, fmt_is_tmp = _resolve_format_source(format)
-
+        in_path = None
+        fmt_path = None
+        in_is_tmp = fmt_is_tmp = False
         try:
+            in_path, in_is_tmp = _resolve_markdown_source(markdown)
+            fmt_path, fmt_is_tmp = _resolve_format_source(format)
+
             if output_path:
                 out_docx = Path(output_path).expanduser().resolve()
             elif not in_is_tmp:
@@ -268,13 +291,13 @@ def create_mcp_server() -> Any:
                 if result.output_pdf and result.output_pdf.exists()
                 else None
             )
-            format_source = (
+            format_source = result.format_source or (
                 "format" if fmt_path
-                else ("preset:%s" % preset if preset else "auto-preset")
+                else ("preset:%s" % preset if preset else "none")
             )
             notice = ""
-            if not fmt_path:
-                used_preset = preset or ("zh-academic" if result.lang == "zh" else "en-nature")
+            if format_source.startswith("preset:"):
+                used_preset = format_source.split(":", 1)[1]
                 notice = t("mcp.preset_notice", result.lang, preset=used_preset)
 
             return {
@@ -289,6 +312,7 @@ def create_mcp_server() -> Any:
                 "warnings": result.warnings,
                 "errors": result.errors,
                 "lang": result.lang,
+                "doc_lang": result.doc_lang,
             }
         except Exception as exc:
             logger.exception("Compilation failed: %s", exc)
@@ -306,7 +330,7 @@ def create_mcp_server() -> Any:
                 "lang": lang or "unknown",
             }
         finally:
-            if in_is_tmp and in_path.exists():
+            if in_is_tmp and in_path is not None and in_path.exists():
                 try:
                     in_path.unlink()
                 except OSError:
@@ -335,21 +359,35 @@ def create_mcp_server() -> Any:
 
         Args:
             markdown: The Markdown manuscript content as a string, OR an existing .md file path.
-            format: A format file path OR raw format content.
+            format: A format file path OR raw format content; a preset name is rejected here.
             preset: Built-in preset to validate against when `format` is absent.
-            lang: Message language ('zh' or 'en'); auto-detected from the manuscript if omitted.
+            lang: Message language only ('zh' or 'en'); auto-detected if omitted. The document
+                language and default preset follow the manuscript.
 
         Returns:
-            Dictionary with 'valid', 'errors', 'warnings' and the format source.
+            Dictionary with 'valid', 'errors', 'warnings', the format source, and both the
+            message language (`message_lang`) and manuscript language (`document_lang`).
         """
-        in_path, in_is_tmp = _resolve_markdown_source(markdown)
-        fmt_path, fmt_is_tmp = _resolve_format_source(format)
-
+        in_path = None
+        fmt_path = None
+        in_is_tmp = fmt_is_tmp = False
         try:
+            in_path, in_is_tmp = _resolve_markdown_source(markdown)
+            fmt_path, fmt_is_tmp = _resolve_format_source(format)
+
             if in_is_tmp:
                 lang_text = markdown
             else:
-                lang_text = in_path.read_text(encoding="utf-8", errors="ignore")
+                try:
+                    lang_text, _ = read_text_file(in_path)
+                except (TextDecodeError, OSError) as exc:
+                    return {
+                        "valid": False,
+                        "errors": [str(exc)],
+                        "warnings": [],
+                        "format_source": "format" if fmt_path else "none",
+                        "lang": lang or "unknown",
+                    }
             # 默认预设跟**稿件语言**走；`--lang` 只换报错语言。
             doc_lang = resolve_lang(lang_text, None)
             message_lang = resolve_lang(lang_text, lang)
@@ -359,6 +397,16 @@ def create_mcp_server() -> Any:
             if spec_path is None:
                 preset_name = preset or default_preset_name(doc_lang)
                 spec_path = resolve_preset_path(preset_name)
+                if spec_path is None:
+                    return {
+                        "valid": False,
+                        "errors": [f"Preset not found: {preset_name}"],
+                        "warnings": [],
+                        "format_source": f"preset:{preset_name}",
+                        "lang": doc_lang,
+                        "message_lang": message_lang,
+                        "document_lang": doc_lang,
+                    }
                 format_source = "preset:%s" % preset_name
 
             report = md_to_word.validate_manuscript(
@@ -372,6 +420,8 @@ def create_mcp_server() -> Any:
                 "warnings": report.warnings,
                 "format_source": format_source,
                 "lang": doc_lang,
+                "message_lang": message_lang,
+                "document_lang": doc_lang,
             }
         except Exception as exc:
             logger.exception("Validation failed: %s", exc)
@@ -383,7 +433,7 @@ def create_mcp_server() -> Any:
                 "lang": lang or "unknown",
             }
         finally:
-            if in_is_tmp and in_path.exists():
+            if in_is_tmp and in_path is not None and in_path.exists():
                 try:
                     in_path.unlink()
                 except OSError:

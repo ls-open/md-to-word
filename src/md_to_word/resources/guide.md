@@ -11,7 +11,8 @@ must print a version. This skill ships documentation; if the command is missing,
 **Read this before the first run.** The flags are not enough to drive it: the manuscript has a
 contract (§2) and the format file has a closed vocabulary (§3), and neither can be guessed from
 `--help`. Work through §1 once, then the commands are enough for everything after. An identical
-copy ships inside the package as `guide.md` (`md-to-word --guide`); reading one copy suffices.
+copy ships inside the package as `guide.md` (`md-to-word --guide --lang en`); reading one copy
+suffices. Without `--lang en`, `--guide` prints the shorter Chinese quickstart for human readers.
 
 **The facts live in the manual. This file is the order of work.** `md-to-word --contract` prints the
 manual's absolute path (Chinese or English, following the manuscript), the built-in preset paths and
@@ -139,7 +140,8 @@ Without `csl:`, Chinese manuscripts get GB/T 7714 numeric and everything else AP
 
 Without `-f` the only file picked up is one named exactly `format.txt` beside the manuscript;
 anything else there is ignored and named in a reminder. With no `format.txt`, the preset follows the
-**manuscript's language**.
+**manuscript's language**. `--lang` changes the **message language only**; it never changes the
+document language, the default preset or the default CSL.
 
 ## 4. Export, then the gates
 
@@ -147,7 +149,7 @@ anything else there is ignored and named in a reminder. With no `format.txt`, th
 md-to-word manuscript.md -o manuscript.docx                    # preset by language
 md-to-word manuscript.md -f format.txt -o manuscript.docx      # explicit format
 md-to-word manuscript.md --validate-only                       # pre-flight only; writes nothing
-md-to-word --guide                                             # this file, printed (pip-only entry)
+md-to-word --guide --lang en                                   # this agent guide (pip-only entry)
 md-to-word manuscript.md --contract                            # contract + guide, manual and preset paths
 ```
 
@@ -155,9 +157,11 @@ Run every command from the manuscript's directory: relative image and `.bib` pat
 it. Add `--pdf` (macOS with Word) to expand fields and spot-check the result.
 
 Add `--json` whenever the result has to be read back programmatically: stdout then carries one JSON
-object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `messages`, `warnings`, `errors` —
-while progress logs stay on stderr. The keys are fixed; the sentences inside them follow the
-manuscript's language.
+object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `doc_lang`, `format_source`,
+`messages`, `warnings`, `errors` — while progress logs stay on stderr. The keys are fixed; the
+sentences inside them follow the manuscript's language. `lang` is the message language; `doc_lang`
+is the manuscript language that chose the default preset and CSL; `format_source` is `file:/abs/path`
+or `preset:zh-academic`.
 
 `--validate-only` runs the same pre-flight check as an export and stops there: exit `0` means it
 would proceed, exit `1` carries the line-numbered errors, and no `.docx` is touched. Use it in CI or

@@ -146,6 +146,85 @@ def test_resolve_markdown_source_raw_content():
     p.unlink()
 
 
+def test_mcp_missing_markdown_path_is_an_error() -> None:
+    """路径拼错不能当成正文导出成一份“内容是路径”的 docx。"""
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool(
+            "compile_markdown", {"markdown": "/definitely/missing/paper.md"}
+        )
+        assert not res.is_error
+        data = res.structured_content
+        assert data["success"] is False
+        assert any("not found" in error.lower() for error in data["errors"]), data["errors"]
+    asyncio.run(_run())
+
+
+def test_mcp_format_accepts_a_path_or_text_not_a_preset_name() -> None:
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool(
+            "compile_markdown",
+            {"markdown": "# Title\n\nBody.\n", "format": "zh-academic"},
+        )
+        assert not res.is_error
+        data = res.structured_content
+        assert data["success"] is False
+        assert any("preset" in error.lower() for error in data["errors"]), data["errors"]
+    asyncio.run(_run())
+
+
+def test_mcp_invalid_preset_is_an_error_not_a_skipped_gate() -> None:
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool(
+            "validate_manuscript",
+            {"markdown": "# 一\n\n正文。\n", "preset": "zh_academic"},
+        )
+        assert not res.is_error
+        data = res.structured_content
+        assert data["valid"] is False
+        assert any("preset" in error.lower() for error in data["errors"]), data["errors"]
+    asyncio.run(_run())
+
+
+def test_mcp_gbk_file_detects_chinese(tmp_path: Path) -> None:
+    manuscript = tmp_path / "gbk.md"
+    manuscript.write_bytes("# 引言\n\n这是一段中文正文。\n".encode("gbk"))
+
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool(
+            "validate_manuscript",
+            {"markdown": str(manuscript), "preset": "zh-academic"},
+        )
+        assert not res.is_error
+        data = res.structured_content
+        assert data["valid"] is True, data
+        assert data["document_lang"] == "zh"
+    asyncio.run(_run())
+
+
+def test_mcp_notice_uses_the_actual_preset_not_message_language(tmp_path: Path) -> None:
+    manuscript = tmp_path / "paper.md"
+    manuscript.write_text("# 引言\n\n这是一段中文正文。\n", encoding="utf-8")
+
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool(
+            "compile_markdown",
+            {"markdown": str(manuscript), "lang": "en"},
+        )
+        assert not res.is_error
+        data = res.structured_content
+        assert data["success"] is True, data
+        assert data["doc_lang"] == "zh"
+        assert data["format_source"] == "preset:zh-academic"
+        assert "zh-academic" in data["notice"]
+        assert "en-nature" not in data["notice"]
+    asyncio.run(_run())
+
+
 def test_mcp_compile_can_pour_into_a_school_template(tmp_path: Path) -> None:
     """MCP 是第三个入口：命令行有的能力，这里也得有，否则走 MCP 的 Agent 用不了这条路。"""
     from docx import Document

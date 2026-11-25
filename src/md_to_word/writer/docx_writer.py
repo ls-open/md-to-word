@@ -17,6 +17,11 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from docx import Document as open_docx
+from docx.image.exceptions import (
+    InvalidImageStreamError,
+    UnexpectedEndOfFileError,
+    UnrecognizedImageError,
+)
 from docx.enum.style import WD_STYLE_TYPE
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.opc.packuri import PackURI
@@ -967,13 +972,21 @@ class _Writer:
             return width_cm
         return limit if width_cm is None or width_cm > limit else width_cm
 
-    @staticmethod
-    def _embed(run, path: Path, width_cm: Optional[float], alt: str = "") -> None:
-        shape = (
-            run.add_picture(str(path), width=Cm(width_cm))
-            if width_cm
-            else run.add_picture(str(path))
-        )
+    def _embed(self, run, path: Path, width_cm: Optional[float], alt: str = "") -> None:
+        try:
+            shape = (
+                run.add_picture(str(path), width=Cm(width_cm))
+                if width_cm
+                else run.add_picture(str(path))
+            )
+        except (
+            UnrecognizedImageError, InvalidImageStreamError,
+            UnexpectedEndOfFileError, OSError,
+        ) as exc:
+            raise UnsupportedFeature(t(
+                "writer.figure_unreadable", self.lang,
+                path=path.name, err=type(exc).__name__,
+            )) from exc
         if alt:
             shape._inline.docPr.set("descr", alt)
 
