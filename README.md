@@ -48,6 +48,9 @@ md-to-word init
 # 3. 编译导出
 md-to-word hello.md -f format.txt -o hello.docx
 
+# （可选）先只跑预检、不生成文件
+md-to-word hello.md --validate-only
+
 # （可选）没有格式文件时，使用内置学术预设快速出稿
 md-to-word hello.md --preset zh-academic -o hello.docx
 ```
@@ -86,7 +89,8 @@ npx skills add ls-open/md-to-word
 - **学术三线表**：边框线宽精准可控，长表格跨页自动重复表头。
 - **独立分节与页码**：支持前置页罗马页码（`i, ii`）、正文阿拉伯页码（`1, 2`）独立计数，生成 Word 原生动态目录域（按 F9 刷新）与随章变换页眉。
 - **29 套 CSL 参考文献**：内置国标 GB/T 7714、Nature、IEEE、APA 等常用样式，由 `.bib` 自动生成引文列表。
-- **带精确行号的双向门禁**：导前语法预检、导后防丢数核对、底模 XML 样式对账。格式不合规时带行号报错中止，方便人类与 AI Agent 定位修改。
+- **带精确行号的双向门禁**：导前语法预检、导后防丢数核对、底模 XML 样式对账。格式不合规时带行号报错中止，方便人类与 AI Agent 定位修改；`--validate-only` 可单独跑预检、不写文件。
+- **输入编码从宽**：稿件、格式文件与 `.bib` 支持 UTF-8（含 BOM）、UTF-16 与 GB18030；非 UTF-8 会照常读取并提醒另存。
 - **同一平台逐字节一致**：固定时间戳、权限与打包顺序，相同源文件在同系统下重复编译产物二进制完全一致，便于 Git 差异比对。
 
 ---

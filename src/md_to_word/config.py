@@ -16,6 +16,12 @@ PACKAGE_DIR = Path(__file__).resolve().parent
 DEFAULT_PRESET_ZH = "zh-academic"
 DEFAULT_PRESET_EN = "en-nature"
 
+
+def default_preset_name(lang: str) -> str:
+    """按**稿件语言**取默认预设。消息语言（`--lang`）不参与这个判断。"""
+    return DEFAULT_PRESET_ZH if lang == "zh" else DEFAULT_PRESET_EN
+
+
 def get_presets_dir() -> Path:
     """包内预设目录 presets/。预设与资源都只随包发布，仓库里没有第二份。"""
     return PACKAGE_DIR / "presets"
@@ -55,11 +61,16 @@ DEFAULT_CSL_EN = "apa.csl"
 def looks_chinese(text: str, threshold: float = 0.05) -> bool:
     """正文是不是中文写的。
 
-    只数**正文**里的汉字占比：`%% 表题`、`%% 图片题注` 这些样式名是词表的一部分，
-    英文稿里也会出现，拿它们判断语种会把英文稿认成中文稿。行首 `%%` 的行整行跳过。
+    只数**自然语言正文**里的汉字占比：`%% 表题`、`%% 图片题注` 这些样式名是词表的一部分，
+    英文稿里也会出现；代码、frontmatter、URL、公式与引文键同样不是正文。中文技术稿里
+    夹着大段英文代码时，代码不该把中文稿判成英文稿。行首 `%%` 的行整行跳过。
     """
-    lines = [line for line in (text or "").split("\n") if not line.lstrip().startswith("%%")]
-    dense = [ch for ch in "".join(lines) if not ch.isspace()]
+    from md_to_word.utils.masking import mask_prose_noise
+
+    text = mask_prose_noise(text or "")
+    lines = [line for line in text.split("\n") if not line.lstrip().startswith("%%")]
+    # `mask_prose_noise` uses "." as a placeholder; it must not dilute the ratio.
+    dense = [ch for ch in "".join(lines) if not ch.isspace() and ch != "."]
     if not dense:
         return False
     cjk = sum(1 for ch in dense if "\u4e00" <= ch <= "\u9fff")

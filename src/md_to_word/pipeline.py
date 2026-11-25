@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 import shutil
 import tempfile
@@ -18,7 +19,7 @@ from typing import Optional
 from md_to_word.audit.inspector import audit_docx_against_spec
 from md_to_word.audit.postflight import verify_chinese_integrity, verify_numeric_integrity
 from md_to_word.config import (
-    DEFAULT_PRESET_EN, DEFAULT_PRESET_ZH, default_csl_path, get_csl_dir, resolve_preset_path,
+    default_csl_path, default_preset_name, get_csl_dir, resolve_preset_path,
 )
 from md_to_word.i18n import resolve_lang, t
 from md_to_word.preprocessor.cleaner import strip_html_comments
@@ -29,6 +30,7 @@ from md_to_word.template.generator import TemplateError
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
 from md_to_word.utils.skill_utils import split_frontmatter, resolve_manuscript_path
+from md_to_word.utils.textio import TextDecodeError, UTF8_ENCODINGS, read_text_file
 
 logger = logging.getLogger("md2word")
 
@@ -109,13 +111,166 @@ def _first_text(blocks) -> str:
     return ""
 
 
+def _note_encoding(label_key: str, encoding: str, res: ExportResult) -> None:
+    if encoding in UTF8_ENCODINGS:
+        return
+    note = t(
+        "textio.fallback", res.lang,
+        label=t(label_key, res.lang), encoding=encoding,
+    )
+    res.messages.append(note)
+    res.warnings.append(note)
+
+
+def _read_user_text(
+    path: Path, label_key: str, res: ExportResult, *, warn_fallback: bool = True
+) -> Optional[str]:
+    """读格式/文献库等用户文本：编码不对时说清楚，不让 UnicodeDecodeError 冒成“工具缺陷”。
+
+    稿件单独处理——它的编码可能决定消息语言，提醒必须等语言判定之后再出。
+    """
+    label = t(label_key, res.lang)
+    try:
+        text, encoding = read_text_file(path)
+    except TextDecodeError:
+        res.errors.append(t("textio.unreadable", res.lang, label=label, path=path))
+        return None
+    except OSError as exc:
+        res.errors.append(t("pipeline.read_failed", res.lang, label=label, path=path, err=exc))
+        return None
+    if warn_fallback:
+        _note_encoding(label_key, encoding, res)
+    return text
+
+
+def _resolve_format(
+    in_p: Path,
+    res: ExportResult,
+    *,
+    format_path: Optional[Path | str],
+    preset: Optional[str],
+    doc_lang: str,
+) -> tuple[Optional[Path], Optional[str]]:
+    """确定这次导出用哪份格式文件，并读出内容。
+
+    CLI 与“只校验”共用这一份判断：两边各写一套，迟早会出现“校验用预设 A、
+    导出用预设 B”的分叉。
+    """
+    fmt_file: Optional[Path] = None
+    fmt_content: Optional[str] = None
+
+    if format_path:
+        p_fmt = Path(format_path).resolve()
+        if not p_fmt.is_file():
+            res.errors.append(t("pipeline.format_missing", res.lang, path=p_fmt))
+            return None, None
+        fmt_content = _read_user_text(p_fmt, "textio.label.format", res)
+        if fmt_content is None:
+            return None, None
+        fmt_file = p_fmt
+    elif preset:
+        p_pre = resolve_preset_path(preset)
+        if not p_pre or not p_pre.is_file():
+            res.errors.append(t("pipeline.preset_missing", res.lang, name=preset))
+            return None, None
+        fmt_file = p_pre
+        fmt_content = _read_user_text(p_pre, "textio.label.format", res, warn_fallback=False)
+        if fmt_content is None:
+            return None, None
+    else:
+        # 只认一个固定名：稿件同目录的 `format.txt`。不去猜「旁边那个 .txt
+        # 也许是要求文件」——猜错是静默用错格式，猜对了也换不来多少方便。
+        named = in_p.parent / "format.txt"
+        if named.is_file():
+            fmt_content = _read_user_text(named, "textio.label.format", res)
+            if fmt_content is None:
+                return None, None
+            fmt_file = named
+            res.messages.append(t("pipeline.txt_named", res.lang, path=named.name))
+        else:
+            others = sorted(p.name for p in in_p.parent.glob("*.txt") if p.is_file())
+            if others:
+                shown = "、".join(others[:3]) + ("…" if len(others) > 3 else "")
+                res.messages.append(t("pipeline.txt_ignored", res.lang, names=shown))
+            # 默认预设跟着**稿件语种**走，不跟 `--lang`（那是消息语言）：中文稿加
+            # `--lang en` 只为读英文报错，不能因此套上英文期刊的版式。
+            preset_name = default_preset_name(doc_lang)
+            p_default = resolve_preset_path(preset_name)
+            if p_default and p_default.is_file():
+                fmt_file = p_default
+                fmt_content = _read_user_text(
+                    p_default, "textio.label.format", res, warn_fallback=False
+                )
+                if fmt_content is None:
+                    return None, None
+                res.messages.append(t("pipeline.preset_auto", res.lang, name=preset_name))
+    return fmt_file, fmt_content
+
+
+def run_validation(options: ExportOptions) -> ExportResult:
+    """只跑导前预检：读稿、选格式、校验，不生成模板也不写 .docx。
+
+    与导出共用 `_resolve_format`，所以“校验用哪份格式”和“导出用哪份格式”不会分叉。
+    """
+    res = ExportResult(returncode=0)
+    res.lang = resolve_lang("", options.lang)
+    in_p = Path(options.input_path).resolve()
+    if not in_p.is_file():
+        res.returncode = EXIT_ERROR
+        res.errors.append(t("pipeline.input_missing", res.lang, path=in_p))
+        return res
+    try:
+        manuscript_text, manuscript_encoding = read_text_file(in_p)
+    except TextDecodeError:
+        res.returncode = EXIT_ERROR
+        res.errors.append(t(
+            "textio.unreadable", res.lang,
+            label=t("textio.label.manuscript", res.lang), path=in_p,
+        ))
+        return res
+    except OSError as exc:
+        res.returncode = EXIT_ERROR
+        res.errors.append(t(
+            "pipeline.read_failed", res.lang,
+            label=t("textio.label.manuscript", res.lang), path=in_p, err=exc,
+        ))
+        return res
+    res.lang = resolve_lang(manuscript_text, options.lang)
+    doc_lang = resolve_lang(manuscript_text, None)
+    _note_encoding("textio.label.manuscript", manuscript_encoding, res)
+
+    fmt_file, fmt_content = _resolve_format(
+        in_p,
+        res,
+        format_path=options.format_path,
+        preset=options.preset,
+        doc_lang=doc_lang,
+    )
+    if fmt_content is None:
+        res.returncode = EXIT_ERROR
+        return res
+
+    logger.info("🔍 " + t("pipeline.precheck", res.lang))
+    report = validate_manuscript(in_p, spec_path=fmt_file, lang=res.lang)
+    res.errors.extend(report.errors)
+    for warning in report.warnings:
+        res.messages.append(warning)
+        res.warnings.append(warning)
+    if report.valid:
+        res.messages.append(t("pipeline.validate_ok", res.lang, count=len(report.warnings)))
+    else:
+        res.returncode = EXIT_ERROR
+        res.messages.append(t("pipeline.validate_failed", res.lang, count=len(report.errors)))
+    return res
+
+
 def _normalized_csl(path: Path, temp_dir: Path, res: ExportResult) -> Path:
     """把 CSL 里的 direct formatting 去掉，返回可用的路径（就地清理要写副本）。"""
     from md_to_word.transform.csl_clean import is_csl, strip_direct_formatting
 
     try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
+        text, _ = read_text_file(path)
+    except (OSError, TextDecodeError):
         return path  # 读不出来就交给 CSL 引擎去报错，不在这里吞掉
     if not is_csl(text):
         return path
@@ -162,23 +317,39 @@ def _postflight_error(in_p: Path, target: Path, res: ExportResult) -> Optional[s
 def run_export_pipeline(options: ExportOptions) -> ExportResult:
     """执行完整的纯 Python 学术导出流水线。"""
     res = ExportResult(returncode=0)
+    # 稿件还没读到时也要能按 --lang 说人话
+    res.lang = resolve_lang("", options.lang)
     in_p = Path(options.input_path).resolve()
     if not in_p.is_file():
         res.returncode = EXIT_ERROR
         res.errors.append(t("pipeline.input_missing", res.lang, path=in_p))
         return res
     try:
-        manuscript_text = in_p.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        manuscript_text = ""
+        manuscript_text, manuscript_encoding = read_text_file(in_p)
+    except TextDecodeError:
+        res.returncode = EXIT_ERROR
+        res.errors.append(t(
+            "textio.unreadable", res.lang,
+            label=t("textio.label.manuscript", res.lang), path=in_p,
+        ))
+        return res
+    except OSError as exc:
+        res.returncode = EXIT_ERROR
+        res.errors.append(t(
+            "pipeline.read_failed", res.lang,
+            label=t("textio.label.manuscript", res.lang), path=in_p, err=exc,
+        ))
+        return res
+    # 消息语言可以覆盖；**稿件语言**只按正文判，它决定默认预设与默认 CSL。
     res.lang = resolve_lang(manuscript_text, options.lang)
+    doc_lang = resolve_lang(manuscript_text, None)
+    _note_encoding("textio.label.manuscript", manuscript_encoding, res)
 
     # 1. 确定最终输出路径
     if options.output_path:
         out_p = Path(options.output_path).resolve()
     else:
         out_p = in_p.with_suffix(".docx").resolve()
-    res.output_docx = out_p
     # 目录不存在时当场说清楚：否则要等整条流水线跑完、写文件那一刻才抛 FileNotFoundError，
     # 对着 traceback 的人不会想到是自己漏建了一个目录。
     if not out_p.parent.is_dir():
@@ -193,51 +364,20 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         return res
 
     # 2. 确定格式 (Format Spec)
-    fmt_file: Optional[Path] = None
-    fmt_content: Optional[str] = None
-
-    if options.format_path:
-        p_fmt = Path(options.format_path).resolve()
-        if not p_fmt.is_file():
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.format_missing", res.lang, path=p_fmt))
-            return res
-        fmt_file = p_fmt
-        fmt_content = p_fmt.read_text(encoding="utf-8")
-    elif options.preset:
-        p_pre = resolve_preset_path(options.preset)
-        if not p_pre or not p_pre.is_file():
-            res.returncode = EXIT_ERROR
-            res.errors.append(t("pipeline.preset_missing", res.lang, name=options.preset))
-            return res
-        fmt_file = p_pre
-        fmt_content = p_pre.read_text(encoding="utf-8")
-    else:
-        # 不带 `-r` 时只认一个固定名：稿件同目录的 `format.txt`。不去猜「旁边那个 .txt
-        # 也许是要求文件」——猜错是静默用错格式，猜对了也换不来多少方便。旁边确实另有
-        # .txt 却没用上时提醒一句，免得用户以为它生效了。
-        named = in_p.parent / "format.txt"
-        if named.is_file():
-            fmt_file = named
-            fmt_content = named.read_text(encoding="utf-8")
-            res.messages.append(t("pipeline.txt_named", res.lang, path=named.name))
-        else:
-            others = sorted(p.name for p in in_p.parent.glob("*.txt") if p.is_file())
-            if others:
-                shown = "、".join(others[:3]) + ("…" if len(others) > 3 else "")
-                res.messages.append(t("pipeline.txt_ignored", res.lang, names=shown))
-            # 默认预设跟着稿件语种走：英文稿拿中文学位论文的格式（首行缩进两字符、
-            # 宋体 fallback）是错的。判据与默认 CSL 用的是同一个 `looks_chinese`。
-            preset_name = DEFAULT_PRESET_ZH if res.lang == "zh" else DEFAULT_PRESET_EN
-            p_default = resolve_preset_path(preset_name)
-            if p_default and p_default.is_file():
-                fmt_file = p_default
-                fmt_content = p_default.read_text(encoding="utf-8")
-                res.messages.append(t("pipeline.preset_auto", res.lang, name=preset_name))
+    fmt_file, fmt_content = _resolve_format(
+        in_p,
+        res,
+        format_path=options.format_path,
+        preset=options.preset,
+        doc_lang=doc_lang,
+    )
+    if fmt_content is None:
+        res.returncode = EXIT_ERROR
+        return res
 
     # 要求文件写错时预检会给出带行号的原因；这里只取公式编号这一项，读不出就用默认
     try:
-        spec = parse_format(fmt_content) if fmt_content else None
+        spec = parse_format(fmt_content)
     except ValueError:
         spec = None
 
@@ -259,11 +399,13 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             res.warnings.append(w)
 
     # 5. 准备工作环境与 CSL 解析
+    render_target: Optional[Path] = None
+    injected_target: Optional[Path] = None
     temp_dir = tempfile.mkdtemp(prefix="md2word_")
     try:
         # HTML 注释是写给人看的编辑批注，任何 Markdown 渲染器都不显示；原样印进 Word
         # 属于把批注当正文。这里无条件剔除，不给开关——代码块里的内容不受影响。
-        contract_text = strip_html_comments(in_p.read_text(encoding="utf-8"))
+        contract_text = strip_html_comments(manuscript_text)
 
         # 引文样式：作者写了就按作者的（内置名或自己的路径），没写按语种取默认
         builtin_csl: Optional[Path] = None
@@ -296,8 +438,22 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             res.returncode = EXIT_ERROR
             res.errors.append(t("pipeline.no_spec", res.lang))
             return res
-        # 有底模时先写到临时文件：验真不过就什么都不给，不能留一份"看着能交"的产物
-        render_target = out_p if not options.base_template else Path(temp_dir) / "rendered.docx"
+        # 产物先写到输出目录里的临时文件：所有门禁都在它上面跑，全通过才换到目标路径。
+        # 这样门禁失败时目标位置要么没有文件、要么还是上一次的成品，不会留一份“看着能交”
+        # 的坏文件。放在输出目录而不是系统临时目录，是为了最后一步能用原子替换。
+        if options.base_template:
+            render_target = Path(temp_dir) / "rendered.docx"
+        else:
+            try:
+                fd, tmp_name = tempfile.mkstemp(
+                    prefix=f".{out_p.stem}.", suffix=".docx", dir=out_p.parent
+                )
+            except OSError as exc:
+                res.returncode = EXIT_ERROR
+                res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
+                return res
+            os.close(fd)
+            render_target = Path(tmp_name)
         temp_tpl_path = Path(temp_dir) / "template.docx"
         try:
             build_template(fmt_content, temp_tpl_path, lang=res.lang)
@@ -319,11 +475,13 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         if isinstance(fm_data, dict) and fm_data.get("bibliography"):
             bib_path, how = resolve_manuscript_path(str(fm_data["bibliography"]), in_p)
             if how:
-                try:
-                    bib_text = Path(bib_path).read_text(encoding="utf-8")
-                    citation_keys = parse_bib_keys(bib_text)
-                except OSError:
-                    citation_keys = set()
+                bib_text = _read_user_text(
+                    Path(bib_path), "textio.label.bibliography", res
+                )
+                if bib_text is None:
+                    res.returncode = EXIT_ERROR
+                    return res
+                citation_keys = parse_bib_keys(bib_text)
 
         engine = None
         if citation_keys:
@@ -431,6 +589,17 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                 return res
             logger.info("✓ " + t("pipeline.audit_ok", res.lang))
 
+        # 9.5 普通导出：门禁全过之后才把临时产物换到目标路径
+        if not options.base_template:
+            try:
+                os.replace(render_target, out_p)
+            except OSError as exc:
+                res.returncode = EXIT_ERROR
+                res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
+                return res
+            render_target = None
+            res.output_docx = out_p
+
         # 10. 灌进学校模板：封面原样保留，正文换成我们排的
         if options.base_template:
             from md_to_word.template.base_inject import BaseTemplateError, apply_base_template
@@ -510,8 +679,21 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
                         t("pipeline.base_resolved", res.lang,
                           pages=options.keep_pages, sections=sections)
                     )
+                # 注入也先落到输出目录里的临时文件：注入后的完整性检查不过，目标位置的
+                # 上一份成品仍然完好。
+                try:
+                    fd, tmp_name = tempfile.mkstemp(
+                        prefix=f".{out_p.stem}.", suffix=".docx", dir=out_p.parent
+                    )
+                except OSError as exc:
+                    res.returncode = EXIT_ERROR
+                    res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
+                    return res
+                os.close(fd)
+                injected_target = Path(tmp_name)
                 outcome = apply_base_template(
-                    base_p, render_target, sections, out_p, _first_texts(model.blocks)
+                    base_p, render_target, sections, injected_target,
+                    _first_texts(model.blocks),
                 )
             except BaseTemplateError as exc:
                 res.returncode = EXIT_ERROR
@@ -526,12 +708,20 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
             # 要在成品上再跑一遍。格式对账不重跑：成品里混着学校的前置件与它自己的样式，
             # 逐条对账会把它判成「不合规」，那些本来就不是我们排的。
             if options.postflight:
-                err = _postflight_error(in_p, out_p, res)
+                err = _postflight_error(in_p, injected_target, res)
                 if err:
                     res.returncode = EXIT_ERROR
                     res.errors.append(err)
                     return res
                 logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
+            try:
+                os.replace(injected_target, out_p)
+            except OSError as exc:
+                res.returncode = EXIT_ERROR
+                res.errors.append(t("pipeline.write_failed", res.lang, path=out_p, err=exc))
+                return res
+            injected_target = None
+            res.output_docx = out_p
             # 「逐页一致」只有真排过版才说得出口
             key = "pipeline.base_ok" if outcome.layout_verified else "pipeline.base_ok_structure"
             logger.info("✓ " + t(key, res.lang, pages=outcome.cover_sections))
@@ -556,4 +746,11 @@ def run_export_pipeline(options: ExportOptions) -> ExportResult:
         return res
 
     finally:
+        # 门禁失败或中途异常时，清理输出目录里的临时产物；目标路径保持原样。
+        for leftover in (render_target, injected_target):
+            if leftover is not None:
+                try:
+                    Path(leftover).unlink(missing_ok=True)
+                except OSError:
+                    pass
         shutil.rmtree(temp_dir, ignore_errors=True)

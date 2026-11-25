@@ -1056,14 +1056,20 @@ def apply_page_decorations(doc, spec, lang: str = "zh"):
     # 一旦开启奇偶/首页不同，**没显式写的那几套容器会变成空白，而不是继承默认那一套**。
     # 例如只写「页脚内容：{页码}」再开奇偶不同，偶数页会整页没有页码。
     # 故把默认内容补进空缺的槽位——让「页码每页都有」这类常理成立；要覆盖就显式写。
-    for kind, cn in (('header', '页眉'), ('footer', '页脚')):
+    for kind, cn, en in (('header', '页眉', 'header'), ('footer', '页脚', 'footer')):
         base = spec.decor.get((kind, 'default'))
         if base is None:
             continue
-        for which, label in (('even', '偶数页'), ('first', '首页')):
+        for which, label_cn, label_en in (
+            ('even', '偶数页', 'even-page'), ('first', '首页', 'first-page')
+        ):
             if (uses_even if which == 'even' else uses_first) and (kind, which) not in spec.decor:
                 spec.decor[(kind, which)] = base
-                logger.info(f' ✓ {label}{cn}: 未单独指定，已沿用默认{cn}内容')
+                logger.info(t(
+                    "template.decor_inherited", lang,
+                    label=label_en if lang == "en" else label_cn,
+                    kind=en if lang == "en" else cn,
+                ))
 
     if uses_even:
         doc.settings.odd_and_even_pages_header_footer = True

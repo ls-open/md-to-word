@@ -10,7 +10,9 @@
 from __future__ import annotations
 
 import copy
+import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -1382,7 +1384,17 @@ def write_docx(
         # 否则同一份稿件重复导出就不再逐字节一致了。
         docx.core_properties.comments = provenance
     out = Path(output)
-    docx.save(str(out))
-    # 时间戳钉死：同一份稿件重复导出要逐字节一致，否则 Git 里每次都是「内容没改却变了」
-    normalize_zip(out)
+    # 先写同目录临时文件，成功后再原子替换：写一半失败时，目标位置上一版成品仍然完好。
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{out.stem}.", suffix=".docx.tmp", dir=out.parent
+    )
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        docx.save(str(tmp))
+        # 时间戳钉死：同一份稿件重复导出要逐字节一致，否则 Git 里每次都是「内容没改却变了」
+        normalize_zip(tmp)
+        os.replace(tmp, out)
+    finally:
+        tmp.unlink(missing_ok=True)
     return out

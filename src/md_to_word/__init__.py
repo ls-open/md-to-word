@@ -19,7 +19,6 @@ def export(
     output=None,
     *,
     format=None,
-    requirements=None,
     preset=None,
     pdf=False,
     lang=None,
@@ -32,17 +31,15 @@ def export(
 
     返回 `ExportResult`；`result.returncode` 为 0 即成功，`result.errors` 是失败原因。
     这一层只是把 `ExportOptions` 的默认值摆好——等价于命令行 `md-to-word`。
-    `requirements` 为旧版别名，推荐使用 `format`。
 
     `base_template` / `cover_sections` / `keep_pages` / `keep_until` 与命令行同名同义，
     见手册 §9.3。
     """
-    format_p = format if format is not None else requirements
     return run_export_pipeline(
         ExportOptions(
             input_path=manuscript,
             output_path=output,
-            format_path=format_p,
+            format_path=format,
             preset=preset,
             make_pdf=pdf,
             lang=lang,
@@ -54,10 +51,6 @@ def export(
     )
 
 
-# 向后兼容别名：供旧脚本与下游生态平滑过渡
-parse_requirements = parse_format
-serialize_requirements = serialize_format
-
 __all__ = [
     "export",
     "run_export_pipeline",
@@ -67,9 +60,7 @@ __all__ = [
     "ValidationReport",
     "build_template",
     "parse_format",
-    "parse_requirements",
     "serialize_format",
-    "serialize_requirements",
     "TemplateSpec",
     "__version__",
 ]

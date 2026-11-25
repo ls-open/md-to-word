@@ -18,7 +18,12 @@ from typing import Optional
 from lxml import etree
 
 from md_to_word.i18n import t
-from md_to_word.utils.masking import mask_html_comments
+from md_to_word.utils.masking import (
+    mask_code,
+    mask_code_fences,
+    mask_html_comments,
+    mask_inline_code,
+)
 from md_to_word.preprocessor.blocks import hard_break
 
 # ══════════════════════════════════════════════════════════════════════
@@ -97,38 +102,6 @@ def strip_theme_attrs_from_xml(xml_bytes: bytes) -> bytes:
 # ══════════════════════════════════════════════════════════════════════
 # 3. Markdown 解析、块级分隔与路径工具
 # ══════════════════════════════════════════════════════════════════════
-
-def mask_code_fences(content: str) -> str:
-    """围栏代码块（``` / ~~~）内各行掩码为 '.'，保留总行数与行号不变。"""
-    out = []
-    in_fence = False
-    for line in content.split("\n"):
-        stripped = line.strip()
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            in_fence = not in_fence
-            out.append(".")
-            continue
-        out.append("." if in_fence else line)
-    return "\n".join(out)
-
-
-# 行内代码：`` `…` `` 或 ``` ``…`` ```。整段换成点号，保留长度与行号。
-_INLINE_CODE_RE = re.compile(r"(?<!`)(`{1,3})[^`\n]*?\1(?!`)")
-
-
-def mask_inline_code(content: str) -> str:
-    """行内代码的内容掩码为 '.'，保留长度与行号。
-
-    判据只该看「作者真写的正文」时用它：稿件里用反引号演示语法（`` `![alt](x.png)` ``）是
-    正当的，不该被当成真图片去查磁盘。
-    """
-    return _INLINE_CODE_RE.sub(lambda m: "." * len(m.group(0)), content)
-
-
-def mask_code(content: str) -> str:
-    """围栏代码块 + 行内代码一起掩码。"""
-    return mask_inline_code(mask_code_fences(content))
-
 
 def split_frontmatter(text: str) -> tuple[str, str]:
     """拆分 YAML frontmatter，返回 (frontmatter_text, body_text)。

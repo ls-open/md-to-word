@@ -52,6 +52,7 @@ md-to-word 稿件.md --preset zh-report -o out.docx    # 中文现代技术报�
 md-to-word 稿件.md --preset en-nature -o out.docx    # 英文期刊预设
 md-to-word 稿件.md -f format.txt -o out.docx        # 显式指定格式文件
 md-to-word init                                     # 生成 format.txt 与可直接导出的 hello.md
+md-to-word 稿件.md --validate-only                  # 只跑导前预检，不写 .docx
 md-to-word --guide                                  # 入门文档（代办流程、门禁、边界）
 md-to-word --contract                               # 契约速查 + 手册与预设路径
 md-to-word --contract --lang en                     # 同上，英文版（样式名用英文正典名）
@@ -64,6 +65,9 @@ md-to-word 论文.md --base-template 底模.docx --cover-sections 3 -o 论文.do
 或 `--preset zh-report`。除 `format.txt` 之外不猜：同目录另有 `.txt` 时会在提醒里点名，要用就加 `-f`。
 用了哪一份，输出里都会报出来。
 
+`--lang` 只决定**消息语言**；默认预设与默认 CSL 按**稿件正文语言**选，不随 `--lang` 变。稿件、格式文件与
+`.bib` 支持 UTF-8（含 BOM）、UTF-16 与 GB18030；读到非 UTF-8 时会提醒另存为 UTF-8，便于 Git 比对与跨平台协作。
+
 **退出码**：`0` 完成；`1` 稿件、门禁或依赖问题；`2` 参数用法错误；`3` `.docx` 已写出但 `--pdf` 未渲染（非 macOS）。
 `0` 表示已通过全部闸门，**不等于版面已经肉眼核对过**（§5.3）。
 
@@ -71,13 +75,14 @@ md-to-word 论文.md --base-template 底模.docx --cover-sections 3 -o 论文.do
 
 ```json
 {"ok": true, "returncode": 0, "input": "稿件.md", "output": "…/稿件.docx", "pdf": null,
- "lang": "zh", "messages": ["…"], "errors": []}
+ "lang": "zh", "messages": ["…"], "warnings": [], "errors": []}
 ```
 
 键名固定、不随版本变；`messages` 与 `errors` 的值是给人读的句子，跟着稿件语种走。
 `messages` 含进度、**提醒**与结尾的核对提示（提醒按类合并成一条，最多列 8 个行号），成功时
-要转述的内容都在这里，不必再解析 stderr。解析方读键，不读措辞。参数用法错误（退出码 `2`）
-发生在参数解析阶段，此时不产出 JSON。
+要转述的内容都在这里，不必再解析 stderr；需要单独识别提醒时读 `warnings`，它是 `messages`
+里提醒条目的子集。解析方读键，不读措辞。参数用法错误（退出码 `2`）发生在参数解析阶段，
+此时不产出 JSON。
 
 **库调用**：
 
@@ -454,6 +459,9 @@ HTML 标签与 `<https://…>` 自动链接、横向分隔线 `---`、`====` 下
 ```
 
 样式模板每次导出实时生成，不落盘复用；**样式**只有一个来源，就是格式文件。
+
+只想先确认稿件能不能过门禁：`md-to-word 稿件.md --validate-only`。它走同一套格式选择与预检，
+退出码 `0` 表示可以继续导出、`1` 带行号报错，不生成模板也不写 `.docx`；CI 与 Agent 可配 `--json`。
 
 防丢内容检查比两样：原稿里的三位以上小数，和每一个汉字。少了就报错并指出缺的是哪个，`--no-postflight` 可跳过。
 

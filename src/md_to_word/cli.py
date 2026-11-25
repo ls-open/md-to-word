@@ -10,9 +10,15 @@ from pathlib import Path
 
 from md_to_word import __version__
 from md_to_word.i18n import SUPPORTED, resolve_lang, t
-from md_to_word.pipeline import ExportOptions, ExportResult, run_export_pipeline
+from md_to_word.pipeline import (
+    ExportOptions,
+    ExportResult,
+    run_export_pipeline,
+    run_validation,
+)
 from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED, EXIT_USAGE
 from md_to_word.utils.skill_utils import configure_logging
+from md_to_word.utils.textio import TextDecodeError, read_text_file
 
 
 def _message_lang(argv: list[str]) -> str:
@@ -28,8 +34,8 @@ def _message_lang(argv: list[str]) -> str:
     text = ""
     if known.input and Path(known.input).is_file():
         try:
-            text = Path(known.input).read_text(encoding="utf-8", errors="replace")
-        except OSError:
+            text, _ = read_text_file(known.input)
+        except (OSError, TextDecodeError):
             text = ""
     override = None if known.lang == "auto" else known.lang
     return resolve_lang(text, override) if text else (override if override in SUPPORTED else "zh")
@@ -65,9 +71,9 @@ def contract_cheatsheet(lang: str = "zh") -> str:
     # 手册按语言各一份：中文版 manual.md，英文版 manual_en.md。两份都随包发布。
     resources = Path(__file__).resolve().parent / "resources"
     manual = resources / ("manual_en.md" if lang == "en" else "manual.md")
-    # 入门文档与技能入口是同一份流程（tests/test_resource_sync.py 盯着两者不许分叉）：
-    # 只装 pip 包、手上没有 SKILL.md 的 Agent 从这里读“按什么顺序做”。
-    guide = resources / "guide.md"
+    # 英文 guide 与技能入口 SKILL.md 是同一份流程（tests/test_resource_sync.py 盯着两者
+    # 不许分叉）；中文读者拿 guide_zh.md——把人指到英文文档等于让他自己想办法。
+    guide = resources / ("guide_zh.md" if lang == "zh" else "guide.md")
     # 名单来自预设目录，不手写：加了第五个预设，这里自动出现。
     # 英文预设排在最后——这是中文速查，先给中文稿的选项。
     names = sorted(list_available_presets(), key=lambda n: (n.startswith("en-"), n))
@@ -93,6 +99,8 @@ line is its own paragraph).
 
 Block markers (one per line, blank lines around): `{{{{< pagebreak >}}}}`, `{{{{< toc 2 >}}}}`,
 `{{{{< section page_number=lowerRoman start=1 >}}}}`.
+
+Check without writing a file: `md-to-word manuscript.md --validate-only`.
 
 Style names (a wrong name stops the export with a line number):
 {', '.join(_style_names(ascii_only=True))}
@@ -126,13 +134,15 @@ Built-in presets:
 块级标记（独占一行，前后留空行）：`{{{{< pagebreak >}}}}`、`{{{{< toc 2 >}}}}`、
 `{{{{< section 页码=小写罗马 起始=1 >}}}}`。
 
+只检查不导出：`md-to-word 稿件.md --validate-only`。
+
 样式名（写错会带行号报错）：{'、'.join(_style_names(ascii_only=False))}
 
 格式要求：不传 -f 时只认同目录的 format.txt，没有则用内置预设（按稿件语种：中文 zh-academic、其他 en-nature），
 每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
 推荐从预设起步：将下面那份复制到稿件旁，仅修改需要的行。
 
-入门文档（与技能入口 SKILL.md 同文，读其一即可）：{guide}
+中文速览（与 `--guide` 同文）：{guide}
 手册（完整词表、YAML、公式编号、CSL 清单、能力边界；前置封面/多节页码与 `--base-template` 看 §9）：{manual}
 内置预设：
 {presets}
@@ -166,7 +176,6 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument("input", nargs="?", help=t("cli.input", lang))
     parser.add_argument("-o", "--output", help=t("cli.output", lang))
     parser.add_argument("-f", "--format", dest="format_path", help=t("cli.format", lang))
-    parser.add_argument("-r", "--requirements", dest="format_path", help=argparse.SUPPRESS)
     parser.add_argument("--preset", help=t("cli.preset", lang))
     parser.add_argument("--base-template", dest="base_template", help=t("cli.base", lang))
     parser.add_argument(
@@ -190,6 +199,12 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
         help=t("cli.cover_sections", lang),
     )
     parser.add_argument("--lang", choices=["auto", *SUPPORTED], default="auto", help=t("cli.lang", lang))
+    parser.add_argument(
+        "--validate-only",
+        dest="validate_only",
+        action="store_true",
+        help=t("cli.validate_only", lang),
+    )
     parser.add_argument("--no-check", action="store_true", help=t("cli.no_check", lang))
     parser.add_argument("--no-postflight", action="store_true", help=t("cli.no_postflight", lang))
     parser.add_argument("--no-audit", action="store_true", help=t("cli.no_audit", lang))
@@ -258,9 +273,6 @@ def main(args: list[str] | None = None) -> int:
         return _run_init(argv[1:], lang)
     parser = build_parser(lang)
     parsed = parser.parse_args(argv)
-    if "--requirements" in argv or "-r" in argv:
-        # 只在用了旧写法时说一句；用 -f 的人看不到这行
-        print(t("cli.legacy_r", lang), file=sys.stderr)
     configure_logging("DEBUG" if parsed.verbose else "INFO", force=True)
 
     if parsed.guide:
@@ -273,6 +285,9 @@ def main(args: list[str] | None = None) -> int:
         # 没有参数时给人一段能照着敲的简述（描述 + 三条示例 + 去哪儿读全部），
         # 而不是 argparse 的 usage 加一句 "the following arguments are required"。
         print(t("cli.brief", lang, version=__version__), file=sys.stderr)
+        return EXIT_USAGE
+    if parsed.validate_only and parsed.no_check:
+        print(t("cli.validate_only_conflict", lang), file=sys.stderr)
         return EXIT_USAGE
 
     options = ExportOptions(
@@ -292,7 +307,7 @@ def main(args: list[str] | None = None) -> int:
     )
 
     try:
-        result = run_export_pipeline(options)
+        result = run_validation(options) if parsed.validate_only else run_export_pipeline(options)
     except Exception as exc:
         # 兜底，只为守住 CLI 的输出契约：`--json` 承诺 stdout 恒有一行结果，
         # 一个没料到的内部异常不该把这一行连同退出码一起吞掉（库调用方仍收到异常）。
@@ -303,6 +318,11 @@ def main(args: list[str] | None = None) -> int:
             t("cli.internal_error", lang, reason=f"{type(exc).__name__}: {exc}")
         )
 
+    return _emit_result(result, parsed)
+
+
+def _emit_result(result: ExportResult, parsed) -> int:
+    """把一次导出/预检的结果交给人和程序：两条出口共用，措辞不会一边多一边少。"""
     if parsed.as_json:
         # 给程序与 Agent 用：stdout 只有这一行，键名是契约（不随版本改），值原样透传——
         # 消息按稿件语种可能中可能英，解析方读的是键，不是措辞。进度与报错仍走 stderr。
@@ -314,6 +334,7 @@ def main(args: list[str] | None = None) -> int:
             "pdf": str(result.output_pdf) if result.output_pdf else None,
             "lang": result.lang,
             "messages": list(result.messages),
+            "warnings": list(result.warnings),
             "errors": list(result.errors),
         }, ensure_ascii=False))
         return result.returncode

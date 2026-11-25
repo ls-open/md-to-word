@@ -46,6 +46,9 @@ md-to-word init
 # 3. Compile
 md-to-word hello.md -f format.txt -o hello.docx
 
+# (Optional) Run the pre-flight check only; write no file
+md-to-word hello.md --validate-only
+
 # (Optional) Export with a built-in preset when no format file is ready
 md-to-word hello.md --preset zh-academic -o hello.docx
 ```
@@ -83,8 +86,9 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
 - **Three-Line Tables**: Rule weights declared per style; header rows repeat across page breaks automatically.
 - **Independent Section Pagination**: Roman front-matter numerals (`i, ii`) and Arabic body numerals (`1, 2`) with native Word Table of Contents field (F9 to refresh) and dynamic chapter running headers.
 - **29 Built-in CSL Styles**: Supports GB/T 7714, Nature, IEEE, APA, Science, and more; bibliography generated automatically from `.bib` references.
-- **Line-Numbered Quality Gates**: Pre-flight manuscript validation, post-flight content-loss check, and OpenXML styling reconciliation with line numbers for fast remediation.
-- **Byte-Identical on Same Platform**: Fixed timestamps, file permissions, and packaging sequence ensure byte-identical outputs on the same platform for reliable Git diffs.
+- **Line-Numbered Quality Gates**: Pre-flight manuscript validation, post-flight content-loss check, and OpenXML styling reconciliation with line numbers for fast remediation. `--validate-only` runs the pre-flight check without writing a file.
+- **Tolerant Input Encoding**: Manuscripts, format files and `.bib` files may be UTF-8 (with or without BOM), UTF-16 or GB18030; non-UTF-8 input is read and reported with a reminder to save it as UTF-8.
+- **Byte-Identical on Same Platform**: Fixed timestamps, file permissions, and packaging sequencing ensure byte-identical outputs on the same platform for reliable Git diffs.
 
 ---
 

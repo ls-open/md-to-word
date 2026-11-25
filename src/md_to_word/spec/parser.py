@@ -910,7 +910,3 @@ def parse_format(text: str) -> TemplateSpec:
         spec.styles.append(parse_style_props(style_name, desc, lineno))
 
     return spec
-
-
-# 向后兼容别名
-parse_requirements = parse_format

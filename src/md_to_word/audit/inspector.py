@@ -33,6 +33,7 @@ from md_to_word.template.generator import (
 from md_to_word.config import looks_chinese
 from md_to_word.spec.constants import ROW_NAME_EN, is_cjk_font
 from md_to_word.i18n import t
+from md_to_word.utils.textio import TextDecodeError, read_text_file
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 
@@ -189,7 +190,8 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
     `lang` 决定类别与说明的语言（中文/英文）；判据与阈值与语言无关。
     """
     problems = []
-    spec = parse_format(fmt_path.read_text(encoding='utf-8'))
+    fmt_text, _ = read_text_file(fmt_path)
+    spec = parse_format(fmt_text)
     z = zipfile.ZipFile(docx)
     styles = _styles_by_name(z)
 
@@ -717,8 +719,8 @@ def _cli_lang(override: str, fmt_path: Path) -> str:
     if override in ('zh', 'en'):
         return override
     try:
-        return 'zh' if looks_chinese(fmt_path.read_text(encoding='utf-8')) else 'en'
-    except OSError:
+        return 'zh' if looks_chinese(read_text_file(fmt_path)[0]) else 'en'
+    except (OSError, TextDecodeError):
         return 'zh'
 
 

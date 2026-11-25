@@ -12,6 +12,7 @@ from collections import Counter
 from pathlib import Path
 from md_to_word.utils.masking import HTML_COMMENT_RE
 from md_to_word.utils.skill_utils import split_frontmatter
+from md_to_word.utils.textio import read_text_file
 
 _RE_NUMBER = re.compile(r"\b\d+\.\d{3,}\b")
 _RE_YEAR_LIKE = re.compile(r"^20\d{2}\.\d+$")
@@ -21,7 +22,7 @@ _RE_OPENXML_FENCE = re.compile(
 
 
 def load_source_text(md_path: Path | str) -> str:
-    text = Path(md_path).read_text(encoding="utf-8")
+    text, _ = read_text_file(md_path)
     _, text = split_frontmatter(text)
     for pattern in (HTML_COMMENT_RE, _RE_OPENXML_FENCE, _RE_IMAGE):
         text = pattern.sub(" ", text)

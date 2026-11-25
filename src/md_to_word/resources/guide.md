@@ -146,6 +146,7 @@ anything else there is ignored and named in a reminder. With no `format.txt`, th
 ```bash
 md-to-word manuscript.md -o manuscript.docx                    # preset by language
 md-to-word manuscript.md -f format.txt -o manuscript.docx      # explicit format
+md-to-word manuscript.md --validate-only                       # pre-flight only; writes nothing
 md-to-word --guide                                             # this file, printed (pip-only entry)
 md-to-word manuscript.md --contract                            # contract + guide, manual and preset paths
 ```
@@ -154,8 +155,13 @@ Run every command from the manuscript's directory: relative image and `.bib` pat
 it. Add `--pdf` (macOS with Word) to expand fields and spot-check the result.
 
 Add `--json` whenever the result has to be read back programmatically: stdout then carries one JSON
-object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `messages`, `errors` — while progress
-logs stay on stderr. The keys are fixed; the sentences inside them follow the manuscript's language.
+object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `messages`, `warnings`, `errors` —
+while progress logs stay on stderr. The keys are fixed; the sentences inside them follow the
+manuscript's language.
+
+`--validate-only` runs the same pre-flight check as an export and stops there: exit `0` means it
+would proceed, exit `1` carries the line-numbered errors, and no `.docx` is touched. Use it in CI or
+before an expensive export; `-f` / `--preset` choose the format exactly as they do for export.
 
 Two gate levels, split by "would the mistake be visible afterwards" (criteria: manual §5):
 
@@ -205,8 +211,8 @@ interface in both directions is a Markdown file plus a `format.txt`.
 ## 8. What this file may rely on
 
 - the commands `md-to-word`, `md-to-word-template` and `init`; every flag named in this file
-  (`-o`, `-f`, `--preset`, `--contract`, `--guide`, `--version`, `--json`, `--pdf`, `--lang`) keeps
-  its name and meaning
+  (`-o`, `-f`, `--preset`, `--contract`, `--guide`, `--version`, `--json`, `--pdf`, `--lang`,
+  `--validate-only`) keeps its name and meaning
 - exit codes `0` / `1` / `2` / `3`, and the JSON keys under `--json`
 - the manuscript contract in §2, the vocabulary in §3, the preset names `zh-academic` and
   `en-nature` (plus `zh-tw-academic` and `zh-report`), and the fixed file name `format.txt`

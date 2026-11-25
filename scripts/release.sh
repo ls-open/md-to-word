@@ -117,7 +117,7 @@ for row in "${DEMOS[@]}"; do
         if [ "$fmt" = "-" ]; then
             bash ../../scripts/export.sh "$md" -o "$stem.docx" --pdf
         else
-            bash ../../scripts/export.sh "$md" -r "$fmt" -o "$stem.docx" --pdf
+            bash ../../scripts/export.sh "$md" -f "$fmt" -o "$stem.docx" --pdf
         fi
         rc=$?
         set -e

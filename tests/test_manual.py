@@ -159,7 +159,7 @@ def test_every_flag_is_documented_somewhere() -> None:
     from md_to_word.cli import build_parser
 
     # 逃生舱：写进文档等于推荐绕过门禁。旧别名：不该再有人学着用。
-    DELIBERATELY_HIDDEN = {"--no-audit", "--no-postflight", "--requirements"}
+    DELIBERATELY_HIDDEN = {"--no-audit", "--no-postflight"}
     # 文档里用缩写形式写的那几个
     SHORT_FORM = {"--format": "-f", "--output": "-o"}
 

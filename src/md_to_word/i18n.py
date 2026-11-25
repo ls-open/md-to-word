@@ -48,6 +48,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Built-in preset: zh-academic / zh-tw-academic / zh-report / en-nature",
     ),
     "cli.lang": ("消息语言：auto=按稿件语种 / zh / en", "Message language: auto / zh / en"),
+    "cli.validate_only": (
+        "只跑导前预检，不生成 .docx（可配 --json 给程序读）",
+        "Run the pre-flight check only; write no .docx (pair with --json for programs)",
+    ),
+    "cli.validate_only_conflict": (
+        "`--validate-only` 与 `--no-check` 不能同时使用：前者的全部工作就是预检",
+        "`--validate-only` and `--no-check` cannot be combined: the former is the pre-flight check",
+    ),
     "cli.no_check": ("跳过导前语法与排版契约预检（不推荐）", "Skip the pre-flight check (not recommended)"),
     "cli.no_postflight": ("跳过产物数值防丢检查（不推荐）", "Skip the numeric-integrity check (not recommended)"),
     "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against the format file"),
@@ -117,6 +125,22 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Please report the traceback above together with the manuscript and format file.",
     ),
     # ── 流水线：路径与配置 ──────────────────────────────────────────
+    # ── 用户文本的编码 ────────────────────────────────────────────
+    "textio.label.manuscript": ("稿件", "manuscript"),
+    "textio.label.format": ("格式文件", "format file"),
+    "textio.label.bibliography": ("文献库", "bibliography"),
+    "textio.unreadable": (
+        "无法读取{label}「{path}」：不是 UTF-8 / UTF-16 / GB18030 编码，请另存为 UTF-8 后重试",
+        "Cannot read the {label} {path}: expected UTF-8, UTF-16 or GB18030; save it as UTF-8 and retry",
+    ),
+    "textio.fallback": (
+        "「{label}」不是 UTF-8（按 {encoding} 读取）；建议另存为 UTF-8，便于 Git 比对与跨平台协作",
+        "The {label} is not UTF-8 (read as {encoding}); save it as UTF-8 for portable Git diffs and cross-platform work",
+    ),
+    "pipeline.read_failed": (
+        "无法读取{label}「{path}」：{err}",
+        "Cannot read the {label} {path}: {err}",
+    ),
     "pipeline.input_missing": ("输入稿件不存在: {path}", "Input manuscript not found: {path}"),
     "pipeline.write_failed": (
         "写出 {path} 失败：{err}\n  目录只读、磁盘已满、或文件正被 Word 打开时都会这样。",
@@ -159,7 +183,26 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "would lay out differently under a different CSL.",
     ),
     # ── 流水线：进度与结论 ──────────────────────────────────────────
+    "template.decor_inherited": (
+        "✓ {label}{kind}：未单独指定，已沿用默认{kind}内容",
+        "✓ {label} {kind}: not set separately; reusing the default {kind} content",
+    ),
+    "mcp.preset_notice": (
+        "已套用内置预设「{preset}」完成排版。建议在 Word 中打开核对效果；"
+        "若目标方（高校、期刊或机构）有专属格式要求，可提供 format 文件或参考 .docx 重新编译。",
+        "Compiled with the built-in preset \"{preset}\". Open it in Word to check the layout; "
+        "if the target (university, journal or organization) has its own format, provide a "
+        "format file or a reference .docx and compile again.",
+    ),
     "pipeline.precheck": ("执行导出前语法与排版契约预检…", "Running the pre-flight check…"),
+    "pipeline.validate_ok": (
+        "导前预检通过（{count} 条提醒）。",
+        "Pre-flight passed ({count} warning(s)).",
+    ),
+    "pipeline.validate_failed": (
+        "导前预检发现 {count} 个问题；未生成 .docx。",
+        "Pre-flight found {count} problem(s); no .docx was written.",
+    ),
     "pipeline.rejected": (
         "稿件共有 {count} 处不符合契约，导出已中止。请按下列行号修改后重新导出。",
         "The manuscript violates the contract in {count} place(s); export stopped. "
@@ -337,10 +380,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.base_resolved": (
         "前 {pages} 页 = 底模的前 {sections} 节，记下来以后直接用 --cover-sections {sections}",
         "First {pages} pages = first {sections} sections of the base; use --cover-sections {sections} next time",
-    ),
-    "cli.legacy_r": (
-        "`-r` 是旧写法，改用 `-f`（两者等价，`-r` 会在后续版本移除）",
-        "`-r` is the old spelling; use `-f` (they are equivalent, `-r` will be removed later)",
     ),
     "pipeline.base_missing": (
         "找不到底模文件：{path}",

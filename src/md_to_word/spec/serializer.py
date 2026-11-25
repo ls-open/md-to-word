@@ -165,7 +165,3 @@ def serialize_format(spec: TemplateSpec) -> str:
         lines.append(_style_line(spec.table_header))
 
     return "\n".join(lines) + "\n"
-
-
-# 向后兼容别名
-serialize_requirements = serialize_format

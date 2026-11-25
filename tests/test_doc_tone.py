@@ -33,11 +33,15 @@ DOCS = (
     # 那句照样在——所以两份都得进这张网。
     REPO / "web" / "page.html",
     REPO / "web" / "catalog.py",
+    # 导出成功后直接显示给用户的文案也在 i18n 与 MCP 里；那里加了封号，同样要红灯。
+    REPO / "src" / "md_to_word" / "i18n.py",
+    REPO / "src" / "md_to_word" / "mcp" / "server.py",
 )
 
 # 只收「给产品加等级 / 加称号」的说法。比较级如实取舍（「三条路里最费手工的那条」）
 # 不在此列，那是描述，不是封号。
 BANNED = (
+    "学术级",
     "出版级",
     "生产级",
     "企业级",

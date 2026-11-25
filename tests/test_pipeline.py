@@ -331,7 +331,9 @@ def test_json_output_is_one_machine_readable_object(tmp_path: Path, capsys) -> N
     assert payload["ok"] is True
     assert payload["output"].endswith("out.docx")
     assert payload["errors"] == []
-    assert set(payload) == {"ok", "returncode", "input", "output", "pdf", "lang", "messages", "errors"}
+    assert set(payload) == {
+        "ok", "returncode", "input", "output", "pdf", "lang", "messages", "warnings", "errors"
+    }
 
 
 def test_json_output_reports_a_missing_manuscript(tmp_path: Path, capsys) -> None:
@@ -449,51 +451,6 @@ def test_theme_attrs_are_stripped_for_fonts_colors_and_fills() -> None:
     for attr in ("asciiTheme", "themeColor", "themeTint", "themeFill", "themeFillTint"):
         assert f"w:{attr}=" not in cleaned, cleaned
     assert 'w:ascii="Times New Roman"' in cleaned and 'w:fill="FFFFFF"' in cleaned
-
-
-def test_backward_compatibility_requirements_aliases(tmp_path: Path) -> None:
-    """向后兼容性保护：旧版 -r 参数、requirements 别名与函数在 v4 中必须无缝兼容。"""
-    from md_to_word.cli import build_parser
-    from md_to_word import (
-        export,
-        parse_format,
-        parse_requirements,
-        serialize_format,
-        serialize_requirements,
-    )
-
-    # 1. CLI -r / --requirements 解析到 format_path
-    parser = build_parser()
-    args = parser.parse_args(["manuscript.md", "-r", "custom_req.txt"])
-    assert args.format_path == "custom_req.txt"
-
-    args2 = parser.parse_args(["manuscript.md", "--requirements", "custom_req2.txt"])
-    assert args2.format_path == "custom_req2.txt"
-
-    # 2. 函数别名指向一致
-    assert parse_requirements is parse_format
-    assert serialize_requirements is serialize_format
-
-    # 3. export(..., requirements=...) 传参兼容
-    md_file = tmp_path / "test.md"
-    md_file.write_text("# 测试\n\n正文。\n", encoding="utf-8")
-    out_docx = tmp_path / "out.docx"
-    res = export(md_file, out_docx, requirements=None, preset="zh-academic")
-    assert res.ok and out_docx.exists()
-
-
-def test_legacy_r_flag_still_works_and_says_so(tmp_path: Path, capsys) -> None:
-    """老技能文件还在用 `-r`：留着别名，但每次用都要说一句该换成 `-f`——用 `-f` 的人看不到。"""
-    from md_to_word.cli import main as cli_main
-
-    manuscript = _write_manuscript(tmp_path)
-    out = tmp_path / "out.docx"
-
-    assert cli_main([str(manuscript), "-r", "src/md_to_word/presets/zh-academic.txt", "-o", str(out)]) == 0
-    assert "-r" in capsys.readouterr().err
-
-    assert cli_main([str(manuscript), "-f", "src/md_to_word/presets/zh-academic.txt", "-o", str(out)]) == 0
-    assert "旧写法" not in capsys.readouterr().err
 
 
 def _two_section_base(path: Path) -> Path:

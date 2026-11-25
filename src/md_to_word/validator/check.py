@@ -33,6 +33,7 @@ from md_to_word.template.generator import (
     missing_styles_for_body,
 )
 from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES, PdfFigureError, page_count
+from md_to_word.utils.textio import TextDecodeError, read_text_file
 
 # 复用 utils 中的基础文本解析工具
 from md_to_word.utils.masking import mask_html_comments
@@ -289,8 +290,15 @@ def validate_manuscript(
         return report
 
     try:
-        md_text = md_path.read_text(encoding="utf-8")
-    except Exception as e:
+        md_text, _ = read_text_file(md_path)
+    except TextDecodeError:
+        report.valid = False
+        report.errors.append(t(
+            "textio.unreadable", lang,
+            label=t("textio.label.manuscript", lang), path=md_path,
+        ))
+        return report
+    except OSError as e:
         report.valid = False
         report.errors.append(t("gate.manuscript.unreadable", lang, path=md_path, err=e))
         return report
@@ -310,7 +318,22 @@ def validate_manuscript(
             report.errors.append(t("gate.format.missing", lang, path=fmt_file))
             return report
         try:
-            spec = parse_format(fmt_file.read_text(encoding="utf-8"))
+            fmt_text, _ = read_text_file(fmt_file)
+        except TextDecodeError:
+            report.valid = False
+            report.errors.append(t(
+                "textio.unreadable", lang,
+                label=t("textio.label.format", lang), path=fmt_file,
+            ))
+            return report
+        except OSError as e:
+            report.valid = False
+            report.errors.append(
+                t("gate.format.parse_failed", lang, path=fmt_file, err=e)
+            )
+            return report
+        try:
+            spec = parse_format(fmt_text)
         except Exception as e:
             report.valid = False
             report.errors.append(
@@ -406,8 +429,15 @@ def validate_manuscript(
             bib_path, how = resolve_manuscript_path(str(fm_data["bibliography"]), md_path)
             if how:
                 try:
-                    bib_text = Path(bib_path).read_text(encoding="utf-8")
-                except Exception:
+                    bib_text, _ = read_text_file(bib_path)
+                except TextDecodeError:
+                    report.valid = False
+                    report.errors.append(t(
+                        "textio.unreadable", lang,
+                        label=t("textio.label.bibliography", lang), path=bib_path,
+                    ))
+                    bib_text = ""
+                except OSError:
                     bib_text = ""
                 known_keys = parse_bib_keys(bib_text)
                 if not known_keys:

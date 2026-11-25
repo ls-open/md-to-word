@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
-from md_to_word.config import DEFAULT_PRESET_EN, DEFAULT_PRESET_ZH, resolve_preset_path
+from md_to_word.config import default_preset_name, resolve_preset_path
 from md_to_word.i18n import t
 
 SAMPLE_ZH = """%% 文档标题 我的第一份规范 Word 文档
@@ -66,7 +66,7 @@ def run_init(
 
     已存在的同名文件不覆盖（除非 `force`）：这一步是给空目录用的，不是同步工具。
     """
-    name = preset or (DEFAULT_PRESET_EN if lang == "en" else DEFAULT_PRESET_ZH)
+    name = preset or default_preset_name(lang)
     preset_path = resolve_preset_path(name)
     if preset_path is None:
         print(t("init.preset_missing", lang, name=name))

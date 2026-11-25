@@ -19,12 +19,11 @@ from typing import Any
 
 import md_to_word
 from md_to_word.config import (
-    DEFAULT_PRESET_EN,
-    DEFAULT_PRESET_ZH,
+    default_preset_name,
     get_presets_dir,
     resolve_preset_path,
 )
-from md_to_word.i18n import resolve_lang
+from md_to_word.i18n import resolve_lang, t
 from md_to_word.template.extractor import extract_spec_from_docx
 
 logger = logging.getLogger("md_to_word.mcp")
@@ -276,10 +275,7 @@ def create_mcp_server() -> Any:
             notice = ""
             if not fmt_path:
                 used_preset = preset or ("zh-academic" if result.lang == "zh" else "en-nature")
-                notice = (
-                    f"已套用内置预设「{used_preset}」完成排版。建议在 Word 中打开核对效果；"
-                    "若目标方（高校、期刊或机构）有专属格式要求，可提供 format 文件或参考 .docx 重新编译。"
-                )
+                notice = t("mcp.preset_notice", result.lang, preset=used_preset)
 
             return {
                 "success": result.ok,
@@ -354,21 +350,21 @@ def create_mcp_server() -> Any:
                 lang_text = markdown
             else:
                 lang_text = in_path.read_text(encoding="utf-8", errors="ignore")
-            doc_lang = resolve_lang(lang_text, lang)
+            # 默认预设跟**稿件语言**走；`--lang` 只换报错语言。
+            doc_lang = resolve_lang(lang_text, None)
+            message_lang = resolve_lang(lang_text, lang)
 
             spec_path = fmt_path
             format_source = "format" if fmt_path else ""
             if spec_path is None:
-                preset_name = preset or (
-                    DEFAULT_PRESET_ZH if doc_lang == "zh" else DEFAULT_PRESET_EN
-                )
+                preset_name = preset or default_preset_name(doc_lang)
                 spec_path = resolve_preset_path(preset_name)
                 format_source = "preset:%s" % preset_name
 
             report = md_to_word.validate_manuscript(
                 in_path,
                 spec_path=spec_path,
-                lang=doc_lang,
+                lang=message_lang,
             )
             return {
                 "valid": report.valid,

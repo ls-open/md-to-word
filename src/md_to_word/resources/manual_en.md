@@ -55,6 +55,7 @@ md-to-word manuscript.md --preset zh-tw-academic -o out.docx  # Traditional Chin
 md-to-word manuscript.md --preset zh-report -o out.docx       # Chinese technical report preset
 md-to-word manuscript.md --preset en-nature -o out.docx       # international journal preset
 md-to-word manuscript.md -f format.txt -o out.docx            # explicit format file
+md-to-word manuscript.md --validate-only                      # pre-flight only; writes no .docx
 md-to-word init                                               # format.txt + a hello.md that exports as-is
 md-to-word --guide                                            # getting-started guide (pipeline entry)
 md-to-word --contract                                         # cheatsheet + guide, manual and preset paths
@@ -70,6 +71,11 @@ selected explicitly with `--preset zh-tw-academic` (Traditional Chinese, `zh-TW`
 punctuation) or `--preset zh-report` (Chinese technical report). No other `.txt` is guessed at —
 if there is one, the run names it in a reminder. Which file was used is always reported.
 
+`--lang` changes the **message language** only; the default preset and default CSL follow the
+**manuscript's prose**, never `--lang`. Manuscripts, format files and `.bib` files may be UTF-8
+(with or without BOM), UTF-16 or GB18030; a non-UTF-8 file is read and reported, with a reminder to
+save it as UTF-8 for portable Git diffs.
+
 **Exit codes**: `0` done; `1` a manuscript, gate or dependency problem; `2` a usage error; `3` the `.docx` was written
 but `--pdf` was not rendered (non-macOS). `0` means every gate passed — **it does not mean the
 layout has been checked by eye** (§5.3).
@@ -79,14 +85,15 @@ to stderr:
 
 ```json
 {"ok": true, "returncode": 0, "input": "paper.md", "output": "…/paper.docx", "pdf": null,
- "lang": "en", "messages": ["…"], "errors": []}
+ "lang": "en", "messages": ["…"], "warnings": [], "errors": []}
 ```
 
 The keys are fixed and do not change between versions; the values of `messages` and `errors` are
 sentences for humans, in the manuscript's language. `messages` holds progress, **reminders** and the
 closing check prompt (one merged line per reminder kind, listing up to eight line numbers), so everything worth
-relaying on a successful run is there — no need to parse stderr. Parse the keys, not the wording. A
-usage error (exit code `2`) happens during argument parsing, so no JSON is produced.
+relaying on a successful run is there — no need to parse stderr. `warnings` is the subset of
+`messages` that are reminders, for consumers that need to tell them apart. Parse the keys, not the
+wording. A usage error (exit code `2`) happens during argument parsing, so no JSON is produced.
 
 **Library call**:
 
@@ -609,6 +616,11 @@ pre-flight check → build the style template → read into the document model �
 
 The style template is generated fresh on every export and never cached, and **styles** have exactly
 one source: the format file.
+
+To check a manuscript without writing a file, run `md-to-word manuscript.md --validate-only`. It
+uses the same format resolution and pre-flight check as an export: exit `0` means it would proceed,
+exit `1` carries line-numbered errors, and no template or `.docx` is produced. Pair it with `--json`
+in CI or agent workflows.
 
 - **Default preset & Traditional Chinese**: without `-f` / `--preset`, Chinese text defaults to
   `zh-academic`. For **Traditional Chinese (Taiwan/HK/Macau)** submissions, pass

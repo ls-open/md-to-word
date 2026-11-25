@@ -504,8 +504,14 @@ def test_audit_items_are_printed_in_the_requested_language(tmp_path: Path) -> No
 
     manuscript = tmp_path / "paper.md"
     manuscript.write_text("---\n---\n\n# 1 Introduction\n\nBody.\n", encoding="utf-8")
+    # 版式与消息语言分开指定：英文正文 + 中文预设，才能拿英文要求文件对出差异
     result = run_export_pipeline(
-        ExportOptions(input_path=manuscript, output_path=tmp_path / "o.docx", lang="zh")
+        ExportOptions(
+            input_path=manuscript,
+            output_path=tmp_path / "o.docx",
+            preset="zh-academic",
+            lang="zh",
+        )
     )
     assert result.returncode == 0, result.errors
 
