@@ -12,8 +12,9 @@
 # Not covered: run-in Level 4/5 headings (exported as separate indented paragraphs);
 # table number bold + title italic in one style (write **Table 1** / *Title* inline);
 # title-page affiliation/course/instructor have no dedicated styles (repeat %% 作者).
-# Body starts on page 2: insert {{< pagebreak >}} after the title page,
-# then repeat the title at the top of page 2 with %% 副标题.
+# Body starts on page 2 when there is no abstract (an abstract gets its own page first):
+# insert {{< pagebreak >}} after the title page, then repeat the title at the top of
+# page 2 with %% 副标题.
 
 Paper: Letter
 Margins: top 2.54cm bottom 2.54cm left 2.54cm right 2.54cm

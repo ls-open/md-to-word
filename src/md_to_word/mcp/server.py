@@ -90,10 +90,10 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
         "name_en": "Modern technical whitepaper / institutional report",
         "target": "企业技术白皮书、行业研究报告、工程技术规范、解决方案",
         "target_en": "Corporate whitepapers, industry research, engineering specifications, proposals",
-        "description": "Modern technical whitepaper layout with SimSun/SimHei/KaiTi + Times New Roman, colored headings, single-line header, full-grid tables, and block paragraphs (0 indent, 6pt after).",
+        "description": "Modern technical whitepaper layout with SimSun/SimHei/KaiTi + Times New Roman, a colored level-1 heading, single-line header, full-grid tables, and block paragraphs (0 indent, 6pt after).",
         "typography": {
             "fonts": "宋体 (SimSun) / 黑体 (SimHei) / 楷体 (KaiTi) / Times New Roman",
-            "header": "现代单线页眉 (Single-line header)",
+            "header": "现代单线页眉",
             "body": "小四 (12pt), 1.5 倍行距, 段后 6pt, 首行缩进 0",
             "tables": "全网格线表格 (0.75pt 外框 / 0.5pt 内线)",
             "citations": "GB/T 7714-2015 / APA",
@@ -112,7 +112,7 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
         "name_en": "Chinese official-document body (GB/T 9704-2012)",
         "target": "党政机关公文、通知、函件（正文版式；红头与版记需 --base-template）",
         "target_en": "Party and government documents, notices and letters (body layout; the letterhead and document-tail block need --base-template)",
-        "description": "GB/T 9704-2012 body layout: A4, 37/35/28/26mm margins with mirrored gutters, 16pt FangSong body, 28.9pt fixed line spacing (22 lines per page), 22pt XiaoBiaoSong title, 14pt SimSun page number. Not the red letterhead, document number or document-tail block.",
+        "description": "GB/T 9704-2012 body layout: A4, 37/35/28/26mm mirrored margins, 16pt FangSong body, 28.9pt fixed line spacing (22 lines per page), 22pt XiaoBiaoSong title, 14pt SimSun page number. Not the red letterhead, document number or document-tail block.",
         "typography": {
             "fonts": "仿宋 / 黑体 / 楷体 / 方正小标宋简体 / 宋体",
             "header": "无页眉",
@@ -160,11 +160,11 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
         "target_en": "General English journals and preprints (tune the values per venue)",
         "description": "Generic single-column journal layout with Times New Roman / Consolas, block paragraph spacing (0 indent, 6pt after) and 1.5x line spacing. The preset does not reproduce any publisher's template; citation style is chosen with csl: (APA by default, nature.csl / ieee.csl for numbered styles).",
         "typography": {
-            "fonts": "Times New Roman / Consolas (code)",
-            "header": "No running header by default; centered footer with decimal page number",
-            "body": "12pt, 1.5 line spacing, 6pt after paragraph, 0 indent, en-US",
-            "tables": "Classic three-line table",
-            "citations": "APA author-date default; Nature/IEEE numbered citations via csl: YAML",
+            "fonts": "Times New Roman / Consolas（代码）",
+            "header": "默认无页眉；页脚居中阿拉伯数字页码",
+            "body": "12pt，1.5 倍行距，段后 6pt，首行不缩进，en-US",
+            "tables": "标准三线表",
+            "citations": "默认 APA 著者-出版年；YAML 写 csl: 可改用 Nature / IEEE 顺序编码",
         },
         "typography_en": {
             "fonts": "Times New Roman / Consolas (code)",

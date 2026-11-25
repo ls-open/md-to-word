@@ -18,7 +18,9 @@
 from __future__ import annotations
 
 import importlib
+import re
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -117,6 +119,35 @@ def test_sample_manuscript_passes_preflight(catalog, tpl_id: str, tmp_path: Path
         lang="en" if tpl_id == "en-paper" else "zh",
     )
     assert report.valid, f"{tpl_id} 的样张过不了预检：{report.errors}"
+
+
+def test_dynamic_header_is_a_top_level_declaration(catalog) -> None:
+    """页眉必须写在顶层，而不是被塞进某一节。
+
+    预设 `zh-academic` 末尾声明了封面/前置两节，节级键叫 `封面页眉内容：无`。旧代码用
+    子串找 `页眉内容：`，把这两行当成顶层页眉一起改掉，顶层反而没写——成品里一行页眉
+    都没有，页面上的「双线页眉」也就无从谈起。
+    """
+    for tpl_id, tpl in catalog.TEMPLATES.items():
+        fmt = catalog._build_dynamic_format(tpl_id, tpl["header_content"])
+        top = re.findall(r"^页眉内容：(.*)$", fmt, re.M)
+        assert top == [tpl["header_content"]], f"{tpl_id} 的顶层页眉不对：{top}"
+        for role, value in re.findall(r"^(封面页眉内容|前置页眉内容)：(.*)$", fmt, re.M):
+            assert value == "无", f"{tpl_id} 的节级声明被改写了：{role}：{value}"
+
+
+@pytest.mark.parametrize("tpl_id", ["zh-journal", "zh-tw-journal", "zh-report", "en-paper"])
+def test_committed_sample_has_the_header_it_advertises(catalog, tpl_id: str) -> None:
+    """页面上写着有页眉，下载的 .docx 里就得真有——格式生成了不等于写进了成品。"""
+    with zipfile.ZipFile(ASSETS / f"{tpl_id}.docx") as z:
+        assert "headerReference" in z.read("word/document.xml").decode("utf-8"), (
+            f"{tpl_id}.docx 没有页眉引用"
+        )
+        headers = [n for n in z.namelist() if n.startswith("word/header")]
+        assert headers, f"{tpl_id}.docx 没有页眉部件"
+        text = "".join(z.read(n).decode("utf-8") for n in headers)
+        content = catalog.TEMPLATES[tpl_id]["header_content"]
+        assert content in text, f"{tpl_id}.docx 的页眉文字不是样张声明的那一行"
 
 
 def test_page_offers_every_template(catalog) -> None:

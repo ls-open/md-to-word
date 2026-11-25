@@ -9,11 +9,11 @@
 
 # Introduction
 
-Reading speed depends on many typographic factors. This paper reports a small classroom experiment on line spacing and paragraph spacing.
+Reading speed depends on typography; this reports a small spacing experiment.
 
 ## Background
 
-Previous studies report that double spacing reduces reading speed but improves comprehension in proofreading tasks.
+Double spacing slows reading but improves proofreading accuracy.
 
 ### A note on measurement
 
@@ -22,6 +22,10 @@ Reading time was measured in seconds per page.
 #### Equipment
 
 A stopwatch and printed sheets were used.
+
+##### Calibration
+
+The stopwatch was checked against a reference clock before each session.
 
 # Method
 

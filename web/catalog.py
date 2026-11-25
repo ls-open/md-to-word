@@ -51,7 +51,7 @@ TEMPLATES = {
             "table_note": "表注：宋体/Times New Roman 小五(9pt) · 居中 · 行距1.0倍 · 段前0磅 / 段后6磅",
             "conclusion_heading": "结论标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页",
             "conclusion_body": "结论正文：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行缩进2字符 · 段前0磅 / 段后0磅",
-            "references": "参考文献：宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.25倍 · 悬挂缩进0.5英寸(2字符) · GB/T 7714 顺序编码制",
+            "references": "参考文献：宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.25倍 · 悬挂缩进0.5英寸(36磅) · GB/T 7714 顺序编码制",
         },
         "specs_en": {
             "header": "Header: SongTi/Times New Roman 9pt · Center · Line spacing 1.0 · Double bottom border · Top 1.27cm",
@@ -62,7 +62,7 @@ TEMPLATES = {
             "body": "Body Text: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 2 chars · Space before 0pt / Space after 0pt",
             "equation": "Equation: Native OMML math equation · Centered · Numbering (#eq-1) aligned hard right · Double-click editable",
             "table_caption": "Table Caption: SongTi/Times New Roman 10.5pt · Bold · Center · Space before 6pt / Space after 6pt · Keep with next",
-            "table": "Table: Three-line table (Top 1pt / Bottom 1pt / Header 0.5pt) · Repeating header row",
+            "table": "Table: Three-line table (Top 1.5pt / Bottom 1.5pt / Header 0.75pt) · Repeating header row",
             "table_note": "Table Note: SongTi/Times New Roman 9pt · Center · Line spacing 1.0 · Space before 0pt / Space after 6pt",
             "conclusion_heading": "Conclusion Heading: SimHei/Times New Roman 16pt · Bold · Center · Space before 18pt / Space after 12pt · Keep with next",
             "conclusion_body": "Conclusion Body: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 2 chars · Space 0pt",
@@ -93,7 +93,7 @@ TEMPLATES = {
         "conclusion_body": "將排版規則宣告化並納入版本控制，解決了 AI 交付的最後一哩路。",
         "references": "[1] Knuth D E. The TeXbook[M]. Addison-Wesley, 1984.\n[2] 張三, 李四. 確定性排版體系[J]. 計算機工程與科學技術, 2025.",
         "specs_zh": {
-            "header": "頁眉：微軟正黑體/Times New Roman 小五(9pt) · 置中對齊 · 行距1.0倍 · 下邊框單線 · 距頂端1.5cm",
+            "header": "頁眉：微軟正黑體/Times New Roman 小五(9pt) · 置中對齊 · 行距1.0倍 · 下邊框單線 · 距頂端1.27cm",
             "title": "文件標題：微軟正黑體/Times New Roman 二號(22pt) · 加粗 · 置中 · 行距1.5倍 · 段前0磅 / 段後12磅 · 首行縮進0字元",
             "abstract": "摘要內容：新細明體/Times New Roman 小四(12pt) · 兩端對齊 · 行距1.5倍 · 首行縮進2字元 · 段前0磅 / 段後6磅",
             "keywords": "關鍵詞：新細明體/Times New Roman 小四(12pt) · 兩端對齊 · 行距1.5倍 · 首行不縮進 · 段前0磅 / 段後12磅",
@@ -129,8 +129,8 @@ TEMPLATES = {
         "name_en": "📄 Technical White Paper",
         "badge": "技术报告",
         "badge_en": "Technical White Paper",
-        "desc": "彩色标题(#1F4E79) · 全网格商务表 · 首行不缩进 · 单线企业页眉 · 极简1页",
-        "desc_en": "Color heading (#1F4E79) · Grid table · 0 indent · Single rule header · Compact 1 page",
+        "desc": "彩色一级标题(#1F4E79) · 全网格商务表 · 首行不缩进 · 单线企业页眉 · 极简1页",
+        "desc_en": "Colored H1 (#1F4E79) · Grid table · 0 indent · Single rule header · Compact 1 page",
         "preset_file": str(BASE_DIR / "src" / "md_to_word" / "presets" / "zh-report.txt"),
         "preset_name": "zh-report",
         "header_content": "智能体自主交付技术白皮书",
@@ -147,7 +147,7 @@ TEMPLATES = {
         "conclusion_body": "建议将排版规范纳入企业版本控制，生成内容经双向门禁拦截后分发。",
         "references": "[1] 数字化智能交付技术联盟. 企业智能体交付标准规范[R]. 2025.\n[2] Agent Skills. Declarative Typography Specification[R]. 2025.",
         "specs_zh": {
-            "header": "页眉：宋体/Times New Roman 小五(9pt) · 右对齐 · 行距1.0倍 · 下边框单线(0.75磅) · 距顶端1.27cm",
+            "header": "页眉：宋体/Times New Roman 小五(9pt) · 右对齐 · 行距1.0倍 · 下边框单线(0.5磅) · 距顶端1.27cm",
             "title": "文档标题：黑体/Times New Roman 二号(22pt) · 加粗 · 居中 · 行距1.5倍 · 段前0磅 / 段后12磅 · 首行不缩进",
             "abstract": "执行摘要：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进(0字符) · 段前0磅 / 段后6磅",
             "keywords": "关键词：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进 · 段前0磅 / 段后12磅",
@@ -159,10 +159,10 @@ TEMPLATES = {
             "table_note": "表注：宋体/Times New Roman 小五(9pt) · 居中 · 行距1.0倍 · 段前0磅 / 段后6磅",
             "conclusion_heading": "结论标题：黑体/Times New Roman 三号(16pt) · 加粗 · 居中 · 品牌色#1F4E79 · 行距1.5倍 · 段前18磅 / 段后12磅 · 与下段同页",
             "conclusion_body": "结论正文：宋体/Times New Roman 小四(12pt) · 两端对齐 · 行距1.5倍 · 首行不缩进(0字符) · 段前0磅 / 段后6磅",
-            "references": "参考文献：Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.25倍 · 悬挂缩进0.5英寸",
+            "references": "参考文献：宋体/Times New Roman 五号(10.5pt) · 两端对齐 · 行距1.25倍 · 悬挂缩进0.5英寸",
         },
         "specs_en": {
-            "header": "Header: SongTi/Times New Roman 9pt · Right align · Line spacing 1.0 · Single rule border (0.75pt) · Top 1.27cm",
+            "header": "Header: SongTi/Times New Roman 9pt · Right align · Line spacing 1.0 · Single rule border (0.5pt) · Top 1.27cm",
             "title": "Title: SimHei/Times New Roman 22pt · Bold · Center · 1.5 line spacing · Indent 0",
             "abstract": "Executive Summary: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 0 · Space after 6pt",
             "keywords": "Keywords: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 0 · Space after 12pt",
@@ -174,7 +174,7 @@ TEMPLATES = {
             "table_note": "Table Note: SongTi/Times New Roman 9pt · Center · Line spacing 1.0 · Space before 0pt / Space after 6pt",
             "conclusion_heading": "Conclusion Heading: SimHei/Times New Roman 16pt · Bold · Center · Color #1F4E79 · Space before 18pt / Space after 12pt",
             "conclusion_body": "Conclusion Body: SongTi/Times New Roman 12pt · Justified · 1.5 line spacing · Indent 0 · Space after 6pt",
-            "references": "References: Times New Roman 10.5pt · Justified · Line spacing 1.25 · Hanging indent 0.5 in",
+            "references": "References: SongTi/Times New Roman 10.5pt · Justified · Line spacing 1.25 · Hanging indent 0.5 in",
         },
     },
     "en-paper": {
@@ -300,8 +300,8 @@ def _build_dynamic_format(template_id: str, header_content: str) -> str:
     clean_header = header_content.strip() or "md-to-word"
 
     if template_id == "zh-journal":
-        # 中文学术期刊：双线页眉，居中对齐
-        header_rule = f"页眉：宋体/Times New Roman 小五 不加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 下边框双线\n页眉内容：{clean_header}"
+        # 中文学术期刊：上粗下细的双线页眉，居中对齐
+        header_rule = f"页眉：宋体/Times New Roman 小五 不加粗 不倾斜 居中 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 下边框上粗下细\n页眉内容：{clean_header}"
     elif template_id == "zh-report":
         # 现代技术白皮书：单线页眉，右对齐
         header_rule = f"页眉：宋体/Times New Roman 小五 不加粗 不倾斜 右对齐 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 下边框单线\n页眉内容：{clean_header}"
@@ -312,9 +312,17 @@ def _build_dynamic_format(template_id: str, header_content: str) -> str:
         # 英文期刊：单线页眉，右对齐
         header_rule = f"页眉：Times New Roman 小五 不加粗 不倾斜 右对齐 行距1.0倍 段前0磅 段后0磅 首行缩进0字符 下边框单线\n页眉内容：{clean_header}"
 
-    # 如果已有页眉声明，则替换；否则追加
-    if "页眉内容：" in base_text:
-        base_text = re.sub(r"页眉内容：[^\n]*", f"页眉内容：{clean_header}", base_text)
-        return base_text
-    else:
-        return f"{base_text}\n\n{header_rule}\n"
+    # 顶层页眉才替换；`封面页眉内容：无` / `前置页眉内容：无` 是节级声明，子串匹配会把
+    # 样张页眉塞进封面与前置件，顶层反倒一条都没有（zh-journal 就这样丢过页眉）。
+    if re.search(r"^页眉内容：", base_text, re.M):
+        return re.sub(r"^页眉内容：[^\n]*", f"页眉内容：{clean_header}",
+                      base_text, flags=re.M)
+    if re.search(r"^页眉：", base_text, re.M):
+        # 只有页眉样式、没有页眉文字：整行换成本模板的规则（规则里带着页眉内容）
+        return re.sub(r"^页眉：[^\n]*", header_rule, base_text, flags=re.M)
+
+    # 没有顶层页眉：插在第一个分节声明之前，作为所有节的默认页眉
+    m = re.search(r"^分节：", base_text, re.M)
+    if m:
+        return base_text[:m.start()] + header_rule + "\n\n" + base_text[m.start():]
+    return f"{base_text}\n\n{header_rule}\n"
