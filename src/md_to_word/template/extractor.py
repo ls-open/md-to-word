@@ -513,7 +513,7 @@ def read_table(ref: Ref) -> tuple:
         for sid, raw in used:
             style = ref.by_id.get(sid)
             described.append(_style_label(style) if style is not None
-                             else f'{raw}（样式表里没有定义）')
+                             else t('extractor.undefined_style', ref.lang, raw=raw))
         doubt.append(t('extractor.note.table_styles_multiple', ref.lang,
                        names='、'.join(described), chosen=_style_label(ref.by_id[chosen])))
     tbl = ref.by_id[chosen]
@@ -599,7 +599,7 @@ def read_table(ref: Ref) -> tuple:
         try:
             head, hd, _ = clauses_for(ref, '__firstrow__')
         except Exception:
-            head, hd = [], ['第一行（表头）样式读取失败']
+            head, hd = [], [t('extractor.note.header_row_failed', ref.lang)]
         out.append('表头：' + ' '.join(head) + (' 跨页重复'
                                                 if first_row[0].find(f'{q("rPr")}') is not None
                                                 and first_row[0].find(f'{q("trPr")}/{q("tblHeader")}') is not None
@@ -633,7 +633,7 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
     out, doubt = [], []
     sect = ref.sect
     if sect is None:
-        return out, ['找不到 sectPr，页面设置读不出来']
+        return out, [t('extractor.note.no_sectpr', ref.lang)]
     if len(ref.all_sects) > 1:
         doubt.append(t('extractor.note.multi_section', ref.lang, count=len(ref.all_sects)))
     paper = None
@@ -899,8 +899,8 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
     for table in (fallback, primary):
         for word, name in table.items():
             word_to_cn[word.replace(' ', '').lower()] = name
-    lines = ['# 由 md-to-word-template 从参考文件读出的草稿，**请核对**',
-             f'# 来源: {ref.path.name}']
+    lines = [t('extractor.draft.title', lang),
+             t('extractor.draft.source', lang, name=ref.path.name)]
     decor_lines, decor_doubt = read_decor(ref)
     for part in (read_page(ref, body_line_multiple(ref)), read_table(ref),
                  (decor_lines, decor_doubt), read_limitations(ref)):

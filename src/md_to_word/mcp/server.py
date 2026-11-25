@@ -43,8 +43,10 @@ except ImportError:
 PRESET_METADATA: dict[str, dict[str, Any]] = {
     "zh-academic": {
         "id": "zh-academic",
-        "name": "简体中文学术期刊 / 学位论文规范 (Simplified Chinese Academic)",
+        "name": "简体中文学术期刊 / 学位论文规范",
+        "name_en": "Simplified Chinese academic journal / thesis",
         "target": "中国知网 (CNKI)、万方、高校硕博学位论文、CSCD/CSSCI 核心期刊",
+        "target_en": "CNKI, Wanfang, university master's and doctoral theses, CSCD/CSSCI journals",
         "description": "Simplified Chinese academic format (zh-CN) with SimSun/SimHei + Times New Roman, compressed punctuation (compressPunctuation), 2-char indent, 1.5x line spacing, and three-line tables.",
         "typography": {
             "fonts": "宋体 (SimSun) / 黑体 (SimHei) / Times New Roman",
@@ -53,11 +55,20 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
             "tables": "标准三线表 (Three-line table)",
             "citations": "GB/T 7714-2015 顺序编码制（中文默认）/ 著者-出版年制",
         },
+        "typography_en": {
+            "fonts": "SimSun / SimHei / Times New Roman",
+            "header": "No header by default; centered decimal page number in the footer",
+            "body": "12pt, 2-char first-line indent, 1.5 line spacing, proofing zh-CN",
+            "tables": "Three-line table",
+            "citations": "GB/T 7714-2015 numeric (default) / author-date",
+        },
     },
     "zh-tw-academic": {
         "id": "zh-tw-academic",
-        "name": "繁體中文學術期刊 / 學位論文規範 (Traditional Chinese Academic)",
+        "name": "繁體中文學術期刊 / 學位論文規範",
+        "name_en": "Traditional Chinese academic journal / thesis",
         "target": "台灣 / 香港 / 澳門繁體中文碩博士學位論文與學術期刊",
+        "target_en": "Master's and doctoral theses and journals in Taiwan, Hong Kong and Macau",
         "description": "Traditional Chinese academic format (zh-TW) using PMingLiU/Microsoft JhengHei + Times New Roman, uncompressed full-width punctuation (doNotCompress), 2-char indent, 1.5x spacing, and three-line tables.",
         "typography": {
             "fonts": "PMingLiU (新細明體) / Microsoft JhengHei (微軟正黑體) / Times New Roman",
@@ -66,11 +77,20 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
             "tables": "標準三線表 (Three-line table)",
             "citations": "APA / IEEE / GB/T 7714-2015（於稿件 YAML 以 csl: 指定）",
         },
+        "typography_en": {
+            "fonts": "PMingLiU / Microsoft JhengHei / Times New Roman",
+            "header": "No header by default; centered decimal page number in the footer",
+            "body": "12pt, 2-char first-line indent, 1.5 line spacing, proofing zh-TW, punctuation uncompressed",
+            "tables": "Three-line table",
+            "citations": "APA / IEEE / GB/T 7714-2015 (set csl: in the manuscript YAML)",
+        },
     },
     "zh-report": {
         "id": "zh-report",
-        "name": "现代技术白皮书 / 机构分析报告 (Modern Tech Report & Whitepaper)",
+        "name": "现代技术白皮书 / 机构分析报告",
+        "name_en": "Modern technical whitepaper / institutional report",
         "target": "企业技术白皮书、行业研究报告、工程技术规范、解决方案",
+        "target_en": "Corporate whitepapers, industry research, engineering specifications, proposals",
         "description": "Modern technical whitepaper layout with SimSun/SimHei/KaiTi + Times New Roman, colored headings, single-line header, full-grid tables, and block paragraphs (0 indent, 6pt after).",
         "typography": {
             "fonts": "宋体 (SimSun) / 黑体 (SimHei) / 楷体 (KaiTi) / Times New Roman",
@@ -79,12 +99,21 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
             "tables": "全网格线表格 (0.75pt 外框 / 0.5pt 内线)",
             "citations": "GB/T 7714-2015 / APA",
         },
+        "typography_en": {
+            "fonts": "SimSun / SimHei / KaiTi / Times New Roman",
+            "header": "Modern single-line header",
+            "body": "12pt, 1.5 line spacing, 6pt after, no first-line indent",
+            "tables": "Full-grid table (0.75pt outer / 0.5pt inner)",
+            "citations": "GB/T 7714-2015 / APA",
+        },
     },
     "zh-gb9704": {
         "id": "zh-gb9704",
-        "name": "党政机关公文正文版式 (GB/T 9704-2012 official-document body)",
+        "name": "党政机关公文正文版式 (GB/T 9704-2012)",
+        "name_en": "Chinese official-document body (GB/T 9704-2012)",
         "target": "党政机关公文、通知、函件（正文版式；红头与版记需 --base-template）",
-        "description": "GB/T 9704-2012 body layout: A4, 37/35/28/26mm margins with mirrored gutters, 3号仿宋 body, 28.9pt fixed line spacing (22 lines per page), 2号小标宋 title, 4号宋体 page number. Not the red-header letterhead, 发文字号 or 版记.",
+        "target_en": "Party and government documents, notices and letters (body layout; the letterhead and document-tail block need --base-template)",
+        "description": "GB/T 9704-2012 body layout: A4, 37/35/28/26mm margins with mirrored gutters, 16pt FangSong body, 28.9pt fixed line spacing (22 lines per page), 22pt XiaoBiaoSong title, 14pt SimSun page number. Not the red letterhead, document number or document-tail block.",
         "typography": {
             "fonts": "仿宋 / 黑体 / 楷体 / 方正小标宋简体 / 宋体",
             "header": "无页眉",
@@ -93,11 +122,21 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
             "citations": "不设参考文献表（公文引用用发文字号）",
             "known_deviations": "页码数字按西文字体 Times New Roman 渲染；无红头/版记/印章",
         },
+        "typography_en": {
+            "fonts": "FangSong / SimHei / KaiTi / FangZheng XiaoBiaoSong / SimSun",
+            "header": "No header",
+            "body": "16pt, 2-char first-line indent, fixed 28.9pt line spacing, 22 lines per page, proofing zh-CN",
+            "tables": "Full-grid (0.5pt)",
+            "citations": "No reference list (documents cite by document number)",
+            "known_deviations": "Page-number digits render in Times New Roman; no red letterhead, document-tail block or seal",
+        },
     },
     "en-apa-student": {
         "id": "en-apa-student",
-        "name": "APA Style 7th edition, student paper",
+        "name": "APA 第 7 版学生论文",
+        "name_en": "APA Style 7th edition, student paper",
         "target": "美国高校课程论文、APA 7 学生版投稿",
+        "target_en": "US university coursework, APA 7 student-paper submissions",
         "description": "APA 7 student paper: US Letter, 1-inch margins, 12pt Times New Roman, double spacing, 0.5-inch first-line indent, page number top-right, heading levels 1-5 (levels 4 and 5 approximated as indented paragraphs), references on a new page with 0.5-inch hanging indent.",
         "typography": {
             "fonts": "Times New Roman / Consolas (code)",
@@ -106,11 +145,20 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
             "tables": "三线表（无竖线）",
             "citations": "APA 7th（默认）",
         },
+        "typography_en": {
+            "fonts": "Times New Roman / Consolas (code)",
+            "header": "Page number top-right (no running head)",
+            "body": "12pt, double spacing, 0.5in first-line indent, en-US",
+            "tables": "Three-line table (no vertical rules)",
+            "citations": "APA 7th (default)",
+        },
     },
     "en-nature": {
         "id": "en-nature",
-        "name": "国际英文学术期刊规范 (International Journal - Nature / IEEE / APA)",
-        "target": "Nature, IEEE, ACM, Springer, Elsevier, arXiv submissions",
+        "name": "国际英文学术期刊规范（Nature / IEEE / APA）",
+        "name_en": "International English journal (Nature / IEEE / APA)",
+        "target": "Nature、IEEE、ACM、Springer、Elsevier、arXiv 投稿",
+        "target_en": "Nature, IEEE, ACM, Springer, Elsevier, arXiv submissions",
         "description": "International journal format with Times New Roman / Consolas, block paragraph spacing (0 indent, 6pt after), 1.5x line spacing, and APA/Nature/IEEE CSL support.",
         "typography": {
             "fonts": "Times New Roman / Consolas (code)",
@@ -119,8 +167,26 @@ PRESET_METADATA: dict[str, dict[str, Any]] = {
             "tables": "Classic three-line table",
             "citations": "APA author-date default; Nature/IEEE numbered citations via csl: YAML",
         },
+        "typography_en": {
+            "fonts": "Times New Roman / Consolas (code)",
+            "header": "No header by default; centered decimal page number in the footer",
+            "body": "12pt, 1.5 line spacing, 6pt after, no first-line indent, en-US",
+            "tables": "Classic three-line table",
+            "citations": "APA author-date default; Nature/IEEE numbered citations via csl: YAML",
+        },
     },
 }
+
+def _preset_view(meta: dict[str, Any], lang: str) -> dict[str, Any]:
+    """预设说明按消息语言取：中文名字、适用场景与排版摘要各一套。"""
+    en = lang == "en"
+    return {
+        "name": meta.get("name_en") if en else meta.get("name"),
+        "target": meta.get("target_en") if en else meta.get("target"),
+        "description": meta.get("description"),
+        "typography": meta.get("typography_en") if en else meta.get("typography"),
+    }
+
 
 RESOURCES_DIR = Path(__file__).resolve().parent.parent / "resources"
 
@@ -604,26 +670,31 @@ def create_mcp_server() -> Any:
         title="List Built-in Style Presets",
         description="List every preset that exists on disk, with its path, sha256 and typography summary. The preset directory is the only source of the list.",
     )
-    def list_presets() -> list[dict[str, Any]]:
+    def list_presets(lang: str | None = None) -> list[dict[str, Any]]:
         """List the presets that actually exist, with their fingerprints.
 
         The preset directory is the only source of the list; `PRESET_METADATA` adds a
         curated note for the built-ins but never invents a preset that is not on disk.
+        `lang` picks the display language of the note (`zh` by default).
         """
         import hashlib
 
+        message_lang = resolve_lang("", lang)
         result = []
         for pid in list_available_presets():
             path = resolve_preset_path(pid)
             if path is None:
                 continue
             meta = PRESET_METADATA.get(pid) or {
-                "name": f"Custom Preset ({pid})",
-                "target": "Custom defined specification",
+                "name": f"自定义预设（{pid}）" if message_lang != "en" else f"Custom preset ({pid})",
+                "name_en": f"Custom Preset ({pid})",
+                "target": "自定义格式文件" if message_lang != "en" else "Custom specification",
+                "target_en": "Custom specification",
                 "description": f"Preset file at {path}",
                 "typography": {},
+                "typography_en": {},
             }
-            item = dict(meta)
+            item = _preset_view(meta, message_lang)
             item["id"] = pid
             item["path"] = str(path)
             item["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()

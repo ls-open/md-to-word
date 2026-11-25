@@ -3,6 +3,7 @@
 import pytest
 from pathlib import Path
 import asyncio
+import re
 
 pytest.importorskip("mcp")
 
@@ -335,4 +336,17 @@ def test_the_manual_is_readable_as_a_resource() -> None:
         assert "--base-template" in text
         assert "--keep-until" in text
 
+    asyncio.run(_run())
+
+
+def test_mcp_list_presets_speaks_the_requested_language() -> None:
+    """预设说明是给 Agent 读的：英文请求不能拿回一屏中文。"""
+    async def _run():
+        server = create_mcp_server()
+        en = (await server.call_tool("list_presets", {"lang": "en"})).structured_content["result"]
+        zh = (await server.call_tool("list_presets", {"lang": "zh"})).structured_content["result"]
+
+        blob = str([(p["name"], p["target"], p["typography"]) for p in en])
+        assert not re.search(r"[一-鿿]", blob), blob
+        assert any(re.search(r"[一-鿿]", p["name"]) for p in zh)
     asyncio.run(_run())

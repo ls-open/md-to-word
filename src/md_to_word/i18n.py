@@ -771,6 +771,26 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     # ── 反推参考 docx（template/extractor.py，控制台入口 md-to-word-template） ──
     # 只翻**给人看的消息**与「需人工确认」清单；草稿正文仍用本工具的（中文）词表写法，
     # 那是 format.txt 的合法语法，不随消息语言变。
+    "extractor.undefined_style": (
+        "{raw}（样式表里没有定义）",
+        "{raw} (not defined in the styles part)",
+    ),
+    "extractor.note.header_row_failed": (
+        "第一行（表头）样式读取失败",
+        "the header-row style could not be read",
+    ),
+    "extractor.note.no_sectpr": (
+        "找不到 sectPr，页面设置读不出来",
+        "no sectPr found; page setup cannot be read",
+    ),
+    "extractor.draft.title": (
+        "# 由 md-to-word-template 从参考文件读出的草稿，**请核对**",
+        "# Draft read by md-to-word-template from the reference file — **please check**",
+    ),
+    "extractor.draft.source": (
+        "# 来源: {name}",
+        "# Source: {name}",
+    ),
     "extractor.not_docx": (
         "{path} 不是 Word 文档（.docx 是 zip 包）。请传一份 .docx 模板。",
         "{path} is not a Word document (.docx is a zip archive). Pass a .docx template.",

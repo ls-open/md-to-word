@@ -99,3 +99,18 @@ def test_a_cached_field_result_is_not_read_as_content(tmp_path: Path) -> None:
     footer_line = [line for line in lines if line.startswith("页脚内容")]
     assert footer_line and "{页码}" in footer_line[0], lines
     assert "18" not in footer_line[0], footer_line
+
+
+def test_draft_header_follows_the_message_language(tmp_path: Path) -> None:
+    """草稿是给人核对的：英文请求拿到的抬头与来源行也是英文。"""
+    from md_to_word.template.extractor import extract_spec_from_docx
+
+    doc = Document()
+    doc.add_paragraph("Title")
+    path = tmp_path / "ref.docx"
+    doc.save(path)
+
+    draft = extract_spec_from_docx(path, lang="en")
+
+    assert draft.splitlines()[0].startswith("# Draft read by md-to-word-template")
+    assert "# Source:" in draft
