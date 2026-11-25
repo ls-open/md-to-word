@@ -482,6 +482,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Front matter ({pages} sections) matches the original node by node; no Word here, so "
         "the layout was not checked. Body poured in",
     ),
+    "pipeline.base_keep_pages_single_section": (
+        "底模只有 1 节（用分页符分页），按页换算没有可切的节。"
+        "改用 --keep-until 某段文字：工具会在那一段之后插入分节符，再按节灌入。",
+        "The base has a single section (it pages with manual breaks), so there is no section "
+        "boundary to convert pages against. Use --keep-until <text> instead: a section break is "
+        "inserted after that paragraph before pouring the body in.",
+    ),
     "pipeline.base_keep_pages_needs_word": (
         "这台机器算不了 --keep-pages：按页换算节数要先真的排一次版，而排版只有装了 Word 的 "
         "macOS 才能做。底模一共有 {sections} 节，数一下前置件占几节，直接用 --cover-sections N",

@@ -341,6 +341,10 @@ def _prepare_base_plan(
         from md_to_word.template.base_inject import section_count
         from md_to_word.visual_qa.word_pdf import can_render_word_pdf
 
+        if section_count(base_p) == 1:
+            _fail(res, "pipeline.base_keep_pages_single_section",
+                  t("pipeline.base_keep_pages_single_section", res.lang), file=base_p)
+            return False, None
         if not can_render_word_pdf()[0]:
             _fail(res, "pipeline.base_keep_pages_needs_word",
                   t("pipeline.base_keep_pages_needs_word", res.lang,

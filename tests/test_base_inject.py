@@ -783,6 +783,25 @@ def test_single_section_template_still_blocks_a_bad_cut(tmp_path: Path) -> None:
     assert any("找不到" in e for e in result.errors), result.errors
 
 
+def test_keep_pages_on_a_single_section_base_says_what_to_use(tmp_path: Path) -> None:
+    """按页换算在单节模板上没有可切的节：直接指向 --keep-until，而不是报页数不对。"""
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    base = _single_section_base(tmp_path / "base.docx")
+    md = tmp_path / "m.md"
+    md.write_text("# 第一章 引言\n\n本文研究了一种新方法。\n", encoding="utf-8")
+    fmt = tmp_path / "f.txt"
+    fmt.write_text(PRESET, encoding="utf-8")
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=tmp_path / "o.docx", format_path=fmt,
+        base_template=base, keep_pages=2,
+    ))
+
+    assert not result.ok and result.output_docx is None
+    assert any("--keep-until" in e for e in result.errors), result.errors
+
+
 def _sdt_toc_base(path: Path) -> Path:
     """目录放在 `w:sdt` 里（Word 的目录控件）——模板里很常见。"""
     doc = Document()
