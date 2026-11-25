@@ -30,7 +30,7 @@ Rule of thumb: **write span-level tweaks (bolding two words, subscript) in `.md`
 1. Entry points and exit codes
 2. Manuscript contract
 3. The format file
-4. Agent workflow
+4. References (`.bib` / CSL-JSON)
 5. Export and gates
 6. Capability limits
 7. Built-in CSL
@@ -69,11 +69,8 @@ md-to-word thesis.md --base-template base.docx --cover-sections 3 -o thesis.docx
 
 **Choosing the format file — one of three**: pass `-f`; otherwise a file named exactly
 `format.txt` beside the manuscript is used; otherwise a built-in preset — auto-selected by the
-**manuscript's language** (`zh-academic` for Chinese, `en-nature` for every other language), or
-selected explicitly with `--preset zh-tw-academic` (Traditional Chinese, `zh-TW`, uncompressed
-punctuation), `--preset zh-report` (Chinese technical report), `--preset zh-gb9704` (GB/T 9704-2012
-official-document body: A4, 16pt 仿宋, 22 lines per page; **not** the red-header letterhead or 版记),
-or `--preset en-apa-student` (APA 7 student paper). No other `.txt` is guessed at — if there is one,
+**manuscript's language** (`zh-academic` for Chinese, `en-nature` for every other language). The
+preset list and each preset's setup are in §3.3. No other `.txt` is guessed at — if there is one,
 the run names it in a reminder. Which file was used is always reported.
 
 `--lang` changes the **message language** only; the default preset and default CSL follow the
@@ -509,6 +506,13 @@ updated when the document is opened or shown in print preview.
 | Format instructions in text or given verbally | fill in whatever the user stated explicitly; derive and fill the unmentioned required fields of the same set per §3.5 |
 | Nothing at all | use a built-in preset, export a standard `.docx` first, then adjust from feedback |
 
+Built-in presets: `zh-academic` (Chinese default), `zh-tw-academic` (Traditional Chinese: `PMingLiU`
+body, `Microsoft JhengHei` headings, `zh-TW` proofing, no punctuation compression), `zh-report`,
+`zh-gb9704` (GB/T 9704-2012 official-document body: A4, 16pt 仿宋, 22 lines per page — not the
+red-header letterhead or 版记; keep those with `--base-template`), `en-nature` (default for other
+languages) and `en-apa-student` (APA 7 student paper). Without `--preset`, the default follows the
+manuscript's language only, never `--lang`.
+
 ### 3.4 Style names (closed vocabulary)
 
 `Title` `Subtitle` `Author` `Date` `Abstract` `Abstract Title` `Keywords` `Heading 1`
@@ -517,35 +521,9 @@ updated when the document is opened or shown in print preview.
 `References Title` `Block Text` `Header` `Footer` `Footnote` `SourceCode` `TOC Heading` `TOC 1`
 `TOC 2` `TOC 3` `TOC 4` `TOC 5`
 
-Chinese names are accepted as well, so a bilingual or Chinese manuscript can use either column:
-
-| English | Chinese (also accepted) |
-|:--|:--|
-| `Title` | `文档标题`, `论文标题` |
-| `Subtitle` | `副标题` |
-| `Author` | `作者` |
-| `Date` | `日期` |
-| `Abstract` | `摘要` |
-| `Abstract Title` | `摘要标题` |
-| `Keywords` | `关键词` |
-| `Heading 1` … `Heading 6` | `一级标题` … `六级标题` |
-| `Body Text` | `正文` |
-| `First Paragraph` | `首段` |
-| `Normal` | `普通` |
-| `Compact` | `紧凑` |
-| `Table Caption` | `表格题注`, `表名`, `表题` |
-| `Table Note` | `表注` |
-| `Figure` | `图` |
-| `Image Caption` | `图片题注`, `图名`, `图题` |
-| `Bibliography` | `参考文献` |
-| `References Title` | `参考文献标题` |
-| `Block Text` | `引用块` |
-| `Header` | `页眉` |
-| `Footer` | `页脚` |
-| `Footnote` | `脚注` |
-| `SourceCode` | `代码` |
-| `TOC Heading` | `目录标题` |
-| `TOC 1` … `TOC 5` | `目录一级` … `目录五级` |
+Chinese names are accepted as well (`正文`, `一级标题`, …). `md-to-word --contract --json` returns
+every style name in both languages, and the built-in presets (`zh-academic.txt`, `en-nature.txt`)
+show the full spelling in context.
 
 - **Equivalent spellings** (pick whichever you like): `Captioned Figure` = `Figure`,
   `Code` = `SourceCode`, `Footnote Text` = `Footnote`, `Block Quote` = `Block Text`,
@@ -580,13 +558,11 @@ defaults.
 
 ---
 
-## 4. Agent workflow
+## 4. References (`.bib` / CSL-JSON)
 
-**The order of work is in `--guide`; this file holds facts.** In one sentence: ship a compliant
-`.docx` first, then fine-tune from feedback — and when the user gave no explicit format
-requirements, use a built-in preset instead of interrogating them about format details.
-
-### References: `.bib` or CSL-JSON
+The engine generates the bibliography; the author supplies the library and the citation keys. The
+order of work is in `--guide`; with no explicit format requirements, use a built-in preset, ship a
+compliant `.docx` first, then fine-tune from feedback.
 
 - **No references**: do not write `bibliography:` or `csl:` in YAML, and do not use `[@key]` in the
   body.
@@ -645,12 +621,6 @@ A failed export (pre-flight, writing, or the audit) never leaves a half-written 
 is built in a temporary file in the same folder and swapped into place only after every gate passes.
 If the target already holds the previous build, it is left untouched and the result says so (code
 `pipeline.stale_output` in `--json` `warnings`), so that file is not mistaken for this run's output.
-
-- **Default preset & Traditional Chinese**: without `-f` / `--preset`, Chinese text defaults to
-  `zh-academic`. For **Traditional Chinese (Taiwan/HK/Macau)** submissions, pass
-  `--preset zh-tw-academic` (uses `PMingLiU` body, `Microsoft JhengHei` headings,
-  `Proofing Language: zh-TW`, and `Punctuation Compression: none` to keep full-width centred
-  punctuation intact across platforms).
 
 A `.docx` supplied by an institution, university or journal goes one of two ways:
 
@@ -836,9 +806,7 @@ examples. The tag is a stable category identifier; the text after it says which 
 | TOC entry font is wrong | The TOC entry styles were not written as Word's built-in styles (`TOC 1/2/3`), or `dot-leader-tab` was written on them (no effect) |
 | Header shows "Error! Reference source not found" | X in `{style-title:X}` is not a Word style name (write `Heading 1`) |
 | The font looks right but is wrong in Word | The reference template's theme attributes override the explicit font; the generator strips `asciiTheme` / `eastAsiaTheme` / `themeColor` / `themeFill` and the rest |
-| Two exports of the same manuscript differ | This should not happen: the output is byte-for-byte reproducible; if it happens, report a defect |
-
----
+| Two exports of the same manuscript differ | On one platform this should not happen; report a defect. Different bytes across platforms are not a defect (end of §6) |
 
 ---
 
@@ -846,15 +814,10 @@ examples. The tag is a stable category identifier; the text after it says which 
 
 ### 9.1 What a thesis has that a journal paper does not
 
-| Element | Where it is explained |
-|:--|:--|
-| Cover, originality statement, English cover | §9.2, §9.3 |
-| Roman numerals for front matter, body starting at 1 | §9.4; syntax in §2.5 |
-| Table of contents (field, dot leaders, depth) | §2.5; outline levels §9.7 |
-| Equations numbered by chapter `(2-1)` | §2.3; appendices §9.5 |
-| Double-ruled chapter header (`{style-title:Heading 1}`) | §2.5, §3.1 |
-| References in GB/T 7714 | §4, "References: only the `.bib` route" |
-| Three-line tables, repeating header rows | §2.4, §3.1 |
+Covers, originality statements and the English cover: §9.2–§9.3. Roman front-matter numbers and a
+body starting at 1: §9.4 (syntax in §2.5). TOC and double-ruled chapter headers: §2.5; what enters
+the TOC: §9.7. Equations numbered by chapter and appendices: §2.3 and §9.5. GB/T 7714: §4.
+Three-line tables and repeating header rows: §2.4 and §3.1.
 
 ### 9.2 Cover and front matter
 

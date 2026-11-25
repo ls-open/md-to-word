@@ -4,26 +4,17 @@ Turns a Markdown manuscript into a `.docx` whose typography comes from a declare
 engine is deterministic — the same manuscript and the same declarations produce a byte-identical
 file on every run — so do not substitute a hand-written python-docx script; run this pipeline.
 
-**Before the first export in a session, confirm the engine is available**: `md-to-word --version`
-must print a version. This skill ships documentation; if the command is missing, install it with
-`pip install md-to-word-docx`, then run the check again.
+**Read this before the first run.** Check the engine with `md-to-word --version`; if it is missing,
+install it with `pip install md-to-word-docx`. Flags alone are not enough: the manuscript has a
+contract (§2) and the format file a closed vocabulary (§3), neither guessable from `--help`.
 
-**Read this before the first run.** The flags are not enough to drive it: the manuscript has a
-contract (§2) and the format file has a closed vocabulary (§3), and neither can be guessed from
-`--help`. Work through §1 once, then the commands are enough for everything after. An identical
-copy ships inside the package as `guide.md` (`md-to-word --guide --lang en`); reading one copy
-suffices. Without `--lang en`, `--guide` prints the shorter Chinese quickstart for human readers.
-
-**The facts live in the manual. This file is the order of work.** `md-to-word --contract` prints the
-manual's absolute path (Chinese or English, following the manuscript), the built-in preset paths and
-a one-screen contract summary. `--contract --json` returns the same facts as one object — version,
-preset paths and `sha256`, style names in both languages, exit codes, the exact `--json` keys — so
-read it instead of guessing when you can parse JSON. When a spelling is not certain, read the manual
-rather than guess: every word outside the vocabulary is a hard error with a line number.
-
-The manual ships as **one file**, `md-to-word --contract` prints its path. §9 is the thesis part:
-cover and front matter, section and page numbering, chapter/appendix numbering, and
-`--base-template`.
+**This file is the order of work; the facts live in the manual.** `md-to-word --contract` prints the
+manual's path (following the manuscript's language), the built-in preset paths and a one-screen
+summary; `--contract --json` returns the same facts as one object (version, preset paths and
+`sha256`, style names, exit codes, the exact `--json` keys). A spelling outside the vocabulary is a
+hard error with a line number: read the manual rather than guess. The manual's §9 is the thesis
+part. An identical copy of this file ships as `guide.md` (`md-to-word --guide --lang en`); one copy
+is enough — without `--lang en`, `--guide` prints the shorter Chinese quickstart for human readers.
 
 ## 1. The work, in order
 
@@ -125,12 +116,9 @@ manuscript, or a target `.docx` worth reverse-engineering.
 0. **Starting from nothing** — `md-to-word init` writes a complete preset copy plus a one-page
    manuscript that exports as-is. Useful when the user has no format file and no template.
 1. **Built-in preset** — auto-selected by manuscript language (`zh-academic` for Chinese, `en-nature`
-   for other languages), or explicitly pass `--preset zh-tw-academic` (Traditional Chinese, `zh-TW`,
-   uncompressed punctuation), `--preset zh-report` (Chinese technical report), `--preset zh-gb9704`
-   (GB/T 9704-2012 official-document body: A4, 16pt 仿宋, 22 lines per page — **not** the red-header
-   letterhead or 版记; keep those with `--base-template`), or `--preset en-apa-student` (APA 7
-   student paper: Letter, double spacing, 0.5in indent, page number top-right). Use as-is when the
-   user has no custom template or spec.
+   for others), or explicitly `--preset zh-tw-academic` (Traditional Chinese), `zh-report`,
+   `zh-gb9704` (official-document body, not the red-header letterhead or 版记) or `en-apa-student`
+   (APA 7 student paper). Use as-is when the user has no custom template or spec; details: manual §3.3.
 2. **Copy and edit a preset** — change only the lines the user mentioned. Field order is fixed: font,
    size, bold, italic, alignment, line spacing, space before, space after, indent. Every style line
    must be complete; missing fields are errors.
@@ -168,12 +156,10 @@ md-to-word thesis.md --base-template base.docx --keep-until "目录" --blind-rev
 Run every command from the manuscript's directory: relative image and `.bib` paths resolve against
 it. Add `--pdf` (macOS with Word) to expand fields and spot-check the result.
 
-Add `--json` whenever the result has to be read back programmatically: stdout then carries one JSON
-object — `ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `doc_lang`, `format_source`,
-`messages`, `warnings`, `errors`, `diagnostics` — while progress logs stay on stderr. The keys are
-fixed; the sentences inside them follow the manuscript's language. `lang` is the message language;
-`doc_lang` is the manuscript language that chose the default preset and CSL; `format_source` is
-`file:/abs/path` or `preset:zh-academic`.
+Add `--json` whenever the result must be read back programmatically: stdout carries one JSON object
+(`ok`, `returncode`, `input`, `output`, `pdf`, `lang`, `doc_lang`, `format_source`, `messages`,
+`warnings`, `errors`, `diagnostics`); logs stay on stderr. `lang` is the message language, `doc_lang`
+the manuscript language; `format_source` is `file:/abs/path` or `preset:zh-academic`.
 
 `diagnostics` is the same findings as structured data, one object each:
 `{severity: "error"|"warning", code, file, line, message}`. Branch on `code` (for example
@@ -182,9 +168,8 @@ the prose. `--contract --json` returns version, guide/manual paths, preset paths
 accepted style names in both languages, YAML keys, block markers, figure formats, exit codes and
 the exact `--json` keys.
 
-`--validate-only` runs the same pre-flight check as an export and stops there: exit `0` means it
-would proceed, exit `1` carries the line-numbered errors, and no `.docx` is touched. Use it in CI or
-before an expensive export; `-f` / `--preset` choose the format exactly as they do for export.
+`--validate-only` runs the same pre-flight and writes nothing: exit `0` would proceed, `1` carries
+the line-numbered errors.
 
 `--blind-review` strips identifying **document properties** from the final file: author, company,
 custom properties (student ID), cover thumbnail, comment and revision authors. It does not anonymise
@@ -203,13 +188,12 @@ skipped. Messages follow the manuscript's language.
 
 ## 5. Verify before delivery
 
-- Confirm the `.docx` exists and the command exited `0`.
-- Report the preset or format file, the citation style, and anything the run warned about.
-- Say plainly that the layout still needs a manual check in Word. The engine verifies text and
-  structure; row heights, column widths and where equations and captions settle are only visible in
-  a real renderer.
-- With a TOC, `{style-title}` headers or per-section page numbers, run once with `--pdf` and check the
-  first page, the widest table, an equation-heavy page and the references.
+- Confirm the `.docx` exists and the command exited `0`; report the format source, the citation
+  style and every warning.
+- Say plainly that layout still needs a check in Word: row heights, column widths, and where
+  equations and captions settle are only visible in a real renderer.
+- With a TOC, `{style-title}` headers or per-section page numbers, run once with `--pdf` and check
+  the first page, the widest table, an equation-heavy page and the references.
 
 ## 6. Boundaries
 
@@ -224,9 +208,9 @@ skipped. Messages follow the manuscript's language.
   which go directly in `.md`).
 - Only equation cross-references are supported (`{#eq-x}` + `@eq-x`); figure and table numbers are
   typed into the caption.
-- Sum and integral limits stay to the right of the symbol in numbered equations (Word stacks limits
-  only in display math). Content and symbols are correct; only the arrangement differs.
-- TOC page numbers and chapter headers are Word fields; Word asks once whether to update them. Because Word's built-in `TOC \o \u` captures `Heading 1`, a section title (`Abstract Title` / `References Title`) cannot join `{style-title:Heading 1}` headers while excluded from the TOC (`no-toc` + `join-header` is rejected; separate sections with `{{< section >}}` if needed).
+- TOC page numbers are Word fields, filled when Word opens the file. A title excluded from the TOC
+  cannot also feed `{style-title:Heading 1}` (`no-toc` + `join-header` is rejected; split sections
+  with `{{< section >}}`).
 
 Full statements: manual §6 (limits) and §8 (symptom → fix).
 
@@ -239,14 +223,9 @@ interface in both directions is a Markdown file plus a `format.txt`.
 
 ## 8. What this file may rely on
 
-- the commands `md-to-word`, `md-to-word-template` and `init`; every flag named in this file
-  (`-o`, `-f`, `--preset`, `--contract`, `--guide`, `--version`, `--json`, `--pdf`, `--lang`,
-  `--validate-only`) keeps its name and meaning
-- exit codes `0` / `1` / `2` / `3`, the JSON keys under `--json`, and the naming of diagnostic
-  `code` values (`gate.*`, `pipeline.*`, `textio.*`; a code never changes meaning)
-- the manuscript contract in §2, the vocabulary in §3, the preset names `zh-academic` and
-  `en-nature` (plus `zh-tw-academic`, `zh-report`, `zh-gb9704` and `en-apa-student`), and the
-  fixed file name `format.txt`
-
-Everything else — message wording, the layout inside the installed package, the version number — may
-change. Never parse the prose of a message: pass `--json` and read the keys.
+Command and flag names (`init`, `--preset`, `--json`, `--pdf`, `--lang`, `--validate-only`, `-f`, `-o`),
+exit codes `0`–`3`, the `--json` keys, diagnostic `code` values (`gate.*`, `pipeline.*`,
+`textio.*`), the §2 contract, the §3 vocabulary, the preset names `zh-academic` and `en-nature`
+(plus `zh-tw-academic`, `zh-report`, `zh-gb9704`, `en-apa-student`), and the fixed file name
+`format.txt` are stable. Message wording, package layout and the version number may change — pass
+`--json` and read the keys, never the prose.
