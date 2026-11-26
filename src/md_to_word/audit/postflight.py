@@ -12,7 +12,7 @@ import unicodedata
 import zipfile
 from collections import Counter
 from pathlib import Path
-from md_to_word.utils.masking import HTML_COMMENT_RE
+from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.utils.skill_utils import split_frontmatter
 from md_to_word.utils.textio import read_text_file
 
@@ -21,12 +21,23 @@ _RE_OPENXML_FENCE = re.compile(
 )
 
 
+_RE_FOOTNOTE_REF = re.compile(r"\[\^([^\]]+)\](?!:)")
+_RE_FOOTNOTE_DEF = re.compile(r"^\[\^([^\]]+)\]:[^\n]*(?:\n|$)", re.MULTILINE)
+
+
 def load_source_text(md_path: Path | str) -> str:
     text, _ = read_text_file(md_path)
     _, text = split_frontmatter(text)
-    for pattern in (HTML_COMMENT_RE, _RE_OPENXML_FENCE, _RE_IMAGE):
+    # 没被正文引用的脚注定义不会写进产物，不能算「原稿里有」。
+    used = set(_RE_FOOTNOTE_REF.findall(text))
+    text = _RE_FOOTNOTE_DEF.sub(
+        lambda m: m.group(0) if m.group(1) in used else "\n" * m.group(0).count("\n"),
+        text,
+    )
+    for pattern in (_RE_OPENXML_FENCE, _RE_IMAGE):
         text = pattern.sub(" ", text)
-    return text
+    # 与导出走同一份注释判据：围栏代码块里的 `<!-- … -->` 是内容，不是注释。
+    return strip_html_comments(text)
 
 
 _RE_CJK = re.compile(r"[㐀-䶿一-鿿]")
@@ -103,7 +114,8 @@ _RE_DIGITS = re.compile(r"\d+")
 
 
 def verify_numeric_integrity(
-    md_path: Path | str, docx_path: Path | str
+    md_path: Path | str, docx_path: Path | str,
+    citation_keys: set[str] | None = None,
 ) -> tuple[bool, list[str]]:
     """比对原稿与产物中的所有数字串。返回 (是否全部保留, 丢失的数字列表)。
 
@@ -111,7 +123,7 @@ def verify_numeric_integrity(
     样本量同样可能整块消失，而产物看上去没毛病。数字从**模型文本**取，公式、
     引文 key、链接地址、图片路径里的数字不参与比对——它们本来就不该逐字出现。
     """
-    wanted = Counter(_RE_DIGITS.findall(_source_content_text(md_path)))
+    wanted = Counter(_RE_DIGITS.findall(_source_content_text(md_path, citation_keys)))
     if not wanted:
         return True, []
 
@@ -136,7 +148,9 @@ def _latin_words(text: str) -> Counter:
     return Counter(m.group(0).casefold() for m in _RE_LATIN.finditer(text))
 
 
-def _source_content_text(md_path: Path | str) -> str:
+def _source_content_text(
+    md_path: Path | str, citation_keys: set[str] | None = None,
+) -> str:
     """原稿里真正会落成正文的文字。
 
     不直接拿 Markdown 原文数词：`#`、`**`、链接地址、引用键、公式、图片替代文字
@@ -145,14 +159,17 @@ def _source_content_text(md_path: Path | str) -> str:
     """
     text, _ = read_text_file(md_path)
     _, text = split_frontmatter(text)
-    text = HTML_COMMENT_RE.sub("", text)
+    text = strip_html_comments(text)
     text = _RE_OPENXML_FENCE.sub(" ", text)
 
     from md_to_word.model.document import (
-        Code, CodeBlock, Emphasis, Heading, LineBreak, Link, ListBlock, Paragraph,
-        Quote, Strikethrough, Strong, Subscript, Superscript, Table, Text, Underline,
+        Code, CodeBlock, Emphasis, FootnoteRef, Heading, LineBreak, Link, ListBlock,
+        Paragraph, Quote, Strikethrough, Strong, Subscript, Superscript, Table, Text,
+        Underline,
     )
     from md_to_word.model.reader import read_markdown
+
+    referenced: set[str] = set()
 
     def inline_text(inlines) -> str:
         parts: list[str] = []
@@ -164,12 +181,14 @@ def _source_content_text(md_path: Path | str) -> str:
                 parts.append(node.value)
             elif isinstance(node, LineBreak):
                 parts.append("\n")
+            elif isinstance(node, FootnoteRef):
+                referenced.add(node.label)
             elif isinstance(node, (
                 Strong, Emphasis, Strikethrough, Underline, Superscript, Subscript, Link,
             )):
                 for child in node.children:
                     walk(child)
-            # Math / Citation / CrossRef / FootnoteRef：渲染成公式、编号或文献表，
+            # Math / Citation / CrossRef：渲染成公式、编号或文献表，
             # 原文里的 LaTeX、key 本来就不该逐字落到正文。
 
         for node in inlines:
@@ -196,22 +215,25 @@ def _source_content_text(md_path: Path | str) -> str:
             # 是结构指令，都不产生可逐字核对的正文。
         return out
 
-    doc = read_markdown(text)
+    doc = read_markdown(text, citation_keys=citation_keys)
     parts = blocks_text(doc.blocks)
     for footnote in doc.footnotes:
-        parts.extend(blocks_text(footnote.blocks))
+        # 没被引用的脚注定义不会写进 footnotes.xml，不能进「必须出现」的账。
+        if footnote.label in referenced:
+            parts.extend(blocks_text(footnote.blocks))
     return "\n".join(parts)
 
 
 def verify_latin_integrity(
-    md_path: Path | str, docx_path: Path | str
+    md_path: Path | str, docx_path: Path | str,
+    citation_keys: set[str] | None = None,
 ) -> tuple[bool, list[str]]:
     """原稿里的英文/拉丁词，产物里一个都不能少。返回 (是否齐全, 缺的词)。
 
     只查"少"不查"多"：目录、题注编号、文献表都是引擎加上去的。用词频而不是集合，
     是因为同一个词重复出现时，丢其中一处同样要能看见。
     """
-    wanted = _latin_words(_source_content_text(md_path))
+    wanted = _latin_words(_source_content_text(md_path, citation_keys))
     if not wanted:
         return True, []
     rendered = _latin_words(docx_text(docx_path))

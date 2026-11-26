@@ -207,3 +207,53 @@ def test_english_split_across_runs_is_reassembled(tmp_path):
     )
     ok, missing = verify_latin_integrity(md, docx)
     assert ok, missing
+
+
+def test_an_unused_footnote_is_not_required_in_the_output(tmp_path):
+    """脚注定义了却没被正文引用：写出器不写 footnotes.xml，防丢检查不能把它算进账。"""
+    md = tmp_path / "fn.md"
+    md.write_text(
+        "---\n---\n\n# 标题\n\n正文 123 字。\n\n[^unused]: orphan footnote 98765\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "fn.docx"
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=out, preset="zh-academic",
+    ))
+    assert result.returncode == 0, result.errors
+
+
+def test_narrative_citation_locator_is_not_counted_as_body(tmp_path):
+    """`@key [chap. 99]` 的定位符属于引文；数字制不印它，不能判成正文丢词。"""
+    (tmp_path / "refs.bib").write_text(
+        "@article{smith2024, author={Smith, John}, title={A Study}, "
+        "journal={J}, year={2024}}\n",
+        encoding="utf-8",
+    )
+    md = tmp_path / "m.md"
+    md.write_text(
+        "---\nbibliography: refs.bib\ncsl: ieee.csl\n---\n"
+        "# Title\n\nAs @smith2024 [chap. 99] showed.\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "m.docx"
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=out, preset="zh-academic",
+    ))
+    assert result.returncode == 0, result.errors
+
+
+def test_html_comment_markers_inside_a_code_fence_are_content(tmp_path):
+    """代码块里的 `<!-- … -->` 是内容；用裸正则剔除会让中间的正文漏检。"""
+    md = tmp_path / "c.md"
+    md.write_text(
+        "# 一\n\n```html\n<!-- keep this 4242 -->\n正文 7777\n```\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "c.docx"
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=out, preset="zh-report",
+    ))
+    assert result.returncode == 0, result.errors
+    ok, missing = verify_numeric_integrity(md, out)
+    assert ok, missing

@@ -83,6 +83,9 @@ jobs:
               "md_to_word/presets/en-nature.txt",
               "md_to_word/resources/pure_modern_base.docx",
               "md_to_word/resources/csl/nature.csl",
+              "md_to_word/csl/data/locales/locales.json",
+              "md_to_word/csl/data/locales/locales-en-US.xml",
+              "md_to_word/csl/LICENSE",
           ):
               assert any(n.endswith(needed) for n in names), f"wheel 内缺少 {needed}"
           print(f"包内资源齐全（{len(names)} 个文件）")
