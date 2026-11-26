@@ -769,6 +769,10 @@ and preserving existing `.docx` covers/front matter via `--base-template` (§9.3
 | A figure kept as a vector (PDF embedded as-is) | Word inline pictures hold bitmaps only; a PDF figure is rasterised at 300 dpi, which is enough for print but no longer infinitely scalable |
 | Limits above and below the sum/integral sign in a numbered equation | Word only stacks limits above and below the symbol in a display equation; a numbered equation is an inline equation (the number sits at the right via a tab). The content and symbols are correct; the layout differs |
 | Arbitrary tab stops | Only `dot-leader-tab` exists (right-aligned with a dot leader) |
+| A formula wider than the text block | Word wraps it at operators and the number may no longer reach the right margin; pre-flight warns. Split it or shorten it |
+| Inline math containing sums/integrals/roots | Tall symbols increase that line's height (often about 1.5×); line spacing is a paragraph property, so Word will not shrink a single inline formula |
+| Chapter header when a table from the previous chapter continues onto a page that later starts a new chapter | Word's `STYLEREF` takes the first matching heading on that page; use `{{< section >}}` when chapters must break strictly |
+| Table cell padding | Defaults to 0 so column widths follow the separator dashes exactly; declare `cell-margin 0.1cm` for padding (narrow columns shrink accordingly) |
 | Excluding a section title from the TOC while updating chapter headers | Word's built-in `TOC \o \u` field pulls `Heading 1` into the TOC automatically, so `no-toc` and `join-header` cannot combine; split sections with `{{< section >}}` if a custom header is needed without TOC entry |
 | Footnote position | Always printed at the bottom of the page that cites it — a Word layout rule |
 | More than three list levels | The fourth level and beyond merge into the third |

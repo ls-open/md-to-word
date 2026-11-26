@@ -83,6 +83,22 @@ def test_row_split_lock_is_audited(tmp_path):
     assert any("行不跨页" in msg for _, msg in audit(docx, fmt))
 
 
+def test_a_code_block_line_break_does_not_join_two_words(tmp_path):
+    """`w:br` 两边是两个词；提取时丢了分隔符，就会把 `--no-audit` + `https` 报成丢词。"""
+    from md_to_word.audit.postflight import docx_text
+
+    md = tmp_path / "code.md"
+    md.write_text(
+        "# 一\n\n```text\n--no-audit\nhttps://example.org/a/b\n```\n", encoding="utf-8",
+    )
+    out = tmp_path / "code.docx"
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=out, preset="zh-report",
+    ))
+    assert result.returncode == 0, result.errors
+    assert "--no-audit https" in docx_text(out)
+
+
 def test_image_alt_is_not_counted_as_body_text(tmp_path):
     """替代文字写进 `docPr/descr`，不进正文；防丢检查不能拿它当正文里的字。"""
     import shutil

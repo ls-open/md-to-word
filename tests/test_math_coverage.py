@@ -63,3 +63,22 @@ def test_unknown_mathml_still_fails_loudly() -> None:
     malformed = '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>&</mi></math>'
     with pytest.raises(UnsupportedMath):
         mathml_to_omml(malformed)
+
+
+def test_function_names_are_upright_not_italic() -> None:
+    r"""`\exp` / `\sin` 与 `\det` 一样是直立函数名，不能一半斜体一半直立。"""
+    m_ns = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+    for latex in (r"\exp x", r"\sin x", r"\log x"):
+        top = latex_to_omml(latex)[0]
+        marks = [n.get(f"{{{m_ns}}}val") for n in top.iter(f"{{{m_ns}}}sty")]
+        assert marks and all(value == "p" for value in marks), (latex, marks)
+
+
+def test_a_very_long_display_formula_gets_a_warning() -> None:
+    """超长公式不是内容错误，但编号可能落不到右缘；预检要提前说。"""
+    from md_to_word.utils.skill_utils import long_display_math_issues
+
+    body = " + ".join("x_{%d}" % i for i in range(1, 80))
+    text = "# 一\n\n$$\n%s\n$$\n" % body
+    issues = long_display_math_issues(text)
+    assert issues and issues[0][0] == 3

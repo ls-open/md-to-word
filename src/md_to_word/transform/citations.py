@@ -561,15 +561,25 @@ class CitationError(RuntimeError):
 class CitationEngine:
     """一份文献库 + 一个 CSL 样式 = 一个渲染器。"""
 
-    def __init__(self, bib_text: str, csl_path: Path | str, lang: str = "zh") -> None:
+    def __init__(
+        self, bib_text: str, csl_path: Path | str, lang: str = "zh",
+        citation_lang: str | None = None,
+    ) -> None:
         _warn_if_unsupported_citeproc(lang)
         self.lang = lang
+        # 消息语言与引文语言是两件事：`--lang en` 只该改提示语，不该把中文稿的
+        # CSL term 换成英文（反之亦然）。流水线把文档语言单独传进来。
+        self.citation_lang = citation_lang or lang
         # BibTeX / BibLaTeX 与 CSL-JSON 走同一个入口（按内容判断，不看扩展名）。
         self.entries = parse_bibliography(bib_text, lang)
         if not self.entries:
             raise CitationError(t("citations.empty_library", lang))
         try:
-            style = CitationStylesStyle(str(csl_path), validate=False)
+            style = CitationStylesStyle(
+                str(csl_path),
+                locale="en-US" if self.citation_lang == "en" else None,
+                validate=False,
+            )
         except Exception as exc:  # 样式文件本身有问题
             raise CitationError(t("citations.style_unparsable", lang, path=csl_path, err=exc)) from exc
         # html 而不是 plain：CSL 里的斜体、上标（Nature 的引文编号就是上标）只有带标记
@@ -898,7 +908,7 @@ class CitationEngine:
         if narrative:
             entry = self._by_key.get(pairs[0][0], {}) if len(pairs) == 1 else {}
             creators = entry.get("author") or entry.get("editor") or []
-            and_word = "and" if self.lang == "en" and len(creators) >= 2 else None
+            and_word = "and" if self.citation_lang == "en" and len(creators) >= 2 else None
             html = _as_narrative(html, and_word=and_word)
         html = _merge_duplicate_period(_collapse_numeric_runs(html, bare=self._numeric))
         segments = html_to_segments(html)

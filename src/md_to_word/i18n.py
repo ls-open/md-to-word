@@ -1386,6 +1386,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         '("{snippet}"): write a literal percent as `\\%`',
     ),
     "gate.tag.equation_brace": ("公式括号不配对", "unbalanced equation braces"),
+    "gate.equation.long": (
+        "第 {line} 行的独立公式较长（约 {length} 字符）；超出版心时 Word 会断行，编号可能无法靠右",
+        "The display formula on line {line} is long (~{length} characters); if it exceeds the text "
+        "block Word will wrap it and the number may not reach the right margin",
+    ),
     "gate.equation.brace": (
         "公式里的花括号不配对（「{snippet}」）：转换器不会报错，只会静默丢掉内容"
         "（如 `\\frac{{a}}{{b` 只剩 `ab`）。补上缺失的 `}}` 后重新导出。",
@@ -1896,6 +1901,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "第 {line} 行：图片宽度「{attrs}」写法不对；应写 {{width=12cm}}、{{width=50%}} 这类完整值",
         "Line {line}: the image width in \"{attrs}\" is malformed; write a complete value such "
         "as {{width=12cm}} or {{width=50%}}",
+    ),
+    "gate.table.column_narrow": (
+        "表格有 {count} 列，按分隔行比例最窄的一列约 {width:.2f}cm（建议至少 {min:g}cm）；"
+        "表头可能被竖排、数字会粘连。把该列的分隔短横线写长一些",
+        "This {count}-column table makes its narrowest column about {width:.2f}cm "
+        "(at least {min:g}cm recommended); headers may stack vertically and numbers touch. "
+        "Lengthen that column's separator dashes",
     ),
     "gate.table.column_count": (
         "表格第 1 行有 {expect} 列，第 {line} 行是 {actual} 列——"

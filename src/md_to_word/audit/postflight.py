@@ -86,7 +86,13 @@ def docx_text(docx_path: Path | str) -> str:
                 except Exception:
                     continue
                 for para in re.findall(r"<w:p[ >].*?</w:p>", xml, re.DOTALL):
-                    para = re.sub(r"<w:(?:tab|br|cr)\b[^>]*/>", " ", para)
+                    # 换行/制表符要变成一个**能被下面的 w:t 提取看到**的空格；
+                    # 只替换成裸空格会被丢掉，相邻两行就粘成一个词（`--no-audithttps`）。
+                    para = re.sub(
+                        r"<w:(?:tab|br|cr)\b[^>]*/>",
+                        '<w:t xml:space="preserve"> </w:t>',
+                        para,
+                    )
                     chunks = re.findall(r"<[wm]:t[^>]*>([^<]*)</[wm]:t>", para)
                     if chunks:
                         parts.append(html.unescape("".join(chunks)))

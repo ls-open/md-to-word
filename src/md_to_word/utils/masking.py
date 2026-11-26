@@ -75,6 +75,17 @@ def mask_code(content: str) -> str:
     return mask_inline_code(mask_code_fences(content))
 
 
+def mask_display_math(content: str) -> str:
+    """`$$…$$`（含跨行）替换成等量点号，保留行号与长度。
+
+    公式里的 `|x|`、`&`、`\\` 不是 Markdown 表格/转义，预检查表格与块级标记时必须先遮掉。
+    """
+    return _MATH_BLOCK_RE.sub(
+        lambda m: "".join("\n" if ch == "\n" else "." for ch in m.group(0)),
+        content,
+    )
+
+
 def mask_prose_noise(text: str) -> str:
     """只留「自然语言正文」：去掉代码、frontmatter、URL、公式、引文键与 HTML 注释。
 

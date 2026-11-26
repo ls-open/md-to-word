@@ -918,7 +918,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                     keys="、".join(inherited[:5]),
                 ))
             try:
-                engine = CitationEngine(bib_text, csl_path, res.lang)
+                engine = CitationEngine(bib_text, csl_path, res.lang, citation_lang=doc_lang)
             except (CitationError, OSError) as exc:
                 _fail(res, "pipeline.csl_error",
                       t("pipeline.csl_error", res.lang, reason=exc), file=csl_path)

@@ -174,6 +174,35 @@ def test_footnote_inline_code_uses_one_valid_rpr(template: Path, tmp_path: Path)
     assert "https://example.com" not in footnotes  # 链接地址进关系，不进正文
 
 
+def test_an_over_long_equation_puts_its_number_on_a_right_aligned_line(
+    template: Path, tmp_path: Path,
+) -> None:
+    """超长公式在 Word 里会断行，右制表位失效；编号退到下一行右侧，仍要看得见且靠右。"""
+    latex = " + ".join("x_{%d}" % i for i in range(1, 80))
+    model = read_markdown("# 一\n\n$$%s$$ {#eq-long}\n" % latex)
+    out = write_docx(
+        model, template, tmp_path / "long.docx",
+        equation_number_format="（{n}）",
+    )
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    assert "（1）" in xml
+    assert '<w:jc w:val="right"/>' in xml, "长公式的编号没有右对齐"
+    assert "<m:oMath" in xml
+
+
+def test_a_table_note_is_kept_with_the_last_row(template: Path, tmp_path: Path) -> None:
+    """表注不能单独落到下一页：最后一行要带 `keepNext`，与表注同页。"""
+    model = read_markdown(
+        "| 甲 | 乙 |\n|:--|--:|\n| 1 | 2 |\n\n%% 表注 注：紧跟在表后。\n"
+    )
+    out = write_docx(model, template, tmp_path / "note.docx")
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    table = xml.split("<w:tbl>", 1)[1].split("</w:tbl>", 1)[0]
+    last_row = table.rsplit("<w:tr>", 1)[1]
+    assert "<w:keepNext/>" in last_row
+    assert "注：紧跟在表后。" in xml
+
+
 def test_toc_depth_follows_the_template_when_not_given(template: Path, tmp_path: Path) -> None:
     """`{{< toc >}}` 不带级数时，收几级由模板声明到几级决定，不是写死 3。"""
     model = read_markdown('---\n---\n\n{{< toc >}}\n\n# 一 引言\n\n正文。\n')

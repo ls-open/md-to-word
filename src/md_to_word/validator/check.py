@@ -42,7 +42,9 @@ from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES, PdfFigureEr
 from md_to_word.utils.textio import TextDecodeError, read_text_file
 
 # 复用 utils 中的基础文本解析工具
-from md_to_word.utils.masking import mask_code, mask_code_fences, mask_html_comments
+from md_to_word.utils.masking import (
+    mask_code, mask_code_fences, mask_display_math, mask_html_comments,
+)
 from md_to_word.utils.skill_utils import (
     block_marker_issues,
     soft_wrap_issues,
@@ -54,6 +56,8 @@ from md_to_word.utils.skill_utils import (
     heading_issues,
     image_width_issues,
     image_width_syntax_issues,
+    long_display_math_issues,
+    table_column_width_issues,
     malformed_table_issues,
     resolve_manuscript_path,
     section_pagebreak_issues,
@@ -378,7 +382,7 @@ def validate_manuscript(
     # 只看「作者真写的正文」的那几条判据用这个：围栏代码块与行内代码都掩成点号，
     # 行号与长度不变。稿件里用反引号演示语法（``` 里的 `![x](y.png)`、`%%注释`、
     # 重复的 `{#eq-x}`）是正当写法，不该被当成真内容去查磁盘或判重复。
-    visible = mask_code(md_text)
+    visible = mask_code(mask_display_math(md_text))
 
     # 0. 格式要求（有要求文件才谈得上「稿件结构是否有对应样式」）
     if spec is None and spec_path is not None:
@@ -986,6 +990,10 @@ def validate_manuscript(
                 [(line_no, t("gate.literal_asterisk", lang, snippet=snippet))
                  for line_no, snippet in literal_asterisk_issues(md_text)], lang)
 
+    # 11e. 超长公式只提醒：内容没丢，但编号可能落不到右缘
+    for line_no, why in long_display_math_issues(md_text, lang=lang):
+        report.warning("gate.equation.long", why, line=line_no)
+
     # 12. `\tag{}` 公式编号（不认这个写法，整条公式退化成字面文本）
     for line_no, snippet in latex_tag_issues(md_text):
         report.valid = False
@@ -1004,8 +1012,12 @@ def validate_manuscript(
 
     # 13/14. 依赖格式要求文件的两道门禁
     if spec is not None:
-        # 13. 图片声明宽度超过版心：会被钳到版心宽，但图还在页内，提醒即可
         width_cm = content_width_cm(spec)
+        # 12c. 列宽比例算出过窄的列：只提醒，不替作者改比例
+        _group_warn(report, "gate.table.column_narrow", t("gate.tag.table", lang),
+                    table_column_width_issues(md_text, width_cm, lang), lang)
+
+        # 13. 图片声明宽度超过版心：会被钳到版心宽，但图还在页内，提醒即可
         if width_cm:
             _group_warn(report, "gate.image.width", t("gate.tag.image_width", lang),
                         image_width_issues(md_text, width_cm, lang), lang)

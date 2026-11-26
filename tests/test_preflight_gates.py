@@ -620,3 +620,31 @@ def test_missing_format_fields_point_at_their_line(tmp_path: Path, caplog) -> No
     with caplog.at_level(logging.INFO), pytest.raises(Exception):
         generate_template(requirements.read_text(encoding="utf-8"), tmp_path / "t.docx")
     assert "第 3 行 正文" in caplog.text, caplog.text
+
+
+def test_math_content_is_not_mistaken_for_a_table_and_colon_is_punctuation(
+    tmp_path: Path,
+) -> None:
+    """`cases` 里的 `|x|` 不是表格行；`@eq-f：` 的冒号是标点，不是标签的一部分。"""
+    manuscript = tmp_path / "math.md"
+    manuscript.write_text(
+        "# 一\n\n$$\nf(x)=\\begin{cases}\n|x|, & x \\ge 0 \\\\\n0, & x < 0\n"
+        "\\end{cases}\n$$ {#eq-f}\n\n见 @eq-f：\n",
+        encoding="utf-8",
+    )
+    report = validate_manuscript(manuscript, spec_path=PRESET)
+    assert report.valid, report.errors
+
+
+def test_a_too_narrow_table_column_is_reported(tmp_path: Path) -> None:
+    """九列表里 0.5cm 的列会把表头竖排；只提醒，不悄悄改作者声明的比例。"""
+    manuscript = tmp_path / "wide.md"
+    manuscript.write_text(
+        "# 一\n\n| 甲 | 乙 | 丙 | 丁 | 戊 | 己 | 庚 | 辛 | 壬 |\n"
+        "|:-|:--|:--------------|:--|:--|--:|--:|--:|:--|\n"
+        "| 1 | 2 | 3 | 4 | 5 | 12 | 1.5 | 2 | x |\n",
+        encoding="utf-8",
+    )
+    report = validate_manuscript(manuscript, spec_path=PRESET)
+    assert report.valid
+    assert any(d.code == "gate.table.column_narrow" for d in report.diagnostics)

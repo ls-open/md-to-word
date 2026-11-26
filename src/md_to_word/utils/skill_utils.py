@@ -20,6 +20,7 @@ from lxml import etree
 from md_to_word.i18n import t
 from md_to_word.utils.masking import (
     mask_code_fences,
+    mask_display_math,
     mask_html_comments,
     unclosed_code_fence_line,
 )
@@ -314,6 +315,37 @@ def has_declared_image_width(text: str) -> bool:
                if not line.lstrip().startswith("|"))
 
 
+def table_column_width_issues(
+    text: str, content_cm: float, lang: str = "zh", min_cm: float = 1.1,
+) -> list[tuple[int, str]]:
+    """连续表格的某一列按比例算出来太窄 → 提醒作者把分隔行写长一点。
+
+    不自动改列宽：分隔行的长短是作者对比例的声明。九列表里出现 0.5cm 的列时，
+    Word 会把表头竖排、数字粘连；提醒比静默重排更可追责。
+    """
+    if not text or not content_cm:
+        return []
+    lines = mask_code_fences(mask_display_math(text)).split("\n")
+    issues: list[tuple[int, str]] = []
+    for i in range(1, len(lines)):
+        sep = lines[i].strip()
+        if not (sep.startswith("|") and sep.endswith("|")):
+            continue
+        if not re.fullmatch(r"\|[\s:|-]+\|", sep):
+            continue
+        cells = [cell for cell in sep.strip("|").split("|")]
+        if len(cells) < 4:
+            continue
+        shares = [max(len(re.findall("-", cell)), 1) for cell in cells]
+        total = sum(shares)
+        widths = [content_cm * share / total for share in shares]
+        narrow = min(widths)
+        if narrow < min_cm:
+            issues.append((i + 1, t("gate.table.column_narrow", lang,
+                                    count=len(cells), width=narrow, min=min_cm)))
+    return issues
+
+
 def malformed_table_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
     """Markdown 表格各行列数不一致 → [(行号, 说明)]。
 
@@ -323,7 +355,7 @@ def malformed_table_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]
     """
     if not text:
         return []
-    lines = mask_code_fences(text).split("\n")
+    lines = mask_code_fences(mask_display_math(text)).split("\n")
     issues: list[tuple[int, str]] = []
     i = 0
     while i < len(lines):
@@ -416,7 +448,7 @@ def cited_keys(text: str, line_offset: int = 0):
         # `<https://…>` 与 `<foo@bar>` 是自动链接，里面的 `@` 不是引文
         line = _ANGLE_RE.sub(" ", _INLINE_CODE_RE.sub(" ", raw))
         for m in _CITE_KEY_RE.finditer(line):
-            key = m.group(1).rstrip('.')
+            key = m.group(1).rstrip('.:：,，;；')
             if key:
                 yield i + line_offset, key
 
@@ -424,6 +456,39 @@ def cited_keys(text: str, line_offset: int = 0):
 def defined_labels(text: str) -> set:
     """稿子里定义过的标签（`{#eq-dynamics}` 的 `eq-dynamics`）。"""
     return set(_DEFINED_LABEL_RE.findall(text or ''))
+
+
+def long_display_math_issues(
+    text: str, threshold: int = 150, lang: str = "zh"
+) -> list[tuple[int, str]]:
+    """超长独立公式的提醒：Word 会在运算符处断行，编号的右制表位可能失效。"""
+    issues: list[tuple[int, str]] = []
+    start = 0
+    chunks: list[str] = []
+    in_display = False
+    for i, line in enumerate(mask_code_fences(text).split("\n"), 1):
+        stripped = line.strip()
+        if not in_display and stripped.startswith("$$"):
+            start = i
+            chunks = [stripped[2:].removesuffix("$$").strip()]
+            if stripped.count("$$") >= 2:
+                body = " ".join(chunks)
+                if len(body) > threshold:
+                    issues.append((start, t("gate.equation.long", lang, line=start, length=len(body))))
+                in_display = False
+            else:
+                in_display = True
+            continue
+        if in_display:
+            if stripped.endswith("$$"):
+                chunks.append(stripped[:-2].strip())
+                body = " ".join(chunks)
+                if len(body) > threshold:
+                    issues.append((start, t("gate.equation.long", lang, line=start, length=len(body))))
+                in_display = False
+            else:
+                chunks.append(stripped)
+    return issues
 
 
 def unbalanced_math_issues(text: str) -> list[tuple[int, str]]:

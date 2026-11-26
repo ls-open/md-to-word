@@ -19,6 +19,15 @@ from md_to_word.i18n import t
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
+# latex2mathml 把 sin/cos/exp 这类函数名落成 `<mi>`，而 OMML 的 `<mi>` 默认斜体。
+# 这些名字是排版里的“直立词”，不转正就会出现 `exp` 斜体、`\det` 直立两套。
+_UPRIGHT_FUNCTIONS = frozenset({
+    "sin", "cos", "tan", "cot", "sec", "csc",
+    "sinh", "cosh", "tanh", "coth", "arcsin", "arccos", "arctan",
+    "exp", "log", "ln", "lg", "lim", "limsup", "liminf",
+    "max", "min", "sup", "inf", "arg", "deg", "dim", "hom", "ker", "gcd", "Pr",
+})
+
 
 class UnsupportedMath(NotImplementedError):
     """MathML 里出现了尚未覆盖的结构。"""
@@ -244,7 +253,8 @@ class _Converter:
         return [_run(text, upright=upright)]
 
     def _on_mi(self, element) -> list:
-        return self._text_run(element.text, upright=False)
+        text = element.text or ""
+        return self._text_run(text, upright=text.strip() in _UPRIGHT_FUNCTIONS)
 
     def _on_mn(self, element) -> list:
         return self._text_run(element.text, upright=True)

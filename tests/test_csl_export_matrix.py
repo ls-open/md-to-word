@@ -114,3 +114,22 @@ def test_every_csl_survives_all_citation_contexts(style: str, tmp_path: Path) ->
         footnotes = archive.read("word/footnotes.xml").decode("utf-8")
     foot_text = " ".join(re.findall(r"<w:t[^>]*>([^<]*)</w:t>", footnotes))
     assert has_citation(foot_text), (style, foot_text)
+
+
+def test_a_citation_only_in_a_footnote_reaches_the_bibliography(tmp_path: Path) -> None:
+    """脚注里的引文也必须进文献表；否则正文脚注 [9] 在文献表里没有对应条目。"""
+    (tmp_path / "refs.bib").write_text(BIB, encoding="utf-8")
+    md = tmp_path / "note.md"
+    md.write_text(
+        "---\nbibliography: refs.bib\n---\n\n# 一\n\n正文[^n]。\n\n"
+        "[^n]: 只在脚注里引用 [@alpha]。\n\n%% 参考文献标题 参 考 文 献\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "note.docx"
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=out, format_path=PRESET, audit=False,
+    ))
+    assert result.returncode == 0, result.errors
+    bibliography = [p.text for p in Document(out).paragraphs if p.style.name == "Bibliography"]
+    assert len(bibliography) == 1, bibliography
+    assert "Alpha One" in bibliography[0]

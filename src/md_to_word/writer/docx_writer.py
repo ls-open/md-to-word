@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import copy
+import dataclasses
 import hashlib
 import os
 import re
@@ -66,6 +67,9 @@ from md_to_word.model.document import (
 
 # 列表缩进（twips，1 英寸 = 1440）：每层左缩进 0.5 英寸，编号悬挂 0.25 英寸。
 # 引用块里的列表整体再右移一个正文缩进，免得和引用正文左对齐、看不出从属关系。
+# 超过这个长度（LaTeX 源字符数）的编号公式，Word 的行内排版 + 右制表位极易在断行后失效；
+# 改为“公式居中、编号另起一行靠右”，宁可不在同一行，也不让编号停在版心中央。
+_LONG_EQUATION_CHARS = 160
 _LIST_STEP_TWIPS = 720
 _LIST_HANGING_TWIPS = 360
 _QUOTE_LEFT_TWIPS = 480
@@ -318,6 +322,12 @@ class _Writer:
         for index, block in enumerate(blocks):
             self.block(block)
             self._keep_caption_with_figure(blocks, index)
+            if (
+                isinstance(block, Table)
+                and index + 1 < len(blocks)
+                and _is_table_note(blocks[index + 1])
+            ):
+                self._keep_table_with_note()
         self._write_bibliography()
         if self._footnote_ids:
             self._write_footnotes()
@@ -637,6 +647,13 @@ class _Writer:
         if number is None:
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
             paragraph._p.append(self._omath(maths))
+            return
+        if len(block.latex) > _LONG_EQUATION_CHARS:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            paragraph._p.append(self._omath(maths))
+            number_line = self._new_paragraph("Body Text")
+            number_line.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            number_line.add_run(self._render_eq_number(*number))
             return
 
         width = self._content_width_twips()
@@ -992,6 +1009,19 @@ class _Writer:
             self._apply_column_widths(table, block.widths)
         self._table_gap_pending = self.table_space_after > 0
 
+    def _keep_table_with_note(self) -> None:
+        """表注紧跟表格时，让最后一行与表注同页；否则表注会孤零零掉到下一页页首。"""
+        if not self.docx.tables:
+            return
+        table = self.docx.tables[-1]
+        if not table.rows:
+            return
+        for cell in table.rows[-1].cells:
+            for paragraph in cell.paragraphs:
+                ensure_ordered_child(
+                    paragraph._p.get_or_add_pPr(), "keepNext", _PPR_ORDER,
+                )
+
     def _flush_table_gap(self) -> None:
         """表格之后垫一个定高空段落。
 
@@ -1175,11 +1205,40 @@ class _Writer:
         fids = self._footnote_ids
         if label not in fids:
             fids[label] = len(fids) + 1
+            # 文献表在正文之后、脚注部件之前写；脚注里的引文必须在这里先登记，
+            # 否则它渲染时 `_order` 已定，条目不会出现在文献表里（Word 里 [9] 无对应条目）。
+            self._register_footnote_citations(label)
         run = paragraph.add_run()
         style = self._style_name("Footnote Reference")
         if style:
             run.style = style
         run._r.append(parse_xml(f'<w:footnoteReference {nsdecls("w")} w:id="{fids[label]}"/>'))
+
+    def _register_footnote_citations(self, label: str) -> None:
+        """把脚注里的 Citation 提前交给引擎登记，顺序按引用它的位置算。"""
+        if self.citations is None:
+            return
+        footnote = next((f for f in self.model.footnotes if f.label == label), None)
+        if footnote is None:
+            return
+
+        def citations_in(node):
+            if isinstance(node, Citation):
+                yield node
+                return
+            if node is None or isinstance(node, str):
+                return
+            if isinstance(node, (list, tuple)):
+                for child in node:
+                    yield from citations_in(child)
+                return
+            if dataclasses.is_dataclass(node) and not isinstance(node, type):
+                for field in dataclasses.fields(node):
+                    yield from citations_in(getattr(node, field.name))
+
+        for node in citations_in(footnote.blocks):
+            keys = [(item.key, item.locator, item.prefix, item.label) for item in node.items]
+            self.citations.cite(keys, narrative=node.narrative)
 
     def _write_footnotes(self) -> None:
         """生成 word/footnotes.xml 并挂上关系。

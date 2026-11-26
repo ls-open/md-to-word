@@ -430,3 +430,20 @@ def test_supported_citeproc_version_stays_quiet(monkeypatch, caplog) -> None:
     with caplog.at_level("WARNING", logger="md_to_word.transform.citations"):
         _apa()
     assert not caplog.text
+
+
+def test_gbt_uses_the_document_language_for_et_al() -> None:
+    """英文稿配 GB/T 不能印「等」；消息语言与文档语言是两件事。"""
+    bib = """
+@article{five, author={Alpha, Ann and Beta, Bob and Gamma, Gail and Delta, Dan and Epsilon, Eve},
+  title={T}, journal={J}, year={2020}}
+"""
+    csl = CSL / "chinese-gb7714-2015-numeric.csl"
+    english = CitationEngine(bib, csl, lang="zh", citation_lang="en")
+    english.cite([("five", "")])
+    assert "et al." in english.bibliography()[0]
+    assert "等" not in english.bibliography()[0]
+
+    chinese = CitationEngine(bib, csl, lang="en", citation_lang="zh")
+    chinese.cite([("five", "")])
+    assert "等" in chinese.bibliography()[0]
