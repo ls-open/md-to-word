@@ -611,7 +611,7 @@ compliant `.docx` first, then fine-tune from feedback.
 
 ```
 pre-flight check → build the style template → read into the document model → write OOXML
-→ numeric-integrity check → audit the product against the format file line by line
+→ content-integrity check → audit the product against the format file line by line
 ```
 
 The style template is generated fresh on every export and never cached, and **styles** have exactly
@@ -675,13 +675,15 @@ is added), so three chapter names are never mistaken for three kinds of header. 
 
 Reminders do not block export: the author may have meant it, or may intend to finish the job in
 Word. If they blocked, the only way out would be `--no-check`, which would also switch off the real
-blockers. `--no-postflight` (number integrity) and `--no-audit` (the post-export audit) are the same
+blockers. `--no-postflight` (content integrity) and `--no-audit` (the post-export audit) are the same
 kind of switch; all three exist for debugging the tool itself, not for delivery.
 
-The post-flight check compares **every Chinese character** and **numbers with three or more
-decimals**; it does not compare Latin words or short numbers. A dropped English paragraph is
-therefore not caught by the gates — spot-check English prose before delivery. This is the boundary
-of that check, not a whole-document integrity promise.
+The post-flight check compares **every digit string**, **every Chinese character**, and **every
+Latin-script word** in the manuscript against the output. It compares counts (`no fewer than the
+source`), so generated content — table of contents, caption numbers, the bibliography — is ignored.
+It does not verify order, position, or layout, and it does not inspect the `.bib` library or
+headers/footers. Beyond those three classes, spot-check before delivery; this is the boundary of
+that check, not a whole-document integrity promise.
 
 Reminders of one kind are **merged into a single line** listing up to eight line numbers, rather than one
 line per occurrence; they are also carried in `--json` `messages`, so skills and scripts can relay
@@ -869,6 +871,7 @@ md-to-word manuscript.md -f format.txt --base-template base.docx --keep-until "c
 `--keep-until <text>` keeps everything through the section containing that text and reports the number;
 when it is not found it lists how each section starts. `--cover-sections N` says it in sections.
 `--keep-pages P` says it in pages and needs Word, because the conversion takes a real layout.
+The resulting PDF is read with the bundled pypdfium2; poppler is not required.
 
 On a single-section base (many real templates page with manual breaks, not section breaks)
 `--keep-until` inserts a section break after the matching paragraph, splitting front matter from

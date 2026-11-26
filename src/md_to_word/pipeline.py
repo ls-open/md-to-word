@@ -1,6 +1,6 @@
 """md_to_word.pipeline — 导出总编排。
 
-顺序固定：读稿 → 预检 → 生成样式模板 → 读成文档模型 → 写出 OOXML → 防丢数 → 对账 → 可选 PDF。
+顺序固定：读稿 → 预检 → 生成样式模板 → 读成文档模型 → 写出 OOXML → 防丢内容 → 对账 → 可选 PDF。
 每一步失败都有明确的退出码与可读原因；跨平台，不依赖任何外部二进制。
 """
 
@@ -18,7 +18,9 @@ from pathlib import Path
 from typing import Optional
 
 from md_to_word.audit.inspector import audit_docx_against_spec
-from md_to_word.audit.postflight import verify_chinese_integrity, verify_numeric_integrity
+from md_to_word.audit.postflight import (
+    verify_chinese_integrity, verify_latin_integrity, verify_numeric_integrity,
+)
 from md_to_word.config import (
     default_csl_path_for_lang, default_preset_name, get_csl_dir,
     lang_from_proofing, looks_traditional, resolve_preset_path,
@@ -627,7 +629,7 @@ def _provenance(fmt_file) -> str:
 
 
 def _postflight_failure(in_p: Path, target: Path, res: ExportResult) -> Optional[tuple[str, str]]:
-    """防丢数 + 防丢字：通过返回 None，不通过返回 `(code, 错误消息)`。
+    """防丢数字、汉字与英文词：通过返回 None，不通过返回 `(code, 错误消息)`。
 
     同一段检查在两个出口跑：验中间产物（`render_target`），以及灌了底模之后再验成品
     （`out_p`）。原来两处各抄一遍，消息键与取样长度都得改两次——一处走样，同一个问题
@@ -643,6 +645,11 @@ def _postflight_failure(in_p: Path, target: Path, res: ExportResult) -> Optional
         return "pipeline.chinese_failed", t(
             "pipeline.chinese_failed", res.lang,
             count=len(missing), sample="".join(missing[:12]))
+    all_kept, missing = verify_latin_integrity(in_p, target)
+    if not all_kept:
+        return "pipeline.latin_failed", t(
+            "pipeline.latin_failed", res.lang,
+            count=len(missing), sample=", ".join(missing[:8]))
     return None
 
 
@@ -1106,7 +1113,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
             for note in outcome.notes:
                 _warn(res, "pipeline.base_note", note, file=base_p)
             # 上面第 8、9 步验的是 `render_target`——灌底模时那是临时目录里的中间产物。
-            # 用户拿到的是 `out_p`；注入本身可能丢字（前几节被切、关系被重写），所以防丢数
+            # 用户拿到的是 `out_p`；注入本身可能丢字（前几节被切、关系被重写），所以防丢内容
             # 要在成品上再跑一遍。格式对账不重跑：成品里混着学校的前置件与它自己的样式，
             # 逐条对账会把它判成「不合规」，那些本来就不是我们排的。
             if options.postflight:

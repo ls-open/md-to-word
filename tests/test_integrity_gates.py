@@ -10,7 +10,9 @@ import zipfile
 from pathlib import Path
 
 from md_to_word.audit.inspector import audit
-from md_to_word.audit.postflight import verify_chinese_integrity
+from md_to_word.audit.postflight import (
+    verify_chinese_integrity, verify_latin_integrity, verify_numeric_integrity,
+)
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -88,3 +90,93 @@ def test_image_alt_is_not_counted_as_body_text(tmp_path):
     md = tmp_path / "m.md"
     md.write_text("# 标题\n\n![value 1.234](pic.png)\n\n正文 2.718。\n", encoding="utf-8")
     assert extract_numbers(load_source_text(md)) == {"2.718"}
+
+
+def _export_english(tmp_path: Path, body: str) -> tuple[Path, Path]:
+    md = tmp_path / "en.md"
+    md.write_text(body, encoding="utf-8")
+    docx = tmp_path / "en.docx"
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=docx, preset="en-nature",
+    ))
+    assert result.returncode == 0, result.errors
+    return md, docx
+
+
+def test_a_missing_english_word_is_caught(tmp_path):
+    """英文整段/整词丢失时，产物仍然打得开、退出码也还是 0——必须自己数。"""
+    md, docx = _export_english(
+        tmp_path,
+        "# Title\n\nThe quick brown fox jumps over the lazy dog.\n\n"
+        "Second paragraph keeps the page honest.\n",
+    )
+    assert verify_latin_integrity(md, docx)[0]
+
+    xml = zipfile.ZipFile(docx).read("word/document.xml").decode("utf-8")
+    _rewrite(docx, "word/document.xml", xml.replace("jumps ", ""))
+    ok, missing = verify_latin_integrity(md, docx)
+    assert not ok and "jumps" in missing, missing
+
+
+def test_repeated_english_words_are_counted_not_just_checked_for_presence(tmp_path):
+    """同一个词出现两次、产物只剩一次，也是丢内容；集合式比对会漏掉。"""
+    md, docx = _export_english(tmp_path, "# Title\n\nalpha beta alpha gamma.\n")
+    assert verify_latin_integrity(md, docx)[0]
+
+    xml = zipfile.ZipFile(docx).read("word/document.xml").decode("utf-8")
+    _rewrite(docx, "word/document.xml", xml.replace("alpha", "", 1))
+    ok, missing = verify_latin_integrity(md, docx)
+    assert not ok and missing == ["alpha"], missing
+
+
+def test_markdown_syntax_and_generated_content_are_not_counted_as_lost(tmp_path):
+    """加粗、链接、行内代码、注释、公式、交叉引用、短码都不是正文文字。"""
+    md, docx = _export_english(
+        tmp_path,
+        "# Title\n\n"
+        "Keep **bold words** and *italic words*, a [linked phrase](https://example.com/a), "
+        "and `code_token`. Inline math $x^2 + y^2$ is generated, not literal. "
+        "before<!-- hidden -->after stays adjacent. "
+        "A footnote carries real text.[^note]\n\n"
+        "{{< pagebreak >}}\n\n"
+        "$$\\frac{a}{b} = c$$\n\n"
+        "[^note]: Footnote sentence survives in footnotes.xml.\n",
+    )
+    ok, missing = verify_latin_integrity(md, docx)
+    assert ok, missing
+
+
+def test_integer_loss_is_caught_not_only_high_precision_decimals(tmp_path):
+    """表格里的整数、样本量、年份整块消失时，产物仍然看起来正常。"""
+    md, docx = _export_english(
+        tmp_path,
+        "# Title\n\n| group | n |\n|:--|--:|\n| control | 42 |\n| treatment | 43 |\n",
+    )
+    assert verify_numeric_integrity(md, docx)[0]
+
+    xml = zipfile.ZipFile(docx).read("word/document.xml").decode("utf-8")
+    _rewrite(docx, "word/document.xml", xml.replace(">42<", "><"))
+    ok, missing = verify_numeric_integrity(md, docx)
+    assert not ok and missing == ["42"], missing
+
+
+def test_blockquote_text_is_kept_in_the_body(tmp_path):
+    """引用块是正文，不是注释；导出必须保留，防丢检查也要把它算进去。"""
+    from md_to_word.audit.postflight import docx_text
+
+    md, docx = _export_english(
+        tmp_path,
+        "# Title\n\n> Quoted sentence stays in the body.\n\nAfter the quote.\n",
+    )
+    assert "Quoted sentence stays in the body." in docx_text(docx)
+    assert verify_latin_integrity(md, docx)[0]
+
+
+def test_english_split_across_runs_is_reassembled(tmp_path):
+    """`Hel` + `lo` 两个 run 是一个词；按 run 断开会把正常导出误判成丢词。"""
+    md, docx = _export_english(
+        tmp_path,
+        "# Title\n\nA **bold** word and a normal word.\n",
+    )
+    ok, missing = verify_latin_integrity(md, docx)
+    assert ok, missing

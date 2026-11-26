@@ -61,7 +61,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Strip identifying document properties (author, company, custom properties, thumbnail, comment authors) for blind review; names in the text are not anonymised",
     ),
     "cli.no_check": ("跳过导前语法与排版契约预检（不推荐）", "Skip the pre-flight check (not recommended)"),
-    "cli.no_postflight": ("跳过产物数值防丢检查（不推荐）", "Skip the numeric-integrity check (not recommended)"),
+    "cli.no_postflight": ("跳过产物防丢内容检查（不推荐）", "Skip the content-integrity check (not recommended)"),
     "cli.no_audit": ("跳过产物与格式要求逐条对账抽查", "Skip the post-export audit against the format file"),
     "cli.pdf": ("导出后再渲染一份 PDF 供核对（macOS + 本机 Word）", "Also render a PDF for review (macOS + local Word)"),
     "cli.brief": (
@@ -307,6 +307,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "产物完整性检查未通过：原稿中有 {count} 个汉字没出现在产物里（{sample}）。"
         "确认无误时可用 --no-postflight 跳过这一查。",
         "Content integrity check failed: {count} Chinese character(s) from the manuscript "
+        "never reached the output ({sample}). Use --no-postflight to skip this check.",
+    ),
+    "pipeline.latin_failed": (
+        "产物完整性检查未通过：原稿中有 {count} 个英文/拉丁词没出现在产物里（{sample}）。"
+        "确认无误时可用 --no-postflight 跳过这一查。",
+        "Content integrity check failed: {count} Latin-script word(s) from the manuscript "
         "never reached the output ({sample}). Use --no-postflight to skip this check.",
     ),
     "pipeline.audit_ok": ("格式对账通过。", "Audit against the format file passed."),
@@ -1705,10 +1711,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "base.layout.need_word": (
         "需要本机 Microsoft Word 才能验真（{why}）；验不了就不产出文件",
         "Verifying the layout needs Microsoft Word on this machine ({why}); without it no file is written.",
-    ),
-    "base.layout.need_tool": (
-        "需要 {tool} 才能逐词比对；验不了就不产出文件",
-        "Comparing word by word needs {tool}; without it no file is written.",
     ),
     "base.layout.word_failed": (
         "Word 打不开 {name}：{reason}",

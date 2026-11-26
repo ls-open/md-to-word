@@ -865,3 +865,19 @@ def test_keep_until_ignores_the_contents_page(tmp_path: Path) -> None:
     doc.save(base)
 
     assert sections_until_text(base, "Chapter 1") == [2]
+
+
+def test_pdf_page_reading_does_not_need_poppler() -> None:
+    """页面验真自己读 PDF：pypdfium2 已在依赖里，不再要求另装 poppler。"""
+    from md_to_word.template import base_inject
+
+    pdf = REPO_ROOT / "demo" / "00_quickstart" / "hello.pdf"
+    assert base_inject._pages(pdf) == 1
+    assert "我的第一份规范" in base_inject._page_text(pdf, 1)
+
+    words = base_inject._words(pdf, 1)
+    assert len(words) > 50
+    assert any(word.startswith("我的第一份规范") for _, _, word in words)
+    # 先按视觉行、再按 x 排：表格与多栏 PDF 的字符顺序不一定是阅读顺序。
+    keys = [(round(float(y), 1), float(x)) for x, y, _ in words]
+    assert keys == sorted(keys)

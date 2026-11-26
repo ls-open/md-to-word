@@ -13,8 +13,6 @@ from __future__ import annotations
 import copy
 import posixpath
 import re
-import shutil
-import subprocess
 import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -66,7 +64,7 @@ _EMPTY = {
 }
 
 # 比对封面时允许的坐标误差（磅）。Word 两次渲染同一份文件不会差，这里留一点余量
-# 吸收 pdftotext 的取整。
+# 吸收 PDF 坐标变换与浮点取整。
 _TOL = 0.5
 
 
@@ -1232,9 +1230,6 @@ def verify_cover_pages(
     ok, why = word_pdf.can_render_word_pdf()
     if not ok:
         return False, t("base.layout.need_word", lang, why=why)
-    for tool in ("pdftotext", "pdfinfo"):
-        if shutil.which(tool) is None:
-            return False, t("base.layout.need_tool", lang, tool=tool)
 
     work = result.parent
     base_pdf, out_pdf = work / ".base.pdf", work / ".result.pdf"
@@ -1276,43 +1271,130 @@ def verify_cover_pages(
             pdf.unlink(missing_ok=True)
 
 
+def _pdf_document(pdf: Path):
+    """PDF 读取统一走 pypdfium2。
+
+    它就是 PDF 图转位图已经在用的依赖，不再要求用户另外 `brew install poppler`。
+    只换了读取器，Word 仍然是渲染器——页面验真依旧只在 macOS + Word 上做。
+    """
+    import pypdfium2 as pdfium
+
+    return pdfium.PdfDocument(str(pdf))
+
+
+def _text_of(page_obj) -> str:
+    textpage = page_obj.get_textpage()
+    try:
+        return textpage.get_text_range()
+    finally:
+        textpage.close()
+
+
+def _page_text(pdf: Path, page: int) -> str:
+    doc = _pdf_document(pdf)
+    page_obj = doc[page - 1]
+    try:
+        return _text_of(page_obj)
+    finally:
+        page_obj.close()
+        doc.close()
+
+
 def _page_texts(pdf: Path) -> list[str]:
-    """每一页的纯文本（空白压掉），用来判断某个串是不是也长在前置件里。"""
-    texts = []
-    for page in range(1, _pages(pdf) + 1):
-        text = subprocess.run(
-            ["pdftotext", "-f", str(page), "-l", str(page), "-layout", str(pdf), "-"],
-            capture_output=True, text=True,
-        ).stdout
-        texts.append(re.sub(r"\s+", "", text))
-    return texts
+    """每一页的纯文本（空白压掉），用来判断某个串是不是也长在前置件里。
+
+    一份底模可能有几百页；整份只打开一次，不按页反复开 PDF。
+    """
+    doc = _pdf_document(pdf)
+    try:
+        texts = []
+        for index in range(len(doc)):
+            page_obj = doc[index]
+            try:
+                texts.append(re.sub(r"\s+", "", _text_of(page_obj)))
+            finally:
+                page_obj.close()
+        return texts
+    finally:
+        doc.close()
 
 
 def _first_page_with(pdf: Path, needle: str) -> int | None:
-    for page in range(1, _pages(pdf) + 1):
-        text = subprocess.run(
-            ["pdftotext", "-f", str(page), "-l", str(page), "-layout", str(pdf), "-"],
-            capture_output=True, text=True,
-        ).stdout
-        if needle and needle in re.sub(r"\s+", "", text):
-            return page
-    return None
+    if not needle:
+        return None
+    doc = _pdf_document(pdf)
+    try:
+        for index in range(len(doc)):
+            page_obj = doc[index]
+            try:
+                if needle in re.sub(r"\s+", "", _text_of(page_obj)):
+                    return index + 1
+            finally:
+                page_obj.close()
+        return None
+    finally:
+        doc.close()
 
 
 def _pages(pdf: Path) -> int:
-    res = subprocess.run(["pdfinfo", str(pdf)], capture_output=True, text=True)
-    m = re.search(r"^Pages:\s+(\d+)", res.stdout, re.M)
-    return int(m.group(1)) if m else 0
+    try:
+        doc = _pdf_document(pdf)
+    except Exception:
+        return 0
+    try:
+        return len(doc)
+    finally:
+        doc.close()
 
 
 def _words(pdf: Path, page: int) -> list[tuple[str, str, str]]:
-    res = subprocess.run(
-        ["pdftotext", "-f", str(page), "-l", str(page), "-bbox", str(pdf), "-"],
-        capture_output=True, text=True,
-    )
-    return re.findall(
-        r'xMin="([\d.]+)" yMin="([\d.]+)" xMax="[\d.]+" yMax="[\d.]+">([^<]*)<', res.stdout
-    )
+    """逐词坐标：同一行的词按 x 排序。
+
+    不要求与任何外部工具的切词完全一致——原件和产物都由这里切、都用 pypdfium2 读，
+    判据是「两份 PDF 切出来是否逐词同位」。因此表头、CJK 连写这些 Poppler 与
+    pypdfium2 切法不同的地方不会制造误报。
+    """
+    doc = _pdf_document(pdf)
+    page_obj = doc[page - 1]
+    try:
+        textpage = page_obj.get_textpage()
+        height = page_obj.get_height()
+        try:
+            words: list[list] = []
+            current: list | None = None
+
+            def flush() -> None:
+                nonlocal current
+                if current is not None:
+                    words.append(current)
+                    current = None
+
+            for i in range(textpage.count_chars()):
+                ch = textpage.get_text_range(i, 1)
+                if not ch or ch.isspace():
+                    flush()
+                    continue
+                left, bottom, right, top = textpage.get_charbox(i)
+                # PDF 坐标原点在左下，`pdftotext -bbox` 与人的直觉都是左上。
+                x0, y0 = left, height - top
+                x1, y1 = right, height - bottom
+                if current is None:
+                    current = [ch, x0, y0, x1, y1]
+                else:
+                    current[0] += ch
+                    current[1] = min(current[1], x0)
+                    current[2] = min(current[2], y0)
+                    current[3] = max(current[3], x1)
+                    current[4] = max(current[4], y1)
+            flush()
+        finally:
+            textpage.close()
+    finally:
+        page_obj.close()
+        doc.close()
+
+    words.sort(key=lambda w: (round(w[2], 1), w[1]))
+    return [(f"{w[1]:.3f}", f"{w[2]:.3f}", w[0]) for w in words]
 
 
 def resolve_sections_for_pages(
@@ -1333,9 +1415,6 @@ def resolve_sections_for_pages(
     ok, why = word_pdf.can_render_word_pdf()
     if not ok:
         raise BaseTemplateError(t("base.layout.need_word", lang, why=why))
-    for tool in ("pdftotext", "pdfinfo"):
-        if shutil.which(tool) is None:
-            raise BaseTemplateError(t("base.layout.need_tool", lang, tool=tool))
 
     total = len(Document(str(base)).sections)
     staged = work / ".probe.docx"
