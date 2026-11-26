@@ -48,9 +48,6 @@ class CitationStylesStyle(CitationStylesXML):
             locale = self.root.get('default-locale', 'en-US')
         self.root.set_locale_list(locale)
 
-    def has_bibliography(self):
-        return self.root.bibliography is not None
-
     def render_citation(self, citation, cites, callback=None):
         return self.root.citation.render(citation, cites, callback)
 

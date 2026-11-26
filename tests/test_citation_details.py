@@ -354,6 +354,32 @@ def test_repeated_author_is_replaced_in_mla_bibliography() -> None:
     assert rendered[2].startswith("———."), rendered
 
 
+def test_date_range_uses_the_declared_range_delimiter(tmp_path: Path) -> None:
+    """日期区间的分隔符写在 `<date-part range-delimiter>` 上，默认才是短横线。"""
+    style = '''<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>probe</title><id>probe</id><updated>2024-01-01T00:00:00+00:00</updated></info>
+  <citation><layout><text variable="title"/></layout></citation>
+  <bibliography><layout>
+    <date variable="issued">{part}</date>
+  </layout></bibliography>
+</style>'''
+    bib = ('[{"id": "a", "type": "book", "title": "T", '
+           '"issued": {"date-parts": [[2020], [2022]]}}]')
+
+    declared = tmp_path / "declared.csl"
+    declared.write_text(style.format(part='<date-part name="year" range-delimiter="—"/>'),
+                        encoding="utf-8")
+    engine = CitationEngine(bib, declared, lang="en")
+    engine.cite([("a", "")])
+    assert engine.bibliography()[0] == "2020—2022"
+
+    default = tmp_path / "default.csl"
+    default.write_text(style.format(part='<date-part name="year"/>'), encoding="utf-8")
+    engine = CitationEngine(bib, default, lang="en")
+    engine.cite([("a", "")])
+    assert engine.bibliography()[0] == "2020–2022"
+
+
 def test_citation_number_follows_the_sorted_bibliography() -> None:
     """文献表按作者排的数字制样式（ACM），编号也按文献表走。
 

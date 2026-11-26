@@ -145,10 +145,6 @@ class DateRange(DateBase):
         end = self.get('end', Date(year=0)).sort_key()
         return begin + '-' + end
 
-    def __eq__(self, other):
-        # TODO: for sorting
-        raise NotImplementedError
-
 
 class Citation(CustomDict):
     def __init__(self, cites, **kwargs):

@@ -170,7 +170,6 @@ class SomewhatObjectifiedElement(etree.ElementBase):
     nsmap = {'cs': 'http://purl.org/net/xbiblio/csl',
              'xml': 'http://www.w3.org/XML/1998/namespace'}
 
-    # TODO: what about multiple instances of the same name?
     def __getattr__(self, name):
         return self.find('cs:' + name, self.nsmap)
 
@@ -249,7 +248,6 @@ class CitationStylesElement(SomewhatObjectifiedElement):
     def render(self, *args, **kwargs):
         return self.markup(self.process(*args, **kwargs))
 
-    # TODO: Locale methods
     def _locales_for(self, language):
         """Locale chain for one item, most specific first.
 
@@ -336,7 +334,7 @@ class CitationStylesElement(SomewhatObjectifiedElement):
             for locale in locales:
                 try:
                     return locale.get_term(name, form, zero_padded=zero_padded)
-                except IndexError:  # TODO: create custom exception
+                except IndexError:
                     continue
 
     def get_plural_term(self, name, *args, **kwargs):
@@ -611,10 +609,6 @@ class Delimited:
         return text
 
 
-class Displayed:
-    pass
-
-
 class Quoted:
     def quote(self, string, language=None):
         # `punctuation-in-quote` is handled once on the final runs (see
@@ -802,7 +796,6 @@ class Key(CitationStylesElement):
                                                  'display-and-sort').lower()
                 sort_separator = self._default_options['sort-separator']
 
-                # TODO: encapsulate in function (to share with Name)
                 given, family, dp, ndp, suffix = name.parts()
                 if demote_ndp in ('sort-only', 'display-and-sort'):
                     given = ' '.join([n for n in (given, dp, ndp) if n])
@@ -1127,7 +1120,7 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
         if not (diff_begin and diff_begin):
             return None
 
-        diff = (diff_begin.rstrip() + self.unicode_character('EN DASH') +
+        diff = (diff_begin.rstrip() + self._range_delimiter(date_range) +
                 diff_end)
         if same:
             text = context.join([diff, same.rstrip()])
@@ -1135,6 +1128,26 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
             text = diff
 
         return text
+
+    def _range_delimiter(self, date_range) -> str:
+        """日期区间用的分隔符：取「第一个不同的日期部分」上的 `range-delimiter`。
+
+        CSL 把分隔符写在 date-part 上，而不是 `<date>` 上；年份不同就用年份那一条，
+        同年不同月就用月份那一条。样式没声明时按规范用短横线。
+        """
+        begin, end = date_range.begin, date_range.end
+        if begin.get('year') != end.get('year'):
+            part_name = 'year'
+        elif begin.get('month') != end.get('month'):
+            part_name = 'month'
+        else:
+            part_name = 'day'
+        part = self.find(f'cs:date-part[@name="{part_name}"]', self.nsmap)
+        if part is not None:
+            delimiter = part.get('range-delimiter')
+            if delimiter:
+                return delimiter
+        return self.unicode_character('EN DASH')
 
     def parts(self, date, show_parts, context=None):
         output = []
@@ -1149,7 +1162,7 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
         return output
 
     def markup(self, text):
-        # TODO: fix
+        # Wrapping happens in process(): locale dates use the style date's affixes.
         return text
 
     def process(self, item, variable=None, show_parts=None, context=None, **kwargs):
@@ -1268,7 +1281,7 @@ class Date_Part(CitationStylesElement, Formatted, Affixed, TextCased,
             return None
 
 
-class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
+class Number(CitationStylesElement, FormatNumber, Formatted, Affixed,
              TextCased, StrippedPeriods):
 
     def format_number(self, number, language=None):

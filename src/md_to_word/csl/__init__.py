@@ -38,11 +38,9 @@ with open(os.path.join(LOCALES_PATH, 'locales.json'),
     LANGUAGE_NAMES = locales_json['language-names']
 
 
-from . import _version  # noqa: E402
 from .frontend import CitationStylesBibliography, CitationStylesStyle  # noqa: E402
 from .source import Citation, CitationItem, Locator  # noqa: E402
 
-__version__ = _version.get_versions()['version']
 __all__ = [
     'Citation',
     'CitationItem',
