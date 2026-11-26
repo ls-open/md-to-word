@@ -104,6 +104,8 @@ _BLOCK_STARTERS = ("|", "#", "-", "*", "+", ">", "!", "$", "%", "`", "~", ":")
 
 def _looks_like_continuation(lines: list[str], index: int) -> bool:
     """样式行的下一行是不是纯正文（而不是表格、标题、列表、图片等新块的开头）。"""
+    if hard_break(lines[index])[1]:
+        return False  # 行尾写了 `\` / 两个空格：续行是作者要的，不是疑似软换行
     if index + 1 >= len(lines):
         return False
     nxt = lines[index + 1].strip()

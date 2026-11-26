@@ -234,6 +234,7 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 | Table caption | one line above the table: `%% Table Caption **Table 1** Comparison of methods` | `Table Caption` |
 | Table note | one line below the table: `%% Table Note Note: …` | `Table Note` |
 | Image | `![](path/img.png){width=14cm}` | `Captioned Figure` (`Figure`) |
+| Image (percentage of text block) | `![](path/img.png){width=50%}` | `Captioned Figure` (`Figure`) |
 | Image (vector PDF) | `![](path/fig.pdf){width=14cm}` | `Captioned Figure` (`Figure`) |
 | Image caption | one line above or below the image: `%% Image Caption Figure 1 System overview` | `Image Caption` |
 
@@ -243,9 +244,14 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   whether the caption sits above or below the figure.
 - The image line describes the image itself only: the square brackets hold the accessible
   alternative text, and `{width=…}` is clamped to the text block (an over-wide value is clamped to
-  the text-block width and reported as a reminder; a percentage is blocked).
+  the text-block width and reported as a reminder). Width may be absolute (`cm` / `mm` / `in` /
+  `pt`) or a percentage of the text block (`{width=50%}`); over 100% is clamped to full width and
+  reported.
 - **An image may point straight at a PDF** — the default export of matplotlib, MATLAB, Origin,
-  Visio and TikZ. The export renders page 1 at 300 dpi for the declared width; a multi-page PDF uses page 1 with a reminder, and formats Word cannot hold (`.svg`, `.webp`, `.eps`) are blocked in pre-flight.
+  Visio and TikZ. The export renders page 1 at 300 dpi for the declared width; a multi-page PDF
+  uses page 1 with a reminder. Rasters may be `.png`, `.jpg/.jpeg/.jpe/.jfif`, `.gif`, `.bmp`,
+  `.tif/.tiff`; formats Word cannot hold (`.svg`, `.webp`, `.eps`, `.emf`, `.wmf`) are blocked in
+  pre-flight.
 - **Do not add a `{#fig-xxx}` label to an image line**: it would get the three-line table's rules
   and lose its centring. Type the figure number into the caption text instead.
 - Local formatting inside a caption is written directly in the text (`**Table 1**` for a bold
@@ -323,7 +329,16 @@ the declared ones.
   joined — a short one-sentence paragraph per line is a normal way to write, and each one can carry
   its own `%%` style. For a break *inside* one paragraph (an address, verse, a long title), end the
   line with a backslash or two spaces: it becomes a line break within the same paragraph, with the
-  paragraph properties unchanged. Suspected wrapping (a line without closing punctuation followed
+  paragraph properties unchanged. **A multi-line address needs only one style line**:
+
+  ```markdown
+  %% 作者 北京大学计算机学院\
+  北京市海淀区颐和园路 5 号\
+  100871
+  ```
+
+  The later lines omit `%%`; they continue the first, and the result is still one paragraph with
+  one set of paragraph properties. Suspected wrapping (a line without closing punctuation followed
   by another plain line) arrives as one grouped warning with the line numbers; leave it alone when
   the lines really are short paragraphs.
 - **Inline formatting is written directly in the text**: `**bold**`, `*italic*`,
@@ -378,8 +393,7 @@ HTML tags and `<https://…>` autolinks, horizontal rules `---`, setext (`====`)
 definition lists, task checkboxes `- [ ]`, tables without leading and trailing pipes, a block quote
 inside a block quote, full-width `％％`, four-space indented code blocks, inline maths spanning two lines, a second paragraph in a list item (blank line +
 indentation), a heading with no space after `#`, a heading with only `#` and no text, properties
-other than `width` on an image line (such as `{align=right}`), percentage image widths
-(`{width=60%}` — write an absolute length such as `{width=14cm}`), image formats Word cannot hold
+other than `width` on an image line (such as `{align=right}`), image formats Word cannot hold
 (`.svg`, `.webp`, `.eps` — save them as PNG, or reference a PDF), `==highlight==`,
 `[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`), `\[...\]` display
 maths (write `$$...$$`), reference-style links `[text][ref]` with `[ref]: url` (write `[text](url)`).
@@ -775,8 +789,8 @@ with a message instead of moving it silently.
 
 **Silent clamping**: an image wider than the text block is clamped to the text-block width (15.92
 cm on A4 with 2.54 cm margins, less any gutter). The pre-flight check computes the real text block
-from the format file and reports an over-wide width as a reminder (it does not stop the
-export); a percentage width is blocked.
+from the format file and reports an over-wide width or a percentage above 100% as a reminder
+(it does not stop the export).
 
 **What "byte-identical" means**: on the same platform, re-exporting the same source gives the same
 bytes — timestamps, permissions, entry order and the zip platform identifier are all pinned. Across

@@ -1104,7 +1104,7 @@ class _Writer:
         path = Path(block.path)
         if not path.is_absolute():
             path = self.base_dir / path
-        width = self._clamp(block.width_cm)
+        width = self._figure_width(block.width_cm, block.width_percent)
         if not is_pdf(path):
             self._embed(paragraph.add_run(), path, width, block.alt)
             return
@@ -1119,16 +1119,37 @@ class _Writer:
         finally:
             png.unlink(missing_ok=True)
 
-    def _clamp(self, width_cm: Optional[float]) -> Optional[float]:
-        """超出版心的宽度钳到版心：手册承诺过这一条，不钳就是图和正文对不齐、右侧被裁。"""
+    def _figure_width(
+        self, width_cm: Optional[float], width_percent: Optional[float],
+    ) -> Optional[float]:
+        """绝对宽度按厘米钳制；百分比按**实际版心**换算后再钳。
+
+        百分比不能在读取稿件时换算：版心由格式文件的纸张、页边距与装订线决定。
+        """
+        limit = self._content_width_cm()
+        if width_percent is not None:
+            if limit is None or width_percent <= 0:
+                return None
+            return min(limit, limit * width_percent / 100.0)
+        return self._clamp(width_cm, limit)
+
+    def _content_width_cm(self) -> Optional[float]:
         section = self.docx.sections[0] if self.docx.sections else None
         if section is None:
-            return width_cm
+            return None
         widths = (section.page_width, section.left_margin, section.right_margin)
         if any(value is None for value in widths):
-            return width_cm
+            return None
         limit = Emu(widths[0] - widths[1] - widths[2] - (section.gutter or 0)).cm
-        if limit <= 0:
+        return limit if limit > 0 else None
+
+    def _clamp(
+        self, width_cm: Optional[float], limit: Optional[float] = None,
+    ) -> Optional[float]:
+        """超出版心的宽度钳到版心：手册承诺过这一条，不钳就是图和正文对不齐、右侧被裁。"""
+        if limit is None:
+            limit = self._content_width_cm()
+        if limit is None:
             return width_cm
         return limit if width_cm is None or width_cm > limit else width_cm
 
@@ -1218,6 +1239,10 @@ class _Writer:
     def _run_xml(self, node) -> str:
         if isinstance(node, LineBreak):
             return "<w:r><w:br/></w:r>"
+        if isinstance(node, Citation):
+            return self._citation_xml(node)
+        if isinstance(node, CrossRef):
+            return self._text_run_xml(self._resolve_crossref(node.target))
         if isinstance(node, Code):   # 等宽是叶子节点，别落进下面的纯文本分支
             style = self._style_name("Verbatim Char")
             props = f'<w:rStyle w:val="{style}"/>' if style else ""
@@ -1250,6 +1275,44 @@ class _Writer:
             inner = "".join(self._run_xml(child) for child in node.children)
             return f'<w:hyperlink r:id="{{{{L{index}}}}}">{inner}</w:hyperlink>' 
         return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
+
+    @staticmethod
+    def _text_run_xml(text: str) -> str:
+        return f'<w:r><w:t xml:space="preserve">{_escape(text)}</w:t></w:r>'
+
+    @staticmethod
+    def _segment_run_xml(text: str, fmt: dict) -> str:
+        """脚注区是手工拼 XML：把引文片段（含上标/斜体）落成 run 字符串。"""
+        props = []
+        for name, tag in (("bold", "b"), ("italic", "i"), ("strike", "strike")):
+            if fmt and fmt.get(name):
+                props.append(f"<w:{tag}/>")
+        if fmt and fmt.get("superscript"):
+            props.append('<w:vertAlign w:val="superscript"/>')
+        if fmt and fmt.get("subscript"):
+            props.append('<w:vertAlign w:val="subscript"/>')
+        rpr = f"<w:rPr>{''.join(props)}</w:rPr>" if props else ""
+        runs = []
+        for index, chunk in enumerate(text.split("\t")):
+            if index:
+                runs.append("<w:r><w:tab/></w:r>")
+            if chunk:
+                runs.append(
+                    f'<w:r>{rpr}<w:t xml:space="preserve">{_escape(chunk)}</w:t></w:r>'
+                )
+        return "".join(runs)
+
+    def _citation_xml(self, node: Citation) -> str:
+        """脚注里的引文：与正文用同一个 CitationEngine，编号/作者-年份保持一致。"""
+        if self.citations is None:
+            raise UnsupportedFeature(t("writer.citation_without_bibliography", self.lang))
+        keys = [(item.key, item.locator, item.prefix, item.label) for item in node.items]
+        segments = self.citations.cite(keys, narrative=node.narrative)
+        inner = "".join(self._segment_run_xml(text, fmt) for text, fmt in segments)
+        if self.model.meta.link_citations:
+            anchor = _bookmark_name(keys[0][0])
+            return f'<w:hyperlink w:anchor="{anchor}">{inner}</w:hyperlink>'
+        return inner
 
     def _render_eq_number(self, chapter: str, index: int, in_appendix: bool = False) -> str:
         """按模板渲染编号。公式旁的编号与正文里的 `@eq-x` 走的是同一个函数——

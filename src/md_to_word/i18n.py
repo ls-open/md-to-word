@@ -1880,6 +1880,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "clamps it to the text block width, so the picture still fills the column but is not "
         "{width:g}cm. Use {content:.2f}cm or less, or narrow the page margins",
     ),
+    "gate.image_width.percent_over": (
+        "图片声明宽 {width:g}%，超过版心 100%（版心 {content:.2f}cm）——导出时会被钳成满宽。"
+        "请改成 100% 以内",
+        "The image is declared {width:g}% wide, beyond the 100% text block ({content:.2f}cm) — "
+        "the export clamps it to full width. Use 100% or less",
+    ),
     "gate.image_width.no_margins": (
         "要求文件没写页边距，算不出版心，图片宽度未校验",
         "The format file declares no page margins, so the text block width is unknown "
@@ -2064,10 +2070,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.dialect.heading_no_space": (
         "标题的 `#` 后面要空一格；不空格的 `#` 会连同井号一起当成正文印出来",
         "a heading's `#` must be followed by a space; without one the `#` is printed as body text",
-    ),
-    "gate.dialect.image_percent": (
-        "图片宽度不支持百分比，请写绝对长度，例如 `{width=14cm}`",
-        "percentage image widths are not supported; write an absolute length, e.g. `{width=14cm}`",
     ),
     "gate.dialect.highlight": (
         "不支持 `==高亮==`；去掉等号即可，重点靠正文样式表达",

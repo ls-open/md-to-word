@@ -1,0 +1,92 @@
+"""每一种内置 CSL 都要能走完整的导出链，而不只是引擎层能渲染。
+
+引擎层矩阵（`test_citation_matrix.py`）证明样式能产出文本；这里再往下一层：
+引文出现在正文、列表、表格、引用块与脚注里，参考文献表要真的落进 .docx，
+且原稿里的 `@key` 不能被当字面文字印出来。
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+from docx import Document
+
+from md_to_word.audit.postflight import docx_text
+from md_to_word.config import get_csl_dir
+from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PRESET = REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt"
+CSL_DIR = get_csl_dir()
+STYLES = sorted(path.name for path in CSL_DIR.glob("*.csl"))
+
+BIB = r"""
+@article{alpha,
+  author = {Alpha, Ann and Beta, Bob},
+  title = {Alpha One},
+  journal = {Journal of Tests},
+  year = {2020},
+  volume = {1},
+  pages = {1--10}
+}
+
+@article{beta,
+  author = {Gamma, Gail},
+  title = {Beta Two},
+  journal = {Journal of Tests},
+  year = {2021},
+  volume = {2},
+  pages = {11--20}
+}
+"""
+
+MANUSCRIPT = """---
+bibliography: refs.bib
+csl: "{csl}"
+---
+
+# Introduction
+
+A paragraph cites @alpha, then @alpha and @beta together.
+
+- A list item cites @beta.
+- A plain list item stays put.
+
+| Column | Reference |
+|:--|:--|
+| First | @alpha |
+| Second | @beta |
+
+> A quotation cites @alpha.
+
+A footnote carries another citation.[^note]
+
+[^note]: The note cites @beta.
+
+# 参考文献 {{.unlisted}}
+"""
+
+
+@pytest.mark.parametrize("style", STYLES)
+def test_every_csl_survives_all_citation_contexts(style: str, tmp_path: Path) -> None:
+    (tmp_path / "refs.bib").write_text(BIB, encoding="utf-8")
+    md = tmp_path / "paper.md"
+    md.write_text(MANUSCRIPT.format(csl=CSL_DIR / style), encoding="utf-8")
+    out = tmp_path / "paper.docx"
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=md,
+        output_path=out,
+        format_path=PRESET,
+        audit=False,
+    ))
+
+    assert result.returncode == 0, (style, result.errors)
+    document = Document(out)
+    bibliography = [p for p in document.paragraphs if p.style.name == "Bibliography"]
+    assert len(bibliography) == 2, (style, [p.text for p in bibliography])
+
+    text = docx_text(out)
+    assert "@alpha" not in text and "@beta" not in text, style
+    assert "Alpha One" in text and "Beta Two" in text, style

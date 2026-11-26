@@ -27,6 +27,7 @@ from md_to_word.utils.masking import (
 )
 from md_to_word.preprocessor.blocks import hard_break
 from md_to_word.utils.citation_syntax import CITE_KEY_RE as _CITE_KEY_RE
+from md_to_word.utils.image_syntax import IMAGE_LINE_RE
 
 # ══════════════════════════════════════════════════════════════════════
 # 1. 统一日志配置
@@ -240,7 +241,16 @@ def block_marker_issues(text: str, lang: str = "zh") -> list:
     return issues
 
 
-_IMG_WIDTH_CM_RE = re.compile(r'!\[[^\]]*\]\([^)]+\)\s*\{[^}]*\bwidth\s*=\s*([\d.]+)cm')
+_IMG_WIDTH_RE = re.compile(r"\bwidth\s*=\s*([\d.]+)\s*(cm|mm|in|pt|%)?")
+
+
+def _image_width_match(line: str):
+    """解析图片行里的宽度声明；与读取器共用同一套目标语法（括号、尖括号路径）。"""
+    image = IMAGE_LINE_RE.match(line.strip())
+    if image is None:
+        return None
+    found = _IMG_WIDTH_RE.search(image.group("attrs") or "")
+    return found
 
 
 def image_width_issues(text: str, content_cm: float, lang: str = "zh") -> list[tuple[int, str]]:
@@ -256,8 +266,19 @@ def image_width_issues(text: str, content_cm: float, lang: str = "zh") -> list[t
     for i, line in enumerate(mask_code_fences(text).split("\n")):
         if line.lstrip().startswith("|"):        # 表格行里的 `|` 不是图片语法
             continue
-        for m in _IMG_WIDTH_CM_RE.finditer(line):
-            w = float(m.group(1))
+        m = _image_width_match(line)
+        if m:
+            value, unit = float(m.group(1)), m.group(2) or "cm"
+            if unit == "%":
+                if value > 100.01:
+                    issues.append((
+                        i + 1,
+                        t("gate.image_width.percent_over", lang,
+                          width=value, content=content_cm),
+                    ))
+                continue
+            factor = {"cm": 1.0, "mm": 0.1, "in": 2.54, "pt": 2.54 / 72}[unit]
+            w = value * factor
             if w > content_cm + 0.01:
                 issues.append((
                     i + 1,
@@ -274,7 +295,7 @@ def has_declared_image_width(text: str) -> bool:
     """
     if not text:
         return False
-    return any(_IMG_WIDTH_CM_RE.search(line)
+    return any(_image_width_match(line)
                for line in mask_code_fences(text).split("\n")
                if not line.lstrip().startswith("|"))
 
@@ -727,7 +748,7 @@ _BRACKET_MATH_RE = re.compile(r"(?<!\\)\\[\[\]]")
 _NO_SPACE_HEADING_RE = re.compile(r"^\s*#{1,6}[^\s#]")
 # 图片行能带的属性只有宽度；`{align=right}` 这类「写了等于没写」的写法要拦下来
 _IMAGE_ATTR_RE = re.compile(r"!\[[^\]]*\]\([^)\s]+\)\s*\{(?P<attrs>[^}]*)\}")
-_IMAGE_ATTR_OK = re.compile(r"^\s*(?:width\s*=\s*[\d.]+\s*(?:cm|mm|in|pt)?)?\s*$")
+_IMAGE_ATTR_OK = re.compile(r"^\s*(?:width\s*=\s*[\d.]+\s*(?:cm|mm|in|pt|%)?)?\s*$")
 _INDENT_CODE_RE = re.compile(r"^(?: {4,}|\t)\S")
 _LIST_ITEM_ANY_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
 
@@ -804,11 +825,7 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
             issues.append((line_no, t("gate.dialect.heading_no_space", lang)))
             continue
         for img in _IMAGE_ATTR_RE.finditer(code_free):
-            attrs = img.group('attrs')
-            if '%' in attrs:
-                issues.append((line_no, t("gate.dialect.image_percent", lang)))
-                break
-            if not _IMAGE_ATTR_OK.match(attrs):
+            if not _IMAGE_ATTR_OK.match(img.group('attrs')):
                 issues.append((line_no, t("gate.dialect.image_attr", lang)))
                 break
         if _HIGHLIGHT_RE.search(code_free):

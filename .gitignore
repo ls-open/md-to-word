@@ -11,3 +11,6 @@ uv.lock
 
 # 并行代理的工作树（本地临时，不进仓库）
 .claude/worktrees/
+
+# 本地真实底模（体积大、来源许可不一，不入库；测试有则跑、无则跳过）
+testdata/base_templates/

@@ -481,7 +481,8 @@ class _Reader:
         self.lines = body.split("\n")
         self.citation_keys = citation_keys
         self.doc = Document()
-        self.pending_style: Optional[tuple[str, str]] = None  # (样式名, 内容)
+        self.pending_style: Optional[tuple[str, list]] = None  # (样式名, 已解析的内联)
+        self.pending_style_open = False  # 上一行末尾有 `\`/两空格，下一行仍属于这一段
         self.pending_prose: Optional[list] = None  # 段内换行还没收尾的正文段
 
     # -- 小工具 --------------------------------------------------------
@@ -492,9 +493,10 @@ class _Reader:
     def _flush_pending(self) -> None:
         """把待定的样式段落与还没收尾的正文段落落盘。"""
         if self.pending_style is not None:
-            style, content = self.pending_style
+            style, inlines = self.pending_style
             self.pending_style = None
-            self.doc.blocks.append(Paragraph(inlines=self._inl(content), style=style))
+            self.pending_style_open = False
+            self.doc.blocks.append(Paragraph(inlines=inlines, style=style))
         if self.pending_prose is not None:
             inlines, self.pending_prose = self.pending_prose, None
             self.doc.blocks.append(Paragraph(inlines=inlines))
@@ -509,7 +511,9 @@ class _Reader:
         if resolved is None:
             return
         self._flush_pending()
-        self.pending_style = (resolved, content)
+        text, continues = hard_break(content)
+        self.pending_style = (resolved, self._inl(text.strip()))
+        self.pending_style_open = continues
 
     # -- 主循环 --------------------------------------------------------
     def read(self) -> Document:
@@ -610,7 +614,11 @@ class _Reader:
             # 普通段落：行尾 `\` 或两个空格表示「同一段落内换行」，否则本行收尾
             text, continues = hard_break(line)
             inlines = self._inl(text.strip())
-            if self.pending_prose is not None:
+            if self.pending_style is not None and self.pending_style_open:
+                # `%% 作者 第一行\` 的续行：仍属于同一个带样式段落。
+                self.pending_style[1].extend([LineBreak(), *inlines])
+                self.pending_style_open = continues
+            elif self.pending_prose is not None:
                 self.pending_prose.extend([LineBreak(), *inlines])
             else:
                 self.pending_prose = inlines
@@ -697,13 +705,20 @@ class _Reader:
         return i
 
     def _make_figure(self, match: re.Match) -> Figure:
-        width_cm = None
+        width_cm = width_percent = None
         attrs = match.group("attrs") or ""
         m = _WIDTH_RE.search(attrs)
         if m:
             value, unit = float(m.group(1)), m.group(2) or "cm"
-            width_cm = {"cm": value, "mm": value / 10, "in": value * 2.54, "pt": value * 2.54 / 72}.get(unit)
-        return Figure(path=image_target(match.group("path")), alt=match.group("alt"), width_cm=width_cm)
+            if unit == "%":
+                width_percent = value
+            else:
+                width_cm = {"cm": value, "mm": value / 10,
+                            "in": value * 2.54, "pt": value * 2.54 / 72}.get(unit)
+        return Figure(
+            path=image_target(match.group("path")), alt=match.group("alt"),
+            width_cm=width_cm, width_percent=width_percent,
+        )
 
     def _read_quote(self, start: int) -> int:
         """引用块：只支持段落、列表与代码块（写出器的能力边界）。

@@ -18,7 +18,9 @@ DEFAULT_DPI = 300
 
 # Word（经 python-docx）认得的内联图片格式。除此之外一律在门禁拦下，
 # 否则 python-docx 会抛 UnrecognizedImageError——一屏 traceback、没有行号。
-RASTER_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff"})
+RASTER_SUFFIXES = frozenset({
+    ".png", ".jpg", ".jpeg", ".jpe", ".jfif", ".gif", ".bmp", ".tif", ".tiff",
+})
 PDF_SUFFIX = ".pdf"
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"

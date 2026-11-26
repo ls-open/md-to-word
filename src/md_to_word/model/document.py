@@ -188,6 +188,9 @@ class Figure:
     path: str
     alt: str = ""
     width_cm: Optional[float] = None
+    # `{width=50%}`：相对版心宽。百分比在写出时才解析——正文页边距来自格式文件，
+    # 读取稿件时还不知道版心有多宽。
+    width_percent: Optional[float] = None
 
 
 @dataclass

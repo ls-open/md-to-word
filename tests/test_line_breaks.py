@@ -49,6 +49,23 @@ def test_backslash_at_line_end_is_one_paragraph_with_breaks(tmp_path: Path) -> N
     assert ("第一行第二行第三行。", 2) in paragraphs, paragraphs
 
 
+def test_style_line_with_backslash_keeps_one_styled_paragraph(tmp_path: Path) -> None:
+    """多行地址只写一个 `%%` 样式行；续行不能被拆成无样式段落，也不能印出反斜杠。"""
+    archive = _export(
+        tmp_path,
+        "%% 文档标题 题目\n\n# 一\n\n%% 作者 第一行\\\n第二行\\\n第三行\n",
+    )
+    paragraphs = _paragraphs(archive.read("word/document.xml").decode("utf-8"))
+    assert ("第一行第二行第三行", 2) in paragraphs, paragraphs
+
+    from docx import Document
+
+    doc = Document(tmp_path / "m.docx")
+    author = [p for p in doc.paragraphs if p.style.name == "Author"]
+    assert len(author) == 1
+    assert "\\" not in author[0].text
+
+
 def test_two_trailing_spaces_are_the_same_thing(tmp_path: Path) -> None:
     archive = _export(tmp_path, "%% 文档标题 题目\n\n# 一\n\n上一行  \n下一行。\n")
     paragraphs = _paragraphs(archive.read("word/document.xml").decode("utf-8"))

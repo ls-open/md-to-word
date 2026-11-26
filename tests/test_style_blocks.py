@@ -49,6 +49,12 @@ def test_issues_are_reported(line: str, fragment: str) -> None:
     assert issues and any(fragment in why for _line, why in issues)
 
 
+def test_explicit_line_break_after_a_style_line_is_allowed() -> None:
+    """`%% 样式 第一行\\` 的续行是同一段，不是把段落样式写丢的软换行。"""
+    assert style_line_issues("%% 摘要 第一行\\\n续行\n") == []
+    assert style_line_issues("%% 摘要 第一行  \n续行\n") == []
+
+
 def test_unknown_name_fails_preflight(tmp_path) -> None:
     manuscript = tmp_path / "m.md"
     manuscript.write_text('---\ntitle: "t"\n---\n\n%% 乱写的名字 内容\n', encoding="utf-8")

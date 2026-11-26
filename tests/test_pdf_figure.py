@@ -106,6 +106,59 @@ def test_a_broken_pdf_says_why(tmp_path: Path) -> None:
         rasterize(broken)
 
 
+def test_percentage_width_is_relative_to_the_text_block(template: Path, tmp_path: Path) -> None:
+    import shutil
+
+    from docx import Document
+    from docx.shared import Emu
+
+    png = tmp_path / "pic.png"
+    shutil.copyfile(REPO_ROOT / "demo" / "00_quickstart" / "page-1.png", png)
+    (tmp_path / "m.md").write_text(
+        "# 一\n\n![](pic.png){width=50%}\n", encoding="utf-8"
+    )
+    model = read_markdown((tmp_path / "m.md").read_text(encoding="utf-8"))
+    out = tmp_path / "out.docx"
+    write_docx(model, template, out, base_dir=tmp_path)
+
+    doc = Document(out)
+    shape = doc.inline_shapes[0]
+    section = doc.sections[0]
+    content = Emu(
+        section.page_width - section.left_margin - section.right_margin
+        - (section.gutter or 0)
+    ).cm
+    assert shape.width.cm == pytest.approx(content / 2, rel=1e-3)
+
+
+def test_percentage_over_100_is_clamped_and_reported(template: Path, tmp_path: Path) -> None:
+    import shutil
+
+    from docx import Document
+    from docx.shared import Emu
+
+    png = tmp_path / "pic.png"
+    shutil.copyfile(REPO_ROOT / "demo" / "00_quickstart" / "page-1.png", png)
+    (tmp_path / "m.md").write_text(
+        "# 一\n\n![](pic.png){width=150%}\n", encoding="utf-8"
+    )
+    report = validate_manuscript(tmp_path / "m.md", spec_path=PRESET)
+    assert report.valid, report.errors
+    assert any("100%" in warning for warning in report.warnings), report.warnings
+
+    model = read_markdown((tmp_path / "m.md").read_text(encoding="utf-8"))
+    out = tmp_path / "out.docx"
+    write_docx(model, template, out, base_dir=tmp_path)
+    doc = Document(out)
+    shape = doc.inline_shapes[0]
+    section = doc.sections[0]
+    content = Emu(
+        section.page_width - section.left_margin - section.right_margin
+        - (section.gutter or 0)
+    ).cm
+    assert shape.width.cm == pytest.approx(content, rel=1e-3)
+
+
 def test_writer_embeds_the_rendered_png(template: Path, tmp_path: Path) -> None:
     _make_pdf(tmp_path / "fig.pdf")
     (tmp_path / "m.md").write_text(

@@ -11,7 +11,8 @@ from pathlib import Path
 import pytest
 
 from md_to_word.model.document import (
-    Citation, CodeBlock, CrossRef, Equation, Figure, PageBreak, Paragraph, SectionBreak, Text, Toc,
+    Citation, CodeBlock, CrossRef, Equation, Figure, LineBreak, PageBreak, Paragraph,
+    SectionBreak, Text, Toc,
 )
 from md_to_word.model.reader import parse_inlines, read_markdown
 
@@ -48,6 +49,20 @@ def test_style_line_becomes_styled_paragraph() -> None:
     assert block.style == "Abstract"
 
 
+def test_a_multiline_styled_paragraph_uses_one_style_line() -> None:
+    """地址这类多行内容：一个 `%%` 样式行 + 行尾 `\\`，仍是一段、一套段落属性。"""
+    doc = read_markdown(
+        "%% 摘要 第一行\\\n第二行\\\n第三行\n"
+    )
+    assert len(doc.blocks) == 1
+    block = doc.blocks[0]
+    assert isinstance(block, Paragraph) and block.style == "Abstract"
+    assert sum(isinstance(node, LineBreak) for node in block.inlines) == 2
+    assert "".join(node.value for node in block.inlines if isinstance(node, Text)) == (
+        "第一行第二行第三行"
+    )
+
+
 def test_caption_is_a_sibling_paragraph_not_a_table_field() -> None:
     """题注是独立段落：Word 里它就是一个带样式的段落，合并会把作者写的两行捏成一行。"""
     doc = read_markdown(
@@ -81,6 +96,13 @@ def test_figure_keeps_alt_text_separate() -> None:
     assert isinstance(fig, Figure)
     assert fig.alt == "架构示意图"  # alt 只做无障碍替代文字，不再兼任题注
     assert fig.width_cm == 12.0
+
+
+def test_figure_width_percentage_is_resolved_later() -> None:
+    """百分比要等写出器拿到真实版心才能换算，读取阶段只保留比例。"""
+    fig = read_markdown("![](a.png){width=50%}\n").blocks[0]
+    assert isinstance(fig, Figure)
+    assert fig.width_cm is None and fig.width_percent == 50.0
 
 
 def test_equation_with_label() -> None:
