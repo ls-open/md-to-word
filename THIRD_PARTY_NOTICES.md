@@ -12,8 +12,8 @@ whole.
 - Upstream: <https://github.com/brechtm/citeproc-py>
 - Vendored copy: `src/md_to_word/csl/`. The unused `data/schema`,
   `data/styles`, `data/locales/util` and `scripts` directories were removed.
-  Local compatibility changes are in `model.py`; the upstream bodies are
-  kept as `_base_<name>` methods for comparison.
+  Local compatibility changes are folded directly into `model.py`; the
+  upstream bodies are recoverable from the citeproc-py 0.12.2 tag.
 
 ## CSL locale files
 

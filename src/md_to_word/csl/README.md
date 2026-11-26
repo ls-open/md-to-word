@@ -8,8 +8,8 @@ We keep it in the source tree instead of installing it as a dependency because
 the engine is modified directly:
 
 - `model.py` carries the CSL 1.0 fixes and the project's per-item language,
-  script inference and multi-layout support. Each rewritten method keeps the
-  upstream body as `_base_<name>` for comparison.
+  script inference and multi-layout support as a single implementation per
+  method; the upstream 0.12.2 tag is the comparison point.
 - `data/locales/*.xml` is the bundled CSL locale set (CC BY-SA 3.0; see
   `THIRD_PARTY_NOTICES.md` at the repository root).
 - Unused upstream parts were removed: `data/schema`, `data/styles`,

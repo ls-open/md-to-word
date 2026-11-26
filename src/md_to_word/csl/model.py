@@ -845,16 +845,13 @@ class Macro(CitationStylesElement, Parent):
         return self.process_children(item, context=context,
                                     sort_options=sort_options)
 
-    def _base_render(self, item, context=None, sort_options=None):
-        return self.render_children(item, context=context,
-                                    sort_options=sort_options)
-
     def render(self, item, context=None, sort_options=None):
         frame = [False, False]
         group_frames.append(frame)
         failed = False
         try:
-            out = self._base_render(item, context=context, sort_options=sort_options)
+            out = self.render_children(item, context=context,
+                                       sort_options=sort_options)
         except VariableError:
             failed = True
             out = None
@@ -946,16 +943,25 @@ class FormatNumber:
                            for item in comma_item.split('&')), amp_delimiter)
                      for comma_item in str(value).split(',')), delimiter=', ')
 
-    def _base_format_last_page(self, first, last):
+    def _format_last_page(self, first, last):
         def find_common(first, last):
-            count = 0
-            for count, (first_char, last_char) in enumerate(zip(first, last)):
+            for index, (first_char, last_char) in enumerate(zip(first, last)):
                 if first_char != last_char:
-                    return count
-            return count + 1
+                    return index
+            return len(first)
 
         range_format = self.get_root().get_option('page-range-format')
         common = find_common(first, last)
+
+        if range_format in ('minimal', 'minimal-two'):
+            # Equal-length numbers only: `1-40` is not `1-0`, it is the full
+            # last page; unequal lengths mean the caller cannot abbreviate.
+            if len(first) != len(last) or common == len(first):
+                return last
+            index = (common if range_format == 'minimal'
+                     else max(0, min(common, len(first) - 2)))
+            return last[index:]
+
         if range_format in ('chicago', 'chicago-15', 'chicago-16'):
             m = re.search(r'\d+', first)
             if not m:
@@ -969,6 +975,7 @@ class FormatNumber:
                 range_format = 'minimal'
             elif first_number % 100 in range(10, 100):
                 range_format = 'minimal-two'
+
         index = 0  # 'expanded' format (and default): return the full last page
         if range_format == 'minimal':
             index = common
@@ -978,27 +985,6 @@ class FormatNumber:
 
     def format_number(self, number, language=None):
         return str(number)
-
-    def _format_last_page(self, first, last):
-        range_format = self.get_root().get_option("page-range-format")
-        if not range_format or range_format == "expanded":
-            return self._base_format_last_page(first, last)
-        if len(first) != len(last):
-            return last
-        if range_format in ("minimal", "minimal-two"):
-            common = 0
-            for idx, (fch, lch) in enumerate(zip(first, last)):
-                if fch != lch:
-                    common = idx
-                    break
-            else:
-                return last
-            if range_format == "minimal":
-                index = common
-            else:
-                index = max(0, min(common, len(first) - 2))
-            return last[index:]
-        return self._base_format_last_page(first, last)
 
 
 class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
@@ -1034,30 +1020,6 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
 
         return text, language
 
-    def _base_variable(self, item, context):
-        variable = self.get('variable')
-        repressed = context.get_layout().repressed
-        if self.tag in repressed and variable in repressed[self.tag]:
-            return None
-
-        if self.get('form') == 'short':
-            short_variable = variable + '-short'
-            if short_variable.replace('-', '_') in item.reference:
-                variable = short_variable
-
-        if variable.startswith('page'):
-            text = self._process(item.reference.page, variable,
-                                 language=item_language(item))
-        elif variable == 'citation-number':
-            text = item.number
-        elif variable == 'locator':
-            en_dash = self.unicode_character('EN DASH')
-            text = str(item.locator.identifier).replace('-', en_dash)
-        else:
-            text = item.reference[variable.replace('-', '_')]
-
-        return text
-
     def _term(self, item):
         form = self.get('form', 'long')
         plural = self.get('plural', 'false').lower() == 'true'
@@ -1082,18 +1044,38 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
             return None
 
     def _variable(self, item, context):
-        var = self.get("variable")
-        is_generated = var in self.generated_variables
+        variable = self.get("variable")
+        is_generated = variable in self.generated_variables
         if group_frames and not is_generated:
             group_frames[-1][0] = True
-        if _is_repressed(self, var, context):
+        if _is_repressed(self, variable, context):
             return None
-        val = self._base_variable(item, context)
+
+        repressed = context.get_layout().repressed
+        if self.tag in repressed and variable in repressed[self.tag]:
+            return None
+
+        if self.get('form') == 'short':
+            short_variable = variable + '-short'
+            if short_variable.replace('-', '_') in item.reference:
+                variable = short_variable
+
+        if variable.startswith('page'):
+            val = self._process(item.reference.page, variable,
+                                language=item_language(item))
+        elif variable == 'citation-number':
+            val = item.number
+        elif variable == 'locator':
+            en_dash = self.unicode_character('EN DASH')
+            val = str(item.locator.identifier).replace('-', en_dash)
+        else:
+            val = item.reference[variable.replace('-', '_')]
+
         if val is not None and str(val) != "":
             if group_frames and not is_generated:
                 group_frames[-1][1] = True
-            if sub_frames and var and not is_generated:
-                sub_frames[-1][1].setdefault(self.tag, set()).add(var)
+            if sub_frames and variable and not is_generated:
+                sub_frames[-1][1].setdefault(self.tag, set()).add(variable)
         return val
 
 
@@ -1165,41 +1147,6 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
 
         return text
 
-    def _base_process(self, item, variable=None, show_parts=None, context=None,
-                **kwargs):
-        if variable is None:
-            variable = self.get('variable')
-        if show_parts is None:
-            show_parts = ['year', 'month', 'day']
-        if context is None:
-            context = self
-
-        form = self.get('form')
-        date_parts = self.get('date-parts')
-        if not self.is_locale_date() and form is not None:
-            localized_date = self.get_date(form)
-            if date_parts is not None:
-                show_parts = date_parts.split('-')
-            return localized_date.render(item, variable,
-                                         show_parts=show_parts, context=self)
-        else:
-            date_or_range = item.reference[variable.replace('-', '_')]
-            if not date_or_range:
-                text = None
-            elif isinstance(date_or_range, LiteralDate):
-                text = date_or_range.text
-            elif isinstance(date_or_range, DateRange):
-                text = self.render_date_range(date_or_range, show_parts,
-                                              context)
-            else:
-                text = self.render_single_date(date_or_range, show_parts,
-                                               context)
-            if text is not None:
-                style_context = context if self.is_locale_date() else self
-                return style_context.wrap(text)
-            else:
-                return None
-
     def parts(self, date, show_parts, context=None):
         output = []
         for part in self.iterchildren():
@@ -1224,8 +1171,40 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
             group_frames[-1][0] = True
         if _is_repressed(self, var, ctx):
             return None
-        val = self._base_process(item, variable=variable, show_parts=show_parts, context=context, **kwargs
-        )
+
+        if variable is None:
+            variable = self.get('variable')
+        if show_parts is None:
+            show_parts = ['year', 'month', 'day']
+        if context is None:
+            context = self
+
+        form = self.get('form')
+        date_parts = self.get('date-parts')
+        if not self.is_locale_date() and form is not None:
+            localized_date = self.get_date(form)
+            if date_parts is not None:
+                show_parts = date_parts.split('-')
+            val = localized_date.render(item, variable,
+                                        show_parts=show_parts, context=self)
+        else:
+            date_or_range = item.reference[variable.replace('-', '_')]
+            if not date_or_range:
+                text = None
+            elif isinstance(date_or_range, LiteralDate):
+                text = date_or_range.text
+            elif isinstance(date_or_range, DateRange):
+                text = self.render_date_range(date_or_range, show_parts,
+                                              context)
+            else:
+                text = self.render_single_date(date_or_range, show_parts,
+                                               context)
+            if text is not None:
+                style_context = context if self.is_locale_date() else self
+                val = style_context.wrap(text)
+            else:
+                val = None
+
         if val is not None and str(val) != "" and track_var:
             if group_frames:
                 group_frames[-1][1] = True
@@ -1305,20 +1284,6 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
     def calls_variable(self):
         return True
 
-    def _base_process(self, item, context=None, **kwargs):
-        variable = self.get('variable')
-        if variable == 'locator':
-            try:
-                variable = item.locator.label
-                value = item.locator.identifier
-            except KeyError:
-                return None
-        elif variable == 'page-first':
-            value = item.reference.page
-        else:
-            value = item.reference[variable]
-        return self._process(value, variable, language=item_language(item))
-
     def format_number(self, number, language=None):
         form = self.get('form', 'numeric')
         try:
@@ -1349,7 +1314,20 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
             group_frames[-1][0] = True
         if _is_repressed(self, var, ctx):
             return None
-        val = self._base_process(item, context=context, **kwargs)
+
+        variable = var
+        if variable == 'locator':
+            try:
+                variable = item.locator.label
+                value = item.locator.identifier
+            except KeyError:
+                return None
+        elif variable == 'page-first':
+            value = item.reference.page
+        else:
+            value = item.reference[variable]
+        val = self._process(value, variable, language=item_language(item))
+
         if val is not None and str(val) != "":
             if group_frames:
                 group_frames[-1][1] = True
@@ -1376,67 +1354,6 @@ class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
         except IndexError:
             result = None
         return result
-
-    def _base_process(self, item, names_context=None, context=None, **kwargs):
-        if context is None:
-            context = self
-        if names_context is None:
-            names_context = self
-
-        roles = self.get('variable').split()
-        try:
-            ed_trans = (set(roles) == set(['editor', 'translator']) and
-                        item.reference.editor == item.reference.translator and
-                        self.get_term('editortranslator',
-                                      language=item_language(item)).getchildren())
-            if ed_trans:
-                roles = ['editor']
-        except VariableError:
-            ed_trans = False
-
-        output = []
-        for role in roles:
-            if role in item.reference:
-                name_elem = names_context.name
-                if name_elem is None:
-                    name_elem = Name()
-                    names_context.insert(0, name_elem)
-                text = name_elem.render(item, role, context=context, **kwargs)
-                plural = len(item.reference[role]) > 1
-                try:
-                    if ed_trans:
-                        role = 'editortranslator'
-                    label_element = names_context.label
-                    label = label_element.render(item, role, plural, **kwargs)
-                    if label is not None:
-                        if label_element is names_context.getchildren()[0]:
-                            text = label + text
-                        else:
-                            text = text + label
-                except AttributeError:
-                    pass
-                output.append(text)
-
-        if output:
-            try:
-                total = sum(output)
-            except TypeError:
-                is_int = False
-            else:
-                is_int = isinstance(total, int)
-            if is_int:
-                text = str(total) if total > 0 else None
-            else:
-                text = self.join(output, self.get_parent_delimiter(context))
-        else:
-            substitute = self.substitute()
-            if substitute is not None:
-                text = substitute.render(item, context=context, **kwargs)
-
-        try:
-            return text
-        except NameError:
-            raise VariableError from None
 
     def markup(self, text):
         if text:
@@ -1467,33 +1384,77 @@ class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
         if group_frames:
             group_frames[-1][0] = True
         if roles and not filtered:
-            # 声明的 role 全被上游的 `<substitute>` 抑制掉了：这里本来就该什么都不出。
-            # 若把 `variable` 改写成空串再交给上游，上游会当成「变量缺失」，
-            # 于是把本元素自己的 `<substitute>` 再渲染一遍——实测得到
-            # `Ann Ed / Solo Title`（本该是 `Ann Ed /`）。
+            # 声明的 role 全被前一个 `<substitute>` 抑制掉了：这里本来就不该出东西。
+            # 不能把 `variable` 改成空串再交给渲染器——它会当成「变量缺失」，把本元素
+            # 自己的 `<substitute>` 再渲染一遍。
             return None
         present = [r for r in filtered if r in item.reference and item.reference[r]]
+        context = ctx
+        if names_context is None:
+            names_context = self
 
-        def _invoke():
-            return self._base_process(item, names_context=names_context, context=context, **kwargs
-            )
-
-        if len(filtered) != len(roles):
-            self.attrib["variable"] = " ".join(filtered)
+        def render_roles(active_roles):
             try:
-                out = _invoke()
-            finally:
-                self.attrib["variable"] = orig_var
-        else:
-            out = _invoke()
+                ed_trans = (set(active_roles) == set(['editor', 'translator']) and
+                            item.reference.editor == item.reference.translator and
+                            self.get_term('editortranslator',
+                                          language=item_language(item)).getchildren())
+                if ed_trans:
+                    active_roles = ['editor']
+            except VariableError:
+                ed_trans = False
 
+            output = []
+            for role in active_roles:
+                if role in item.reference:
+                    name_elem = names_context.name
+                    if name_elem is None:
+                        name_elem = Name()
+                        names_context.insert(0, name_elem)
+                    text = name_elem.render(item, role, context=context, **kwargs)
+                    plural = len(item.reference[role]) > 1
+                    try:
+                        if ed_trans:
+                            role = 'editortranslator'
+                        label_element = names_context.label
+                        label = label_element.render(item, role, plural, **kwargs)
+                        if label is not None:
+                            if label_element is names_context.getchildren()[0]:
+                                text = label + text
+                            else:
+                                text = text + label
+                    except AttributeError:
+                        pass
+                    output.append(text)
+
+            if output:
+                try:
+                    total = sum(output)
+                except TypeError:
+                    is_int = False
+                else:
+                    is_int = isinstance(total, int)
+                if is_int:
+                    text = str(total) if total > 0 else None
+                else:
+                    text = self.join(output, self.get_parent_delimiter(context))
+            else:
+                substitute = self.substitute()
+                if substitute is not None:
+                    text = substitute.render(item, context=context, **kwargs)
+
+            try:
+                return text
+            except NameError:
+                raise VariableError from None
+
+        out = render_roles(filtered)
         if out:
             if group_frames:
                 group_frames[-1][1] = True
             if present and sub_frames:
                 sub_frames[-1][1].setdefault(self.tag, set()).update(present)
         return out
-
 
 class Name(CitationStylesElement, Formatted, Affixed, Delimited):
     def get_option(self, name, context=None, sort_options=None):
@@ -1631,30 +1592,6 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
 
             return text
 
-    def _base_initialize(self, given, mark, context):
-        if self.get_option('initialize-with-hyphen', context):
-            hyphen_parts = given.split('-')
-        else:
-            hyphen_parts = [given.replace('-', ' ')]
-
-        result_parts = []
-        for hyphen_part in hyphen_parts:
-            parts = hyphen_part.replace('.', ' ').split()
-            hyphen_result = ''
-            group = []
-            for part in parts:
-                if part[0].isupper():
-                    group.append(part[0])
-                else:
-                    # don't initialize particles (which aren't capitalized)
-                    hyphen_result += mark.join(group) + mark + ' ' + part + ' '
-                    group = []
-            hyphen_result += mark.join(group) + mark
-            # remove double spaces
-            hyphen_result = ' '.join(hyphen_result.split())
-            result_parts.append(hyphen_result)
-        return '-'.join(result_parts)
-
     def markup(self, text):
         if text:
             return self.wrap(self.format(text))
@@ -1677,7 +1614,28 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
                     init_opt = None
         if init_opt is not None and str(init_opt).lower() == "false":
             return given
-        return self._base_initialize(given, mark, context)
+
+        if self.get_option('initialize-with-hyphen', context):
+            hyphen_parts = given.split('-')
+        else:
+            hyphen_parts = [given.replace('-', ' ')]
+
+        result_parts = []
+        for hyphen_part in hyphen_parts:
+            parts = hyphen_part.replace('.', ' ').split()
+            hyphen_result = ''
+            group = []
+            for part in parts:
+                if part[0].isupper():
+                    group.append(part[0])
+                else:
+                    # don't initialize particles (which aren't capitalized)
+                    hyphen_result += mark.join(group) + mark + ' ' + part + ' '
+                    group = []
+            hyphen_result += mark.join(group) + mark
+            hyphen_result = ' '.join(hyphen_result.split())
+            result_parts.append(hyphen_result)
+        return '-'.join(result_parts)
 
 
 class Name_Part(CitationStylesElement, Formatted, Affixed, TextCased):
@@ -1702,25 +1660,6 @@ class Et_Al(CitationStylesElement, Formatted, Affixed):
 
 
 class Substitute(CitationStylesElement, Parent):
-    def _base_render(self, item, context=None, **kwargs):
-        for child in self.getchildren():
-            try:
-                if isinstance(child, Names) and child.name is None:
-                    names = self.xpath_search('./parent::cs:names[1]')[0]
-                    text = child.render(item, names_context=names,
-                                        context=context, **kwargs)
-                else:
-                    text = child.render(item, context=context, **kwargs)
-            except VariableError:
-                continue
-            if text:
-                self.add_to_repressed_list(child, context)
-                break
-        try:
-            return text
-        except NameError:
-            return None
-
     def add_to_repressed_list(self, child, context):
         layout = context.get_layout()
         tag_list = layout.repressed.get(child.tag, [])
@@ -1779,37 +1718,6 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
     def calls_variable(self):
         return self.get('variable') == 'locator'
 
-    def _base_process(self, item, variable=None, plural=None, context=None, **kwargs):
-        if variable is None:
-            variable = self.get('variable')
-            # A cs:label that names its own variable renders the term only if
-            # that variable is non-empty. When cs:names passes the variable in
-            # it has already established that the name variable is set, and
-            # what it passes may be the "editortranslator" term rather than a
-            # variable at all -- so the check belongs here and not below.
-            if not self._variable_is_set(item, variable):
-                return None
-        form = self.get('form', 'long')
-        plural_option = self.get('plural', 'contextual')
-        if plural is None:
-            plural = self._is_plural(item)
-
-        if variable == 'locator' and item.has_locator:
-            variable = item.locator.label
-
-        language = item_language(item)
-        if (plural_option == 'contextual' and plural or
-            plural_option == 'always'):
-            text = self.get_plural_term(name=variable,
-                                        form=form if form != 'long' else None,
-                                        language=language)
-        else:
-            text = self.get_single_term(name=variable,
-                                        form=form if form != 'long' else None,
-                                        language=language)
-
-        return text
-
     def markup(self, text):
         if text:
             return self.wrap(self.format(self.case(self.strip_periods(text))))
@@ -1844,21 +1752,6 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
 
         return value is not None and str(value) != ''
 
-    def _base_is_plural(self, item):
-        variable = self.get('variable')
-        if variable == 'locator':
-            value = item.locator.identifier
-        else:
-            try:
-                value = item.reference[variable.replace('-', '_')]
-            except VariableError:
-                return False
-
-        if variable.startswith('number-of') and int(item[variable]) > 1:
-            return True
-        else:
-            return self.RE_MULTIPLE_NUMBERS.search(str(value)) is not None
-
     def process(self, item, variable=None, plural=None, context=None, **kwargs):
         var = variable or self.get("variable")
         standalone = variable is None
@@ -1868,12 +1761,33 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
             if not getattr(item, "has_locator", False):
                 return None
         elif var and standalone and group_frames:
-            # 独立 `<label variable="X"/>` 在变量为空时不渲染——这件事上游 0.12 的
-            # `Label._variable_is_set` 已经做了（含 `page-first` / `citation-number`
-            # 这些派生变量的特判）。这里只补 group 的运行期变量追踪，
-            # 不再自己查一遍字典：自己查会漏掉派生变量，比上游更窄。
+            # 独立 `<label variable="X"/>` 在变量为空时不渲染——`_variable_is_set`
+            # 认 `page-first` / `citation-number` 这些派生变量，这里只补 group 的
+            # 运行期变量追踪。
             group_frames[-1][0] = True
-        val = self._base_process(item, variable=variable, plural=plural, context=context, **kwargs)
+
+        if variable is None:
+            variable = self.get('variable')
+            if not self._variable_is_set(item, variable):
+                return None
+        form = self.get('form', 'long')
+        plural_option = self.get('plural', 'contextual')
+        if plural is None:
+            plural = self._is_plural(item)
+        if variable == 'locator' and item.has_locator:
+            variable = item.locator.label
+
+        language = item_language(item)
+        if (plural_option == 'contextual' and plural or
+            plural_option == 'always'):
+            val = self.get_plural_term(name=variable,
+                                       form=form if form != 'long' else None,
+                                       language=language)
+        else:
+            val = self.get_single_term(name=variable,
+                                       form=form if form != 'long' else None,
+                                       language=language)
+
         if val is not None and str(val) != "" and (var == "locator" or (var and standalone)) and group_frames:
             group_frames[-1][1] = True
         return val
@@ -1895,7 +1809,18 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
                     str(value).strip(),
                 )
             )
-        return self._base_is_plural(item)
+        variable = self.get('variable')
+        if variable == 'locator':
+            value = item.locator.identifier
+        else:
+            try:
+                value = item.reference[variable.replace('-', '_')]
+            except VariableError:
+                return False
+
+        if variable.startswith('number-of') and int(item[variable]) > 1:
+            return True
+        return self.RE_MULTIPLE_NUMBERS.search(str(value)) is not None
 
     def render(self, *args, **kwargs):
         text = self.process(*args, **kwargs)
@@ -1914,34 +1839,6 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
 class Group(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
     def calls_variable(self):
         return True
-
-    def _base_process(self, item, context=None, **kwargs):
-        output = []
-        variable_called = False
-        variable_rendered = False
-        # A `cs:group` delimiter also delimits the children of a transparent
-        # `cs:choose` child, so pass it down (see `Parent.render_children`).
-        delimiter = self.get('delimiter', '')
-        for child in self.iterchildren():
-            variable_called = variable_called or child.calls_variable()
-            try:
-                if isinstance(child, Choose):
-                    child_text = child.render(item, context=context,
-                                              delimiter=delimiter, **kwargs)
-                else:
-                    child_text = child.render(item, context=context, **kwargs)
-                if child_text is not None:
-                    output.append(child_text)
-                    variable_rendered = (variable_rendered or
-                                         child.calls_variable())
-            except VariableError:
-                pass
-        output = [item for item in output if item is not None]
-        success = not variable_called or (variable_called and variable_rendered)
-        if output and success:
-            return self.join(output)
-        else:
-            raise VariableError
 
     def markup(self, text):
         if text:
@@ -1996,36 +1893,6 @@ class Choose(CitationStylesElement, Parent):
 
 
 class If(CitationStylesElement, Parent):
-    def _base_render(self, item, context=None, delimiter='', **kwargs):
-        # TODO self.get('disambiguate')
-        results = []
-        if 'type' in self.attrib:
-            results += self._type(item)
-        if 'variable' in self.attrib:
-            results += self._variable(item)
-        if 'is-numeric' in self.attrib:
-            results += self._is_numeric(item)
-        if 'is-uncertain-date' in self.attrib:
-            results += self._is_uncertain_date(item)
-        if 'locator' in self.attrib:
-            results += self._locator(item)
-        if 'position' in self.attrib:
-            results += self._position(item, context)
-
-        # TODO: 'match' also applies to individual tests above!
-        if self.get('match') == 'any':
-            result = any(results)
-        elif self.get('match') == 'none':
-            result = not any(results)
-        else:
-            result = all(results)
-
-        if not result:
-            raise ConditionFailed
-
-        return self.render_children(item, context=context,
-                                    delimiter=delimiter, **kwargs)
-
     def _type(self, item):
         return [typ.lower() == item.reference.type
                 for typ in self.get('type').split()]
@@ -2107,11 +1974,10 @@ class If(CitationStylesElement, Parent):
         return results
 
     def render(self, item, context=None, delimiter="", **kwargs):
-        if "disambiguate" not in self.attrib:
-            return self._base_render(item, context=context, delimiter=delimiter, **kwargs)
-        disambig_want = str(self.get("disambiguate")).lower() == "true"
-        cond_ok = (item.key in DISAMBIGUATE_KEYS.get()) == disambig_want
-        results: list[bool] = [cond_ok]
+        results: list[bool] = []
+        if "disambiguate" in self.attrib:
+            want = str(self.get("disambiguate")).lower() == "true"
+            results.append((item.key in DISAMBIGUATE_KEYS.get()) == want)
         if "type" in self.attrib:
             results += self._type(item)
         if "variable" in self.attrib:
@@ -2147,36 +2013,6 @@ class Else(CitationStylesElement, Parent):
 
 
 # utility functions
-
-def _base_to_ordinal(number, context, language=None):
-    def _find_ordinal(fallback_locale):
-        if len(str(number)) == 1:
-            ordinal_term = f'ordinal-{number:02}'
-        else:
-            ordinal_term = f'ordinal-{number}'
-
-        if (term := context.get_single_term(name=ordinal_term,
-                                            fallback_locale=fallback_locale,
-                                            zero_padded=False,
-                                            language=language)):
-            return term
-
-        ordinal_term = f'ordinal-{int(str(number)[-1]):02}'
-        if (term := context.get_single_term(name=ordinal_term,
-                                            fallback_locale=fallback_locale,
-                                            zero_padded=True,
-                                            language=language)):
-            return term
-
-        return context.get_single_term(name='ordinal',
-                                       fallback_locale=fallback_locale,
-                                       zero_padded=False,
-                                       language=language)
-
-    result = _find_ordinal(fallback_locale=False)
-    if not result:
-        result = _find_ordinal(fallback_locale=True)
-    return str(number) + result
 
 def to_ordinal(number, context, language=None):
     lg_key = "{http://www.w3.org/XML/1998/namespace}lang"
