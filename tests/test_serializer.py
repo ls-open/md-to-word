@@ -21,16 +21,8 @@ def test_round_trip_is_lossless(preset: str) -> None:
     original = parse_format((PRESETS / f"{preset}.txt").read_text(encoding="utf-8"))
     rewritten = parse_format(serialize_format(original))
 
-    assert rewritten.styles == original.styles
-    assert rewritten.table == original.table
-    assert rewritten.table_header == original.table_header
-    assert rewritten.margins == original.margins
-    assert rewritten.page_size == original.page_size
-    assert rewritten.proofing_lang == original.proofing_lang
-    assert rewritten.default_latin == original.default_latin
-    assert rewritten.gutter_cm == original.gutter_cm
-    assert rewritten.mirror_margins == original.mirror_margins
-    assert rewritten.punctuation_compression == original.punctuation_compression
+    # 比较整个 spec，而不是手挑几个字段：新增字段时不用记得来这里补一行。
+    assert rewritten == original
 
 
 def test_serialized_text_declares_schema_version() -> None:
@@ -44,7 +36,7 @@ def test_page_grid_round_trip() -> None:
     行距倍数会把网格间距再乘一遍（实测 22 行配 1.5 倍只落 14 行），所以写入时除掉了
     倍数；反解把倍数乘回去之后必须还是 22——公文版式（GB/T 9704）靠这个数。
     """
-    from md_to_word.template.generator import (
+    from md_to_word.template.core import (
         body_line_spacing_multiple, doc_grid_lines_from_pitch, doc_grid_pitch,
     )
 

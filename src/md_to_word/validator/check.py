@@ -28,23 +28,21 @@ from md_to_word.diagnostics import Diagnostic
 from md_to_word.i18n import style_name, t
 # 残符提醒与解析器共用同一条行内判据：预检另写一套，迟早对不上。
 from md_to_word.model.reader import inline_residue
-from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, ROW_NAME_EN, YAML_KEYS
+from md_to_word.spec.constants import (
+    BIBLIOGRAPHY_TITLES, PAGE_SIZES_CM, ROW_NAME_EN, YAML_KEYS,
+)
 from md_to_word.utils.section_syntax import SectionSyntaxError, parse_section_arg
 from md_to_word.spec.models import TemplateSpec
 from md_to_word.spec.parser import parse_format
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
 from md_to_word.preprocessor.blocks import resolve_style_name
-from md_to_word.template.generator import (
-    PAGE_SIZES_CM,
-    _has_heading_styleref,
-    max_doc_grid_lines,
-    missing_styles_for_body,
-)
+from md_to_word.template.checks import _has_heading_styleref, missing_styles_for_body
+from md_to_word.template.core import max_doc_grid_lines
 from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES, PdfFigureError, page_count
 from md_to_word.utils.textio import TextDecodeError, read_text_file
 
 # 复用 utils 中的基础文本解析工具
-from md_to_word.utils.masking import mask_html_comments
+from md_to_word.utils.masking import mask_code, mask_code_fences, mask_html_comments
 from md_to_word.utils.skill_utils import (
     block_marker_issues,
     soft_wrap_issues,
@@ -55,10 +53,8 @@ from md_to_word.utils.skill_utils import (
     has_declared_image_width,
     heading_issues,
     image_width_issues,
+    image_width_syntax_issues,
     malformed_table_issues,
-    mask_code,
-    mask_code_fences,
-    parse_bib_keys,
     resolve_manuscript_path,
     section_pagebreak_issues,
     split_frontmatter,
@@ -607,7 +603,9 @@ def validate_manuscript(
                 if problem:
                     report.error("gate.bib.json", problem, file=str(bib_path))
                     bib_text = ""
-                known_keys = parse_bib_keys(bib_text)
+                from md_to_word.transform.biblio import bibliography_keys
+
+                known_keys = bibliography_keys(bib_text)
                 if not known_keys and not problem:
                     bare = citations_without_bibliography(body_text, fm_offset)
                     if bare:
@@ -998,6 +996,11 @@ def validate_manuscript(
               why=t("gate.latex.tag", lang, snippet=snippet)),
             line=line_no,
         )
+
+    # 12b. 图片宽度写法：与版心无关，畸形值不能留到读取器里抛 ValueError
+    for line_no, why in image_width_syntax_issues(md_text, lang):
+        report.valid = False
+        report.error("gate.image_width.malformed", why, line=line_no)
 
     # 13/14. 依赖格式要求文件的两道门禁
     if spec is not None:

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from md_to_word import __version__
 from md_to_word.contract import contract_payload, style_names
+from md_to_word.diagnostics import Diagnostic
 from md_to_word.i18n import SUPPORTED, resolve_lang, t
 from md_to_word.pipeline import (
     ExportOptions,
@@ -318,9 +319,14 @@ def main(args: list[str] | None = None) -> int:
         # traceback 照旧走 stderr——它正是要报给维护者的东西，不在这里静默。
         traceback.print_exc()
         result = ExportResult(returncode=EXIT_ERROR, lang=lang)
-        result.errors.append(
-            t("cli.internal_error", lang, reason=f"{type(exc).__name__}: {exc}")
-        )
+        message = t("cli.internal_error", lang, reason=f"{type(exc).__name__}: {exc}")
+        result.errors.append(message)
+        # 与 pipeline/MCP 的出口保持一致：给人读的 errors 与给程序读的 diagnostics
+        # 是同一条结论的两个视图，不能只有一边。
+        result.diagnostics.append(Diagnostic(
+            "error", "cli.internal_error", message,
+            file=str(parsed.input) if parsed.input else None,
+        ))
 
     return _emit_result(result, parsed)
 

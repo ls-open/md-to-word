@@ -16,8 +16,6 @@ from md_to_word.utils.masking import HTML_COMMENT_RE
 from md_to_word.utils.skill_utils import split_frontmatter
 from md_to_word.utils.textio import read_text_file
 
-_RE_NUMBER = re.compile(r"\b\d+\.\d{3,}\b")
-_RE_YEAR_LIKE = re.compile(r"^20\d{2}\.\d+$")
 _RE_OPENXML_FENCE = re.compile(
     r"^(?:```|~~~)\{=openxml\}.*?^(?:```|~~~)\s*$", re.DOTALL | re.MULTILINE
 )
@@ -29,10 +27,6 @@ def load_source_text(md_path: Path | str) -> str:
     for pattern in (HTML_COMMENT_RE, _RE_OPENXML_FENCE, _RE_IMAGE):
         text = pattern.sub(" ", text)
     return text
-
-
-def extract_numbers(text: str) -> set[str]:
-    return {n for n in _RE_NUMBER.findall(text) if not _RE_YEAR_LIKE.match(n)}
 
 
 _RE_CJK = re.compile(r"[㐀-䶿一-鿿]")

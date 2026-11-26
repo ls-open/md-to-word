@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from docx.enum.style import WD_STYLE_TYPE
 
-from md_to_word.spec.constants import SIZE_MAP, W
+from md_to_word.spec.constants import ALIGN_CN, SIZE_MAP, W
 from md_to_word.spec.parser import parse_style_props
 from md_to_word.template.core import (
-    _ALIGN_CN, _RPR_ORDER, _props_from_req, ensure_ordered_child, ensure_rpr,
+    _RPR_ORDER, _props_from_req, ensure_ordered_child, ensure_rpr,
     logger, modify_style,
 )
 
@@ -28,7 +28,7 @@ def _footnote_default_line(spec) -> str:
     """
     body = next((r for r in spec.styles if r.get('style_name') == 'Body Text'), None) or {}
     fonts = '/'.join(body.get('font_name') or ['宋体', 'Times New Roman'])
-    align = _ALIGN_CN.get(body.get('alignment') or '', '两端对齐')
+    align = ALIGN_CN.get(body.get('alignment') or '', '两端对齐')
     size_pt = (body.get('font_size') or SIZE_MAP['小四']).pt
     size_name = next((name for name, sz in SIZE_MAP.items() if sz.pt < size_pt), '八号')
     return (f'{fonts} {size_name} 不加粗 不倾斜 {align} '

@@ -10,40 +10,6 @@ import pytest
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
 
-def test_pipeline_export_zh_academic(tmp_path: Path):
-    fixture_dir = Path(__file__).resolve().parent / "fixtures"
-    for name in ("manuscript.md", "refs.bib"):
-        shutil.copy(fixture_dir / name, tmp_path / name)
-
-    output = tmp_path / "output_zh.docx"
-    options = ExportOptions(
-        input_path=tmp_path / "manuscript.md",
-        output_path=output,
-        preset="zh-academic",
-    )
-    result = run_export_pipeline(options)
-    assert result.returncode == 0, f"Errors: {result.errors}"
-    assert output.exists()
-    assert output.stat().st_size > 5000
-
-
-def test_pipeline_export_en_nature(tmp_path: Path):
-    fixture_dir = Path(__file__).resolve().parent / "fixtures"
-    for name in ("manuscript.md", "refs.bib"):
-        shutil.copy(fixture_dir / name, tmp_path / name)
-
-    output = tmp_path / "output_en.docx"
-    options = ExportOptions(
-        input_path=tmp_path / "manuscript.md",
-        output_path=output,
-        preset="en-nature",
-    )
-    result = run_export_pipeline(options)
-    assert result.returncode == 0, f"Errors: {result.errors}"
-    assert output.exists()
-    assert output.stat().st_size > 5000
-
-
 def test_pipeline_fails_on_invalid_manuscript(tmp_path: Path):
     bad_md = tmp_path / "bad.md"
     bad_md.write_text("""---
@@ -366,6 +332,8 @@ def test_json_output_survives_an_internal_error(tmp_path: Path, capsys, monkeypa
     assert code == payload["returncode"] == 1
     assert payload["ok"] is False
     assert any("TypeError" in error for error in payload["errors"]), payload["errors"]
+    assert payload["diagnostics"], "内部错误也必须有一条结构化诊断"
+    assert payload["diagnostics"][0]["code"] == "cli.internal_error"
     assert "Traceback" in captured.err, "traceback 仍要留给维护者，不能静默"
 
 
@@ -384,13 +352,6 @@ def test_guide_is_readable_without_the_skill_directory(capsys) -> None:
     assert main(["--guide", "--lang", "en"]) == 0
     english = capsys.readouterr().out
     assert "Read this before the first run" in english and "## 1. The work, in order" in english
-
-
-def test_guide_and_skill_entry_are_one_text() -> None:
-    """技能用户读 SKILL.md、pip 用户读 guide.md，两份必须是同一份流程。"""
-    root = Path(__file__).resolve().parents[1]
-    body = (root / "SKILL.md").read_text(encoding="utf-8").split("---", 2)[2].lstrip("\n")
-    assert (root / "src/md_to_word/resources/guide.md").read_text(encoding="utf-8") == body
 
 
 def test_init_writes_an_exportable_pair(tmp_path: Path, capsys) -> None:

@@ -4,14 +4,17 @@ CSL 规定了四种消歧手段，按顺序尝试（specification §"Disambiguat
 
 1. `disambiguate-add-givenname` —— 名字加到能区分（给首名补首字母）；
 2. `disambiguate-add-names` —— 把 et al. 藏起来的名字一个个放出来；
-3. `disambiguate` 条件 —— 样式里用 `<choose>` 写的专门分支（极少见，不支持）；
+3. `disambiguate` 条件 —— 样式里用 `<choose>` 写的专门分支；由 `citations.py` 的
+   `_if_render` 按本次引用组求值，不是恒真；
 4. `disambiguate-add-year-suffix` —— 前三条都分不开时，同年加 a/b/c。
 
 citeproc-py 一个都没做。它只能按一份样式渲染整条引用，没有「这个词条换个名字形态」的
 入口，所以做法是**克隆样式**：把 `<citation>` 里的名字参数（`et-al-use-first`、`form`）
 改成需要的形态，用副本重新渲染——CSL 处理器内部也是这么干的，不是改渲染结果。
 
-条目数据层能做的只有第 4 条（`year-suffix` 是它认识的变量），前两条必须落在样式上。
+第 1、4 条同时用到**条目数据**：`CitationEngine._with_names()` 给首名补首字母或展开全名，
+`year-suffix` 直接写进条目副本；第 2 条靠样式副本的 `et-al-use-first`。`StyleCloner`
+当前只改 `et-al-use-first`，文档里说的 `form` 改写并未实现——改这段前先看 `clone()`。
 """
 
 from __future__ import annotations

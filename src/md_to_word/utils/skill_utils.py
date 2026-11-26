@@ -19,15 +19,13 @@ from lxml import etree
 
 from md_to_word.i18n import t
 from md_to_word.utils.masking import (
-    mask_code,
     mask_code_fences,
     mask_html_comments,
-    mask_inline_code,
     unclosed_code_fence_line,
 )
 from md_to_word.preprocessor.blocks import hard_break
 from md_to_word.utils.citation_syntax import CITE_KEY_RE as _CITE_KEY_RE
-from md_to_word.utils.image_syntax import IMAGE_LINE_RE
+from md_to_word.utils.image_syntax import IMAGE_LINE_RE, IMAGE_WIDTH_HINT_RE, IMAGE_WIDTH_RE
 
 # ══════════════════════════════════════════════════════════════════════
 # 1. 统一日志配置
@@ -137,7 +135,6 @@ _SHORTCODE_MARKERS = {
 _SHORTCODE_RE = re.compile(r"\{\{<\s*([A-Za-z][\w-]*)")
 _DIV_OPEN_RE = re.compile(r"^\s*:::\s*\{.*\}\s*$")
 _TABLE_ROW_RE = re.compile(r"^\s*\|")
-_IMAGE_ONLY_RE = re.compile(r"^\s*!\[[^\]]*\]\([^)]+\)(\s*\{[^}]*\})?\s*$")
 _HEADING_RE = re.compile(r"^\s*#{1,6}\s")
 
 
@@ -230,7 +227,7 @@ def block_marker_issues(text: str, lang: str = "zh") -> list:
         elif _DIV_OPEN_RE.match(line):
             if before_glued(i):
                 issues.append((no, t("gate.block.div_no_blank", lang)))
-        elif _IMAGE_ONLY_RE.match(line):
+        elif IMAGE_LINE_RE.match(line.strip()):
             if before_glued(i):
                 issues.append((no, t("gate.block.image_no_blank_before", lang)))
             if after_glued(i):
@@ -241,16 +238,33 @@ def block_marker_issues(text: str, lang: str = "zh") -> list:
     return issues
 
 
-_IMG_WIDTH_RE = re.compile(r"\bwidth\s*=\s*([\d.]+)\s*(cm|mm|in|pt|%)?")
-
-
 def _image_width_match(line: str):
     """解析图片行里的宽度声明；与读取器共用同一套目标语法（括号、尖括号路径）。"""
     image = IMAGE_LINE_RE.match(line.strip())
     if image is None:
         return None
-    found = _IMG_WIDTH_RE.search(image.group("attrs") or "")
-    return found
+    return IMAGE_WIDTH_RE.search(image.group("attrs") or "")
+
+
+def image_width_syntax_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
+    """图片写了 `width=` 但值不合法 → [(行号, 说明)]。
+
+    这条与页边距无关：即使算不出版心，畸形宽度也该在导出前说清楚，而不是让读取器的
+    `float()` 抛出“工具内部错误”。
+    """
+    if not text:
+        return []
+    issues = []
+    for i, line in enumerate(mask_code_fences(text).split("\n")):
+        if line.lstrip().startswith("|"):
+            continue
+        image = IMAGE_LINE_RE.match(line.strip())
+        if image is None:
+            continue
+        attrs = image.group("attrs") or ""
+        if IMAGE_WIDTH_HINT_RE.search(attrs) and not IMAGE_WIDTH_RE.search(attrs):
+            issues.append((i + 1, t("gate.image_width.malformed", lang, line=i + 1, attrs=attrs.strip("{} "))))
+    return issues
 
 
 def image_width_issues(text: str, content_cm: float, lang: str = "zh") -> list[tuple[int, str]]:
@@ -375,7 +389,6 @@ def section_pagebreak_issues(text: str, lang: str = "zh") -> list[tuple[int, str
 # 尖括号里带 `@` 或 `://` 的整段：自动链接与邮箱，里面的 `@` 不是引文
 _ANGLE_RE = re.compile(r"<[^>\s]*(?:@|://)[^>\s]*>")
 # .bib 条目头：`@article{key,` / `@book{key,`
-_BIB_ENTRY_RE = re.compile(r'@\w+\s*\{\s*([^,\s}]+)\s*,')
 # 行内代码 `` `...` `` —— mask_code_fences 只管围栏块，行内代码得在这里单独遮掉
 _INLINE_CODE_RE = re.compile(r'`[^`]*`')
 # 块级公式的围栏：`$$` 单独一行，收尾行可以带标签 `$$ {#eq-a}`
@@ -387,13 +400,6 @@ _DEFINED_LABEL_RE = re.compile(r'\{#([\w:.\-]+)\}')
 _CROSSREF_PREFIX_RE = re.compile(r'^(?:eq|fig|tbl|sec|lst)-')
 # `[@eq-x]` / `[@fig-x; @eq-y]`：方括号里的交叉引用（应为 `@eq-x`，不加方括号）
 _BRACKETED_CITE_RE = re.compile(r'\[[^\]\n]*@([\w:.\-]+)[^\]\n]*\]')
-
-
-def parse_bib_keys(bib_text: str) -> set:
-    """文献库里的全部引用 key：CSL-JSON 取 `id`，否则按 BibTeX 条目头取。"""
-    from md_to_word.transform.biblio import bibliography_keys
-
-    return bibliography_keys(bib_text)
 
 
 def cited_keys(text: str, line_offset: int = 0):
@@ -746,9 +752,6 @@ _PAREN_MATH_RE = re.compile(r"\\\(.+?\\\)")
 # 一部分（LaTeX 换行 `\\[2pt]`），不是这里要拦的括号。
 _BRACKET_MATH_RE = re.compile(r"(?<!\\)\\[\[\]]")
 _NO_SPACE_HEADING_RE = re.compile(r"^\s*#{1,6}[^\s#]")
-# 图片行能带的属性只有宽度；`{align=right}` 这类「写了等于没写」的写法要拦下来
-_IMAGE_ATTR_RE = re.compile(r"!\[[^\]]*\]\([^)\s]+\)\s*\{(?P<attrs>[^}]*)\}")
-_IMAGE_ATTR_OK = re.compile(r"^\s*(?:width\s*=\s*[\d.]+\s*(?:cm|mm|in|pt|%)?)?\s*$")
 _INDENT_CODE_RE = re.compile(r"^(?: {4,}|\t)\S")
 _LIST_ITEM_ANY_RE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\S")
 
@@ -824,8 +827,10 @@ def dialect_issues(text: str, lang: str = "zh") -> list[tuple[int, str]]:
         if _NO_SPACE_HEADING_RE.match(code_free):
             issues.append((line_no, t("gate.dialect.heading_no_space", lang)))
             continue
-        for img in _IMAGE_ATTR_RE.finditer(code_free):
-            if not _IMAGE_ATTR_OK.match(img.group('attrs')):
+        image = IMAGE_LINE_RE.match(code_free.strip())
+        if image and image.group("attrs"):
+            attrs = image.group("attrs").strip("{} ")
+            if attrs and IMAGE_WIDTH_RE.fullmatch(attrs) is None:
                 issues.append((line_no, t("gate.dialect.image_attr", lang)))
                 break
         if _HIGHLIGHT_RE.search(code_free):

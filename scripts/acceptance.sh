@@ -58,6 +58,22 @@ mkdir "$TMP/work" && cd "$TMP/work"
     "$TMP/venv/bin/python" -c 'import json,sys; d=json.load(sys.stdin); assert d["ok"] and d["output"], d'
 test -f hello.docx
 
+step "契约 JSON、导前预检与失败路径"
+"$BIN/md-to-word" --contract --json |
+    "$TMP/venv/bin/python" -c 'import json,sys; d=json.load(sys.stdin); assert d["version"] and d["presets"] and d["json_keys"], d'
+echo "   --contract --json 可解析"
+"$BIN/md-to-word" hello.md --validate-only >/dev/null
+echo "   --validate-only 通过"
+printf '# 标题\n\n- [ ] 待办\n' > invalid.md
+set +e
+INVALID_JSON=$("$BIN/md-to-word" invalid.md -o invalid.docx --json 2>/dev/null)
+INVALID_CODE=$?
+set -e
+[ "$INVALID_CODE" -ne 0 ] || { echo "   待办列表本应失败"; exit 1; }
+printf '%s' "$INVALID_JSON" |
+    "$TMP/venv/bin/python" -c 'import json,sys; d=json.load(sys.stdin); assert not d["ok"] and d["errors"], d'
+echo "   失败时 --json 仍是一行可解析结果（退出码 $INVALID_CODE）"
+
 step "PDF 核对（不可用时跳过，退出码 3）"
 set +e
 "$BIN/md-to-word" hello.md -o proof.docx --pdf >/dev/null 2>&1

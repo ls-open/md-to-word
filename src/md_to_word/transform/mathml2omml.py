@@ -16,7 +16,6 @@ from lxml import etree
 
 from md_to_word.i18n import t
 
-MATHML_NS = "http://www.w3.org/1998/Math/MathML"
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
@@ -337,6 +336,9 @@ class _Converter:
             sup_el.append(child)
         return [node]
 
+    # munderover 与 msubsup 在 OMML 里落点相同：都是上下标，求和/积分上下限进 nary。
+    _on_munderover = _on_msubsup
+
     def _on_msqrt(self, element) -> list:
         rad = _el("rad")
         etree.SubElement(rad, _m("radPr")).append(_el("degHide", val="1"))
@@ -429,27 +431,6 @@ class _Converter:
         for child in self.convert(under):
             lim_el.append(child)
         return [lim]
-
-    def _on_munderover(self, element) -> list:
-        base, sub, sup = list(element)[:3]
-        base_nodes = self.convert(base)
-        if len(base_nodes) == 1 and _is_nary(base_nodes[0]):
-            nary = base_nodes[0]
-            _fill(nary.find(_m("sub")), self.convert(sub))
-            _fill(nary.find(_m("sup")), self.convert(sup))
-            _hide(nary, sub=True, sup=True)
-            return [nary]
-        node = _el("sSubSup")
-        e = etree.SubElement(node, _m("e"))
-        for child in self.convert(base):
-            e.append(child)
-        sub_el = etree.SubElement(node, _m("sub"))
-        for child in self.convert(sub):
-            sub_el.append(child)
-        sup_el = etree.SubElement(node, _m("sup"))
-        for child in self.convert(sup):
-            sup_el.append(child)
-        return [node]
 
     def _on_mtable(self, element) -> list:
         r"""`mtable` → `m:eqArr`（带对齐点）或 `m:m`（真矩阵）。

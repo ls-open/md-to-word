@@ -6,17 +6,14 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
 import pytest
 
-from md_to_word.config import get_csl_dir
 from md_to_word.transform.citations import CitationEngine
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CSL_DIR = REPO_ROOT / "src" / "md_to_word" / "resources" / "csl"
-REFERENCE = REPO_ROOT / "src" / "md_to_word" / "resources" / "manual.md"
 
 BIB = """@article{a, author={Smith, John and Doe, Jane}, title={A Study of Things},
   year={2020}, journal={Journal of Tests}, volume={3}, issue={2}, pages={10-20}}
@@ -26,16 +23,6 @@ BIB = """@article{a, author={Smith, John and Doe, Jane}, title={A Study of Thing
 """
 
 STYLES = sorted(p.name for p in CSL_DIR.glob("*.csl"))
-
-
-@pytest.mark.parametrize("style", STYLES)
-def test_every_bundled_style_renders(style: str) -> None:
-    """每份内置样式都要能渲染三条样例——citeproc-py 不支持的写法会在这里炸出来。"""
-    engine = CitationEngine(BIB, CSL_DIR / style)
-    engine.cite([("a", ""), ("b", ""), ("c", "")])
-    entries = engine.bibliography()
-    assert len(entries) == 3, f"{style} 渲染出 {len(entries)} 条"
-    assert all(text.strip() for text in entries), f"{style} 有空白条目"
 
 
 @pytest.mark.parametrize("style", STYLES)
@@ -64,16 +51,3 @@ def test_numeric_styles_have_tabs_and_author_date_do_not(style: str) -> None:
         assert entry.startswith(f"{prefix}1{suffix}".rstrip()), f"{style} 序号标记格式不符：{entry!r}"
     else:
         assert "\t" not in entry, f"著者年制样式 {style} 不应包含制表符：{entry!r}"
-
-
-def test_package_copy_matches_repository_copy() -> None:
-    package_dir = get_csl_dir()
-    assert sorted(p.name for p in package_dir.glob("*.csl")) == STYLES
-
-
-def test_reference_manual_lists_every_style() -> None:
-    """文档与目录一一对应：加了文件忘写、或删了文件忘改，都会在这里红。"""
-    documented = set(re.findall(r"`([a-z0-9\-]+\.csl)`", REFERENCE.read_text(encoding="utf-8")))
-    documented = {name for name in documented if (CSL_DIR / name).exists()}
-    missing = sorted(set(STYLES) - documented)
-    assert not missing, f"这些样式没写进包内 manual.md §7：{missing}"

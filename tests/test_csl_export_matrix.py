@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import re
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -90,3 +92,25 @@ def test_every_csl_survives_all_citation_contexts(style: str, tmp_path: Path) ->
     text = docx_text(out)
     assert "@alpha" not in text and "@beta" not in text, style
     assert "Alpha One" in text and "Beta Two" in text, style
+
+    # 五类上下文都要真的出现过引文，而不是“整篇导出成功”就算数。
+    # 数字制是 [1]/[2]，作者-年份制会出现 Alpha/Beta/Gamma 或年份；只要整段
+    # 引文被安静丢掉，下面这些上下文里就只剩原文的普通单词。
+    def has_citation(value: str) -> bool:
+        return bool(re.search(r"Alpha|Beta|Gamma|\[\d+\]|\(\d{4}\)|\b\d{1,3}\b", value))
+
+    table_cells = [
+        cell.text for table in document.tables for row in table.rows for cell in row.cells
+    ]
+    assert any(has_citation(cell) for cell in table_cells), (style, table_cells)
+
+    list_items = [p.text for p in document.paragraphs if p.text.startswith("A list item cites")]
+    assert len(list_items) == 1 and has_citation(list_items[0]), (style, list_items)
+
+    quote_text = "\n".join(p.text for p in document.paragraphs if p.text.startswith("A quotation cites"))
+    assert has_citation(quote_text), (style, quote_text)
+
+    with zipfile.ZipFile(out) as archive:
+        footnotes = archive.read("word/footnotes.xml").decode("utf-8")
+    foot_text = " ".join(re.findall(r"<w:t[^>]*>([^<]*)</w:t>", footnotes))
+    assert has_citation(foot_text), (style, foot_text)

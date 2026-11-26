@@ -24,9 +24,10 @@ from md_to_word.writer import write_docx
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
-pytestmark = pytest.mark.skipif(
-    not can_render_word_pdf()[0], reason="需要本机 Microsoft Word 才能验真"
-)
+pytestmark = [
+    pytest.mark.word,
+    pytest.mark.skipif(not can_render_word_pdf()[0], reason="需要本机 Microsoft Word 才能验真"),
+]
 
 # 「打开 → 等它排完 → 读正文 → 关窗」。**不调用 repaginate / update field**：
 # 要验的就是打开本身够不够，调了就等于自己替 Word 把域算了。

@@ -24,9 +24,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = REPO_ROOT / "testdata" / "base_templates"
 MANIFEST = FIXTURES / "MANIFEST.json"
 
-pytestmark = pytest.mark.skipif(
-    not MANIFEST.is_file(), reason="本机没有真实底模目录，跳过"
-)
+pytestmark = [
+    pytest.mark.localdata,
+    pytest.mark.skipif(not MANIFEST.is_file(), reason="本机没有真实底模目录，跳过"),
+]
 
 BIB = """
 @article{alpha,
@@ -231,9 +232,14 @@ def test_templates_are_safe_to_inspect() -> None:
         assert not any(name.endswith("vbaproject.bin") for name in names), record["file"]
         assert record.get("has_macro") is False, record["file"]
 
-        report = inspect_base(base, 1, record["lang"])
-        assert report is not None
-        assert isinstance(report.ok, bool)
+        # 模板是本地下载物，清单里记了摘要：文件被替换/截断时当场发现
+        import hashlib
+
+        digest = hashlib.sha256(base.read_bytes()).hexdigest()[:16]
+        assert digest == record["sha256"], f"{record['file']} 与清单摘要不一致"
+
+        # 能读、能体检，不抛异常（是否允许灌入由具体切点决定，下一页的正文比对再验）
+        inspect_base(base, 1, record["lang"])
 
 
 def test_real_templates_keep_the_body_identical(

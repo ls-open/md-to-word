@@ -14,7 +14,7 @@ from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
 from md_to_word.template.extractor import extract_spec_from_docx
-from md_to_word.template.generator import (
+from md_to_word.template.decor import (
     read_header_styles_meta,
     write_header_styles_meta,
 )

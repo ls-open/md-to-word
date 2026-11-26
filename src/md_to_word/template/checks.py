@@ -24,11 +24,6 @@ REQUIRED_STYLES = {
     'Normal': '普通',
 }
 
-# ── 条件成套必填（表格三件套）──
-# 纯文字文档无表格时不强制写；一旦声明了「表格：」或「表头：」中的任意一项（或稿件中出现了表格），
-# 则「表格」「表头」「紧凑（单元格文字）」必须成套配齐，防止表头或表内文字静默回退默认样式。
-REQUIRED_ROWS = {}
-
 # ── **条件必填**：写了内容就必须给样式行 ──
 # 页眉/页脚本身可有可无（不写＝不加，不算错）；但写了「页眉内容：」却不给「页眉：」
 # 样式行，页眉就会套用底模默认字体——正是要防的那种静默错误。
@@ -235,8 +230,8 @@ def _check_required_fields(
 ) -> tuple[bool, list[str]]:
     """校验必填项是否齐备：必填样式 / 样式的必填字段 / 条件成套必填行 / 联动必填。
 
-    返回 `(是否有错, 联动错误列表)`：联动错误已经在上面逐条打过日志，调用方抛异常时
-    直接用这份列表，别再调一次 `_check_linkage_fields`——那样同一句会打印两遍。
+    返回 `(是否有错, 联动错误列表)`：联动错误**不回显**，由调用方拼进异常；不要在这里
+    或调用方再打一次日志，否则同一句会打印两遍。
 
     `fmt_content` 给得出时，缺字段的那条会带上它在格式文件里的行号。
     `sink` 给得出时，同一条消息也追加进去，供 `--json` / MCP 把明细带进异常。
@@ -322,10 +317,6 @@ def _check_required_fields(
         missing_styles.append(('Bibliography', t('template.style.bibliography_group', lang,
                                                  name=_style_label('Bibliography', lang))))
 
-    for key, (name, example) in REQUIRED_ROWS.items():
-        if not getattr(spec, key, None):
-            missing_rows.append((name, example))
-
     # 表头行（firstRow）字段完整性校验
     if spec.table_header:
         for fname in _PARA + ['indent']:
@@ -379,8 +370,7 @@ def _check_required_fields(
     else:
         logger.debug(t('template.check_ok', lang))
 
-    # 联动错误要原样交回调用方：它既已逐条打在上面，抛异常时再重算一遍就会
-    # 让同一句话在输出里出现两次。
+    # 联动错误只交回调用方，由它拼进异常；这里不打日志，调用方也别再打。
     return has_errors, linkage_errors
 
 
@@ -392,9 +382,6 @@ def _check_required_fields(
 #  必须是单节，奇偶页差异走 evenAndOddHeaders + default/even 两个 headerReference，
 #  跨节改页码格式交给正文的 {{< section >}} 标记。
 # ══════════════════════════════════════════════════════════════════
-
-_XML_SPACE = '{http://www.w3.org/XML/1998/namespace}space'
-
 
 def collect_styleref_names(spec):
     """取出所有 {样式标题:X} 里的 X（去重、保序），含节角色自己的页眉页脚。"""

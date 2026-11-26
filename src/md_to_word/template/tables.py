@@ -5,10 +5,10 @@ from __future__ import annotations
 from lxml import etree
 
 from md_to_word.i18n import t
-from md_to_word.spec.constants import W, split_fonts
+from md_to_word.spec.constants import TWIPS_PER_CM, W, split_fonts
 from md_to_word.template.core import (
     TemplateError, _STYLE_ORDER, _TBLPR_ORDER, _TBLSTYLEPR_ORDER, _TCPR_ORDER,
-    _TWIPS_PER_CM, _pt_to_border_sz, ensure_ordered_child, logger,
+    _pt_to_border_sz, ensure_ordered_child, logger,
     write_para_props, write_run_props,
 )
 
@@ -183,7 +183,7 @@ def apply_table_format(doc, spec, default_latin=None, lang: str = "zh"):
     # 单元格内边距：四周同一个值，要求文件写「单元格内边距Ncm」才生效，不写用 0。
     # 无论声明与否都要**写进产物**：底模的 Table→Normal Table 继承链里有 0.19cm，
     # 不写就等于默认被它决定（见 TABLE_CELL_MARGIN_DEFAULT_CM）。
-    margin_twips = int(round(table.get('cell_margin_cm', TABLE_CELL_MARGIN_DEFAULT_CM) * _TWIPS_PER_CM))
+    margin_twips = int(round(table.get('cell_margin_cm', TABLE_CELL_MARGIN_DEFAULT_CM) * TWIPS_PER_CM))
     cell_mar = ensure_ordered_child(tbl_pr, 'tblCellMar', _TBLPR_ORDER)
     for side in ('top', 'left', 'bottom', 'right'):
         el = ensure_ordered_child(cell_mar, side, ('top', 'left', 'bottom', 'right'))

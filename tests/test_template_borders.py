@@ -47,7 +47,7 @@ def test_header_border_variant_reaches_the_template(tmp_path: Path, clause: str,
 
 @pytest.mark.parametrize(("clause", "val"), CASES)
 def test_parser_maps_every_variant(clause: str, val: str) -> None:
-    from md_to_word.template.generator import BOTTOM_BORDER_STYLE
+    from md_to_word.template.core import BOTTOM_BORDER_STYLE
 
     spec = parse_format(PRESET + HEADER.format(border=clause))
     header = next(s for s in spec.styles if s["style_name"] == "Header")

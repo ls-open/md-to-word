@@ -767,7 +767,7 @@ def _merge_doc_level_settings(src, dst, qn) -> None:
         lang.set(qn("w:eastAsia"), east_asia)
 
     # 2. settings.xml 里的几项：有就搬，没有就按 schema 顺序插
-    from md_to_word.template.generator import _SETTINGS_ORDER, ensure_ordered_child
+    from md_to_word.template.core import _SETTINGS_ORDER, ensure_ordered_child
 
     src_settings = src.settings.element
     dst_settings = dst.settings.element
@@ -1290,16 +1290,6 @@ def _text_of(page_obj) -> str:
         textpage.close()
 
 
-def _page_text(pdf: Path, page: int) -> str:
-    doc = _pdf_document(pdf)
-    page_obj = doc[page - 1]
-    try:
-        return _text_of(page_obj)
-    finally:
-        page_obj.close()
-        doc.close()
-
-
 def _page_texts(pdf: Path) -> list[str]:
     """每一页的纯文本（空白压掉），用来判断某个串是不是也长在前置件里。
 
@@ -1404,7 +1394,7 @@ def resolve_sections_for_pages(
 
     页切不了：分页是 Word 排出来的结果，切 XML 的时候还不知道第 N 页从哪个段落开始，
     而且切完再排可能又不是那么多页。所以这里逐个节试切一次、渲染数页，找到页数正好
-    对上的那一节，把结果报出来记进模板元数据，以后直接按节走。
+    对上的那一节。结果只用于本次导出；下次仍会重新探测（底模或排版都可能变）。
     """
     from docx import Document
 

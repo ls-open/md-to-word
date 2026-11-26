@@ -94,14 +94,12 @@ class Link:
 
 @dataclass(frozen=True)
 class CitationItem:
-    """一条引文：key 加上可选的页码/前缀/后缀，以及「只出年份」标记。"""
+    """一条引文：key 加上可选的页码、前缀与定位符标签。"""
 
     key: str
     prefix: str = ""
     locator: str = ""
     label: str = "page"     # CSL 的定位符标签：page / chapter / section / paragraph / figure…
-    suffix: str = ""
-    suppress_author: bool = False
 
 
 @dataclass(frozen=True)
@@ -160,12 +158,12 @@ class ListItem:
 
 @dataclass
 class ListBlock:
-    """有序/无序列表。tight 对应 Markdown 的紧凑列表（无空行分隔）。"""
+    """有序/无序列表。`level_starts` 记录每一层第一个有序项的编号。"""
 
     items: list[ListItem] = field(default_factory=list)
     ordered: bool = False
     start: int = 1
-    tight: bool = True
+    level_starts: dict[int, int] = field(default_factory=dict)
 
 
 @dataclass

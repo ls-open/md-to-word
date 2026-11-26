@@ -3,8 +3,9 @@
 这是自研写出器：只做机械映射，不做任何判断——样式名、段落顺序、表格线宽
 这些决定在读取阶段和格式契约里已经定完。写出一层如果再"猜"，就等于把判据藏到了渲染里。
 
-能力边界写在 `SUPPORTED` 里，遇到没实现的结构抛 `UnsupportedFeature` 并说清楚缺什么，
-**不做静默降级**：悄悄写成一个普通段落，比直接失败更难查。
+能力边界由 `block()` / `inline()` 的 `isinstance` 分派表达：遇到没实现的结构抛
+`UnsupportedFeature` 并说清楚缺什么，**不做静默降级**——悄悄写成一个普通段落，比直接
+失败更难查。
 """
 
 from __future__ import annotations
@@ -47,15 +48,14 @@ from md_to_word.preprocessor.markers import (
     toc_xml,
 )
 from md_to_word.utils.docx_decor import clear_decor_container, write_decor_container
-from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES
-from md_to_word.template.generator import (
+from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, TWIPS_PER_CM
+from md_to_word.template.core import (
     _PPR_ORDER,
     _RPR_ORDER,
     _STYLE_ORDER,
     ensure_ordered_child,
-    read_header_styles_meta,
-    write_header_styles_meta,
 )
+from md_to_word.template.decor import read_header_styles_meta, write_header_styles_meta
 from md_to_word.transform.mathml2omml import UnsupportedMath, latex_to_omml
 from md_to_word.model.document import (
     Block, Code, CodeBlock, Document, Emphasis, Equation, Figure, FootnoteRef, Heading,
@@ -64,14 +64,11 @@ from md_to_word.model.document import (
     Strong, Subscript, Superscript, Table, Text, Toc, Underline, Citation, CrossRef,
 )
 
-SUPPORTED_BLOCKS = (Heading, Paragraph, ListBlock, Table, Figure, CodeBlock, PageBreak, Quote)
-
 # 列表缩进（twips，1 英寸 = 1440）：每层左缩进 0.5 英寸，编号悬挂 0.25 英寸。
 # 引用块里的列表整体再右移一个正文缩进，免得和引用正文左对齐、看不出从属关系。
 _LIST_STEP_TWIPS = 720
 _LIST_HANGING_TWIPS = 360
 _QUOTE_LEFT_TWIPS = 480
-SUPPORTED_INLINES = (Code, Strong, Emphasis, Strikethrough, Underline, Superscript, Subscript)
 
 _ALIGN = {
     "left": WD_ALIGN_PARAGRAPH.LEFT,
@@ -287,6 +284,7 @@ class _Writer:
         # 书签 id 必须每份文档从同一个基数起算。放在类上时，同一进程第二次导出会从
         # 上次停下的位置继续，MCP 长驻进程里「同源逐字节一致」当场失效。
         self._bookmark_seq = 100
+        self._override_seq = 99  # 有序列表的 lvlOverride numId，从 100 起
         # 文档语言决定交叉引用前缀与公式编号外观。流水线按**整篇稿件**判好传进来；
         # 直接调库没传时，才退回「看前 800 字」的启发式。
         if doc_lang in ("zh", "en"):
@@ -860,7 +858,7 @@ class _Writer:
         body_style = self._style_name("Body Text") or self._compact_style
         # 每一层各自的起始号（读取端按层记在块上）：只写 ilvl=0 的话，深层会从 1 重数，
         # 作者写的 `3.` 到 Word 里变成 a)。
-        starts = getattr(block, "level_starts", None) or {0: block.start}
+        starts = block.level_starts or {0: block.start}
         # numId 必须整块列表共用一个：`_numbered_list` 遇到起始号不是 1 时会**新建**一个
         # 带 startOverride 的编号实例，逐项调用就会逐项重新从起始号数起——「4. 5.」变成「4. 4.」。
         num_ids: dict[bool, int] = {}
@@ -938,7 +936,6 @@ class _Writer:
             for lv in levels
         )
         numbering = self.docx.part.numbering_part.element
-        self._override_seq = getattr(self, "_override_seq", 99)
         self._override_seq += 1
         new_id = self._override_seq
         xml = (
@@ -1134,14 +1131,10 @@ class _Writer:
         return self._clamp(width_cm, limit)
 
     def _content_width_cm(self) -> Optional[float]:
-        section = self.docx.sections[0] if self.docx.sections else None
-        if section is None:
-            return None
-        widths = (section.page_width, section.left_margin, section.right_margin)
-        if any(value is None for value in widths):
-            return None
-        limit = Emu(widths[0] - widths[1] - widths[2] - (section.gutter or 0)).cm
-        return limit if limit > 0 else None
+        # 图片与表格必须用同一个版心：以前图片取 `sections[0]`（可能是封面），
+        # 表格取末节（正文），灌入多节底模后两张图的钳位基准会不一样。
+        limit_cm = self._content_width_twips() / TWIPS_PER_CM
+        return limit_cm if limit_cm > 0 else None
 
     def _clamp(
         self, width_cm: Optional[float], limit: Optional[float] = None,
@@ -1236,25 +1229,37 @@ class _Writer:
         )
         return f'<w:p><w:pPr><w:pStyle w:val="{style}"/></w:pPr>{number}{runs}</w:p>'
 
-    def _run_xml(self, node) -> str:
+    def _run_xml(self, node, inherited: str = "") -> str:
+        """脚注区的一条 run。`inherited` 是外层格式（如整段加粗），只生成一个 rPr。
+
+        以前用 `inner.replace("<w:r>", ...)` 给子 run 补格式：子节点自己已有 rPr 时，
+        会在同一个 run 前面再塞一个 `<w:rPr>`，OOXML 不允许；脚注里的行内代码正好
+        同时带 rStyle 与外层加粗，实测就撞上了。
+        """
         if isinstance(node, LineBreak):
             return "<w:r><w:br/></w:r>"
         if isinstance(node, Citation):
             return self._citation_xml(node)
         if isinstance(node, CrossRef):
-            return self._text_run_xml(self._resolve_crossref(node.target))
+            return self._text_run_xml(self._resolve_crossref(node.target), inherited)
         if isinstance(node, Code):   # 等宽是叶子节点，别落进下面的纯文本分支
             style = self._style_name("Verbatim Char")
-            props = f'<w:rStyle w:val="{style}"/>' if style else ""
-            return f'<w:r><w:rPr>{props}</w:rPr><w:t xml:space="preserve">{_escape(node.value)}</w:t></w:r>'
+            style_id = style.replace(" ", "") if style else ""
+            rpr = (f'<w:rStyle w:val="{style_id}"/>' if style_id else "") + inherited
+            return self._text_run_xml(node.value, rpr)
         text = getattr(node, "value", None)
         if text is not None:
-            return f'<w:r><w:t xml:space="preserve">{_escape(text)}</w:t></w:r>'
+            return self._text_run_xml(text, inherited)
         children = getattr(node, "children", None)
         if children is None:
             raise UnsupportedFeature(t("writer.footnote_node", self.lang,
                                        type=type(node).__name__))
-        inner = "".join(self._run_xml(c) for c in children)
+        if isinstance(node, Link):
+            # 脚注区是手工拼的 XML，超链接要先拿到 rId——占位符在这里埋，写部件时替换
+            index = len(self._footnote_links)
+            self._footnote_links.append(node.url)
+            inner = "".join(self._run_xml(child, inherited) for child in node.children)
+            return f'<w:hyperlink r:id="{{{{L{index}}}}}">{inner}</w:hyperlink>'
         props = ""
         if isinstance(node, Strong):
             props = "<w:b/>"
@@ -1268,17 +1273,15 @@ class _Writer:
             props = '<w:vertAlign w:val="superscript"/>'
         elif isinstance(node, Subscript):
             props = '<w:vertAlign w:val="subscript"/>'
-        elif isinstance(node, Link):
-            # 脚注区是手工拼的 XML，超链接要先拿到 rId——占位符在这里埋，写部件时替换
-            index = len(self._footnote_links)
-            self._footnote_links.append(node.url)
-            inner = "".join(self._run_xml(child) for child in node.children)
-            return f'<w:hyperlink r:id="{{{{L{index}}}}}">{inner}</w:hyperlink>' 
-        return inner.replace("<w:r>", f"<w:r><w:rPr>{props}</w:rPr>", 1) if props else inner
+        return "".join(self._run_xml(child, inherited + props) for child in children)
 
     @staticmethod
-    def _text_run_xml(text: str) -> str:
-        return f'<w:r><w:t xml:space="preserve">{_escape(text)}</w:t></w:r>'
+    def _text_run_xml(text: str, rpr: str = "") -> str:
+        return (
+            f'<w:r><w:rPr>{rpr}</w:rPr><w:t xml:space="preserve">{_escape(text)}</w:t></w:r>'
+            if rpr else
+            f'<w:r><w:t xml:space="preserve">{_escape(text)}</w:t></w:r>'
+        )
 
     @staticmethod
     def _segment_run_xml(text: str, fmt: dict) -> str:
@@ -1332,10 +1335,6 @@ class _Writer:
         """`@eq-a` → 「式（5-1）」/「Equation (5.1)」：前缀看 YAML 的 crossref，编号按同一份格式。"""
         if target.startswith("eq-"):
             prefix = self._crossref_prefixes.get("eq-prefix", "式")
-        elif target.startswith("fig-"):
-            prefix = self._crossref_prefixes.get("fig-prefix", "图")
-        elif target.startswith("tbl-"):
-            prefix = self._crossref_prefixes.get("tbl-prefix", "表")
         else:
             raise UnsupportedFeature(t("writer.crossref_type", self.lang, target=target))
         parts = self._eq_numbers.get(target)
@@ -1489,6 +1488,10 @@ class _Writer:
             for name in ("bold", "italic", "strike", "underline"):
                 if fmt.get(name):
                     rpr.append(run.makeelement(qn(f"w:{_W_FMT[name]}"), {}))
+            for name in ("superscript", "subscript"):
+                if fmt.get(name):
+                    el = run.makeelement(qn("w:vertAlign"), {qn("w:val"): name})
+                    rpr.append(el)
             if len(rpr):
                 run.append(rpr)
             t = run.makeelement(qn("w:t"), {})

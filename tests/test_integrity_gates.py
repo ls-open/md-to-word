@@ -85,11 +85,22 @@ def test_row_split_lock_is_audited(tmp_path):
 
 def test_image_alt_is_not_counted_as_body_text(tmp_path):
     """替代文字写进 `docPr/descr`，不进正文；防丢检查不能拿它当正文里的字。"""
-    from md_to_word.audit.postflight import extract_numbers, load_source_text
+    import shutil
 
+    shutil.copyfile(REPO_ROOT / "tests" / "fixtures" / "images" / "tiny.png", tmp_path / "pic.png")
     md = tmp_path / "m.md"
-    md.write_text("# 标题\n\n![value 1.234](pic.png)\n\n正文 2.718。\n", encoding="utf-8")
-    assert extract_numbers(load_source_text(md)) == {"2.718"}
+    md.write_text(
+        "# 标题\n\n![value 1.234](pic.png){width=2cm}\n\n%% 图片题注 图 1 示意图\n\n"
+        "正文 2.718。\n",
+        encoding="utf-8",
+    )
+    docx = tmp_path / "m.docx"
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=docx, preset="zh-academic",
+    ))
+    assert result.returncode == 0, result.errors
+    ok, missing = verify_numeric_integrity(md, docx)
+    assert ok, missing
 
 
 def _export_english(tmp_path: Path, body: str) -> tuple[Path, Path]:

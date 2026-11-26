@@ -632,7 +632,7 @@ def test_header_styles_metadata_survives_injection(tmp_path: Path) -> None:
     不搬这个部件的话，产物丢掉「哪些样式加入了页眉」——再拿它去反推时，
     只能保守地说「有 STYLEREF 但不知道谁进页眉」。自描述信息不该在合并时丢掉。
     """
-    from md_to_word.template.generator import read_header_styles_meta
+    from md_to_word.template.decor import read_header_styles_meta
 
     base = _school_base(tmp_path / "base.docx", sections=3)
     template = tmp_path / "t.docx"
@@ -873,7 +873,7 @@ def test_pdf_page_reading_does_not_need_poppler() -> None:
 
     pdf = REPO_ROOT / "demo" / "00_quickstart" / "hello.pdf"
     assert base_inject._pages(pdf) == 1
-    assert "我的第一份规范" in base_inject._page_text(pdf, 1)
+    assert "我的第一份规范" in base_inject._page_texts(pdf)[0]
 
     words = base_inject._words(pdf, 1)
     assert len(words) > 50

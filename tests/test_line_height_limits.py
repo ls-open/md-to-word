@@ -19,7 +19,7 @@ from md_to_word.model.reader import read_markdown
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
-from md_to_word.template.generator import max_doc_grid_lines
+from md_to_word.template.core import max_doc_grid_lines
 from md_to_word.writer import write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

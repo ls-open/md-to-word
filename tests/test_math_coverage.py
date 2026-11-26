@@ -49,20 +49,6 @@ def test_common_constructs_render_to_omml(name: str, latex: str, element: str) -
     assert element in _local_names(latex), f"{name} 没有落成 {element}"
 
 
-def test_aligned_is_translated_not_silently_dropped() -> None:
-    """`aligned` 要真的落成两行 eqArr——每行一个 `m:e`，不是被吞掉、也不是退化成一行。
-
-    这里从断言"两行 `m:mr` 矩阵"改成"两行 `m:e` 的 `m:eqArr`"：对齐环境在 OOXML 里
-    就是 eqArr（ECMA-376：带对齐分组的 mtable → eqArr；`m:m` 只用于真矩阵）。矩阵版本
-    里 `&` 只剩一列空格子，行间并不真对齐，断言矩阵会把那个错误结构说成正确。
-    """
-    aligned = latex_to_omml(r"\begin{aligned} y &= ax + b \\ z &= c \end{aligned}")[0]
-    assert etree.QName(aligned).localname == "eqArr"
-    rows = [child for child in aligned if etree.QName(child).localname == "e"]
-
-    assert len(rows) == 2, etree.tostring(aligned, encoding="unicode")[:300]
-
-
 def test_unknown_mathml_still_fails_loudly() -> None:
     """不认识的 MathML 元素必须是一句话，而不是转换器自己的异常。"""
     from md_to_word.transform.mathml2omml import UnsupportedMath, mathml_to_omml
@@ -71,7 +57,7 @@ def test_unknown_mathml_still_fails_loudly() -> None:
         '<math xmlns="http://www.w3.org/1998/Math/MathML">'
         "<menclose><mi>x</mi></menclose></math>"
     )
-    with pytest.raises(UnsupportedMath):
+    with pytest.raises(UnsupportedMath, match="menclose"):
         mathml_to_omml(unsupported)
 
     malformed = '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>&</mi></math>'

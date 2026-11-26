@@ -111,7 +111,7 @@ def identifying_metadata(path: Path | str) -> list[IdentityFinding]:
                 for tag, code in _APP_FIELDS:
                     # 模板名/超链接基址/上次打印时间不是身份：清理时一起清，但不报警，
                     # 否则每个底模都会提示一遍「Normal.dotm」，提醒就失去意义。
-                    if code in ("template", "hyperlinkBase", "lastPrinted"):
+                    if code in ("template", "hyperlinkBase"):
                         continue
                     value = _text_of(root, tag)
                     if value:
@@ -235,8 +235,10 @@ def _verify_scrubbed(path: Path, lang: str = "zh") -> None:
         for name in names:
             if name.endswith((".xml", ".rels")):
                 etree.fromstring(archive.read(name))
-        if any(name.startswith("docProps/custom.xml") for name in names):
-            raise MetadataError(t("metadata.verify.custom_props", lang))
+        leftover = [name for name in names
+                    if any(name.startswith(prefix) for prefix in _DROP_PREFIXES)]
+        if leftover:
+            raise MetadataError(t("metadata.verify.identity_part", lang, name=leftover[0]))
 
 
 def scrub_metadata(path: Path | str, lang: str = "zh") -> None:

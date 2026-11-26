@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import platform
 import subprocess
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def _render_script() -> Path:
@@ -43,6 +46,7 @@ def explain_unavailable(reason: str, lang: str = "zh") -> str:
         ("no-word", "word_pdf.no_word"),
         ("no-render-script", "word_pdf.no_script"),
         ("timeout", "word_pdf.timeout"),
+        ("word-error", "word_pdf.word_error"),
     ):
         if reason == code:
             return t(key, lang)
@@ -73,7 +77,13 @@ def render_pdf_via_word(
     except subprocess.TimeoutExpired:
         return False, "timeout"
     except OSError as exc:
-        return False, str(exc)
+        logger.warning("Word PDF 渲染失败：%s", exc)
+        return False, "word-error"
     if res.returncode == 0 and pdf_p.exists():
         return True, None
-    return False, res.stderr or res.stdout
+    # 原始 stderr 是给维护者排错的，不是给 Agent 分支的稳定 code。契约字段只放
+    # `word-error`，细节写日志；否则 `pdf_skip_reason` 会变成一坨任意文本。
+    detail = (res.stderr or res.stdout or "").strip()
+    if detail:
+        logger.warning("Word PDF 渲染失败：%s", detail[:2000])
+    return False, "word-error"

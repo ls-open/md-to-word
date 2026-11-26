@@ -393,3 +393,36 @@ TABLE_VALIGN_MAP = {
     "top": "top",
     "bottom": "bottom",
 }
+
+# ── 格式文件里表格 / 页眉页脚词表（parser 与 serializer 共用）──
+DECOR_CONTENT_KEYS = {
+    "页眉内容": ("header", "default"),
+    "偶数页页眉内容": ("header", "even"),
+    "首页页眉内容": ("header", "first"),
+    "页脚内容": ("footer", "default"),
+    "偶数页页脚内容": ("footer", "even"),
+    "首页页脚内容": ("footer", "first"),
+    "Header Content": ("header", "default"),
+    "Even Header Content": ("header", "even"),
+    "First Header Content": ("header", "first"),
+    "Footer Content": ("footer", "default"),
+    "Even Footer Content": ("footer", "even"),
+    "First Footer Content": ("footer", "first"),
+}
+
+TABLE_WIDTH_KEYS = {
+    "线宽上": "top",
+    "线宽底": "bottom",
+    "线宽表头下": "header_bottom",
+    "线宽内": "inside",
+    "border-top": "top",
+    "border-bottom": "bottom",
+    "border-header": "header_bottom",
+    "border-inside": "inside",
+}
+
+# 写回要求文件时用的正典中文名（一个线型只有一个写法；别名只在解析时收）
+BORDER_TEXT = {
+    "single": "单线", "double": "双线", "even": "等宽双线",
+    "thickThin": "上粗下细", "triple": "三线",
+}

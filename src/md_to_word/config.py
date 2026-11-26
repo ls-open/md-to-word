@@ -115,5 +115,5 @@ def default_csl_path(text: str) -> Path:
 def default_crossref_prefixes(chinese: bool) -> dict[str, str]:
     """交叉引用前缀的默认值：`@eq-a` 该长成「式1」还是「Equation 1」。"""
     if chinese:
-        return {"eq-prefix": "式", "fig-prefix": "图", "tbl-prefix": "表"}
-    return {"eq-prefix": "Equation ", "fig-prefix": "Figure ", "tbl-prefix": "Table "}
+        return {"eq-prefix": "式"}
+    return {"eq-prefix": "Equation "}

@@ -25,6 +25,16 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PRESET = REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt"
 
 
+@pytest.fixture(autouse=True)
+def _fresh_raster_cache():
+    """缓存是进程级的；测试之间必须从零开始，才能单独断言命中与淘汰。"""
+    from md_to_word.utils.pdf_figure import clear_cache
+
+    clear_cache()
+    yield
+    clear_cache()
+
+
 def _make_pdf(path: Path, pages: int = 1, width: int = 200, height: int = 100) -> Path:
     pdf = pdfium.PdfDocument.new()
     for _ in range(pages):

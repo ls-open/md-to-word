@@ -38,7 +38,7 @@ def test_toc_styles_are_builtin(level: int, tmp_path: Path) -> None:
 
 def test_fourth_level_is_opt_in_and_contiguous(tmp_path: Path) -> None:
     """四级目录不是默认：不写就没有；写了四级就必须连着写到三级。"""
-    from md_to_word.template.generator import TemplateError
+    from md_to_word.template.core import TemplateError
 
     preset = PRESET.read_text(encoding="utf-8")
     assert "TOC 4" not in _styles_xml(tmp_path), "预设只到三级，模板里不该凭空多出四级"

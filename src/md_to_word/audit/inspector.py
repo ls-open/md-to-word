@@ -22,16 +22,21 @@ from pathlib import Path
 from lxml import etree
 
 from md_to_word.spec.models import MinLineSpacing
-from md_to_word.template.generator import (
-    ALIGN_ENUM_VAL, BOTTOM_BORDER_STYLE,
-    TABLE_CELL_MARGIN_DEFAULT_CM, TABLE_BORDER_SIDES,
-    TABLE_DEFAULT_WIDTHS, _TWIPS_PER_CM,
-    _pt_to_border_sz, doc_grid_pitch, page_size_twips,
-    parse_format, read_header_styles_meta, resolve_punctuation_compression, table_border_widths,
+from md_to_word.template.core import (
+    BOTTOM_BORDER_STYLE, _pt_to_border_sz, doc_grid_pitch, page_size_twips,
+    resolve_punctuation_compression,
+)
+from md_to_word.template.decor import read_header_styles_meta
+from md_to_word.template.tables import (
+    TABLE_BORDER_SIDES, TABLE_CELL_MARGIN_DEFAULT_CM, TABLE_DEFAULT_WIDTHS,
+    table_border_widths,
 )
 
 from md_to_word.config import looks_chinese
-from md_to_word.spec.constants import ROW_NAME_EN, is_cjk_font
+from md_to_word.spec.constants import (
+    ALIGN_ENUM_VAL, ROW_NAME_EN, TWIPS_PER_CM, is_cjk_font,
+)
+from md_to_word.spec.parser import parse_format
 from md_to_word.i18n import t
 from md_to_word.utils.textio import TextDecodeError, read_text_file
 
@@ -594,7 +599,7 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
             # **不写也要对账**——底模的继承链里有个默认值，它不落进 Table 样式就等于由
             # 继承链说了算，而要求文件里写着"不写即 0"。
             want_cm = spec.table.get('cell_margin_cm', TABLE_CELL_MARGIN_DEFAULT_CM)
-            want_w = str(int(round(want_cm * _TWIPS_PER_CM)))
+            want_w = str(int(round(want_cm * TWIPS_PER_CM)))
             cell_mar = tbl_pr.find(W + 'tblCellMar') if tbl_pr is not None else None
             for side in ('top', 'left', 'bottom', 'right'):
                 e = cell_mar.find(W + side) if cell_mar is not None else None

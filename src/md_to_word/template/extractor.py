@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""read_reference_docx.py — 从一份「参考 .docx」反推 format.txt 草稿。
+"""md-to-word-template — 从一份「参考 .docx」反推 format.txt 草稿。
 
 用法:
     md-to-word-template 参考.docx [-o 草稿.txt]        # 装包后
@@ -36,15 +36,24 @@ from md_to_word.spec.constants import (
     PAGE_SIZES_CM,
     PAGE_SIZE_MAP,
     PUNCT_COMPRESSION_CN,
+    STYLE_CN,
+    STYLE_EN,
+    STYLE_MAP,
     TWIPS_PER_CM,
     is_cjk_font,
 )
+from md_to_word.template.checks import (
+    REQUIRED_STYLES,
+    TOC_STYLE_GROUP,
+    _LINKED_SECTION_TITLES,
+)
+from md_to_word.template.core import doc_grid_lines_from_pitch
+from md_to_word.template.decor import read_header_styles_meta
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
-_TWIPS_PER_CM = TWIPS_PER_CM
 
-# 页码格式词表：OOXML 值 → 本工具写法（与 generate_template.PAGE_NUMBER_FMT 反向对应）
+# 页码格式词表：OOXML 值 → 本工具写法（与 spec.constants.PAGE_NUMBER_FMT 反向对应）
 PGNUM_FMT = {'decimal': '阿拉伯', 'upperRoman': '罗马', 'lowerRoman': '小写罗马',
              'lowerLetter': '字母', 'upperLetter': '大写字母'}
 ALIGN = {'both': '两端对齐', 'justify': '两端对齐', 'center': '居中',
@@ -220,7 +229,7 @@ class Ref:
 def _content_width_twips(ref: Ref):
     """正文可用宽度（twips），取自参考文件的正文节。取不全返回 None。
 
-    与写入侧 `generate_template._content_width_twips` 同一条公式（含减掉装订线）——
+    与写入侧 `template.core._content_width_twips` 同一条公式（含减掉装订线）——
     判断"这个制表位是不是落在版心右边界"要用它。
     """
     sect = ref.sect
@@ -310,7 +319,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
 
     ind = ref.eff(chain, 'pPr/ind')
     # **悬挂缩进要先判**。写悬挂缩进时会同时写 `firstLineChars="0"` 去中和继承来的首行缩进
-    # （见 generate_template 的 _neutralize_inherited_first_line），而 `"0"` 是个真值字符串，
+    # （见 template.core 的 _neutralize_inherited_first_line），而 `"0"` 是个真值字符串，
     # 先判 firstLineChars 那一支就永远命中——实测写「悬挂缩进0.5英寸」读回来变成
     # 「首行缩进0字符 左缩进3.4字符」，悬挂整个丢掉。
     def ind_int(name):
@@ -582,7 +591,7 @@ def read_table(ref: Ref) -> tuple:
                 raw = (e.get(q('w')) or '').strip() if e is not None else ''
                 twips.append(int(raw) if raw.isdigit() else None)
             if len(set(twips)) == 1 and twips[0] is not None:
-                line.append(f'单元格内边距{round(twips[0] / _TWIPS_PER_CM, 2):g}cm')
+                line.append(f'单元格内边距{round(twips[0] / TWIPS_PER_CM, 2):g}cm')
             else:
                 # 四边不同值：格式文件只有一个数，读不出来就要说，不能挑一边写上去
                 doubt.append(t('extractor.note.table_cell_margin_uneven', ref.lang,
@@ -613,9 +622,8 @@ def body_line_multiple(ref: Ref) -> float:
     """正文的行距**倍数**——把参考文件里的 `linePitch` 反推成「每页 N 行」要用它。
 
     复用样式读取那一套（不另写一遍 XML 解析），优先级与写入侧
-    `generate_template.body_line_spacing_multiple` 一致：先「正文」，退回「普通」。
+    `template.core.body_line_spacing_multiple` 一致：先「正文」，退回「普通」。
     """
-    from md_to_word.template.generator import STYLE_MAP
     sid_of = {(w.replace(' ', '')).lower(): cn for cn, w in STYLE_MAP.items()}
     for cn in ('正文', '普通'):
         sid = next((s for s, c in sid_of.items() if c == cn), None)
@@ -690,7 +698,6 @@ def read_page(ref: Ref, line_multiple: float = 1.0) -> tuple:
     except ValueError:
         pitch = 0
     if pitch > 0:
-        from md_to_word.template.generator import doc_grid_lines_from_pitch
         page_size = PAGE_SIZE_MAP.get(paper) if paper else None
         if None in (top, bottom, left, right) or page_size is None:
             doubt.append(t('extractor.note.doc_grid_skipped', ref.lang))
@@ -916,14 +923,6 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
 
     CLI 与库调用共用这一份，不另写第二遍。
     """
-    from md_to_word.spec.constants import STYLE_CN, STYLE_EN, STYLE_MAP
-    from md_to_word.template.generator import (
-        REQUIRED_STYLES,
-        TOC_STYLE_GROUP,
-        _LINKED_SECTION_TITLES,
-        read_header_styles_meta,
-    )
-
     # 草稿的样式名按**参考文件的语种**出，与对应预设一致（zh-academic 写「正文」，
     # en-nature 写 Body Text）；两套写法都取自词表的规范映射，不在这里另立一份。
     primary, fallback = (STYLE_EN, STYLE_CN) if lang == 'en' else (STYLE_CN, STYLE_EN)

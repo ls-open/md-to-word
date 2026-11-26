@@ -153,6 +153,27 @@ def test_footnotes_are_written_as_a_real_part(template: Path, tmp_path: Path) ->
     open_docx(str(out))
 
 
+def test_footnote_inline_code_uses_one_valid_rpr(template: Path, tmp_path: Path) -> None:
+    """脚注里的 `**`code`**` 不能产生两个 `<w:rPr>`，rStyle 也要用 styleId。"""
+    model = read_markdown(
+        "# 一\n\n正文[^1]。\n\n[^1]: **`code`** 与 `plain`，还有[链接](https://example.com)。\n"
+    )
+    out = write_docx(model, template, tmp_path / "fn-code.docx")
+    footnotes = zipfile.ZipFile(out).read("word/footnotes.xml").decode("utf-8")
+
+    assert 'w:rStyle w:val="Verbatim Char"' not in footnotes
+    assert 'w:rStyle w:val="VerbatimChar"' in footnotes
+    runs = re.findall(r"<w:r>.*?</w:r>", footnotes, re.S)
+    assert runs
+    assert all(run.count("<w:rPr>") <= 1 for run in runs), footnotes
+    # 加粗与等宽落在同一个 rPr 里，而不是一个盖住另一个
+    assert any(
+        "<w:b/>" in run and 'w:rStyle w:val="VerbatimChar"' in run
+        for run in runs
+    ), footnotes
+    assert "https://example.com" not in footnotes  # 链接地址进关系，不进正文
+
+
 def test_toc_depth_follows_the_template_when_not_given(template: Path, tmp_path: Path) -> None:
     """`{{< toc >}}` 不带级数时，收几级由模板声明到几级决定，不是写死 3。"""
     model = read_markdown('---\n---\n\n{{< toc >}}\n\n# 一 引言\n\n正文。\n')
@@ -264,22 +285,6 @@ def test_chapter_format_without_chapters_fails_loudly(template: Path, tmp_path: 
     model = read_markdown('---\n---\n\n# 一\n\n$$a$$ {#eq-a}\n')
     with pytest.raises(UnsupportedFeature, match="chapters"):
         write_docx(model, template, tmp_path / "bad.docx", equation_number_format="（{c}-{n}）")
-
-
-def test_unsupported_mathml_fails_loudly() -> None:
-    """转换器遇到没覆盖的 MathML 结构要当场报错，不能悄悄变成空白或纯文本。
-
-    注意：`latex2mathml` 本身对不认识的命令很宽容（原样转成文本），所以这条边界只能
-    在 MathML 这一层测——那也正是我们自己的代码所在的位置。
-    """
-    from md_to_word.transform.mathml2omml import UnsupportedMath, mathml_to_omml
-
-    unsupported = (
-        '<math xmlns="http://www.w3.org/1998/Math/MathML">'
-        "<menclose><mi>x</mi></menclose></math>"
-    )
-    with pytest.raises(UnsupportedMath, match="menclose"):
-        mathml_to_omml(unsupported)
 
 
 def test_pipeline_needs_no_external_binary(tmp_path: Path) -> None:

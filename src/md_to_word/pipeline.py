@@ -1,7 +1,9 @@
 """md_to_word.pipeline — 导出总编排。
 
-顺序固定：读稿 → 预检 → 生成样式模板 → 读成文档模型 → 写出 OOXML → 防丢内容 → 对账 → 可选 PDF。
-每一步失败都有明确的退出码与可读原因；跨平台，不依赖任何外部二进制。
+顺序固定：读稿 → 定格式与底模切点 → 预检 → 生成样式模板与 CSL → 读成文档模型 →
+写出 OOXML → 防丢内容 → 对账 →（可选）盲审清理与底模灌入 →（可选）PDF。
+每一步失败都有明确的退出码与可读原因；核心导出跨平台，不依赖任何外部二进制，
+只有可选的 `--pdf` 需要 macOS 上的 Microsoft Word。
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
 from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED
-from md_to_word.template.generator import TemplateError
+from md_to_word.template.core import TemplateError
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
 from md_to_word.utils.metadata import identifying_metadata, scrub_metadata
@@ -490,25 +492,6 @@ def _prepare_base_plan(
     return True, BasePlan(base_p, sections, cut_at_paragraph)
 
 
-def _check_template_buildable(
-    fmt_content: str, res: ExportResult, fmt_file: Optional[Path]
-) -> bool:
-    """格式内容能不能真的生成样式模板。
-
-    预检只看稿件与格式词表；「空格式」「只有注释」「属性组合生成不了模板」这几类
-    问题要到导出中段才会暴露。`--validate-only` 若在这里说没问题，用户会带着一份
-    注定失败的稿件去交付。导出与预检共用同一个 build_template，判据才不会分叉。
-    """
-    try:
-        with tempfile.TemporaryDirectory(prefix="md2word_validate_") as td:
-            build_template(fmt_content, Path(td) / "template.docx", lang=res.lang)
-    except TemplateError as exc:
-        _fail(res, "pipeline.format_template_failed",
-              t("pipeline.format_template_failed", res.lang, reason=exc), file=fmt_file)
-        return False
-    return True
-
-
 def _trial_export(options: ExportOptions, fmt_file: Optional[Path], res: ExportResult) -> bool:
     """预检通过后，用同一套写出器往临时目录真导一次。
 
@@ -546,10 +529,12 @@ def _trial_export(options: ExportOptions, fmt_file: Optional[Path], res: ExportR
 
 
 def run_validation(options: ExportOptions) -> ExportResult:
-    """只跑导前预检：读稿、选格式、校验，不生成模板也不写 .docx。
+    r"""预检 + 临时目录里的完整试导出：不写目标路径，但会生成模板并写临时 .docx。
 
-    与导出共用 `prepare_manuscript` 与 `resolve_format`，所以「读的是哪份稿、用的是哪份格式」
-    在预检与导出之间不会分叉。
+    试导出用的就是正式写出器，用来发现词表检查覆盖不到的结构错误（`\xrightarrow` 转
+    OMML、引用块里的标题、列表项里的代码块）；预检若说 0 而导出立刻失败，作者会收到
+    错误的安全信号。与导出共用 `prepare_manuscript` 与 `resolve_format`，读稿与选格式
+    不会分叉。
     """
     prep = prepare_manuscript(options)
     res = prep.res
@@ -583,10 +568,8 @@ def run_validation(options: ExportOptions) -> ExportResult:
         res.messages.append(warning)
         res.warnings.append(warning)
     if report.valid:
-        # 稿件合规不等于格式能落成模板：空格式/只有注释的格式在这里就必须拦住，
-        # 否则 validate-only 返回 0、真正导出立刻失败。
-        if not _check_template_buildable(fmt_content, res, fmt_file):
-            return res
+        # 稿件合规不等于格式能落成模板、更不等于写得出来：直接用正式写出器试跑一遍。
+        # 空格式/只有注释的格式也会在这一步被 `build_template` 拦住。
         if not _trial_export(options, fmt_file, res):
             return res
         res.messages.append(t("pipeline.validate_ok", res.lang, count=len(report.warnings)))
@@ -653,14 +636,11 @@ def _postflight_failure(in_p: Path, target: Path, res: ExportResult) -> Optional
     return None
 
 
-def _resolved_output(options: ExportOptions) -> Optional[Path]:
-    """这次真正会写的 docx 路径；解析不了就返回 None，交给流水线自己报错。"""
-    try:
-        if options.output_path:
-            return Path(options.output_path).resolve()
-        return Path(options.input_path).resolve().with_suffix(".docx")
-    except OSError:
-        return None
+def _resolved_output(options: ExportOptions) -> Path:
+    """这次真正会写的 docx 路径（与流水线里的规则同一处）。"""
+    if options.output_path:
+        return Path(options.output_path).resolve()
+    return Path(options.input_path).resolve().with_suffix(".docx")
 
 
 def _file_snapshot(path: Optional[Path]) -> Optional[tuple[int, int, float]]:
@@ -766,7 +746,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
     if fmt_content is None:
         return res
 
-    # 2b. 底模的前置条件在渲染前查完：底模不存在、切点歧义、需要 Word 却不在 macOS 上，
+    # 3. 底模的前置条件在渲染前查完：底模不存在、切点歧义、需要 Word 却不在 macOS 上，
     #     都不该等整篇排完才说。与 `--validate-only` 共用同一份判断。
     ok, base_plan = _prepare_base_plan(options, res, allow_keep_pages=True)
     if not ok:
@@ -840,31 +820,25 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
         # 属于把批注当正文。这里无条件剔除，不给开关——代码块里的内容不受影响。
         contract_text = strip_html_comments(manuscript_text)
 
-        # 引文样式：作者写了就按作者的（内置名或自己的路径），没写按语种取默认
-        builtin_csl: Optional[Path] = None
+        # frontmatter 只解析这一次；`csl:` 的路径解析放到真正建引文引擎时。
+        # 预检正常时会先报 YAML 错误；`--no-check` 或直接调库时也要给出结构化失败，
+        # 不能 `except Exception: pass` 后悄悄换默认样式。
         fm_data: dict = {}
         fm_raw, _ = split_frontmatter(contract_text)
         if fm_raw:
             import yaml
             try:
-                fm_data = yaml.safe_load(fm_raw)
-                if isinstance(fm_data, dict) and fm_data.get("csl"):
-                    p, how = resolve_manuscript_path(
-                        str(fm_data["csl"]), in_p, skill_csl_dir=get_csl_dir()
-                    )
-                    if how == "skill-builtin":
-                        builtin_csl = p
-            except Exception:
-                pass
-
-        # 未声明 csl: 时给一个确定的默认（中文稿 GB/T 数字制、其余 APA），
-        # 让「什么都不写」也有可预期、可复现的结果。
-        if (
-            isinstance(fm_data, dict)
-            and fm_data.get("bibliography")
-            and not fm_data.get("csl")  # 作者声明的 csl 优先，哪怕它不是内置样式
-        ):
-            builtin_csl = default_csl_path_for_lang(doc_lang)
+                loaded = yaml.safe_load(fm_raw)
+            except yaml.YAMLError as exc:
+                _fail(res, "gate.yaml.parse_failed",
+                      t("gate.yaml.parse_failed", res.lang, err=exc), file=in_p)
+                return res
+            if loaded is not None and not isinstance(loaded, dict):
+                _fail(res, "gate.yaml.parse_failed",
+                      t("gate.yaml.parse_failed", res.lang,
+                        err="frontmatter 顶层必须是映射"), file=in_p)
+                return res
+            fm_data = loaded or {}
 
         # 临时模板生成
         if not fmt_content:
@@ -897,7 +871,6 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
 
         # 6. 契约文本 → 文档模型 → OOXML
         from md_to_word.model.reader import MarkdownError, read_markdown
-        from md_to_word.utils.skill_utils import parse_bib_keys
         from md_to_word.writer import UnsupportedFeature, write_docx
 
         citation_keys: set[str] = set()
@@ -916,14 +889,16 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                 if problem:
                     _fail(res, "gate.bib.json", problem, file=bib_path)
                     return res
-                citation_keys = parse_bib_keys(bib_text)
+                from md_to_word.transform.biblio import bibliography_keys
+
+                citation_keys = bibliography_keys(bib_text)
 
         engine = None
         if citation_keys:
             from md_to_word.transform.citations import CitationEngine, CitationError
 
-            csl_path = builtin_csl
-            if csl_path is None and isinstance(fm_data, dict) and fm_data.get("csl"):
+            csl_path = None
+            if fm_data.get("csl"):
                 resolved, how = resolve_manuscript_path(
                     str(fm_data["csl"]), in_p, skill_csl_dir=get_csl_dir()
                 )
@@ -1011,7 +986,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                   t("pipeline.write_failed", res.lang, path=out_p, err=exc), file=out_p)
             return res
 
-        # 8. 产物数值防丢检查 (Audit: Post-flight)
+        # 7. 产物数值防丢检查 (Audit: Post-flight)
         if options.postflight:
             failure = _postflight_failure(in_p, render_target, res)
             if failure:
@@ -1019,7 +994,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                 return res
             logger.info("✓ " + t("pipeline.numeric_ok", res.lang))
 
-        # 9. 格式要求逐条对账 (Audit: Inspector)
+        # 8. 格式要求逐条对账 (Audit: Inspector)
         if options.audit and fmt_file:
             matched, problems = audit_docx_against_spec(render_target, fmt_file, res.lang)
             if not matched:
@@ -1031,11 +1006,11 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                 return res
             logger.info("✓ " + t("pipeline.audit_ok", res.lang))
 
-        # 9.4 盲审清理：在临时产物上做，清理失败不发布
+        # 9. 盲审清理：在临时产物上做，清理失败不发布
         if options.blind_review and not _blind_review(res, render_target, out_p):
             return res
 
-        # 9.5 普通导出：门禁全过之后才把临时产物换到目标路径
+        # 10. 普通导出：门禁全过之后才把临时产物换到目标路径
         if not options.base_template:
             try:
                 os.replace(render_target, out_p)
@@ -1046,7 +1021,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
             render_target = None
             res.output_docx = out_p
 
-        # 10. 灌进学校模板：封面原样保留，正文换成我们排的
+        # 11. 灌进学校模板：封面原样保留，正文换成我们排的
         if options.base_template and base_plan is not None:
             from md_to_word.template.base_inject import (
                 BaseTemplateError,
@@ -1136,7 +1111,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
             key = "pipeline.base_ok" if outcome.layout_verified else "pipeline.base_ok_structure"
             logger.info("✓ " + t(key, res.lang, pages=outcome.cover_sections))
 
-        # 11. 可选 PDF 渲染 (Visual QA)
+        # 12. 可选 PDF 渲染 (Visual QA)
         if options.make_pdf:
             pdf_path = out_p.with_suffix(".pdf")
             # 先渲染到临时文件、成功后再替换：Word/AppleScript 中途失败时，不能把

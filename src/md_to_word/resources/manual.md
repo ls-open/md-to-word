@@ -54,7 +54,7 @@ md-to-word 稿件.md --preset zh-gb9704 -o out.docx    # 党政机关公文正�
 md-to-word 稿件.md --preset en-apa-student -o out.docx # APA 7 学生论文
 md-to-word 稿件.md -f format.txt -o out.docx        # 显式指定格式文件
 md-to-word init                                     # 生成 format.txt 与可直接导出的 hello.md
-md-to-word 稿件.md --validate-only                  # 只跑导前预检，不写 .docx
+md-to-word 稿件.md --validate-only                  # 预检 + 临时试导出，不写目标 .docx
 md-to-word --guide                                  # 入门文档（代办流程、门禁、边界）
 md-to-word --contract                               # 契约速查 + 手册与预设路径
 md-to-word --contract --lang en                     # 同上，英文版（样式名用英文正典名）
@@ -89,7 +89,7 @@ md-to-word 论文.md --base-template 底模.docx --cover-sections 3 -o 论文.do
 要转述的内容都在这里，不必再解析 stderr；需要单独识别提醒时读 `warnings`，它是 `messages`
 里提醒条目的子集。`lang` 是消息语言；`doc_lang` 是本次采用的文档语言（决定默认 CSL、交叉引用前缀与公式编号
 默认外观）：显式格式文件的 `校对语言：` 优先，没有才按正文判定。`pdf_skip_reason` 在
-`--pdf` 未生成时给出原因码（`no-word` / `not-darwin` / `timeout` 等），成功时为 `null`。
+`--pdf` 未生成时给出原因码（`no-word` / `not-darwin` / `no-render-script` / `timeout` / `word-error` 等），成功时为 `null`。
 `format_source` 是 `file:/绝对路径` 或 `preset:zh-academic`。解析方读键，不读措辞。
 
 `diagnostics` 是同一批结论的结构化版本，每条固定五个键：`severity`（`error` / `warning`）、
@@ -259,7 +259,8 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   **不写 `代码：` 也正常**；要改字号字色才写。行内 `` `code` `` 走 `VerbatimChar` 字符样式，
   字体在底模里定为 Consolas/宋体、**不在格式文件里**——要改就在 Word 里改这个字符样式。
 - **脚注**：正文写 `[^1]` + `[^1]: 注释文字` 即可，**不必在格式文件里声明**（不写就按正文推定：
-  字体对齐跟正文、字号降一档、单倍行距、序号上标）。
+  字体对齐跟正文、字号降一档、单倍行距、序号上标）。脚注里可写行内格式、链接与引文；**公式暂不支持**，
+  会整篇失败并说明，不会静默印成普通文字。
 - **行内格式直接写在正文里**：`**加粗**`、`*斜体*`、`~~删除线~~`、`[下划线]{.underline}`、`H~2~O`、
   `x^2^`——渲染器直接写成字符属性，不需要在格式文件里声明，也不与样式级设置冲突。
 - **星号要看两头**：`(1*S*,2*R*)`、`y = 4054.1*x*` 出斜体；只有开闭符**两头都紧挨字母数字**才当乘号
@@ -286,7 +287,7 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 | 元素 | 写法 |
 |:--|:--|
 | 文献库、CSL 样式 | YAML `bibliography:` / `csl:` |
-| 交叉引用前缀、按章编号 | YAML `crossref:`（`eq-prefix`、`chapters`；`fig-prefix`、`tbl-prefix` 保留未用） |
+| 交叉引用前缀、按章编号 | YAML `crossref:`（`eq-prefix`、`chapters`；图片/表格交叉引用暂不支持） |
 | 引文是否加超链接 | YAML `link-citations:`，默认开启；写 `false` 时文内引用不带内链（文献表的书签仍保留） |
 | 标题、副标题、作者、日期、摘要、关键词、文献区标题 | 正文样式行，见 §2.1、§2.2 |
 
@@ -490,9 +491,9 @@ Word 放不下的图片格式（`.svg`、`.webp`、`.eps`，
 
 样式模板每次导出实时生成，不落盘复用；**样式**只有一个来源，就是格式文件。
 
-只想先确认稿件能不能过门禁：`md-to-word 稿件.md --validate-only`。它走同一套格式选择、预检与模板
-试生成：退出码 `0` 表示稿件与格式都能导出、`1` 带行号报错。它不写 `.docx`（样式模板只在临时目录
-里试生成一次，随后删除）；输出目录是否存在、是否可写，要到真正写文件时才知道。CI 与 Agent 可配
+只想先确认稿件能不能过门禁：`md-to-word 稿件.md --validate-only`。它走同一套格式选择、预检与**完整试导出**：退出码 `0` 表示稿件与格式都能导出、`1` 带行号报错。
+试导出只写临时目录（样式模板与 `.docx` 都在那里生成后删除），不写目标 `.docx`；输出目录是否
+存在、是否可写，要到真正写文件时才知道。CI 与 Agent 可配
 `--json`。
 
 导出失败（预检、写出、对账任一处）不会留下写了一半的 `.docx`：产物先写进同目录的临时文件，

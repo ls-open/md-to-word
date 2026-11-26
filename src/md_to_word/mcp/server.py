@@ -304,7 +304,7 @@ def create_mcp_server() -> Any:
         name="md-to-word",
         title="md-to-word Word Compiler",
         description="Deterministic Markdown to Word (.docx) compiler with native formulas, tables, and CSL citations.",
-        version=getattr(md_to_word, "__version__", "1.0.0"),
+        version=md_to_word.__version__,
         website_url="https://ls-open.github.io/md-to-word/",
     )
 
@@ -502,8 +502,8 @@ def create_mcp_server() -> Any:
                 language and default preset follow the manuscript.
 
         Returns:
-            Dictionary with 'valid', 'errors', 'warnings', the format source, and both the
-            message language (`message_lang`) and manuscript language (`document_lang`).
+            Dictionary with 'valid', 'errors', 'warnings', the format source, the message
+            language (`lang`) and the manuscript language (`doc_lang`).
         """
         in_path = None
         fmt_path = None
@@ -529,11 +529,9 @@ def create_mcp_server() -> Any:
                     "format" if fmt_path else "none"
                 ),
                 # 与 compile / CLI `--json` 同一语义：`lang` 是消息语言，
-                # `doc_lang` 是文档语言；旧的两个别名保留，避免客户端断掉。
+                # `doc_lang` 是文档语言。
                 "lang": result.lang,
                 "doc_lang": result.doc_lang,
-                "message_lang": result.lang,
-                "document_lang": result.doc_lang,
             }
         except Exception as exc:
             logger.exception("Validation failed: %s", exc)
@@ -550,8 +548,6 @@ def create_mcp_server() -> Any:
                 "format_source": "format" if fmt_path else "none",
                 "lang": lang or "zh",
                 "doc_lang": "",
-                "message_lang": lang or "zh",
-                "document_lang": "",
             }
         finally:
             if in_is_tmp and in_path is not None and in_path.exists():
@@ -689,7 +685,7 @@ def create_mcp_server() -> Any:
         """
         import hashlib
 
-        message_lang = resolve_lang("", lang)
+        message_lang = resolve_lang("", lang or "zh")
         result = []
         for pid in list_available_presets():
             path = resolve_preset_path(pid)

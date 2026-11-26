@@ -72,6 +72,7 @@ def test_no_arguments_prints_a_usable_brief(capsys) -> None:
     assert "md-to-word init" in output and "--guide" in output and "--help" in output
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="scripts/export.sh 是 bash 脚本")
 def test_skill_entry_survives_a_broken_manuscript(tmp_path: Path) -> None:
     """技能侧走 `scripts/export.sh`：稿件坏了也要是一句话，不是 traceback。"""
     (tmp_path / "bad.md").write_text("# Heading\n\n---\n", encoding="utf-8")

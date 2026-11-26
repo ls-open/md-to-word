@@ -22,6 +22,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from md_to_word.utils.citation_syntax import CITE_KEY_PATTERN
 from md_to_word.transform.bibtex import (
     _SKIP_KINDS,
     _iter_entries,
@@ -48,7 +49,7 @@ _ACRONYM_RE = re.compile(r"(?<!\{)\b([A-Z]{2,}\d*)\b(?!\})")
 _HARMLESS_UPPER = frozenset(
     "IN ON AN AS AT BY OF TO IS OR AND THE FOR A".split()
 )
-_VALID_KEY_RE = re.compile(r"^[\w:.\-]+$")
+_VALID_KEY_RE = re.compile(rf"^{CITE_KEY_PATTERN}$")
 
 
 @dataclass(frozen=True)
@@ -156,8 +157,10 @@ def _style_hint(kind: str) -> str:
 
 def lint_bibtex_file(path: Path) -> tuple[list[Finding], str | None]:
     """读一个文件再体检。返回 `(结果, 读取失败的原因)`。"""
+    from md_to_word.utils.textio import TextDecodeError, read_text_file
+
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
+        text, _ = read_text_file(path)
+    except (OSError, TextDecodeError) as exc:
         return [], str(exc)
     return lint_bibtex(text), None

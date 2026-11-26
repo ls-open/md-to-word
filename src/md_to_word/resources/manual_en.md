@@ -57,7 +57,7 @@ md-to-word manuscript.md --preset en-nature -o out.docx       # international jo
 md-to-word manuscript.md --preset en-apa-student -o out.docx  # APA 7 student paper
 md-to-word gongwen.md --preset zh-gb9704 -o out.docx          # GB/T 9704 official-document body
 md-to-word manuscript.md -f format.txt -o out.docx            # explicit format file
-md-to-word manuscript.md --validate-only                      # pre-flight only; writes no .docx
+md-to-word manuscript.md --validate-only                      # pre-flight + trial export; no target .docx
 md-to-word init                                               # format.txt + a hello.md that exports as-is
 md-to-word --guide                                            # getting-started guide (pipeline entry)
 md-to-word --contract                                         # cheatsheet + guide, manual and preset paths
@@ -102,7 +102,7 @@ relaying on a successful run is there — no need to parse stderr. `warnings` is
 language; `doc_lang` is the document language actually used (it decides the default CSL,
 cross-reference prefixes and default equation-number appearance): the format's proofing language
 wins, and the manuscript is used only when the format declares none. `pdf_skip_reason` carries a
-reason code when `--pdf` produced nothing (`no-word`, `not-darwin`, `timeout`, ...) and is `null`
+reason code when `--pdf` produced nothing (`no-word`, `not-darwin`, `no-render-script`, `timeout`, `word-error`, ...) and is `null`
 on success. `format_source` is `file:/abs/path` or `preset:zh-academic`. Parse the keys, not the
 wording.
 
@@ -324,7 +324,9 @@ the declared ones.
   `VerbatimChar`.
 - **Footnotes**: write `[^1]` in the body plus `[^1]: the note text`; **nothing has to be declared
   in the format file** (without it the style is inferred from the body: same font and
-  alignment as the body, one size smaller, single line spacing, superscript number).
+  alignment as the body, one size smaller, single line spacing, superscript number). Inline
+  formatting, links and citations work inside a note; **math is not supported there** and fails the
+  export with a message instead of being printed as plain text.
 - **Paragraphs and line breaks**: **one line is one paragraph**; consecutive plain lines are never
   joined — a short one-sentence paragraph per line is a normal way to write, and each one can carry
   its own `%%` style. For a break *inside* one paragraph (an address, verse, a long title), end the
@@ -362,7 +364,7 @@ of page 1, or it may come after a cover page; in YAML it can only be the former.
 | Element | How to write it |
 |:--|:--|
 | Bibliography, CSL style | YAML `bibliography:` / `csl:` |
-| Cross-reference prefixes, numbering by chapter | YAML `crossref:` (`eq-prefix`, `chapters`; `fig-prefix`, `tbl-prefix` reserved and unused) |
+| Cross-reference prefixes, numbering by chapter | YAML `crossref:` (`eq-prefix`, `chapters`; figure/table cross-references are not supported) |
 | Whether citations are hyperlinked | YAML `link-citations:`, on by default; with `false` the in-text citation gets no hyperlink (the bibliography bookmark stays) |
 | Title, subtitle, author, date, abstract, keywords, references section title | body style lines, see §2.1 and §2.2 |
 
@@ -632,9 +634,10 @@ The style template is generated fresh on every export and never cached, and **st
 one source: the format file.
 
 To check a manuscript without writing a file, run `md-to-word manuscript.md --validate-only`. It
-uses the same format resolution and pre-flight check as an export, and also builds the style
-template once in a temporary directory to confirm it can be produced: exit `0` means the manuscript
-and format are exportable, exit `1` carries line-numbered errors, and no `.docx` is written.
+uses the same format resolution, pre-flight check and **full trial export** as a real run: exit `0`
+means the manuscript and format are exportable, exit `1` carries line-numbered errors. The trial
+export writes only to a temporary directory (style template and `.docx` are created there and then
+removed); no target `.docx` is written.
 Whether the output directory exists and is writable is only known when the file is actually written.
 Pair it with `--json` in CI or agent workflows.
 

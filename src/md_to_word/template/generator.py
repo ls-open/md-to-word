@@ -5,8 +5,8 @@
 从纯净现代 Word 365 基础母版出发，根据 format.txt 格式要求修改样式，
 输出是只含样式与页面设置的 template.docx，写出器直接用它。
 
-模板生成按环节拆在 core / checks / decor / tables / footnotes 里；本文件保留编排，
-并继续作为这些名字的入口（外部代码从 `template.generator` 导入）。
+模板生成按环节拆在 core / checks / decor / tables / footnotes 里；本文件只保留编排与
+对外入口。
 """
 
 from __future__ import annotations
@@ -23,32 +23,18 @@ from docx.shared import RGBColor
 
 from md_to_word.config import get_base_template_path
 from md_to_word.i18n import t
-from md_to_word.spec.constants import ALIGN_ENUM_VAL, PAGE_SIZES_CM, STYLE_MAP, W
+from md_to_word.spec.constants import PAGE_SIZES_CM, W
 from md_to_word.spec.parser import parse_format
 
-# 拆分前的入口保持不变：写出器、对账、反推器与测试仍从本模块导入这些名字。
-# 这些是**重新导出**，不是本模块自己要用；F401 在这里是预期行为（见 pyproject 的
-# per-file-ignores）。删掉会让下游 import 在运行期才炸。
-from md_to_word.template.checks import (
-    REQUIRED_STYLES, TOC_STYLE_GROUP, _LINKED_SECTION_TITLES, _check_required_fields,
-    _has_heading_styleref, missing_styles_for_body,
-)
+from md_to_word.template.checks import _check_required_fields
 from md_to_word.template.core import (
-    BOTTOM_BORDER_STYLE, TemplateError, _PPR_ORDER, _RPR_ORDER, _SECTPR_ORDER,
-    _SETTINGS_ORDER, _STYLE_ORDER, _TWIPS_PER_CM, _props_from_req, _pt_to_border_sz,
+    TemplateError, _SECTPR_ORDER, _props_from_req,
     apply_mirror_margins, apply_proofing_language, apply_punctuation_compression,
-    body_line_spacing_multiple, doc_grid_lines_from_pitch, doc_grid_pitch,
-    ensure_ordered_child, logger, max_doc_grid_lines, modify_style, page_size_twips,
-    resolve_punctuation_compression,
+    doc_grid_pitch, ensure_ordered_child, logger, modify_style,
 )
-from md_to_word.template.decor import (
-    apply_page_decorations, read_header_styles_meta, write_header_styles_meta,
-)
+from md_to_word.template.decor import apply_page_decorations, write_header_styles_meta
 from md_to_word.template.footnotes import apply_footnote_format
-from md_to_word.template.tables import (
-    TABLE_BORDER_SIDES, TABLE_CELL_MARGIN_DEFAULT_CM, TABLE_DEFAULT_WIDTHS,
-    apply_table_format, table_border_widths,
-)
+from md_to_word.template.tables import apply_table_format
 from md_to_word.utils.skill_utils import (
     clear_color_theme_attrs, clear_font_theme_attrs, get_logger, strip_theme_attrs_from_xml,
 )
@@ -335,13 +321,13 @@ def main():
             format_file = arg
         else:
             logger.error(f'错误: 不认识的参数 "{arg}"')
-            logger.error('用法: python3 generate_template.py format.txt -o template.docx')
+            logger.error('用法: python3 scripts/generate_template.py format.txt -o template.docx')
             sys.exit(1)
         i += 1
 
     if format_file is None:
         logger.error('错误: 未提供格式要求文件')
-        logger.error('用法: python3 generate_template.py format.txt -o template.docx')
+        logger.error('用法: python3 scripts/generate_template.py format.txt -o template.docx')
         sys.exit(1)
 
     if not os.path.exists(format_file):

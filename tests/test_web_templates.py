@@ -17,7 +17,7 @@
 
 from __future__ import annotations
 
-import importlib
+import importlib.util
 import re
 import sys
 import zipfile
@@ -48,11 +48,27 @@ FIELD_KEYS = (
 
 
 def _load(module: str):
-    """`web/` 不是一个包，两个模块都是裸脚本，按路径塞进 sys.path 再导入。"""
-    for path in (REPO_ROOT / "web", REPO_ROOT / "src"):
-        if str(path) not in sys.path:
-            sys.path.insert(0, str(path))
-    return importlib.import_module(module)
+    """`web/` 不是一个包，两个模块都是裸脚本；按文件加载，不往全局 sys.path 塞路径。
+
+    `build.py` 里是延迟 `from catalog import …`，所以把 catalog 注册进 sys.modules，
+    后面的导入自然命中同一份，不用为它改造生产脚本。
+    """
+    if module == "catalog" and "catalog" in sys.modules:
+        return sys.modules["catalog"]
+    path = REPO_ROOT / "web" / f"{module}.py"
+    name = f"_md2w_web_{module}"
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec and spec.loader
+    loaded = importlib.util.module_from_spec(spec)
+    sys.modules[name] = loaded
+    try:
+        spec.loader.exec_module(loaded)
+    except Exception:
+        sys.modules.pop(name, None)
+        raise
+    if module == "catalog":
+        sys.modules["catalog"] = loaded
+    return loaded
 
 
 @pytest.fixture(scope="module")

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from docx import Document as open_docx
+from lxml import etree
 
 from md_to_word.model.reader import read_markdown
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
@@ -17,6 +18,7 @@ from md_to_word.writer.docx_writer import write_docx
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TPL_BASE = REPO_ROOT / "src" / "md_to_word" / "resources" / "pure_modern_base.docx"
 CSL_GB = REPO_ROOT / "src" / "md_to_word" / "resources" / "csl" / "chinese-gb7714-2015-numeric.csl"
+M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 
 
 def test_footnote_with_high_precision_number_passes_postflight(tmp_path: Path) -> None:
@@ -88,11 +90,14 @@ def test_mathml_accents_and_limits_supported() -> None:
     ]
     for expr in accents:
         nodes = latex_to_omml(expr)
-        assert len(nodes) >= 1, f"转换空: {expr}"
+        names = [etree.QName(node).localname for top in nodes for node in top.iter()]
+        assert "acc" in names, f"{expr} 没有落成 m:acc: {names}"
 
-    # 带 limits 的求和
-    nary_nodes = latex_to_omml(r"\sum\limits_{i=1}^{n} x_i")
-    assert len(nary_nodes) >= 1
+    # 带 limits 的求和：上下限必须放在 nary 自己身上，并且是上下堆叠（undOvr）
+    top = latex_to_omml(r"\sum\limits_{i=1}^{n} x_i")[0]
+    assert etree.QName(top).localname == "nary"
+    lim_loc = top.find(f".//{{{M_NS}}}limLoc")
+    assert lim_loc is not None and lim_loc.get(f"{{{M_NS}}}val") == "undOvr"
 
 
 def test_mover_distinguishes_accent_from_overset() -> None:

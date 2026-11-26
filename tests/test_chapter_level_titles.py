@@ -20,7 +20,8 @@ import pytest
 from md_to_word.model.reader import read_markdown
 from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
-from md_to_word.template.generator import TemplateError, read_header_styles_meta
+from md_to_word.template.core import TemplateError
+from md_to_word.template.decor import read_header_styles_meta
 from md_to_word.writer import write_docx
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

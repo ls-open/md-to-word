@@ -22,8 +22,8 @@ jobs:
             python: "3.13"
           - os: macos-latest
             python: "3.12"
-          # 目标用户大多在 Windows + WPS 上。核心路径没有任何平台分支（只有 `--pdf`
-          # 那条明确只支持 macOS），但「大概率没事」和「测过」是两回事。
+          # 目标用户大多在 Windows 上。核心路径没有任何平台分支（只有 `--pdf`
+          # 那条明确只支持 macOS + Word），但「大概率没事」和「测过」是两回事。
           - os: windows-latest
             python: "3.12"
     steps:
@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: pip install -e ".[test]"
-      - run: pytest -q
+      - run: pytest -q -m "not word and not localdata"
 
   lint:
     name: ruff（未使用导入/变量与未定义名字）
@@ -54,7 +54,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[test]"
-      - run: pytest -q -rs
+      - run: pytest -q -rs -m "not word and not localdata"
       - name: 技能入口导出内置示例
         run: bash scripts/export.sh demo/01_chinese_thesis/thesis_sample.md -o "$RUNNER_TEMP/thesis.docx"
       - name: 产物存在且非空

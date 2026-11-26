@@ -33,6 +33,12 @@ def test_a_clean_library_produces_no_noise() -> None:
     assert lint_bibtex(CLEAN) == []
 
 
+def test_exporter_supported_key_characters_are_not_errors() -> None:
+    """`k+5` / `k%7` 导出器能读，体检器不能反过来把它们判成坏键。"""
+    text = CLEAN.replace("smith2020", "k+5") + CLEAN.replace("smith2020", "k%7")
+    assert lint_bibtex(text) == []
+
+
 def test_duplicate_keys_are_errors() -> None:
     """重复键不报错的话，两条引文会悄悄指向同一条文献。"""
     text = CLEAN + CLEAN
@@ -100,6 +106,15 @@ def test_findings_point_at_the_right_line() -> None:
     # CLEAN 自身以换行结尾，中间再空一行，第二条从第 8 行开始
     findings = lint_bibtex(CLEAN + "\n" + CLEAN)
     assert findings[0].line == 8, findings[0]
+
+
+def test_a_gb18030_library_is_read_like_the_exporter_reads_it(tmp_path) -> None:
+    """导出链路认 GB18030，体检器不能只认 UTF-8 就把它判成读不了。"""
+    path = tmp_path / "gbk.bib"
+    path.write_bytes(CLEAN.replace("A Study of Things", "中文标题").encode("gb18030"))
+    findings, failure = lint_bibtex_file(path)
+    assert failure is None, failure
+    assert not [f for f in findings if f.level == "error"]
 
 
 def test_the_sample_libraries_are_clean() -> None:

@@ -169,7 +169,7 @@ def test_punctuation_compression_defaults_and_overrides():
     """
     from docx import Document
 
-    from md_to_word.template.generator import apply_punctuation_compression
+    from md_to_word.template.core import apply_punctuation_compression
 
     def compression(proofing_lang: str | None, mode: str | None = None) -> str:
         doc = Document()

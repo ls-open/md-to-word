@@ -15,7 +15,7 @@ from typing import Optional
 import yaml
 from html import unescape
 
-from md_to_word.utils.image_syntax import IMAGE_LINE_RE, image_target
+from md_to_word.utils.image_syntax import IMAGE_LINE_RE, image_target, parse_image_width
 from md_to_word.utils.skill_utils import split_frontmatter
 from md_to_word.model.document import (
     Block, Citation, CitationItem, Code, CodeBlock, CrossRef, Document, Emphasis, Equation,
@@ -33,7 +33,6 @@ _UNLISTED_ATTR_RE = re.compile(r"\s*\{(?:\.unlisted|不入目录)\}\s*$")
 _FENCE_RE = re.compile(r"^(```|~~~)(.*)$")
 _SHORTCODE_RE = re.compile(r"^\{\{<\s*([a-z]+)(.*?)>\}\}\s*$")
 _IMAGE_ONLY_RE = IMAGE_LINE_RE
-_WIDTH_RE = re.compile(r"width\s*=\s*([\d.]+)\s*(cm|mm|in|pt|%)?")
 _LABEL_RE = re.compile(r"\{#(?P<label>[\w:.\-]+)\}\s*$")
 _BULLET_RE = re.compile(r"^(?P<indent>\s*)[-*+]\s+(?P<text>.*)$")
 _ORDERED_RE = re.compile(r"^(?P<indent>\s*)(?P<num>\d+)[.)]\s+(?P<text>.*)$")
@@ -190,7 +189,7 @@ def unparsed_stars(line: str) -> str:
 # 定位符：`,` 之后写 `p. 33`、`chap. 3`、`3, 7` 都认。标签换成 CSL 的变量名，
 # 单复数由 CSL 自己生成，所以 `p.` / `pp.` 一律按 page 传。
 _CITE_TOKEN_RE = re.compile(
-    rf"(?<![A-Za-z0-9_@])(?P<suppress>-)?@(?P<key>{CITE_KEY_PATTERN})"
+    rf"(?<![A-Za-z0-9_@])@(?P<key>{CITE_KEY_PATTERN})"
     r"(?P<rest>(?:,\s*[^;\[\]]+)?)"
 )
 
@@ -233,7 +232,6 @@ def _parse_citation_body(body: str, narrative: bool) -> Citation:
                 prefix=prefix,
                 locator=locator,
                 label=label,
-                suppress_author=bool(m.group("suppress")),
             )
         )
     return Citation(items=tuple(items), narrative=narrative)
@@ -707,14 +705,14 @@ class _Reader:
     def _make_figure(self, match: re.Match) -> Figure:
         width_cm = width_percent = None
         attrs = match.group("attrs") or ""
-        m = _WIDTH_RE.search(attrs)
-        if m:
-            value, unit = float(m.group(1)), m.group(2) or "cm"
+        parsed = parse_image_width(attrs)
+        if parsed is not None:
+            value, unit = parsed
             if unit == "%":
                 width_percent = value
             else:
                 width_cm = {"cm": value, "mm": value / 10,
-                            "in": value * 2.54, "pt": value * 2.54 / 72}.get(unit)
+                            "in": value * 2.54, "pt": value * 2.54 / 72}[unit]
         return Figure(
             path=image_target(match.group("path")), alt=match.group("alt"),
             width_cm=width_cm, width_percent=width_percent,

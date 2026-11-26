@@ -14,30 +14,32 @@ import re
 from docx.shared import Pt
 
 from md_to_word.spec.constants import (
-    ALIGN_ENUM_CN, PAGE_NUMBER_FMT, PUNCT_COMPRESSION_CN, TABLE_ALIGN_MAP, TABLE_STYLE_MAP,
+    ALIGN_ENUM_CN, BORDER_TEXT, DECOR_CONTENT_KEYS, PAGE_NUMBER_FMT, PUNCT_COMPRESSION_CN,
+    TABLE_ALIGN_MAP, TABLE_STYLE_MAP, TABLE_VALIGN_MAP, TABLE_WIDTH_KEYS,
 )
 from md_to_word.spec.models import MinLineSpacing, TemplateSpec
-from md_to_word.spec.parser import _BORDER_TEXT
 
 # 三张表都从 constants 派生：那里是对齐与表格写法的唯一真相源，这里只翻个方向。
 # 反查而不是再抄一份——抄一份的话，parser 认了新词、序列化还写旧词，round-trip 就断了。
 _ALIGN_TEXT = ALIGN_ENUM_CN
-_TABLE_ALIGN = {v: k for k, v in TABLE_ALIGN_MAP.items()}
-_TABLE_STYLE = {v: k for k, v in TABLE_STYLE_MAP.items()}
-_TABLE_VALIGN = {"center": "单元格垂直居中", "top": "单元格垂直顶端", "bottom": "单元格垂直底端"}
-_BORDER_SIDE = {"top": "线宽上", "bottom": "线宽底", "header_bottom": "线宽表头下", "inside": "线宽内"}
+def _reverse_first(mapping: dict) -> dict:
+    """值 → 第一次出现的键：词表里中文正典在前、英文别名在后，反查要取中文。"""
+    out = {}
+    for key, value in mapping.items():
+        out.setdefault(value, key)
+    return out
+
+_TABLE_ALIGN = _reverse_first(TABLE_ALIGN_MAP)
+_TABLE_STYLE = _reverse_first(TABLE_STYLE_MAP)
+_TABLE_VALIGN = {
+    value: f"单元格垂直{key}" for key, value in _reverse_first(TABLE_VALIGN_MAP).items()
+}
+_BORDER_SIDE = _reverse_first(TABLE_WIDTH_KEYS)
 # 反查取第一次出现的正典写法：`阿拉伯`、`罗马`、`小写罗马`、`字母`、`大写字母`。
 _PAGE_FMT_TEXT: dict[str, str] = {}
 for _text, _fmt in PAGE_NUMBER_FMT.items():
     _PAGE_FMT_TEXT.setdefault(_fmt, _text)
-_DECOR_KEY_TEXT = {
-    ("header", "default"): "页眉内容",
-    ("header", "even"): "偶数页页眉内容",
-    ("header", "first"): "首页页眉内容",
-    ("footer", "default"): "页脚内容",
-    ("footer", "even"): "偶数页页脚内容",
-    ("footer", "first"): "首页页脚内容",
-}
+_DECOR_KEY_TEXT = _reverse_first(DECOR_CONTENT_KEYS)
 _FIELD_TEXT = {
     "PAGE": "{页码}",
     "NUMPAGES": "{总页数}",
@@ -124,7 +126,7 @@ def _style_line(style: dict) -> str:
     if style.get("no_border"):
         parts.append("无边框")
     if style.get("bottom_border"):
-        kind = _BORDER_TEXT.get(style["bottom_border"])
+        kind = BORDER_TEXT.get(style["bottom_border"])
         if kind:
             parts.append(f"下边框{kind}")
     if style.get("border_width_pt") is not None:

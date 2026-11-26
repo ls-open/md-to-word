@@ -352,7 +352,7 @@ def test_mcp_gbk_file_detects_chinese(tmp_path: Path) -> None:
         assert not res.is_error
         data = res.structured_content
         assert data["valid"] is True, data
-        assert data["document_lang"] == "zh"
+        assert data["doc_lang"] == "zh"
     asyncio.run(_run())
 
 
@@ -421,22 +421,40 @@ def test_all_three_entrances_offer_the_same_options() -> None:
     """CLI / Python / MCP 是同一个引擎的三张脸。少一张脸的门票，用户就得换入口才能用。
 
     以前 `--base-template` 只在命令行有：走 Python 的脚本和走 MCP 的 Agent 完全用不了。
+    这里直接读 MCP 的 tool schema，不再对源码做子串搜索——注释里出现一个词不算支持。
     """
     import inspect
 
     import md_to_word
     from md_to_word.pipeline import ExportOptions
 
-    names = ("base_template", "cover_sections", "keep_pages", "keep_until")
+    async def _schema() -> dict:
+        server = create_mcp_server()
+        for tool in await server.list_tools():
+            if tool.name == "compile_markdown":
+                return tool.input_schema
+        raise AssertionError("MCP 没有 compile_markdown")
+
+    schema = asyncio.run(_schema())
     fields = set(ExportOptions.__annotations__)
     api = set(inspect.signature(md_to_word.export).parameters)
-    src = inspect.getsource(create_mcp_server)
+    properties = set(schema["properties"])
 
-    for name in names:
-        assert name in fields, f"ExportOptions 缺 {name}"
-        assert name in api, f"Python API export() 缺 {name}"
-        assert f"{name}:" in src or f"{name} =" in src or f'"{name}"' in src, \
-            f"MCP compile_markdown 缺 {name}"
+    pairs = {
+        "base_template": "base_template",
+        "cover_sections": "cover_sections",
+        "keep_pages": "keep_pages",
+        "keep_until": "keep_until",
+        "blind_review": "blind_review",
+        # 同一个能力三个入口的历史叫法不同：Python/CLI 说 pdf，MCP 说 generate_pdf
+        "make_pdf": "pdf",
+    }
+    for field, api_name in pairs.items():
+        assert field in fields, f"ExportOptions 缺 {field}"
+        assert api_name in api, f"Python API export() 缺 {api_name}"
+    assert "generate_pdf" in properties, "MCP compile_markdown 缺 generate_pdf"
+    for name in ("base_template", "cover_sections", "keep_pages", "keep_until", "blind_review"):
+        assert name in properties, f"MCP compile_markdown 缺 {name}"
 
 
 def test_the_manual_is_readable_as_a_resource() -> None:

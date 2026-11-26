@@ -335,6 +335,28 @@ def test_json_exposes_the_pdf_skip_reason(tmp_path: Path, monkeypatch, capsys) -
     assert payload["pdf_skip_reason"] == "no-word"
 
 
+def test_a_word_failure_is_a_stable_code_with_details_in_the_log(
+    tmp_path: Path, monkeypatch, caplog,
+) -> None:
+    """`pdf_skip_reason` 是给 Agent 分支用的契约字段，不能塞 AppleScript 的整段 stderr。"""
+    import logging
+    from types import SimpleNamespace
+
+    from md_to_word.visual_qa import word_pdf
+
+    monkeypatch.setattr(word_pdf, "can_render_word_pdf", lambda: (True, "ok"))
+    monkeypatch.setattr(
+        word_pdf.subprocess, "run",
+        lambda *_a, **_k: SimpleNamespace(returncode=1, stdout="", stderr="AppleScript failed\nstack"),
+    )
+    with caplog.at_level(logging.WARNING):
+        ok, reason = word_pdf.render_pdf_via_word(
+            tmp_path / "x.docx", tmp_path / "x.pdf",
+        )
+    assert not ok and reason == "word-error"
+    assert "AppleScript failed" in caplog.text
+
+
 def test_traditional_manuscript_gets_a_preset_hint(tmp_path: Path) -> None:
     manuscript = _md(tmp_path, "# 緒論\n\n這是一份繁體中文稿件，討論學術排版與資料處理。\n")
     result = run_export_pipeline(ExportOptions(

@@ -9,7 +9,7 @@ from docx.shared import Pt
 from lxml import etree
 
 from md_to_word.spec.constants import (
-    ALIGN_CN, ALIGN_ENUM_VAL, PAGE_SIZES_CM, TWIPS_PER_CM, W, split_fonts,
+    ALIGN_ENUM_VAL, PAGE_SIZES_CM, TWIPS_PER_CM, W, split_fonts,
 )
 from md_to_word.spec.models import MinLineSpacing
 from md_to_word.utils.skill_utils import (
@@ -18,16 +18,11 @@ from md_to_word.utils.skill_utils import (
 
 logger = get_logger(__name__)
 
-# 向后兼容别名；唯一真相源都在 `spec/constants.py`
-_TWIPS_PER_CM = TWIPS_PER_CM
-_ALIGN_VAL = ALIGN_ENUM_VAL
-_ALIGN_CN = ALIGN_CN
-
 
 def page_size_twips(page_size: str) -> tuple:
     """纸张 → (宽, 高) twips（对账侧与写入侧共用，避免各写一份常量）。"""
     w_cm, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
-    return int(round(w_cm * _TWIPS_PER_CM)), int(round(h_cm * _TWIPS_PER_CM))
+    return int(round(w_cm * TWIPS_PER_CM)), int(round(h_cm * TWIPS_PER_CM))
 
 
 # ── 页眉/页脚内容里可用的域标记（唯一写法；未知标记报错，不静默漏掉）──
@@ -71,8 +66,6 @@ _TBLPR_ORDER = ['tblStyle', 'tblpPr', 'tblOverlap', 'bidiVisual', 'tblStyleRowBa
                 'shd', 'tblLayout', 'tblCellMar', 'tblLook', 'tblCaption', 'tblDescription']
 _TCPR_ORDER = ['cnfStyle', 'tcW', 'gridSpan', 'hMerge', 'vMerge', 'tcBorders', 'shd', 'noWrap',
                'tcMar', 'textDirection', 'tcFitText', 'vAlign', 'hideMark']
-_TRPR_ORDER = ['cnfStyle', 'divId', 'gridBefore', 'gridAfter', 'wBefore', 'wAfter', 'cantSplit',
-               'trHeight', 'tblHeader', 'tblCellSpacing', 'jc', 'hidden']
 _SECTPR_ORDER = ['footnotePr', 'endnotePr', 'type', 'pgSz', 'pgMar', 'paperSrc', 'pgBorders',
                  'lnNumType', 'pgNumType', 'cols', 'formProt', 'vAlign', 'noEndnote',
                  'titlePg', 'textDirection', 'bidi', 'rtlGutter', 'docGrid', 'printerSettings']
@@ -101,13 +94,13 @@ BOTTOM_BORDER_DEFAULT_PT = {'single': 0.5, 'double': 1.5, 'even': 0.5,
 # 目录的「点线制表位」要把页码顶到版心右边界，位置得由纸张与页边距算，不能写死：
 # 换纸张或改页边距后，写死的制表位会顶出边界或提前断线。
 # 兜底值 = A4 − 左右各 2.54cm；正常路径由 generate_template 按实际几何注入
-_FALLBACK_CONTENT_WIDTH_TWIPS = int(round((PAGE_SIZES_CM['a4'][0] - 2.54 * 2) * _TWIPS_PER_CM))
+_FALLBACK_CONTENT_WIDTH_TWIPS = int(round((PAGE_SIZES_CM['a4'][0] - 2.54 * 2) * TWIPS_PER_CM))
 
 
 def _content_width_twips(page_size, margins, gutter_cm=None) -> int:
     """正文可用宽度（twips）：纸宽 - 左边距 - 右边距 - 原生装订线。"""
     width_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])[0]
-    return int(round((width_cm - margins['left'] - margins['right'] - (gutter_cm or 0)) * _TWIPS_PER_CM))
+    return int(round((width_cm - margins['left'] - margins['right'] - (gutter_cm or 0)) * TWIPS_PER_CM))
 
 
 def body_line_spacing_multiple(styles) -> float:
@@ -127,7 +120,7 @@ def body_line_spacing_multiple(styles) -> float:
 
 def _body_height_twips(page_size, margins) -> int:
     _, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
-    return int(round((h_cm - margins['top'] - margins['bottom']) * _TWIPS_PER_CM))
+    return int(round((h_cm - margins['top'] - margins['bottom']) * TWIPS_PER_CM))
 
 
 def doc_grid_pitch(spec, margins) -> int:
@@ -268,7 +261,7 @@ def write_para_props(ppr, props):
     """把**段落级**属性写进任意 pPr 容器（样式 pPr，或 w:tblStylePr/pPr）。"""
     if props.get('alignment') is not None:
         jc = ensure_ordered_child(ppr, 'jc', _PPR_ORDER)
-        jc.set(W('val'), _ALIGN_VAL.get(props['alignment'], 'left'))
+        jc.set(W('val'), ALIGN_ENUM_VAL.get(props['alignment'], 'left'))
 
     spacing = None
     if props.get('line_spacing') is not None:

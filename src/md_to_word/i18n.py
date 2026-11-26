@@ -490,6 +490,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "包里缺渲染脚本（安装不完整），重装一次 md-to-word。",
         "The render script is missing from the package (incomplete install); reinstall md-to-word.",
     ),
+    "word_pdf.word_error": (
+        "Word 渲染 PDF 失败；docx 本身没问题，可用 Word 打开后另存为 PDF。详细原因见 stderr 日志",
+        "Word failed to render the PDF; the docx itself is fine — open it in Word and save as PDF. "
+        "See the stderr log for details",
+    ),
     "word_pdf.timeout": (
         "Word 超过 4 分钟没有响应（可能弹出了首次运行/登录/宏提示）。docx 没问题；"
         "先在 Word 里处理弹窗，或手动另存 PDF。",
@@ -610,9 +615,9 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "批注锚点未清理：{tag}",
         "A comment anchor was left behind: {tag}",
     ),
-    "metadata.verify.custom_props": (
-        "自定义属性未删除",
-        "Custom properties were not removed",
+    "metadata.verify.identity_part": (
+        "身份部件未删除：{name}",
+        "An identity-bearing part was not removed: {name}",
     ),
     "metadata.field.title": ("标题", "title"),
     "metadata.field.subject": ("主题", "subject"),
@@ -706,10 +711,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "{name} (a references-title style is declared, so the bibliography style must be declared too)",
     ),
     # 联动必填（目录样式 / 页眉 {样式标题:Heading ...} ↔ 摘要标题 / 参考文献标题开关）
-    "template.linkage_header": (
-        "⚠️ 目录/页眉联动声明缺失（存在歧义，不作静默猜测）:",
-        "⚠️ Missing required TOC/header linkage declarations:",
-    ),
     "template.linkage.join_toc_missing": (
         " - {alias}（{style}）：已声明目录样式，须显式写明「加入目录」或「不入目录」"
         "（常规选择：摘要标题写「不入目录」，参考文献标题写「加入目录」）",
@@ -1890,6 +1891,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "要求文件没写页边距，算不出版心，图片宽度未校验",
         "The format file declares no page margins, so the text block width is unknown "
         "and image widths were not checked",
+    ),
+    "gate.image_width.malformed": (
+        "第 {line} 行：图片宽度「{attrs}」写法不对；应写 {{width=12cm}}、{{width=50%}} 这类完整值",
+        "Line {line}: the image width in \"{attrs}\" is malformed; write a complete value such "
+        "as {{width=12cm}} or {{width=50%}}",
     ),
     "gate.table.column_count": (
         "表格第 1 行有 {expect} 列，第 {line} 行是 {actual} 列——"

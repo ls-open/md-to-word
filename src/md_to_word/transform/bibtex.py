@@ -2,8 +2,7 @@
 
 为什么要自己转：CSL 处理器（citeproc-py）要的是 CSL-JSON，而 BibTeX 到 CSL-JSON 的
 映射没有标准实现可用——自带的 BibTeX 读取器不产出 `issued`（只认裸 year）也不认
-`journaltitle`，喂给任何 CSL 样式都会抛 VariableError（实测）。这段映射只有百来行，
-自己写反而可控。
+`journaltitle`，喂给任何 CSL 样式都会抛 VariableError（实测）。这段映射自己写反而可控。
 
 只覆盖学术写作里真会用到的字段；认不出的字段丢弃而不是报错——文献库常常是作者从
 各期刊网站导出的，字段五花八门，为此失败不划算。
@@ -344,9 +343,9 @@ _SYMBOL_CMDS = {
     "textquoteright": "\u2019",
     "quad": " ",
     "qquad": " ",
-    # \u6ce8\u610f\uff1a`\o` `\ss` `\i` \u8fd9\u7c7b**\u5b57\u6bcd\u547d\u4ee4**\u4e0d\u5728\u8fd9\u91cc\u5904\u7406\u2014\u2014\u5b83\u4eec\u7531 `_decode_accents`
-    # \u5728\u91cd\u97f3\u89e3\u7801\u4e4b\u540e\u7edf\u4e00\u6362\u6210\u5b57\u7b26\u3002\u653e\u8fd9\u91cc\u4f1a\u5148\u4e8e\u91cd\u97f3\u5c55\u5f00\uff0c\u628a `\'{\i}` \u62c6\u6210 `\u0131` + \u91cd\u97f3\uff0c
-    # \u5f97\u5230\u7684\u662f\u300c\u70b9\u0131 + \u0301\u300d\u800c\u4e0d\u662f `\u00ed`\u3002
+    # 注意：`\o` `\ss` `\i` 这类**字母命令**不在这里处理——它们由 `_decode_accents`
+    # 在重音解码之后统一换成字符。放这里会先于重音展开，把 `\'{\i}` 拆成 `ı` + 重音，
+    # 得到的是「点ı + ́」而不是 `í`。
 }
 
 
