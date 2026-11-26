@@ -34,11 +34,11 @@ bash scripts/export.sh demo/04_zh_tw_paper/paper_zh_tw.md -o /tmp/paper.docx
 
 ## 維護
 
-- 產物（`.docx` / `.pdf` / `page-1.png`）與稿子一起提交。改了稿子就重新導出一次：
+- 產物（`.docx` / `.pdf` / `page-*.png`）與稿子一起提交。改了稿子就重新導出一次：
 
   ```bash
   md-to-word paper_zh_tw.md -o paper_zh_tw.docx --pdf
-  pdftoppm -png -r 110 -f 1 -l 1 -singlefile paper_zh_tw.pdf page-1
+  pdftoppm -png -r 110 paper_zh_tw.pdf page
   ```
 
 - `format.txt` 是 `zh-tw-academic` 預設的副本，改這裡不會影響預設；
