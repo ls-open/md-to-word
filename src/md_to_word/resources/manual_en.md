@@ -174,9 +174,8 @@ To style a paragraph, start the line with `%% Style Name content`:
 - Whether `%% Abstract Title` and `%% References Title` enter the TOC or drive
   `{style-title:Heading 1}` running headers is explicitly declared in the format file via
   `join-toc`/`no-toc` and `join-header`/`no-header` (no hidden promotion). Choosing `join-header`
-  maps those paragraphs to `Heading 1` for `STYLEREF` while preserving every declared look
-  property verbatim; due to Word's built-in `TOC \o \u` rule, `no-toc` and `join-header` **cannot**
-  be combined.
+  maps those paragraphs to `Heading 1` so the header's `{style-title:…}` field can find them while
+  preserving every declared look property verbatim; `no-toc` and `join-header` **cannot** be combined.
 - Every block-level element (`$$` equation, first table row, standalone image line, short code,
   `%%` line) **must be separated from adjacent body text by a blank line**; §2.5 has the table of
   which side must be blank. `%% Table Caption` may sit directly above the first table row.
@@ -292,7 +291,7 @@ the declared ones.
   stacking them pushes out an extra page (the pre-flight check warns). A single-section document
   (report, technical proposal) can use decimal numbering throughout and does not need this marker.
 
-- All three write OOXML nodes (the `w:sdt` TOC field, `sectPr`) and are valid only in this tool.
+- These three markers are this tool's own syntax and are valid only in this tool.
 - `\newpage` / `\pagebreak` / `\clearpage` have no effect in docx.
 - The TOC uses a **field**, not a static list: page numbers must be computed by Word. It updates
   once when the document is opened; **to be fully accurate press F9 once more**.
@@ -450,26 +449,26 @@ is reported: it is neither silently dropped nor misread by another rule.
 | Pagination control | `keep-with-next`, `page-break-before`, `keep-lines`, `widow-control` / `no-widow-control` | `Heading 1: … keep-with-next page-break-before` | — (`page-break-before` is more robust than a hand-written `{{< pagebreak >}}`: after content is added or removed the heading still starts on a new page automatically) |
 | TOC inclusion | `join-toc` / `no-toc` | `References Title: … join-toc`, `Abstract Title: … no-toc` | Required on `Abstract Title` / `References Title` whenever TOC styles are declared; invalid on body styles (`Body Text` / `First Paragraph` / `Normal` / `Compact`) or `Heading 1–6` (per-heading opt-out is §2.1) |
 | Header inclusion | `join-header` / `no-header` | `References Title: … join-header`, `Abstract Title: … no-header` | Required on `Abstract Title` / `References Title` whenever headers use `{style-title:Heading ...}`; cannot combine with `no-toc`, and invalid on body styles or `Heading 1–6` |
-| Repeat across pages | `repeat-header` | `Table Header: … repeat-header` | writing it on any style line other than `Table Header:` (it describes the header row's `w:tblHeader`) |
+| Repeat across pages | `repeat-header` | `Table Header: … repeat-header` | writing it on any style line other than `Table Header:` (it describes the header row) |
 | No border | `no-border` (removes the bottom border built into the base template) | `Title: … no-border` | `border-bottom-none` — identical output to `no-border`, so only one spelling is kept |
 | Bottom border | `border-bottom-<single\|double\|even-double\|thick-thin\|triple>` `[border-width <N>pt]` | `Header: … border-bottom-double border-width 1.5pt` | `underline` (that is a character property); `border-width` on its own (nowhere to land without a bottom border) |
 | Character spacing | `char-spacing <N>pt` (positive widens, negative tightens) | `char-spacing 0.5pt`, `char-spacing -0.2pt` | `letter-spacing 0.5pt` |
 | Paper | `Paper: <A4\|Letter>` (defaults to A4) | `Paper: A4` | `Paper: B5` |
 | Margins | `Margins: top <N>cm bottom <N>cm left <N>cm right <N>cm` | `Margins: top 2.54cm bottom 2.54cm left 2.54cm right 2.54cm` | — |
-| Gutter | `Gutter: <N>cm` | `Gutter: 1cm` | Written natively to `w:pgMar/@w:gutter`; subtracted from usable text-block width (sits on the inside edge when `Mirror Margins: on` is enabled) |
-| Mirror margins | `Mirror Margins: <on\|off>` | `Mirror Margins: on` | Sets `<w:mirrorMargins/>` for double-sided printing so `Margins:` `left`/`right` become inside/outside margins |
+| Gutter | `Gutter: <N>cm` | `Gutter: 1cm` | Subtracted from usable text-block width (sits on the inside edge when `Mirror Margins: on` is enabled) |
+| Mirror margins | `Mirror Margins: <on\|off>` | `Mirror Margins: on` | For double-sided printing, so `Margins:` `left`/`right` become inside/outside margins |
 | Header / footer distance from the edge | `Header Distance: <N>cm` / `Footer Distance: <N>cm` | `Header Distance: 1.40cm` | — |
-| Document grid | `Document Grid: <N> lines` | `Document Grid: 22 lines` | the ceiling is "text-block height ÷ body line height" (12 pt at 1.3 spacing = 34 lines); beyond it you get a warning, because Word rounds the line height up to whole grid units and the result is worse; **there is no "characters per line" switch** |
+| Document grid | `Document Grid: <N> lines` | `Document Grid: 22 lines` | the ceiling is "text-block height ÷ body line height" (12 pt at 1.3 spacing = 34 lines); beyond it you get a warning; **there is no "characters per line" switch** |
 | Latin font | `Font: <typeface>` (global Latin default) | `Font: Times New Roman` | — |
 | Proofing language | `Proofing Language: <language code>` | `Proofing Language: en-US`, `zh-CN`, `zh-TW` | `Proofing Language: English` (without it the base template proofreads as English, and Word flags Chinese text as misspelled throughout). **It also decides the language of the default CSL, cross-reference prefixes and equation-number appearance**: an explicit format wins; the manuscript is used only when the format declares no proofing language |
-| Punctuation compression | `Punctuation Compression: <compress\|none\|kana>` | `Punctuation Compression: none` | Maps to `w:characterSpacingControl`. Defaults by proofing language when omitted: `zh-CN` → `compress`, `zh-TW`/`zh-HK`/`zh-MO`/`en-*` → `none` (keeps centred Traditional Chinese full-width punctuation intact), `ja-*` → `kana` |
+| Punctuation compression | `Punctuation Compression: <compress\|none\|kana>` | `Punctuation Compression: none` | Defaults by proofing language when omitted: `zh-CN` → `compress`, `zh-TW`/`zh-HK`/`zh-MO`/`en-*` → `none` (keeps centred Traditional Chinese full-width punctuation intact), `ja-*` → `kana` |
 | Table (required when the manuscript has tables) | `Table: <center\|left\|right> <three-line\|grid\|top-bottom\|none> [border-top/border-bottom/border-header <N>pt (rule widths)] [border-inside <N>pt (grid only)] [valign center\|top\|bottom] [cell-margin <N>cm] [space-after <N>pt] [no-row-split]` | `Table: center three-line border-top 1pt border-bottom 1pt border-header 0.25pt valign center` | writing `border-inside` for three-line or top-bottom (there are no inner rules); writing any border width for `none`; `cell-margin` applies to all four sides and is in cm, not pt; `space-after` falls after the table, table notes included |
 | Paragraphs in tables | `Compact: <paragraph properties, same syntax as a style line>` | `Compact: Times New Roman 10pt center …` | — (the font, size and alignment of table text **can only come from this line**; without it a paragraph inherits the body's 2-character first-line indent) |
 | Header row (required when the manuscript has tables) | `Table Header: <paragraph properties> [repeat-header]` | `Table Header: Times New Roman 10pt bold not-italic center line-spacing 1.0 space-before 0pt space-after 0pt indent 0 repeat-header` | — |
 | Table width | **Do not declare it** — sized by content by default | — | to set column-width ratios, vary the dashes in the separator row (§2.4) |
 | Header / footer styles | `Header: <paragraph properties>` / `Footer: <paragraph properties>` | `Header: Times New Roman 9pt center line-spacing 1.0 space-before 0pt space-after 0pt indent 0` | putting content into a style line — the font segment is the only free text, so in `Header: Some University 9pt …` the words `Some University` are silently accepted as a font name |
-| Header / footer content | `Header Content:` / `Footer Content:`, plus `Even Header Content:` / `First Header Content:` / `Even Footer Content:` / `First Footer Content:` | `Header Content: {style-title:Heading 1}` | `{style-title:一级标题}` (STYLEREF accepts only a Word style name); writing a content line without its style line counts as a missing required line |
-| Page number format | `Page Number: <decimal\|roman\|lowerRoman\|lowerLetter\|upperLetter> [start <N>]` | `Page Number: decimal start 1` | `Page Number: 1,2,3`; declaring it without a `{page}` field (this line only writes `sectPr`; the page number appears only through header/footer content) |
+| Header / footer content | `Header Content:` / `Footer Content:`, plus `Even Header Content:` / `First Header Content:` / `Even Footer Content:` / `First Footer Content:` | `Header Content: {style-title:Heading 1}` | `{style-title:一级标题}` (only a Word style name is accepted); writing a content line without its style line counts as a missing required line |
+| Page number format | `Page Number: <decimal\|roman\|lowerRoman\|lowerLetter\|upperLetter> [start <N>]` | `Page Number: decimal start 1` | `Page Number: 1,2,3`; declaring it without `{page}` (the number appears only through header/footer content) |
 | Equation number position | `Equation Number: <right\|inline>` | `Equation Number: inline` | without it the default is `right` (the number sits at the right edge of the text block) |
 | Equation number format | `Equation Number Format: <template>`, `{n}` = ordinal (required), `{c}` = chapter (optional) | `Equation Number Format: ({c}.{n})` | writing `{c}` while the manuscript does not enable `crossref.chapters` (the pre-flight check stops it) |
 | Footnote (optional) | `Footnote: <paragraph properties>` | `Footnote: Times New Roman 9pt not-bold not-italic left line-spacing 1.0 space-before 0pt space-after 0pt indent 0` | writing half of it (`Footnote: Times New Roman 9pt`) — once declared, every field must be present |
@@ -484,10 +483,10 @@ Chinese spellings parse as well and may be mixed into the same line: `加粗` / 
 `公式编号：`, `公式编号格式：`, `附录公式编号格式：`, `脚注：`); the Chinese column of the vocabulary is
 in `manual.md` §3.1.
 
-**Fields available in headers and footers** (closed set; anything else is an error): `{page}`
-(PAGE), `{total-pages}` (NUMPAGES), `{style-title:<Word style name>}` (STYLEREF, e.g.
-`{style-title:Heading 1}` = the current chapter title). Field values are computed by Word and
-updated when the document is opened or shown in print preview.
+**Fields available in headers and footers** (closed set; anything else is an error): `{page}`,
+`{total-pages}`, `{style-title:<Word style name>}` (e.g. `{style-title:Heading 1}` = the current
+chapter title). Field values are computed by Word and updated when the document is opened or shown
+in print preview.
 
 ### 3.2 A few hard rules that are easy to trip over
 
@@ -506,11 +505,10 @@ updated when the document is opened or shown in print preview.
   centred".
 - **`Compact` governs table paragraphs only**; **list items go through `Body Text`** and do not
   follow `Compact` (otherwise every item would be centred line by line).
-- **TOC entry styles take effect**: `TOC 1/2/3` are written as Word's built-in styles, so font and
-  indentation survive a field update. The dot leader and page number are drawn by the field itself;
-  `dot-leader-tab` is meaningless for TOC entries.
-- **First-line indent and hanging indent are mutually exclusive** (they share the same `w:ind`
-  properties); if both appear on one line only one takes effect, so the generator reports an error.
+- **TOC entry styles take effect**: font and indentation survive a TOC update; the dot leader and
+  page number are generated by the TOC itself, so `dot-leader-tab` does nothing for TOC entries.
+- **First-line indent and hanging indent are mutually exclusive**; if both appear on one line only
+  one takes effect, so the generator reports an error.
 - **Without a width, the border style's built-in default is used**; 1/4 pt is Word's thinnest
   single line.
 - **With "different odd and even pages" / "different first page" enabled, containers you did not
@@ -742,7 +740,7 @@ and Microsoft JhengHei for zh-TW; FangZheng XiaoBiaoSong is not a system font an
 for GB/T 9704 titles). When a font is missing, Word substitutes it and pagination may shift; the
 declaration inside the file does not change. Check the delivered file on the target machine or with
 `--pdf` before formal delivery. **Microsoft Word is the acceptance target**: WPS opens the `.docx`,
-but does not expand the TOC field and may show `Error! The style is not specified.` in a `STYLEREF`
+but does not expand the table of contents and may show `Error! The style is not specified.` in a
 chapter header; if the recipient uses WPS, check the file there too.
 
 **Supported**: every paragraph property a style line can declare (font, size, bold and italic,
@@ -756,26 +754,52 @@ margins, column-width ratios); native OMML equations and cross-references; figur
 `^sup^`, `~sub~`, inline code, links); three-level lists and lists inside block quotes; footnotes;
 and preserving existing `.docx` covers/front matter via `--base-template` (§9.3).
 
-**Layering & hard boundaries** (what goes in Markdown vs `format.txt` vs `--base-template`, or Word):
+**Sort the responsibility first**: the three tables below separate what this tool deliberately does
+not do, what Word/the format itself limits, and what is a configurable design parameter. Rows marked
+"Word" are not defects of this tool; rows marked "not supported" either leave the text verbatim or
+stop the export instead of dropping content.
 
-| Requirement | How it works / Which layer handles it |
+**Requires all three layers**: whole-style font/colour/spacing/alignment changes are declared in
+`format.txt` (`color#1F4E79` etc.) and triggered with `#` or `%% Style Name` in the manuscript;
+local bold/italic/sub-superscript/underline/monospace is written directly in Markdown
+(`**bold**`, `*italic*`, `H~2~O`, `x^2^`, `[text]{.underline}`, `` `code` ``). Custom graphical
+covers, crests, signature pages and fill-in underlines: **pass an existing `.docx` via
+`--base-template` to keep the front matter verbatim while compiling the body** (§9.3); without a
+`.docx` base, only plain-text covers (via `%%` + `{{< section >}}`) are possible, so merge graphical
+covers in Word.
+
+**Not supported by this tool**:
+
+| Requirement | What happens |
 |:--|:--|
-| Custom graphical cover pages, crests, fill-in underlines, signature pages | Cannot be drawn from scratch in `format.txt`; **pass an existing `.docx` via `--base-template base.docx --keep-until …` to keep front-matter pages verbatim while compiling the body** (§9.3). Without a `.docx` base, only plain text/table covers work in Markdown; merge graphical covers in Word. |
-| Changing fonts, style-level colour, spacing, alignment for a whole paragraph style | **MD + `format.txt` together**: declare `color#1F4E79` etc. in `format.txt`, trigger with `#` or `%% Style Name` in `.md` |
-| Bolding, italicising, underlining, sub/superscripting, or monospacing a few words | **Markdown directly**: write `**bold**`, `*italic*`, `[text]{.underline}`, `H~2~O`, `x^2^`, `` `code` `` in `.md` without touching `format.txt` |
-| **Inline** per-word text colour (e.g. two red words inside a paragraph) | **Not supported** (`{color=…}` does not exist; colour is style-level `color#RRGGBB` only) — apply in Word afterwards or use a dedicated paragraph style |
-| Merged cells, diagonal header cells, cell shading | **Not supported** (Markdown tables are regular 2D grids); export the grid, then merge/shade in Word |
-| Multi-column layouts, floating figures with text wrapping | **Not supported** (single-column layout and standalone centred figures only); double-sided `Mirror Margins: on` and `Gutter` *are* supported |
-| A figure kept as a vector (PDF embedded as-is) | Word inline pictures hold bitmaps only; a PDF figure is rasterised at 300 dpi, which is enough for print but no longer infinitely scalable |
-| Limits above and below the sum/integral sign in a numbered equation | Word only stacks limits above and below the symbol in a display equation; a numbered equation is an inline equation (the number sits at the right via a tab). The content and symbols are correct; the layout differs |
-| Arbitrary tab stops | Only `dot-leader-tab` exists (right-aligned with a dot leader) |
+| Inline per-word text colour (e.g. two red words inside a paragraph) | No `{color=…}` inline syntax; the text **stays verbatim** and does not change colour. Apply it in Word afterwards or use a dedicated paragraph style |
+| Merged cells, diagonal header cells, cell shading | Markdown tables are regular 2D grids; export the grid, then merge/shade in Word |
+| Multi-column layouts, floating figures with text wrapping | Single-column layout and standalone centred figures only; double-sided `Mirror Margins: on` and `Gutter` *are* supported |
+| Arbitrary tab stops | The format file recognises `dot-leader-tab` only (right-aligned with a dot leader); add other tab stops in Word |
+| Fenced code block inside a list item | A list item carries paragraphs only; the export stops and asks you to move the code block out of the list |
+| Equations inside footnotes | Footnotes support inline formatting, links and citations; an equation stops the export |
+| A style declaring both `no-toc` and `join-header` | Format validation fails: the two conflict. Change the declaration, or split sections with `{{< section >}}` to set that section's header |
+
+**Limits of Word / the format itself** (not something this tool can change):
+
+| What you see | Why |
+|:--|:--|
+| Limits above and below the sum/integral sign in a numbered equation sit to the right | Numbered equations are laid out as inline equations; content and symbols are complete, only the layout differs |
 | A formula wider than the text block | Word wraps it at operators and the number may no longer reach the right margin; pre-flight warns. Split it or shorten it |
-| Inline math containing sums/integrals/roots | Tall symbols increase that line's height (often about 1.5×); line spacing is a paragraph property, so Word will not shrink a single inline formula |
-| Chapter header when a table from the previous chapter continues onto a page that later starts a new chapter | Word's `STYLEREF` takes the first matching heading on that page; use `{{< section >}}` when chapters must break strictly |
-| Table cell padding | Defaults to 0 so column widths follow the separator dashes exactly; declare `cell-margin 0.1cm` for padding (narrow columns shrink accordingly) |
-| Excluding a section title from the TOC while updating chapter headers | Word's built-in `TOC \o \u` field pulls `Heading 1` into the TOC automatically, so `no-toc` and `join-header` cannot combine; split sections with `{{< section >}}` if a custom header is needed without TOC entry |
-| Footnote position | Always printed at the bottom of the page that cites it — a Word layout rule |
-| More than three list levels | The fourth level and beyond merge into the third |
+| Inline math containing sums/integrals/roots makes that line taller | Line spacing is a paragraph property; Word will not shrink a single inline formula (often about 1.5×) |
+
+**Design parameters (configurable, not defects)**:
+
+| Parameter | Default | How to change it |
+|:--|:--|:--|
+| Table cell padding | 0, so column widths follow the separator dashes exactly | Declare `cell-margin 0.1cm`; narrow columns shrink accordingly |
+| Table column widths | Proportional to the dashes in the separator row | More columns mean narrower columns; pre-flight warns about narrow ones. Reduce columns or add padding |
+| List depth | Three levels; the fourth level and beyond merge into the third | Split into a new three-level list, or demote to body paragraphs |
+| PDF figures | Rasterised at 300 dpi | Vector figures are out of scope; replace them in Word after export |
+| Image wider than the text block | Clamped to the text block (15.92 cm on A4 with 2.54 cm margins, less any gutter) | Reduce `width=` or widen the text block before export |
+
+Pre-flight computes the real text block from the format file and warns when an absolute width or a
+percentage above 100% will overflow (a warning, not a stop).
 
 **CSL typesetting differences** (choices made by the citation engine: the content is complete, it is just
 laid out slightly differently from the reference implementation — check here when something looks off):
@@ -971,7 +995,7 @@ None of the situations below raises an error; they only make the output wrong:
 | Symptom | Cause |
 |:--|:--|
 | A table is set to centred but stays left | Only a separator row with colons makes per-column statements; the whole table follows the `Compact:` row's alignment |
-| Equations crush the lines above and below | Fixed line spacing (`line-spacing 20pt`) is shorter than the formula; use `min-line-spacing` or a larger value |
+| Inline equations make their line taller or get clipped | Inline math follows the paragraph's line spacing; under fixed spacing (`line-spacing 20pt`) the overflow is clipped, so use `min-line-spacing` or a larger value |
 | Declared "22 lines per page" but nothing changed | There is a ceiling: body-height ÷ line-height. Declarations beyond it do not take effect, and the pre-check says so |
 | References missing from the table of contents | `References Title` omitted `join-toc` (or the heading carries `{.unlisted}` / `{不入目录}`) |
 | Page numbers continue from the front matter | See §9.4: the body restarts from the format file's `start` |
