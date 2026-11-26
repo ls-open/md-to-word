@@ -43,7 +43,7 @@ from md_to_word.transform.citation_postprocess import (
 )
 from md_to_word.transform.citation_sort import _join_dates, _language_group
 from md_to_word.transform.disambiguation import (
-    BASE, StyleCloner, Variant, _suffix_label, citation_attrs, groups,
+    BASE, StyleCloner, Variant, _suffix_label, groups,
     max_extra_names, name_variants, resolve_given_variants, with_names,
 )
 from md_to_word.i18n import t
@@ -135,7 +135,8 @@ class CitationEngine:
         self._gbt_language_groups = (
             "author-date" in style_text.lower() and "GB/T 7714" in style_text
         )
-        options = citation_attrs(style_text)
+        # 直接读解析后的节点：正则只认双引号，合法样式换成单引号就全部失效。
+        options = dict(citation.attrib) if citation is not None else {}
         self._year_suffix = options.get("disambiguate-add-year-suffix") == "true"
         self._add_names = options.get("disambiguate-add-names") == "true"
         mode = options.get("collapse", "")
@@ -164,9 +165,7 @@ class CitationEngine:
             or "disambiguate" in style_text
         )
         self._cloner = StyleCloner(style_text, int(options.get("et-al-use-first", "1") or 1))
-        citation_block = _citation_block(style_text)
-        layout = re.search(r"<layout\b([^>]*)>", citation_block)
-        layout_attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', layout.group(1))) if layout else {}
+        layout_attrs = dict(self._cite_layout.attrib) if self._cite_layout is not None else {}
         self._layout = (
             layout_attrs.get("prefix", ""), layout_attrs.get("suffix", ""),
             layout_attrs.get("delimiter", "; "),
@@ -470,10 +469,17 @@ class CitationEngine:
         # 先登记：文献表的成员与数字制编号都靠这一步，跟怎么渲染文内引用无关
         self._bibliography.register(citation)
         with self._disambiguation_context():
+            # 样式没显式渲染 `year-suffix` 时，后缀由 `_render` 补；单条引用也必须走
+            # 这条路，否则同一份稿子里正文 `(Smith, 2020)`、文献表 `(2020a)`。
+            needs_suffix = any(
+                self._by_key.get(pair[0], {}).get("year-suffix") for pair in pairs
+            )
             if self._collapse and len(pairs) > 1:
                 segments = self._render_group(pairs)
-            elif any(not self._variant(pair[0]).plain for pair in pairs) or any(
-                _suppressed(pair) for pair in pairs
+            elif (
+                needs_suffix
+                or any(not self._variant(pair[0]).plain for pair in pairs)
+                or any(_suppressed(pair) for pair in pairs)
             ):
                 segments = self._render_group(pairs)
             else:
@@ -484,8 +490,15 @@ class CitationEngine:
             creators = entry.get("author") or entry.get("editor") or []
             and_word = "and" if self.citation_lang == "en" and len(creators) >= 2 else None
             segments = _as_narrative_segments(segments, and_word=and_word)
+        # 前缀/定位符里的数字不是引用编号：有它们时不合并，避免把 `see 2019, 2020`
+        # 或页码 `1, 2, 3` 并成区间。
+        has_extra = any(
+            (len(pair) > 1 and pair[1]) or (len(pair) > 2 and pair[2])
+            for pair in pairs
+        )
         segments = _merge_period_segments(
-            _collapse_numeric_segments(segments, bare=self._numeric))
+            _collapse_numeric_segments(segments, bare=self._numeric,
+                                       enabled=not has_extra))
         if self._punctuation_in_quote:
             segments = _punctuation_in_quote_segments(segments)
         self._rendered[cache_key] = segments

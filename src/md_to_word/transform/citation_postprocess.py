@@ -70,7 +70,8 @@ def _collapse_numeric_runs(text: str, bare: bool = False) -> str:
 
 
 def _collapse_numeric_segments(segments: list[tuple[str, dict]],
-                               bare: bool = False) -> list[tuple[str, dict]]:
+                               bare: bool = False,
+                               enabled: bool = True) -> list[tuple[str, dict]]:
     """Apply numeric-run collapsing to structured runs.
 
     Numeric citations are uniform (all plain brackets or all superscript). Merge
@@ -78,8 +79,8 @@ def _collapse_numeric_segments(segments: list[tuple[str, dict]],
     splits the pattern across formats, leave it alone rather than guess.
     """
     merged = merge_segments(segments)
-    if not merged:
-        return []
+    if not merged or not enabled:
+        return merged
     formats = {tuple(sorted(fmt.items())) for _text, fmt in merged}
     if len(formats) == 1:
         text = segments_text(merged)
@@ -144,7 +145,8 @@ def _strip_author_segments(
     )
 
 
-_QUOTE_PUNCT_RE = re.compile(r"[”’\"][.,]")
+# `’` 可能是撇号或所有格（`The Poets’, J`），不能当右引号；只认弯双引号与 ASCII 双引号。
+_QUOTE_PUNCT_RE = re.compile(r'[”"][.,]')
 
 
 def _punctuation_in_quote_segments(

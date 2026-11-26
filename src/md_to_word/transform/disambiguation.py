@@ -41,14 +41,6 @@ class Variant:
 BASE = Variant()
 
 
-def citation_attrs(style_text: str) -> dict[str, str]:
-    """`<citation>` 元素上的属性（消歧选项、et-al 默认值都写在这里）。"""
-    m = re.search(r"<citation\b([^>]*)>", style_text)
-    if not m:
-        return {}
-    return dict(re.findall(r'([\w-]+)="([^"]*)"', m.group(1)))
-
-
 def clone(style_text: str, base_use_first: int, variant: Variant) -> str:
     """返回把名字参数改成 `variant` 的样式副本文本。"""
     start = style_text.find("<citation")

@@ -807,3 +807,137 @@ def test_the_docx_keeps_bibliography_italics(tmp_path: Path) -> None:
             break
     else:
         raise AssertionError("bibliography journal title not found in document.xml")
+
+
+def test_sort_only_particle_is_demoted_in_sort_keys_only() -> None:
+    """`demote-non-dropping-particle="sort-only"`：排序按 Berg，正文仍印 van der Berg。"""
+    bib = (
+        "@article{berg, author={van der Berg, Johannes}, title={Networks}, "
+        "journal={J}, year={2019}}\n"
+        "@article{bearman, author={Bearman, Mark}, title={Discourses}, "
+        "journal={J}, year={2023}}\n"
+        "@article{chen, author={Chen, Wei}, title={Parsing}, journal={J}, year={2021}}\n"
+    )
+    engine = CitationEngine(bib, CSL / "acm-sig-proceedings.csl", lang="en")
+    keys = ["berg", "bearman", "chen"]
+    engine.reserve(keys)
+    for key in keys:
+        engine.cite([(key, "")])
+    entries = ["".join(t for t, _ in segs) for _k, segs in engine.bibliography_entries()]
+    assert "van der Berg" in entries[1] and "[2]" in entries[1], entries[1]
+    assert "[3]" in entries[2], entries[2]
+
+
+def test_empty_given_does_not_leave_a_dangling_period() -> None:
+    """中文作者常写成 `given: ""`；没有可缩写的词，就不能印 `王伟伟, .`。"""
+    bib = (
+        '[{"id": "zh", "type": "article-journal", '
+        '"author": [{"family": "王伟伟", "given": ""}, {"family": "顾炎辉", "given": ""}, '
+        '{"family": "余隋怀", "given": ""}], "title": "研究", '
+        '"container-title": "学报", "issued": {"date-parts": [[2024]]}}]'
+    )
+    engine = CitationEngine(bib, CSL / "apa.csl", lang="en")
+    engine.reserve(["zh"])
+    engine.cite([("zh", "")])
+    text = "".join(t for t, _ in engine.bibliography_entries()[0][1])
+    assert ", ." not in text and "., &" not in text, text
+    assert "王伟伟, 顾炎辉, & 余隋怀" in text, text
+
+
+def test_single_citation_keeps_the_year_suffix() -> None:
+    """同一作者同年的两条分开引用时，正文也要带 a/b，否则和文献表对不上。"""
+    bib = (
+        "@article{x1, author={Smith, John}, title={Alpha}, journal={J}, year={2020}}\n"
+        "@article{x2, author={Smith, John}, title={Beta}, journal={J}, year={2020}}\n"
+    )
+    for style in ("emerald-harvard.csl", "frontiers.csl", "springer-basic-author-date.csl"):
+        engine = CitationEngine(bib, CSL / style, lang="en")
+        engine.reserve(["x1", "x2"])
+        first = _text(engine, ("x1", ""))
+        second = _text(engine, ("x2", ""))
+        assert "2020a" in first and "2020b" in second, (style, first, second)
+
+
+def test_date_range_affixes_wrap_the_range_once() -> None:
+    """`(2020)–(2021)` 是两头各套一次前后缀；区间应只套一次：`(2020–2021)`。"""
+    bib = (
+        '[{"id": "r", "type": "article-journal", "author": [{"family": "Garcia", "given": "L"}], '
+        '"title": "R", "container-title": "J", "volume": "7", "page": "11-29", '
+        '"issued": {"date-parts": [[2020], [2021]]}}]'
+    )
+    engine = CitationEngine(
+        bib, CSL / "springer-lecture-notes-in-computer-science.csl", lang="en")
+    engine.reserve(["r"])
+    engine.cite([("r", "")])
+    text = "".join(t for t, _ in engine.bibliography_entries()[0][1])
+    assert "(2020–2021)" in text and "(2020)–(2021)" not in text, text
+
+
+def test_replaced_edition_label_is_not_printed_again() -> None:
+    """题名替掉作者时 edition 已随替身渲染过；后面的 `<label>` 不能再印 `(ed.)`。"""
+    bib = (
+        '[{"id": "cmos", "type": "book", "title": "The Chicago Manual of Style", '
+        '"edition": "17", "publisher": "University of Chicago Press", '
+        '"issued": {"date-parts": [[2017]]}}]'
+    )
+    engine = CitationEngine(bib, CSL / "apa.csl", lang="en")
+    engine.reserve(["cmos"])
+    engine.cite([("cmos", "")])
+    text = "".join(t for t, _ in engine.bibliography_entries()[0][1])
+    assert "(17th ed.)" in text and "(ed.)." not in text, text
+
+
+def test_numeric_collapse_does_not_touch_prefixes_or_locators() -> None:
+    """前缀里的数字不是引用编号，不能并成区间。"""
+    bib = (
+        "@article{a, author={A, Ann}, title={A}, journal={J}, year={2020}}\n"
+        "@article{b, author={B, Bob}, title={B}, journal={J}, year={2021}}\n"
+        "@article{c, author={C, Cat}, title={C}, journal={J}, year={2022}}\n"
+    )
+    engine = CitationEngine(
+        bib, CSL / "chinese-gb7714-2015-numeric.csl", lang="zh")
+    engine.reserve(["a", "b", "c"])
+    text = _text(engine, ("a", "", "see [1, 2, 3]"))
+    assert "1–3" not in text, text
+
+
+def test_possessive_apostrophe_is_not_a_closing_quote() -> None:
+    from md_to_word.transform.citation_postprocess import _punctuation_in_quote_segments
+
+    segments = [("The Poets’", {}), (", J", {})]
+    out = _punctuation_in_quote_segments(segments)
+    assert "".join(t for t, _ in out) == "The Poets’, J"
+
+
+def test_explicit_language_wins_over_script_guessing() -> None:
+    from md_to_word.transform.citation_sort import _language_group
+
+    assert _language_group({"language": "en", "title": "中文标题"}) == 2
+    assert _language_group({"language": "ko", "title": "English title"}) == 4
+    assert _language_group({"title": "中文标题"}) == 0
+
+
+def test_single_quoted_style_attributes_are_read(tmp_path: Path) -> None:
+    """合法 CSL 可以用单引号写属性；选项探测走解析后的节点，不能靠正则匹配双引号。"""
+    style = tmp_path / "single-quote.csl"
+    style.write_text(
+        "<?xml version='1.0' encoding='utf-8'?>\n"
+        "<style xmlns='http://purl.org/net/xbiblio/csl' class='in-text' version='1.0' "
+        "default-locale='en-US'>\n"
+        "  <info><title>Probe</title><id>http://example.com/probe</id>"
+        "<updated>2024-01-01T00:00:00+00:00</updated></info>\n"
+        "  <citation collapse='year'><layout prefix='(' suffix=')' delimiter='; '>\n"
+        "    <group delimiter=', '><names variable='author'><name form='short'/></names>\n"
+        "    <date variable='issued'><date-part name='year'/></date></group>\n"
+        "  </layout></citation>\n"
+        "  <bibliography><layout><text variable='title'/></layout></bibliography>\n"
+        "</style>\n",
+        encoding="utf-8",
+    )
+    bib = (
+        "@article{a, author={Smith, John}, title={A}, journal={J}, year={2020}}\n"
+        "@article{b, author={Smith, John}, title={B}, journal={J}, year={2021}}\n"
+    )
+    engine = CitationEngine(bib, style, lang="en")
+    engine.reserve(["a", "b"])
+    assert _text(engine, ("a", ""), ("b", "")) == "(Smith, 2020, 2021)"

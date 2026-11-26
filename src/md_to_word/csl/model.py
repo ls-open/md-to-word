@@ -193,6 +193,26 @@ def _is_repressed(elem, var, context) -> bool:
     return False
 
 
+def _variable_repressed(var, context) -> bool:
+    """变量是否在 substitute 里已经渲染过——不限于同一元素类型。
+
+    `<substitute>` 用题名替掉作者时，会同时把 edition 渲染进替身；后文的
+    `<label variable="edition"/>` 若只按自己的 tag 查，标签会留下来（APA 的
+    `(ed.).` 就是这么来的）。
+    """
+    if not var:
+        return False
+    try:
+        layout = context.get_layout()
+    except Exception:
+        return False
+    for variables in getattr(layout, "repressed", {}).values():
+        for entry in variables or ():
+            if var in str(entry).split():
+                return True
+    return False
+
+
 
 # Base class
 class SomewhatObjectifiedElement(etree.ElementBase):
@@ -627,10 +647,10 @@ class Formatted:
 
 
 class Affixed:
-    def wrap(self, string):
+    def wrap(self, string, *, skip_prefix=False, skip_suffix=False):
         if string is not None:
-            prefix = self.get('prefix', '')
-            suffix = self.get('suffix', '')
+            prefix = '' if skip_prefix else self.get('prefix', '')
+            suffix = '' if skip_suffix else self.get('suffix', '')
             string = normalize_seam(prefix, string)
             # `String.__add__` keeps formatting objects intact; a raw `str +`
             # would flatten a structured run back to plain text.
@@ -1123,11 +1143,16 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
     def is_locale_date(self):
         return _ancestor(self, 'locale') is not None
 
-    def render_single_date(self, date, show_parts=None, context=None):
+    def render_single_date(self, date, show_parts=None, context=None, *,
+                           skip_first_prefix=False, skip_last_suffix=False):
         if context != self:
-            parts = self.parts(date, show_parts, context)
+            parts = self.parts(date, show_parts, context,
+                               skip_first_prefix=skip_first_prefix,
+                               skip_last_suffix=skip_last_suffix)
         else:
-            parts = self.parts(date, show_parts)
+            parts = self.parts(date, show_parts,
+                               skip_first_prefix=skip_first_prefix,
+                               skip_last_suffix=skip_last_suffix)
         if parts:
             style_context = context if self.is_locale_date() else self
             return style_context.join(parts)
@@ -1162,10 +1187,11 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
 
             same = self.render_single_date(date_range.end, same_show_parts,
                                            context)
+            # 前缀归区间开头、后缀归区间末尾，各印一次。
             diff_begin = self.render_single_date(date_range.begin, show_parts,
-                                                 context)
+                                                 context, skip_last_suffix=True)
             diff_end = self.render_single_date(date_range.end, show_parts,
-                                               context)
+                                               context, skip_first_prefix=True)
 
         if not (diff_begin and diff_begin):
             return None
@@ -1199,17 +1225,26 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
                 return delimiter
         return self.unicode_character('EN DASH')
 
-    def parts(self, date, show_parts, context=None):
-        output = []
+    def parts(self, date, show_parts, context=None, *,
+              skip_first_prefix=False, skip_last_suffix=False):
+        rendered = []
         for part in self.iterchildren():
             if part.get('name') in show_parts:
                 try:
                     part_text = part.render(date, context)
                     if part_text is not None:
-                        output.append(part_text)
+                        rendered.append([part, part_text])
                 except VariableError:
                     pass
-        return output
+        # 区间的 date-part 前后缀要包住整个区间一次（`(2020–2021)`），
+        # 不能两头各包一次（`(2020)–(2021)`）：首端不印前缀、末端不印后缀。
+        if rendered and skip_first_prefix:
+            part = rendered[0][0]
+            rendered[0][1] = part.render(date, context, skip_prefix=True)
+        if rendered and skip_last_suffix:
+            part = rendered[-1][0]
+            rendered[-1][1] = part.render(date, context, skip_suffix=True)
+        return [text for _part, text in rendered]
 
     def markup(self, text):
         # Wrapping happens in process(): locale dates use the style date's affixes.
@@ -1267,6 +1302,10 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
 
 class Date_Part(CitationStylesElement, Formatted, Affixed, TextCased,
                 StrippedPeriods):
+    def render(self, date, context=None, *, skip_prefix=False, skip_suffix=False):
+        return self.markup(self.process(date, context),
+                           skip_prefix=skip_prefix, skip_suffix=skip_suffix)
+
     def process(self, date, context=None):
         name = self.get('name')
         attrib = self.attrib
@@ -1324,9 +1363,10 @@ class Date_Part(CitationStylesElement, Formatted, Affixed, TextCased,
 
         return text
 
-    def markup(self, text):
+    def markup(self, text, *, skip_prefix=False, skip_suffix=False):
         if text:
-            return self.wrap(self.format(self.case(self.strip_periods(text))))
+            return self.wrap(self.format(self.case(self.strip_periods(text))),
+                             skip_prefix=skip_prefix, skip_suffix=skip_suffix)
         else:
             return None
 
@@ -1561,9 +1601,17 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
         initialize_with = get_option('initialize-with')
         name_as_sort_order = get_option('name-as-sort-order')
         sort_separator = get_option('sort-separator')
+        demote_ndp = get_option('demote-non-dropping-particle')
+
+        # `sort-only` 只在生成排序键时把 particle 降级；正文里仍跟着 family。
+        # 排序键由 `Key.sort_keys` 以 `sort_options` 调用本方法。
+        sorting = sort_options is not None
+        demote_particle = (
+            demote_ndp != 'never' if sorting
+            else demote_ndp == 'display-and-sort'
+        )
 
         form = get_option('form')
-        demote_ndp = get_option('demote-non-dropping-particle')
 
         def format_name_parts(given, family):
             for part in self.findall('cs:name-part', self.nsmap):
@@ -1602,7 +1650,7 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
                 if form == 'long':
                     if (name_as_sort_order == 'all' or
                             (name_as_sort_order == 'first' and i == 0)):
-                        if demote_ndp in ('never', 'sort-only'):
+                        if not demote_particle:
                             family = join([n for n in (ndp, family) if n], ' ')
                             given = join([n for n in (given, dp) if n], ' ')
                         else:
@@ -1668,6 +1716,10 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
                 except Exception:
                     init_opt = None
         if init_opt is not None and str(init_opt).lower() == "false":
+            return given
+        # 空 given（中文作者常见：`{"family": "王伟伟", "given": ""}`）没有可缩写的
+        # 词，不能凭一个 mark 造出孤立句点。
+        if not given.strip():
             return given
 
         if self.get_option('initialize-with-hyphen', context):
@@ -1816,6 +1868,8 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
             variable = self.get('variable')
             if not self._variable_is_set(item, variable):
                 return None
+        if _variable_repressed(variable, context if context is not None else self):
+            return None
         form = self.get('form', 'long')
         plural_option = self.get('plural', 'contextual')
         if plural is None:

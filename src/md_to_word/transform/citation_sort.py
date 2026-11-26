@@ -5,7 +5,8 @@ it renders the referenced macros, applies `names-min`/`names-use-first` and hono
 `sort="descending"`. What remains here is the part CSL does not express:
 
 - GB/T 7714-2015 §9.2 language grouping for author-date bibliographies;
-- collapsing of consecutive year suffixes (`2020a–c`) for `collapse` styles.
+- collapsing of repeated years/suffixes for `collapse` styles: `2020a, b, c` for
+  `year-suffix`, `2020a–c` only for `year-suffix-ranged`.
 
 Pure functions only.
 """
@@ -91,12 +92,16 @@ def _language_group(entry: dict) -> int:
     language = str(entry.get("language") or "").strip().lower()
     base = re.split(r"[-_]", language)[0] if language else ""
 
-    if base == "zh":
-        return 0
-    if base == "ja":
-        return 1
-    if base == "ru":
-        return 3
+    # 显式写了语言就照它分组；只有没写时才看文字。否则 `language = {en}` 的
+    # 中文题名会被文字判断抢回去，`ko` 这类也会被猜成西文。
+    if base:
+        if base == "zh":
+            return 0
+        if base == "ja":
+            return 1
+        if base == "ru":
+            return 3
+        return 2 if base in _WESTERN_LANGUAGES else 4
 
     text = " ".join(
         str(part)
@@ -113,6 +118,6 @@ def _language_group(entry: dict) -> int:
         return 3
     if re.search(r"[一-鿿]", text):
         return 0
-    if base in _WESTERN_LANGUAGES or re.search(r"[A-Za-zÀ-ɏ]", text):
+    if re.search(r"[A-Za-zÀ-ɏ]", text):
         return 2
     return 4
