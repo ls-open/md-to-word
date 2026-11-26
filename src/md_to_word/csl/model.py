@@ -611,12 +611,13 @@ class Displayed:
 
 class Quoted:
     def quote(self, string, language=None):
-        # piq = self.get_locale_option('punctuation-in-quote').lower() == 'true'
+        # `punctuation-in-quote` is handled once on the final runs (see
+        # transform/citation_postprocess.py): the punctuation can come from a
+        # group delimiter outside this element, so it is not visible here.
         if self.get('quotes', 'false').lower() == 'true':
             open_quote = self.get_single_term(name='open-quote', language=language)
             close_quote = self.get_single_term(name='close-quote', language=language)
             string = open_quote + string + close_quote
-            # quoted_string = QuotedString(string, open_quote, close_quote, piq)
         return string
 
 

@@ -5,6 +5,9 @@ from functools import wraps
 # adjacent at a concatenation seam (e.g. a suffix '.' following text that
 # already ends in '.').
 SEAM_PUNCTUATION = frozenset('.,;:!?')
+# Punctuation that already closes a clause or sentence. A period appended after
+# one of these is redundant: `2020;` + `. ` must not become `2020;.`.
+TERMINAL_PUNCTUATION = frozenset('.!?:;')
 
 
 def normalize_seam(left, other):
@@ -27,6 +30,15 @@ def normalize_seam(left, other):
     # drop a duplicated punctuation mark ('..' -> '.', ',,' -> ',', ...)
     if last == first and first in SEAM_PUNCTUATION:
         return _strip_first_char(other)
+    # A suffix often carries its own trailing space (`suffix=". "`), so the same
+    # check has to look past whitespace: `Things. ` + `. London` -> `Things. London`.
+    tail = left.rstrip()
+    if tail:
+        last = tail[-1]
+        if last == first and first in SEAM_PUNCTUATION:
+            return _strip_first_char(other)
+        if first == '.' and last in TERMINAL_PUNCTUATION:
+            return _strip_first_char(other)
     return other
 
 

@@ -1,9 +1,9 @@
 """Post-processing of structured CSL runs.
 
 These are the project's output-stage fixes: numeric-run collapsing, terminal
-punctuation, narrative citations, year suffixes, page-range expansion, and the
-number-column tab. They operate on `(text, format)` runs; they do not parse
-markup or touch the CSL evaluator.
+punctuation, punctuation-in-quote, narrative citations, year suffixes,
+page-range expansion, and the number-column tab. They operate on
+`(text, format)` runs; they do not parse markup or touch the CSL evaluator.
 """
 
 from __future__ import annotations
@@ -11,7 +11,8 @@ from __future__ import annotations
 import re
 
 from md_to_word.csl.formatter.segments import (
-    merge_segments, replace_first, segments_text, slice_segments, to_segments,
+    merge_segments, replace_first, segments_text, slice_segments, style_at,
+    to_segments,
 )
 
 
@@ -119,6 +120,29 @@ def _absorbs_period(tail: str) -> bool:
     """句点前面是不是「已经收过句号」的终止标点；右引号不算隔断（`“What?”.` 一样不补）。"""
     unquoted = tail.rstrip(_CLOSING_QUOTES)
     return bool(unquoted) and unquoted[-1] in _TERMINAL_PUNCT
+
+
+_QUOTE_PUNCT_RE = re.compile(r"[”’\"][.,]")
+
+
+def _punctuation_in_quote_segments(
+    segments: list[tuple[str, dict]],
+) -> list[tuple[str, dict]]:
+    """`“An Article”.` → `“An Article.”`（en-US 的 `punctuation-in-quote`）。
+
+    句点/逗号紧跟右引号时移进引号内。citation 与 bibliography 都在最终 run 上做一次：
+    标点可能来自 group 分隔符，也可能来自 affix，单看某一层接不上。
+    """
+    text = segments_text(segments)
+    for index in reversed([match.start() for match in _QUOTE_PUNCT_RE.finditer(text)]):
+        quote_format = style_at(segments, index)
+        punct_format = style_at(segments, index + 1)
+        segments = merge_segments(
+            slice_segments(segments, 0, index)
+            + [(text[index + 1], punct_format), (text[index], quote_format)]
+            + slice_segments(segments, index + 2, len(text))
+        )
+    return segments
 
 
 def _as_narrative(text: str, *, and_word: str | None = None) -> str:

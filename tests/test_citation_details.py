@@ -245,6 +245,65 @@ def test_a_descending_sort_key_is_honoured() -> None:
     ]
 
 
+def test_double_period_at_a_seam_is_collapsed() -> None:
+    """标题宏与字段后缀各自带 `. `：`Things. . London` 要并成一个句点。
+
+    ISO 690 的标题宏写完 `. `，外层又给同字段补 `. `；citeproc 在拼接处吃掉重复标点，
+    以前只在两个标点紧邻时判断，隔着空格就漏了。
+    """
+    bib = (
+        "@book{b, author={Smith, John}, title={A Book About Things}, "
+        "publisher={Acme Press}, address={London}, year={2020}}"
+    )
+    engine = CitationEngine(bib, CSL / "iso690-numeric-en.csl", lang="en")
+    engine.cite([("b", "")])
+    text = engine.bibliography()[0]
+    assert ". ." not in text, text
+    assert "Things. London" in text, text
+
+
+def test_a_period_after_a_semicolon_is_suppressed() -> None:
+    """字段以 `;` 收尾、布局再补 `.`：`2020;.` 应为 `2020;`。"""
+    bib = (
+        "@book{b, author={Smith, John}, title={A Book About Things}, "
+        "publisher={Acme Press}, address={London}, year={2020}}"
+    )
+    engine = CitationEngine(
+        bib, CSL / "multidisciplinary-digital-publishing-institute.csl", lang="en")
+    engine.cite([("b", "")])
+    text = engine.bibliography()[0]
+    assert "2020;." not in text, text
+    assert "2020;" in text, text
+
+
+ARTICLE_BIB = """
+@article{art, author={Doe, Jane and Roe, Richard}, title={An Article},
+  journal={Journal of Stuff}, volume={3}, number={2}, pages={10--20}, year={2021}}
+"""
+
+
+def test_punctuation_moves_inside_quotes_for_en_us() -> None:
+    """en-US 的 locale 声明 `punctuation-in-quote="true"`：`“An Article”.` → `“An Article.”`。
+
+    Chicago 与 MLA 的逗号/句点来自 group 分隔符，不一定挂在 affix 上；所以判断在最终
+    run 上做，格式边界不打断。
+    """
+    for style in ("chicago-author-date", "modern-language-association"):
+        engine = CitationEngine(ARTICLE_BIB, CSL / f"{style}.csl", lang="en")
+        engine.cite([("art", "")])
+        text = engine.bibliography()[0]
+        assert "“An Article.”" in text, (style, text)
+        assert "“An Article”." not in text, (style, text)
+
+
+def test_a_style_can_turn_punctuation_in_quote_off() -> None:
+    """样式自己的 locale 选项优先：Emerald Harvard 声明 false，逗号留在引号外。"""
+    engine = CitationEngine(ARTICLE_BIB, CSL / "emerald-harvard.csl", lang="en")
+    engine.cite([("art", "")])
+    text = engine.bibliography()[0]
+    assert "“An Article”," in text, text
+
+
 def test_sort_keys_named_by_a_macro_are_evaluated() -> None:
     """排序键指向的宏叫什么都得求值，不能按名字猜类别。
 

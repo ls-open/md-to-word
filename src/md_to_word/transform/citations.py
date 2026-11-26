@@ -38,8 +38,8 @@ from md_to_word.csl.source.json import CiteProcJSON
 from md_to_word.transform.biblio import parse_bibliography
 from md_to_word.transform.citation_postprocess import (
     _as_narrative_segments, _collapse_numeric_runs as _collapse_numeric_runs, _collapse_numeric_segments,
-    _expand_range, _merge_period_segments, _with_year_suffix_segments,
-    separate_first_field,
+    _expand_range, _merge_period_segments, _punctuation_in_quote_segments,
+    _with_year_suffix_segments, separate_first_field,
 )
 from md_to_word.transform.citation_sort import _join_dates, _language_group
 from md_to_word.transform.disambiguation import (
@@ -87,6 +87,10 @@ class CitationEngine:
         # segments 而不是 plain：CSL 里的斜体、上标（Nature 的引文编号就是上标）
         # 直接作为 run 属性返回，写出器不用再从标记串里还原。
         self._style = style
+        # en-US 的 locale 声明 punctuation-in-quote="true"：引号后的句点/逗号进引号内。
+        self._punctuation_in_quote = str(
+            style.root.get_locale_option("punctuation-in-quote")
+        ).lower() == "true"
         # 条目数据只解析一次：CiteProcJSON 会把每条字符串拆成结构化 run，120 条就要
         # 几毫秒。原先每次试探渲染都重建一遍，reserve() 的耗时基本都是它。
         self._source = CiteProcJSON(self.entries)
@@ -444,6 +448,8 @@ class CitationEngine:
             segments = _as_narrative_segments(segments, and_word=and_word)
         segments = _merge_period_segments(
             _collapse_numeric_segments(segments, bare=self._numeric))
+        if self._punctuation_in_quote:
+            segments = _punctuation_in_quote_segments(segments)
         self._rendered[cache_key] = segments
         return segments
 
@@ -488,17 +494,17 @@ class CitationEngine:
         if len(rendered) != len(ordered):
             return [(f"item{i}", segs) for i, segs in enumerate(rendered)]
         return [
-            (
-                key,
-                _merge_period_segments(
-                    _with_year_suffix_segments(
-                        self._separate_first_field(entry, item.number),
-                        self._by_key.get(key, {}),
-                    )
-                ),
-            )
+            (key, self._finish_bibliography_entry(entry, key, item.number))
             for (key, item), entry in zip(ordered, rendered)
         ]
+
+    def _finish_bibliography_entry(self, entry, key: str, number: int):
+        segments = _with_year_suffix_segments(
+            self._separate_first_field(entry, number), self._by_key.get(key, {}))
+        segments = _merge_period_segments(segments)
+        if self._punctuation_in_quote:
+            segments = _punctuation_in_quote_segments(segments)
+        return segments
 
     def bibliography(self) -> list[str]:
         """文末文献列表（纯文本；要片段用 bibliography_segments）。
