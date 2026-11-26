@@ -245,6 +245,54 @@ def test_a_descending_sort_key_is_honoured() -> None:
     ]
 
 
+def test_sort_keys_named_by_a_macro_are_evaluated() -> None:
+    """排序键指向的宏叫什么都得求值，不能按名字猜类别。
+
+    GB/T 7714 作者-年制的年份键叫 `issued-year`、ISO 690 的作者键叫 `responsability`，
+    前缀都认不出来；以前这两条被跳过，文献表退回引用顺序。
+    """
+    zh = """
+@article{later, author={Zhang, San}, title={Later}, journal={J}, year={2022}}
+@article{earlier, author={Zhang, San}, title={Earlier}, journal={J}, year={2020}}
+"""
+    engine = CitationEngine(zh, CSL / "chinese-gb7714-2015-author-date.csl", lang="zh")
+    engine.reserve(["later", "earlier"])
+    for key in ("later", "earlier"):
+        engine.cite([(key, "")])
+    assert [key for key, _ in engine.bibliography_segments()] == ["earlier", "later"]
+
+    en = """
+@book{smith, author={Smith, John}, title={A Book}, publisher={P}, year={2020}}
+@book{doe, author={Doe, Jane}, title={B Book}, publisher={P}, year={2021}}
+"""
+    engine = CitationEngine(en, CSL / "iso690-author-date-en.csl", lang="en")
+    engine.reserve(["smith", "doe"])
+    for key in ("smith", "doe"):
+        engine.cite([(key, "")])
+    assert [key for key, _ in engine.bibliography_segments()] == ["doe", "smith"]
+
+
+def test_citation_number_follows_the_sorted_bibliography() -> None:
+    """文献表按作者排的数字制样式（ACM），编号也按文献表走。
+
+    第三条被引的文献可以印成 `[1]`：文内编号与文献表必须一致，不然读者找不到。
+    """
+    bib = """
+@book{smith1, author={Smith, John}, title={A Book}, publisher={P}, year={2020}}
+@book{smith2, author={Smith, John}, title={Another Book}, publisher={P}, year={2022}}
+@article{doe, author={Doe, Jane and Roe, Richard}, title={An Article}, journal={J}, year={2021}}
+"""
+    engine = CitationEngine(bib, CSL / "acm-sig-proceedings.csl", lang="en")
+    engine.reserve(["smith1", "smith2", "doe"])
+    cited = {
+        key: "".join(text for text, _ in engine.cite([(key, "")]))
+        for key in ("smith1", "smith2", "doe")
+    }
+    assert cited == {"smith1": "[2]", "smith2": "[3]", "doe": "[1]"}
+    assert [key for key, _ in engine.bibliography_segments()] == ["doe", "smith1", "smith2"]
+    assert engine.bibliography()[0].startswith("[1]\tDoe"), engine.bibliography()
+
+
 def test_translator_series_and_note_are_mapped() -> None:
     """`.bib` 里这些字段以前直接丢掉：译者在文献表里整段不见、丛书名与注释也消失。"""
     from md_to_word.transform.bibtex import parse_bibtex

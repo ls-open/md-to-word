@@ -181,6 +181,13 @@ class CitationItem(CustomDict):
 
     @property
     def number(self):
+        # Numeric styles with a real bibliography sort number entries in
+        # bibliography order (CSL: `citation-number` follows the sorted list).
+        # The adapter computes that order once, before the first citation, and
+        # attaches it to the shared source.
+        numbers = getattr(self.bibliography.source, '_numbers', None)
+        if numbers is not None and self.key in numbers:
+            return numbers[self.key]
         return self.bibliography.keys.index(self.key) + 1
 
     @property

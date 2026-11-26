@@ -10,9 +10,10 @@ citeproc-py 自带的 BibTeX 读取器反而不产出 `issued`，直接用会抛
 CSL 的 author-in-text 形式渲染。这里对作者-年份制做一次保守改写把年份移进括号；
 数字制下与括号式相同。这条限制写在文档里，不藏着。
 
-分阶段：`csl/` 负责求值；`citation_sort.py` 排序与文种分组；`disambiguation.py`
-消歧；`citation_postprocess.py` 输出修正（数字合并、标点、年份后缀等）；本文件只做
-编排与公开 API。
+分阶段：`csl/` 负责求值与排序（`<sort>` 里的宏由引擎求值）；`citation_sort.py`
+补 CSL 不表达的 GB/T 文种分组与年份后缀折叠；`disambiguation.py` 消歧；
+`citation_postprocess.py` 输出修正（数字合并、标点、年份后缀等）；本文件只做编排与
+公开 API。
 """
 
 from __future__ import annotations
@@ -40,10 +41,7 @@ from md_to_word.transform.citation_postprocess import (
     _expand_range, _merge_period_segments, _with_year_suffix_segments,
     separate_first_field,
 )
-from md_to_word.transform.citation_sort import (
-    _declared_sort_keys, _join_dates, _language_group, _sort_names_initialized,
-    _sort_value,
-)
+from md_to_word.transform.citation_sort import _join_dates, _language_group
 from md_to_word.transform.disambiguation import (
     BASE, StyleCloner, Variant, _suffix_label, citation_attrs, groups,
     max_extra_names, name_variants, resolve_given_variants, with_names,
@@ -105,9 +103,19 @@ class CitationEngine:
         self._number_prefix, self._number_suffix, has_citation_number = _number_affixes(style_text)
         tag = re.search(r"<bibliography\b[^>]*>", style_text)
         self._first_field_column = has_citation_number or bool(tag and 'second-field-align' in tag.group(0))
-        self._sort_by_initials = _sort_names_initialized(style_text)
-        self._sort_order = _declared_sort_keys(style_text)
-        self._sorted = bool(self._sort_order)
+        # 排序交给引擎：`<key>` 指向的是宏，按名字猜类别会漏掉 `issued-year`、
+        # `responsability` 这类宏名。引擎的 `Sort` 会真的渲染宏，并按
+        # `names-min` / `sort="descending"` 求值。
+        bibliography = self._style.root.bibliography
+        citation = self._style.root.citation
+        self._bib_sort = bibliography.sort if bibliography is not None else None
+        self._bib_layout = bibliography.default_layout() if bibliography is not None else None
+        self._cite_sort = citation.sort if citation is not None else None
+        self._cite_layout = citation.default_layout() if citation is not None else None
+        self._renders_citation_number = (
+            has_citation_number or "citation-number" in _citation_block(style_text)
+        )
+        self._numbers: dict[str, int] | None = None
         # 只有 GB/T 7714 的著者-年制要求按文种分组；数字制仍按引用顺序。
         self._gbt_language_groups = (
             "author-date" in style_text.lower() and "GB/T 7714" in style_text
@@ -137,9 +145,6 @@ class CitationEngine:
         )
         self._cloner = StyleCloner(style_text, int(options.get("et-al-use-first", "1") or 1))
         citation_block = _citation_block(style_text)
-        sort_block = re.search(r"<sort>(.*?)</sort>", citation_block, re.S)
-        sort_vars = re.findall(r'variable="([^"]+)"', sort_block.group(1)) if sort_block else []
-        self._citation_sort = (sort_vars[0] if sort_vars else "author") if sort_block else None
         layout = re.search(r"<layout\b([^>]*)>", citation_block)
         layout_attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', layout.group(1))) if layout else {}
         self._layout = (
@@ -160,6 +165,8 @@ class CitationEngine:
         首字母在 `primary-name*` 规则下是名字级的：同姓不同人即使年份不同也要补（APA 8.20），
         所以按「第一作者姓」分组判定；在 `by-cite` 规则（如 MLA、Harvard）下仅对撞车的引用组补。
         """
+        keys = list(keys)
+        self._assign_numbers(keys)
         if not self._needs_disambiguation:
             return
         cited = [key for key in dict.fromkeys(keys) if key in self._known]
@@ -214,11 +221,35 @@ class CitationEngine:
                     self._by_key[key]["year-suffix"] = _suffix_label(index)
             # 条目数据变了，重建引用源：CiteProcJSON 的条目在构造时已抓走
             self._source = CiteProcJSON(self.entries)
+            if self._numbers is not None:
+                self._source._numbers = self._numbers
             self._name_sources.clear()
             self._bibliography = CitationStylesBibliography(
                 self._style, self._source, formatter.segments
             )
             self._variant_cache.clear()
+
+    def _assign_numbers(self, keys: list[str]) -> None:
+        """数字制样式按文献表顺序编号。
+
+        CSL 的 `citation-number` 跟着文献表走。文献表按作者排的样式（如 ACM）里，
+        第三条被引的文献可以印成 `[1]`，文内引用与文献表必须一致。引擎默认按首次
+        引用顺序编号，所以这里在第一次渲染之前先排一遍，把结果挂到共享文献源上。
+        文献表没声明 `<sort>`、或样式不印编号时不用动。
+        """
+        if not self._renders_citation_number or self._bib_sort is None:
+            return
+        items = [CitationItem(key) for key in dict.fromkeys(keys) if key in self._known]
+        if not items:
+            return
+        # 排序键可能是 `citation-number`，先给一组按引用顺序的临时编号让它能求值
+        scratch = CitationStylesBibliography(self._style, self._source, formatter.segments)
+        scratch.register(Citation(items))
+        ordered = self._bib_sort.sort(items, self._bib_layout)
+        self._numbers = {
+            item.key: number for number, item in enumerate(ordered, start=1)
+        }
+        self._source._numbers = self._numbers
 
     def _variant(self, key: str) -> Variant:
         return self._variants.get(key, BASE)
@@ -270,14 +301,19 @@ class CitationEngine:
         return merge_segments([(prefix, {})] + body + [(suffix, {})])
 
     def _sort_pairs(self, pairs) -> list:
-        """按样式声明的 `<sort>` 排；没声明就保持输入顺序（CSL 的规矩）。"""
-        if not self._citation_sort:
+        """按样式声明的 `<sort>` 排；没声明就保持输入顺序（CSL 的规矩）。
+
+        `_render_group` 是逐条渲染的，引擎的 `render_citation` 那套排序用不上，
+        所以把这一组的条目交给引擎的 `Sort` 排一次，再按条目对象换回原来的参数元组。
+        """
+        if self._cite_sort is None:
             return list(pairs)
-        kind = "year" if self._citation_sort in ("issued", "date") else "names"
-        return sorted(
-            pairs,
-            key=lambda pair: _sort_value(kind, self._by_key.get(pair[0], {}), self._sort_by_initials),
-        )
+        items = [self._citation_item(pair) for pair in pairs]
+        citation = Citation(items)
+        citation.bibliography = self._bibliography   # 只供 item.reference 用，不登记
+        ordered = self._cite_sort.sort(items, self._cite_layout)
+        by_item = {id(item): pair for item, pair in zip(items, pairs)}
+        return [by_item[id(item)] for item in ordered]
 
     def _split_author(self, key: str, segments: list[tuple[str, dict]]):
         """把一条渲染好的引用拆成「作者部分」与「年份部分」，供 collapse 归并。"""
@@ -416,62 +452,62 @@ class CitationEngine:
         return self.bibliography_segments()
 
     def _sorted_keys(self, keys) -> list[str]:
-        """按 `<sort>` 声明的键序与方向排。
+        """用样式声明的 `<sort>` 排一组 key（年份后缀分配要用同一套次序）。"""
+        if self._bib_sort is None:
+            return list(keys)
+        items = []
+        by_item = {}
+        for key in keys:
+            item = CitationItem(key)
+            items.append(item)
+            by_item[id(item)] = key
+        citation = Citation(items)
+        citation.bibliography = self._bibliography
+        return [by_item[id(item)] for item in self._bib_sort.sort(items, self._bib_layout)]
 
-        多字段混搭（作者升序、年份降序）靠稳定排序从最后一条键往前做，一趟一条键；
-        把几条键塞进一个元组是做不到的——元组里没法让某一项逆序。
-        """
-        result = list(keys)
-        for kind, descending in reversed(self._sort_order):
-            result.sort(
-                key=lambda key: _sort_value(kind, self._by_key.get(key, {}), self._sort_by_initials),
-                reverse=descending,
-            )
-        return result
-
-    def _ordered_keys(self) -> list[str]:
-        keys = self._sorted_keys(self._order) if self._sorted else list(self._order)
+    def _ordered_items(self) -> list[tuple[str, CitationItem]]:
+        """(原始 key, 条目)：先按样式 `<sort>`，再按 GB/T 的文种分组。"""
+        items = list(self._bibliography.items)
+        # CitationItem.key 是小写化的；原始拼写只在上面的 `_order` 里，用身份对齐。
+        by_item = {id(item): key for item, key in zip(items, self._order)}
+        if self._bib_sort is not None:
+            items = self._bib_sort.sort(items, self._bib_layout)
         if self._gbt_language_groups:
             # GB/T 7714-2015 §9.2：著者-年制先按文种集中，再按作者/年份。
             # 稳定排序保留组内已有的 `<sort>` 次序。
-            keys.sort(key=lambda key: _language_group(self._by_key.get(key, {})))
-        return keys
+            items.sort(
+                key=lambda item: _language_group(
+                    self._by_key.get(by_item[id(item)], {}))
+            )
+        return [(by_item[id(item)], item) for item in items]
 
     def bibliography_segments(self) -> list[tuple[str, list[tuple[str, dict]]]]:
         """(key, 片段序列)——写出器要用 key 建书签、用片段还原斜体。"""
-        segments = self._bibliography_segments()
-        keys = self._ordered_keys()
-        if len(keys) != len(segments):
-            return [(f"item{i}", segs) for i, segs in enumerate(segments)]
-        return list(zip(keys, segments))
-
-    def _bibliography_segments(self) -> list[list[tuple[str, dict]]]:
-        rendered = [
-            _merge_period_segments(
-                _with_year_suffix_segments(
-                    self._separate_first_field(entry, number),
-                    self._by_key.get(key, {}),
-                )
+        ordered = self._ordered_items()
+        rendered = self._style.render_bibliography([item for _key, item in ordered])
+        if len(rendered) != len(ordered):
+            return [(f"item{i}", segs) for i, segs in enumerate(rendered)]
+        return [
+            (
+                key,
+                _merge_period_segments(
+                    _with_year_suffix_segments(
+                        self._separate_first_field(entry, item.number),
+                        self._by_key.get(key, {}),
+                    )
+                ),
             )
-            for number, (key, entry)
-            in enumerate(zip(self._order, self._bibliography.bibliography()), start=1)
+            for (key, item), entry in zip(ordered, rendered)
         ]
-        if not self._sorted or len(rendered) != len(self._order):
-            return rendered
-        by_key = dict(zip(self._order, rendered))
-        return [by_key[key] for key in self._ordered_keys()]
 
     def bibliography(self) -> list[str]:
         """文末文献列表（纯文本；要片段用 bibliography_segments）。
 
-        顺序分两种：CSL 在 `<bibliography>` 里声明了 `<sort>` 的（作者-年份制）按声明的键序
-        与方向排；没声明的（数字顺序制，如 GB/T 7714、Nature）按首次引用顺序。
-
-        `citeproc-py` 有 `style.sort_bibliography()`，但实测不生效（apa.csl 依旧按注册顺序
-        返回），所以这里自己做：键序、升降序、名的形态都取自样式本身，见
-        `_declared_sort_keys` 与 `_sort_names_initialized`。
+        顺序分两种：`<bibliography>` 里声明了 `<sort>` 的按声明的键序与方向排（宏由引擎
+        求值，`names-min`、`sort="descending"` 都在其中）；没声明的（数字顺序制，如
+        GB/T 7714、Nature）按首次引用顺序。GB/T 7714 著者-年制再按文种分组。
         """
-        return [segments_text(segs) for segs in self._bibliography_segments()]
+        return [segments_text(segs) for _key, segs in self.bibliography_segments()]
 
     def _separate_first_field(self, entry, number: int) -> list[tuple[str, dict]]:
         return separate_first_field(
