@@ -34,15 +34,16 @@ for arg in "$@"; do
     esac
 done
 
-# 七份样例：目录 | 产物名 | 稿件 | 格式文件（`-` 表示同目录没有 format.txt，按语言选预设）
+# 七份样例：目录 | 产物名 | 稿件 | 来源
+# 来源三选一：`format.txt`（同目录格式文件）、`-`（按语言选默认预设）、`preset:<名字>`
 DEMOS=(
     "00_quickstart      hello        hello.md        format.txt"
     "01_chinese_thesis  thesis_sample thesis_sample.md format.txt"
     "02_modern_report   report_sample report_sample.md format.txt"
     "03_english_paper   paper        paper.md        -"
     "04_zh_tw_paper     paper_zh_tw  paper_zh_tw.md  format.txt"
-    "05_gb9704         gongwen_sample gongwen_sample.md format.txt"
-    "06_apa_student     paper        paper.md        -"
+    "05_gb9704         gongwen_sample gongwen_sample.md preset:zh-gb9704"
+    "06_apa_student     paper        paper.md        preset:en-apa-student"
 )
 
 die() { echo "✗ $*" >&2; exit 1; }
@@ -116,11 +117,17 @@ for row in "${DEMOS[@]}"; do
         cd "demo/$dir"
         rm -f page-*.png
         set +e
-        if [ "$fmt" = "-" ]; then
-            bash ../../scripts/export.sh "$md" -o "$stem.docx" --pdf
-        else
-            bash ../../scripts/export.sh "$md" -f "$fmt" -o "$stem.docx" --pdf
-        fi
+        case "$fmt" in
+            -)
+                bash ../../scripts/export.sh "$md" -o "$stem.docx" --pdf
+                ;;
+            preset:*)
+                bash ../../scripts/export.sh "$md" --preset "${fmt#preset:}" -o "$stem.docx" --pdf
+                ;;
+            *)
+                bash ../../scripts/export.sh "$md" -f "$fmt" -o "$stem.docx" --pdf
+                ;;
+        esac
         rc=$?
         set -e
         [ "$rc" = 0 ] || die "demo/$dir 导出失败（退出码 $rc，3 = docx 出了但 PDF 没渲染，可能是本机没装 Word）"
