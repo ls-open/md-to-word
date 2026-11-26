@@ -767,17 +767,15 @@ class _Writer:
             self._write_bibliography()
 
     def _relax_fixed_line_spacing(self, paragraph) -> None:
-        """公式段落的行距：固定值改成同值的「最小值」，并补足至少 6 磅段后。
+        """公式段落的行距：固定值改成同值的「最小值」。
 
         固定值的意思是「这一行就占这么多」，公式比它高，多出来的部分会压到上下两段
         正文上（多行公式实测能把邻居压穿）。最小值让高的内容自己撑开，单行公式看起来
         和原来一模一样。
 
-        Word 把行距余量放在文字上方，固定行距下公式盒子会贴着下文：实测 20 磅固定行距
-        配三行 cases，上方 8.0pt、下方只有 1.9pt。补 6 磅段后变成 8.3 / 7.7，不再贴着。
-        这段后只在固定行距分支写：单倍/倍数行距本来上下就接近相等（实测 1.5 倍单行公式
-        上下都是 19.7pt），再补会把下方撑开。段后是「至少 6 磅」，格式文件正文段后更大
-        时保留更大的值，不覆盖模板。
+        只改行距规则，不补段后：段前段后跟正文样式走。固定行距下 Word 的行距余量偏上，
+        公式下方可能显得比上方紧；这是 Word 的行盒行为，不再用一个固定磅数去猜。
+        要更多留白，就在格式文件的正文样式里加「段后」。
         """
         style = self._style_object("Body Text")
         if style is None:
@@ -789,8 +787,6 @@ class _Writer:
         spacing = ensure_ordered_child(paragraph._p.get_or_add_pPr(), "spacing", _PPR_ORDER)
         spacing.set(qn("w:line"), source.get(qn("w:line")))
         spacing.set(qn("w:lineRule"), "atLeast")
-        if int(source.get(qn("w:after")) or 0) < 120:
-            spacing.set(qn("w:after"), "120")
 
     def _adopt_style(self, paragraph, style_name: str) -> None:
         """把某个样式的段落/字符属性抄成这一段的直接格式。
