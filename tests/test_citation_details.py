@@ -10,6 +10,8 @@ import re
 import zipfile
 from pathlib import Path
 
+from lxml import etree
+
 from md_to_word.config import get_csl_dir
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.transform.citations import CitationEngine
@@ -513,3 +515,28 @@ def test_superscript_numeric_runs_keep_their_format() -> None:
     text = "".join(part for part, _ in segments)
     assert "1–3" in text
     assert all(fmt.get("superscript") for part, fmt in segments if part.strip())
+
+def test_the_docx_keeps_bibliography_italics(tmp_path: Path) -> None:
+    """引文里的斜体要一路落到 Word run，不能只活在内存片段里。"""
+    (tmp_path / "refs.bib").write_text(
+        "@article{a, author={Adams, Bo}, title={A study}, "
+        "journal={Journal of Tests}, volume={3}, year={2019}}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "m.md").write_text(
+        "---\nbibliography: refs.bib\ncsl: apa.csl\n---\n\n# 一\n\n引用 [@a]。\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "m.docx"
+    result = run_export_pipeline(ExportOptions(input_path=tmp_path / "m.md", output_path=out))
+    assert result.returncode == 0, result.errors
+
+    root = etree.fromstring(zipfile.ZipFile(out).read("word/document.xml"))
+    ns = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
+    for run in root.findall(".//w:r", ns):
+        text = "".join(node.text or "" for node in run.findall("w:t", ns))
+        if "Journal of Tests" in text:
+            assert run.find("w:rPr/w:i", ns) is not None, text
+            break
+    else:
+        raise AssertionError("bibliography journal title not found in document.xml")

@@ -90,6 +90,99 @@ def initials(given: str, separator: str = ". ") -> str:
     return "".join(part + separator for part in parts)
 
 
+
+def _suffix_label(index: int) -> str:
+    """0 → a，25 → z，26 → aa（CSL 的年份后缀序列）。"""
+    label = ""
+    index += 1
+    while index:
+        index, rest = divmod(index - 1, 26)
+        label = chr(ord("a") + rest) + label
+    return label
+
+
+def _suffix_index(label: str) -> int:
+    """`_suffix_label` 的逆：a → 0，aa → 26。"""
+    index = 0
+    for char in label:
+        index = index * 26 + ord(char) - ord("a") + 1
+    return index - 1
+
+
+
+def with_names(entries, key: str, *, initials_all: bool, full: bool = False) -> list:
+    """这条引用的条目副本：按规则给首名（或全部名字）补首字母，或展开全名。"""
+    decorated = []
+    for entry in entries:
+        if entry["id"] != key:
+            decorated.append(entry)
+            continue
+        copy = dict(entry)
+        role = "author" if entry.get("author") else ("editor" if entry.get("editor") else None)
+        if role:
+            people = [dict(person) for person in entry[role]]
+            targets = people if initials_all else people[:1]
+            for person in targets:
+                given = person.get("given", "")
+                family = person.get("family")
+                if given and family:
+                    person["family"] = (given + " " if full else initials(given)) + family
+            copy[role] = people
+        decorated.append(copy)
+    return decorated
+
+
+def resolve_given_variants(group: list[str], by_key: dict,
+                           *, initials_only: bool) -> dict[str, Variant]:
+    """同一同姓组（或同撞车引用组）里，按首字母子组决定补首字母还是展开全名。"""
+    firsts = [((by_key[k].get("author") or by_key[k].get("editor") or [{}])[0]) for k in group]
+    givens = {person.get("given", "") for person in firsts}
+    if len(givens) < 2:
+        return {}
+    if initials_only:
+        variant = Variant(initials=True)
+        return {key: variant for key in group}
+    by_init: dict[str, list[tuple[str, str]]] = {}
+    for key, person in zip(group, firsts):
+        given = person.get("given", "")
+        by_init.setdefault(initials(given).strip(), []).append((key, given))
+    out: dict[str, Variant] = {}
+    for items in by_init.values():
+        distinct = {given for _k, given in items}
+        variant = Variant(full_names=True) if len(distinct) >= 2 else Variant(initials=True)
+        for key, _given in items:
+            out[key] = variant
+    return out
+
+
+def name_variants(cited: list[str], by_key: dict,
+                  *, initials_only: bool) -> dict[str, Variant]:
+    """第一作者同姓不同人的，补首字母；首字母也撞的，按子组展开全名。"""
+    buckets: dict[str, list[str]] = {}
+    for key in cited:
+        people = by_key[key].get("author") or by_key[key].get("editor") or []
+        if people:
+            buckets.setdefault(people[0].get("family") or people[0].get("literal", ""), []).append(key)
+
+    out: dict[str, Variant] = {}
+    for group in buckets.values():
+        out.update(resolve_given_variants(group, by_key, initials_only=initials_only))
+    return out
+
+
+def groups(texts: dict) -> list:
+    """把渲染结果相同的条目归成一组；只返回撞车的那些组。"""
+    buckets: dict = {}
+    for key, text in texts.items():
+        buckets.setdefault(text, []).append(key)
+    return [group for group in buckets.values() if len(group) > 1]
+
+
+def max_extra_names(entries: list) -> int:
+    """补名字最多补到把作者全列出来为止。"""
+    return max((len(entry.get("author") or entry.get("editor") or []) for entry in entries), default=1) - 1
+
+
 class StyleCloner:
     """按需生成样式副本，相同形态只写一次文件。"""
 
