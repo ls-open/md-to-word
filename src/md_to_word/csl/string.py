@@ -81,9 +81,6 @@ class String(str):
     def soft_lower(self):
         return self.lower()
 
-    def soft_upper(self):
-        return self.upper()
-
     def capitalize_first(self):
         return self.__class__(self[0].upper() + self[1:])
 
@@ -160,9 +157,6 @@ class NoCase(String):
         return f'{self.__class__.__name__}({self})'
 
     def soft_lower(self):
-        return self
-
-    def soft_upper(self):
         return self
 
     def capitalize_first(self):

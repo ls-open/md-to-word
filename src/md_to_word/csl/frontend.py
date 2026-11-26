@@ -54,9 +54,6 @@ class CitationStylesStyle(CitationStylesXML):
     def render_citation(self, citation, cites, callback=None):
         return self.root.citation.render(citation, cites, callback)
 
-    def sort_bibliography(self, citation_items):
-        return self.root.bibliography.sort(citation_items)
-
     def render_bibliography(self, citation_items):
         return self.root.bibliography.render(citation_items)
 
@@ -79,10 +76,6 @@ class CitationStylesBibliography:
                     self.items.append(item)
             elif callback is not None:
                 callback(item)
-
-    def sort(self):
-        self.items = self.style.sort_bibliography(self.items)
-        self.keys = [item.key for item in self.items]
 
     def cite(self, citation, callback):
         return self.style.render_citation(citation, self._cites, callback)

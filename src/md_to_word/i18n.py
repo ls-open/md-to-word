@@ -464,6 +464,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "the CSL style could not be parsed: {path} ({err})",
     ),
     "citations.key_missing": ("文献库里没有条目：{key}", "the bibliography has no entry for {key}"),
+    "citations.style_unsupported": (
+        "CSL 样式使用了本工具未实现的构造：{feature}（{path}）。请换用受支持的样式，"
+        "或去掉该构造；不会静默少印内容。",
+        "the CSL style uses a construct this tool does not implement: {feature} ({path}). "
+        "Use a supported style or remove that construct; the export will not silently drop content.",
+    ),
     "pipeline.pdf_ok": ("PDF 核对版已生成: {path}", "Review PDF written: {path}"),
     "pipeline.pdf_skipped": (
         "docx 已生成；PDF 核对版未做——{hint}",

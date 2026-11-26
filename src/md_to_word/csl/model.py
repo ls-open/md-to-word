@@ -180,21 +180,6 @@ class CitationStylesElement(SomewhatObjectifiedElement):
     def xpath_search(self, expression):
         return self.xpath(expression, namespaces=self.nsmap)
 
-    @property
-    def loc(self):
-        full_xpath = self.getroottree().getpath(self)
-        xpath = ''
-        tree = []
-        for i, node in enumerate(full_xpath.split('/')[1:]):
-            xpath += '/' + node
-            element = self.xpath(xpath)[0]
-            namespace, tag = element.tag.split('}', 1)
-            attribs = ''.join(f' {key}="{value}"'
-                              for key, value in element.attrib.items())
-            tree.append('{:>4}: {}<{}{}>'.format(element.sourceline,
-                                                 i * '  ', tag, attribs))
-        print('\n'.join(tree))
-
     def get_option(self, name):
         return self.get(name, self._default_options[name])
 
@@ -488,9 +473,6 @@ class Bibliography(FormattingInstructions, CitationStylesElement):
 
                         # reference grouping
                         'subsequent-author-substitute': None}
-
-    def sort(self, citation_items):
-        return self.default_layout().sort_bibliography(citation_items)
 
     def render(self, citation_items):
         return self.default_layout().render_bibliography(
@@ -803,22 +785,6 @@ class Key(CitationStylesElement):
 # Rendering elements
 
 class Parent:
-    def calls_variable(self):
-        return any([child.calls_variable() for child in self.getchildren()])
-
-    def process_children(self, item, **kwargs):
-        output = []
-        for child in self.iterchildren():
-            try:
-                text = child.process(item, **kwargs)
-                if text is not None:
-                    output.append(text)
-            except VariableError:
-                pass
-        if output:
-            return ''.join(output)
-        else:
-            return None
 
     def render_children(self, item, delimiter='', **kwargs):
         # `delimiter` is the delimiter inherited from an enclosing element (a
@@ -843,9 +809,6 @@ class Parent:
 
 
 class Macro(CitationStylesElement, Parent):
-    def process(self, item, context=None, sort_options=None):
-        return self.process_children(item, context=context,
-                                    sort_options=sort_options)
 
     def render(self, item, context=None, sort_options=None):
         frame = [False, False]
@@ -898,12 +861,6 @@ class Layout(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
             callback_value = callback(item)
             out.append(callback_value or f'{item.key}?')
         return self.format(self.wrap(self.join(out)))
-
-    def sort_bibliography(self, citation_items):
-        sort = self.getparent().find('cs:sort', self.nsmap)
-        if sort is not None:
-            citation_items = sort.sort(citation_items, self)
-        return citation_items
 
     def render_bibliography(self, citation_items, layout_for=None):
         output_items = []
@@ -993,14 +950,6 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
            TextCased, StrippedPeriods):
     generated_variables = ('year-suffix',)
 
-    def calls_variable(self):
-        if 'variable' in self.attrib:
-            return self.get('variable') not in self.generated_variables
-        elif 'macro' in self.attrib:
-            return self.get_macro(self.get('macro')).calls_variable()
-        else:
-            return False
-
     def render(self, *args, **kwargs):
         text, language = self.process(*args, **kwargs)
         return self.markup(text, language)
@@ -1082,8 +1031,6 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
 
 
 class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
-    def calls_variable(self):
-        return True
 
     def is_locale_date(self):
         expr = './ancestor::cs:locale[1]'
@@ -1283,8 +1230,6 @@ class Date_Part(CitationStylesElement, Formatted, Affixed, TextCased,
 
 class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
              TextCased, StrippedPeriods):
-    def calls_variable(self):
-        return True
 
     def format_number(self, number, language=None):
         form = self.get('form', 'numeric')
@@ -1339,8 +1284,6 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
 
 
 class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
-    def calls_variable(self):
-        return True
 
     def get_parent_delimiter(self, context=None):
         expr = './ancestor::*[self::cs:citation or self::cs:bibliography][1]'
@@ -1662,11 +1605,6 @@ class Et_Al(CitationStylesElement, Formatted, Affixed):
 
 
 class Substitute(CitationStylesElement, Parent):
-    def add_to_repressed_list(self, child, context):
-        layout = context.get_layout()
-        tag_list = layout.repressed.get(child.tag, [])
-        tag_list.append(child.get('variable'))
-        layout.repressed[child.tag] = tag_list
 
     def render(self, item, context=None, **kwargs):
         ctx = context if context is not None else self
@@ -1717,8 +1655,6 @@ class Substitute(CitationStylesElement, Parent):
 
 class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
             TextCased):
-    def calls_variable(self):
-        return self.get('variable') == 'locator'
 
     def markup(self, text):
         if text:
@@ -1839,8 +1775,6 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
 
 
 class Group(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
-    def calls_variable(self):
-        return True
 
     def markup(self, text):
         if text:

@@ -30,6 +30,7 @@ from md_to_word.csl.formatter.segments import (
     join_segments, merge_segments, segments_text, slice_segments,
     strip_prefix, strip_suffix, to_segments,
 )
+from md_to_word.csl.features import CslFeatureError, check_style
 from md_to_word.csl.source import Locator
 from md_to_word.csl.source.json import CiteProcJSON
 
@@ -73,6 +74,13 @@ class CitationEngine:
         self.entries = parse_bibliography(bib_text, lang)
         if not self.entries:
             raise CitationError(t("citations.empty_library", lang))
+        try:
+            check_style(csl_path)
+        except CslFeatureError as exc:
+            raise CitationError(t(
+                "citations.style_unsupported", lang,
+                feature="; ".join(exc.errors), path=csl_path,
+            )) from exc
         try:
             style = CitationStylesStyle(
                 str(csl_path),

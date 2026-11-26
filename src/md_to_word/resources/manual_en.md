@@ -600,6 +600,10 @@ compliant `.docx` first, then fine-tune from feedback.
   also accepts a path relative to the manuscript's directory or an absolute path. **A CSL you bring
   is normalised automatically**: `hanging-indent` and `line-spacing` are removed from
   `<bibliography>`, and one line says so — direct formatting outranks the style.
+- **Unsupported CSL constructs stop the export**: if a style uses an element or attribute this
+  tool does not implement (for example `institution`, `class="note"`, `et-al-subsequent-min`),
+  pre-flight names the construct and stops; it will not silently drop content. All 29 bundled
+  styles pass this check.
 - **Numeric styles**: the engine puts a tab after `[n]`, which lands on the `Bibliography`
   hanging indent and lines the entry text up in a column.
 - **Without `csl:`**: Chinese manuscripts default to GB/T 7714-2015 numeric, everything else to
