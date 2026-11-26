@@ -21,6 +21,10 @@ from typing import Iterable, Sequence
 from md_to_word.csl import (
     Citation, CitationItem, CitationStylesBibliography, CitationStylesStyle, formatter,
 )
+from md_to_word.csl.formatter.segments import (
+    join_segments, merge_segments, replace_first, segments_text, slice_segments,
+    strip_prefix, strip_suffix, to_segments,
+)
 from md_to_word.csl.source import Locator
 from md_to_word.csl.source.json import CiteProcJSON
 
@@ -61,11 +65,11 @@ class CitationEngine:
             )
         except Exception as exc:  # 样式文件本身有问题
             raise CitationError(t("citations.style_unparsable", lang, path=csl_path, err=exc)) from exc
-        # html 而不是 plain：CSL 里的斜体、上标（Nature 的引文编号就是上标）只有带标记
-        # 才能还原。返回给我们自己解析，最终落成带格式的 run。
+        # segments 而不是 plain：CSL 里的斜体、上标（Nature 的引文编号就是上标）
+        # 直接作为 run 属性返回，写出器不用再从标记串里还原。
         self._style = style
         self._bibliography = CitationStylesBibliography(
-            style, CiteProcJSON(self.entries), formatter.html
+            style, CiteProcJSON(self.entries), formatter.segments
         )
         self._known = {entry["id"] for entry in self.entries}
         self._rendered: dict[tuple, str] = {}
@@ -134,23 +138,23 @@ class CitationEngine:
                 for key, variant in self._name_variants(cited).items():
                     self._variants[key] = variant
             else:
-                for group in _groups({k: self._render_single(k, self._variant(k)) for k in cited}):
+                for group in _groups({k: segments_text(self._render_single(k, self._variant(k))) for k in cited}):
                     for key, variant in self._resolve_given_variants(group).items():
                         self._variants[key] = variant
 
         if self._add_names:
-            for group in _groups({k: self._render_single(k, self._variant(k)) for k in cited}):
+            for group in _groups({k: segments_text(self._render_single(k, self._variant(k))) for k in cited}):
                 best = 0
                 for extra in range(1, _max_extra_names([self._by_key[k] for k in group]) + 1):
                     shown = len({
-                        self._render_single(
+                        segments_text(self._render_single(
                             k,
                             Variant(
                                 extra_names=extra,
                                 initials=self._variant(k).initials,
                                 full_names=self._variant(k).full_names,
                             ),
-                        )
+                        ))
                         for k in group
                     })
                     if shown == len(group):
@@ -163,20 +167,20 @@ class CitationEngine:
                             extra_names=best, initials=base.initials, full_names=base.full_names
                         )
 
-        remaining = _groups({k: self._render_single(k, self._variant(k)) for k in cited})
+        remaining = _groups({k: segments_text(self._render_single(k, self._variant(k))) for k in cited})
         if remaining:
             self._disambiguate_keys = {k for group in remaining for k in group}
             self._variant_cache.clear()
 
         if self._year_suffix:
-            final = {key: self._render_single(key, self._variant(key)) for key in cited}
+            final = {key: segments_text(self._render_single(key, self._variant(key))) for key in cited}
             for group in _groups(final):
                 group = self._sorted_keys(group)
                 for index, key in enumerate(group):
                     self._by_key[key]["year-suffix"] = _suffix_label(index)
             # 条目数据变了，重建引用源：CiteProcJSON 的条目在构造时已抓走
             self._bibliography = CitationStylesBibliography(
-                self._style, CiteProcJSON(self.entries), formatter.html
+                self._style, CiteProcJSON(self.entries), formatter.segments
             )
             self._variant_cache.clear()
 
@@ -238,7 +242,7 @@ class CitationEngine:
             out.update(self._resolve_given_variants(group))
         return out
 
-    def _render_group(self, pairs) -> str:
+    def _render_group(self, pairs) -> list[tuple[str, dict]]:
         """逐条渲染再按样式的布局合起来：这条路上消歧形态与 collapse 归我们自己管。
 
         CSL 的 `collapse="year"`：同一括号里作者部分相同的几条，年份并到一处
@@ -252,29 +256,37 @@ class CitationEngine:
             item_prefix = pair[2] if len(pair) > 2 else ""
             label = pair[3] if len(pair) > 3 else "page"
             text = self._render(pair[0], self._variant(pair[0]), locator, item_prefix, label)
-            if prefix and text.startswith(prefix):
-                text = text[len(prefix):]
-            if suffix and text.endswith(suffix):
-                text = text[: -len(suffix)]
+            text = strip_prefix(text, prefix)
+            text = strip_suffix(text, suffix)
             pieces.append((pair[0], text))
 
         if not self._collapse:
-            return f"{prefix}{delimiter.join(text for _key, text in pieces)}{suffix}"
+            body = join_segments([text for _key, text in pieces], delimiter)
+            return merge_segments([(prefix, {})] + body + [(suffix, {})])
 
-        groups: list[list] = []
+        groups: list[dict] = []
         for key, text in pieces:
             names, date = self._split_author(key, text)
             if names is None:
-                groups.append([None, [text]])
-            elif groups and groups[-1][0] == names:
-                groups[-1][1].append(date)
+                groups.append({"names": None, "segments": text, "dates": [text]})
+                continue
+            names_text = segments_text(names)
+            if groups and groups[-1]["names"] == names_text:
+                groups[-1]["dates"].append(date)
             else:
-                groups.append([names, [date]])
-        body = delimiter.join(
-            names + _join_dates(dates, self._collapse_ranged) if names else dates[0]
-            for names, dates in groups
-        )
-        return f"{prefix}{body}{suffix}"
+                groups.append({"names": names_text, "segments": names, "dates": [date]})
+
+        body_pieces = []
+        for group in groups:
+            if group["names"] is None:
+                body_pieces.append(group["segments"])
+            else:
+                body_pieces.append(
+                    group["segments"]
+                    + [(_join_dates(group["dates"], self._collapse_ranged), {})]
+                )
+        body = join_segments(body_pieces, delimiter)
+        return merge_segments([(prefix, {})] + body + [(suffix, {})])
 
     def _sort_pairs(self, pairs) -> list:
         """按样式声明的 `<sort>` 排；没声明就保持输入顺序（CSL 的规矩）。"""
@@ -286,29 +298,31 @@ class CitationEngine:
             key=lambda pair: _sort_value(kind, self._by_key.get(pair[0], {}), self._sort_by_initials),
         )
 
-    def _split_author(self, key: str, text: str):
+    def _split_author(self, key: str, segments: list[tuple[str, dict]]):
         """把一条渲染好的引用拆成「作者部分」与「年份部分」，供 collapse 归并。"""
         year = str((self._by_key.get(key, {}).get("issued") or {}).get("date-parts", [[None]])[0][0])
         if not year or year == "None":
-            return None, text
+            return None, ""
         suffix = str(self._by_key.get(key, {}).get("year-suffix", ""))
         token = year + suffix
+        text = segments_text(segments)
         index = text.rfind(token)
         if index <= 0:
-            return None, text
-        return text[:index], text[index:]
+            return None, ""
+        return slice_segments(segments, 0, index), text[index:]
 
-    def _render_single(self, key: str, variant: Variant = BASE) -> str:
+    def _render_single(self, key: str, variant: Variant = BASE) -> list[tuple[str, dict]]:
         """单独渲染一条引用（不带定位符），用于判断两条会不会撞。"""
         cache_key = (key, variant)
         if cache_key in self._variant_cache:
             return self._variant_cache[cache_key]
-        html = self._render(key, variant, "", "")
-        self._variant_cache[cache_key] = html
-        return html
+        rendered = self._render(key, variant, "", "")
+        self._variant_cache[cache_key] = rendered
+        return rendered
 
-    def _render(self, key: str, variant: Variant, locator: str = "", prefix: str = "", label: str = "page") -> str:
-        """用指定的名字形态渲染一条引用，返回 html 标记串。
+    def _render(self, key: str, variant: Variant, locator: str = "",
+                prefix: str = "", label: str = "page") -> list[tuple[str, dict]]:
+        """用指定的名字形态渲染一条引用，返回结构化片段。
 
         补首字母走**条目数据**（只改这条引用用的副本，文献表用的原条目不动）：CSL 没有
         「只给第一个名字加首字母」的写法，`primary-name-with-initials` 只能这么做。
@@ -321,7 +335,7 @@ class CitationEngine:
         if variant.extra_names:
             style = CitationStylesStyle(str(self._cloner.path(Variant(extra_names=variant.extra_names))))
         bibliography = CitationStylesBibliography(
-            style, CiteProcJSON(entries), formatter.html
+            style, CiteProcJSON(entries), formatter.segments
         )
         args: dict = {}
         if locator:
@@ -334,10 +348,10 @@ class CitationEngine:
         bibliography.register(citation)
         token = _DISAMBIGUATE_KEYS.set(frozenset(self._disambiguate_keys))
         try:
-            rendered = str(bibliography.cite(citation, lambda item: item))
+            rendered = to_segments(bibliography.cite(citation, lambda item: item))
         finally:
             _DISAMBIGUATE_KEYS.reset(token)
-        return _with_year_suffix(rendered, self._by_key.get(key, {}))
+        return _with_year_suffix_segments(rendered, self._by_key.get(key, {}))
 
     def has(self, key: str) -> bool:
         return key in self._known
@@ -381,20 +395,21 @@ class CitationEngine:
         token = _DISAMBIGUATE_KEYS.set(frozenset(self._disambiguate_keys))
         try:
             if self._collapse and len(pairs) > 1:
-                html = self._render_group(pairs)
+                segments = self._render_group(pairs)
             elif any(not self._variant(pair[0]).plain for pair in pairs):
-                html = self._render_group(pairs)
+                segments = self._render_group(pairs)
             else:
-                html = str(self._bibliography.cite(citation, lambda item: item))
+                segments = to_segments(
+                    self._bibliography.cite(citation, lambda item: item))
         finally:
             _DISAMBIGUATE_KEYS.reset(token)
         if narrative:
             entry = self._by_key.get(pairs[0][0], {}) if len(pairs) == 1 else {}
             creators = entry.get("author") or entry.get("editor") or []
             and_word = "and" if self.citation_lang == "en" and len(creators) >= 2 else None
-            html = _as_narrative(html, and_word=and_word)
-        html = _merge_duplicate_period(_collapse_numeric_runs(html, bare=self._numeric))
-        segments = html_to_segments(html)
+            segments = _as_narrative_segments(segments, and_word=and_word)
+        segments = _merge_period_segments(
+            _collapse_numeric_segments(segments, bare=self._numeric))
         self._rendered[cache_key] = segments
         return segments
 
@@ -426,14 +441,30 @@ class CitationEngine:
 
     def bibliography_segments(self) -> list[tuple[str, list[tuple[str, dict]]]]:
         """(key, 片段序列)——写出器要用 key 建书签、用片段还原斜体。"""
-        texts = self.bibliography()
+        segments = self._bibliography_segments()
         keys = self._ordered_keys()
-        if len(keys) != len(texts):
-            return [(f"item{i}", html_to_segments(t)) for i, t in enumerate(texts)]
-        return list(zip(keys, [html_to_segments(t) for t in texts]))
+        if len(keys) != len(segments):
+            return [(f"item{i}", segs) for i, segs in enumerate(segments)]
+        return list(zip(keys, segments))
+
+    def _bibliography_segments(self) -> list[list[tuple[str, dict]]]:
+        rendered = [
+            _merge_period_segments(
+                _with_year_suffix_segments(
+                    self._separate_first_field(entry, number),
+                    self._by_key.get(key, {}),
+                )
+            )
+            for number, (key, entry)
+            in enumerate(zip(self._order, self._bibliography.bibliography()), start=1)
+        ]
+        if not self._sorted or len(rendered) != len(self._order):
+            return rendered
+        by_key = dict(zip(self._order, rendered))
+        return [by_key[key] for key in self._ordered_keys()]
 
     def bibliography(self) -> list[str]:
-        """文末文献列表（仍是 html 标记串；要片段用 bibliography_segments）。
+        """文末文献列表（纯文本；要片段用 bibliography_segments）。
 
         顺序分两种：CSL 在 `<bibliography>` 里声明了 `<sort>` 的（作者-年份制）按声明的键序
         与方向排；没声明的（数字顺序制，如 GB/T 7714、Nature）按首次引用顺序。
@@ -442,21 +473,9 @@ class CitationEngine:
         返回），所以这里自己做：键序、升降序、名的形态都取自样式本身，见
         `_declared_sort_keys` 与 `_sort_names_initialized`。
         """
-        rendered = [
-            _merge_duplicate_period(
-                _with_year_suffix(self._separate_first_field(entry, number),
-                                  self._by_key.get(key, {}))
-            )
-            for number, (key, entry)
-            in enumerate(zip(self._order, self._bibliography.bibliography()), start=1)
-        ]
-        if not self._sorted or len(rendered) != len(self._order):
-            return rendered
+        return [segments_text(segs) for segs in self._bibliography_segments()]
 
-        text_by_key = dict(zip(self._order, rendered))
-        return [text_by_key[key] for key in self._ordered_keys()]
-
-    def _separate_first_field(self, entry, number: int) -> str:
+    def _separate_first_field(self, entry, number: int) -> list[tuple[str, dict]]:
         """顺序数字制或 `second-field-align` 声明了「首个字段自成一栏」：在序号后面补一个制表符。
 
         `citeproc-py` 从不落实这个属性，序号会直接贴住条目正文（例如 `[1]Smith`、`1.Smith`）。
@@ -466,13 +485,16 @@ class CitationEngine:
 
         用制表符而非空格——`参考文献` 带悬挂缩进时，制表位正落在缩进处，首行文字与折行文字对齐成列。
         """
-        text = "".join(str(chunk) for chunk in entry)
+        segments = to_segments(entry)
+        text = segments_text(segments)
         marker = f"{self._number_prefix}{number}{self._number_suffix}"
         if not self._first_field_column or not text.startswith(marker):
-            return text
+            return segments
         marker_clean = marker.rstrip()
-        rest = text[len(marker):].lstrip()
-        return marker_clean + "\t" + rest
+        tail = text[len(marker):]
+        leading = len(tail) - len(tail.lstrip())
+        rest = slice_segments(segments, len(marker) + leading, len(text))
+        return merge_segments([(marker_clean + "\t", {})] + rest)
 
 
 def _number_affixes(style_text: str) -> tuple[str, str, bool]:
@@ -497,7 +519,7 @@ _NUMERIC_CITE_RE = re.compile(r"\[(\d+(?:\s*[,\-–]\s*\d+)+)\]")
 _BARE_NUMERIC_RE = re.compile(r"(?<![\d.])(\d+(?:\s*,\s*\d+){2,})(?![\d.])")
 
 
-def _collapse_numeric_runs(html: str, bare: bool = False) -> str:
+def _collapse_numeric_runs(text: str, bare: bool = False) -> str:
     """数字制的连续编号合并成区间：`[4,5,6]` → `[4–6]`。
 
     GB/T 7714、IEEE 这类用方括号，Nature、AMA 这类直接写上标数字；citeproc-py 两种都
@@ -532,8 +554,8 @@ def _collapse_numeric_runs(html: str, bare: bool = False) -> str:
             return match.group(0)
         return f"[{numbers[0]}]–[{numbers[-1]}]"
 
-    html = _NUMERIC_CITE_RE.sub(inside_brackets, html)
-    html = re.sub(r"\[\d+\](?:\s*,\s*\[\d+\]){2,}", listed_separately, html)
+    text = _NUMERIC_CITE_RE.sub(inside_brackets, text)
+    text = re.sub(r"\[\d+\](?:\s*,\s*\[\d+\]){2,}", listed_separately, text)
     if bare:
         def bare_run(match: re.Match) -> str:
             numbers = [int(n) for n in re.findall(r"\d+", match.group(0))]
@@ -541,8 +563,29 @@ def _collapse_numeric_runs(html: str, bare: bool = False) -> str:
                 return match.group(0)
             return merge(numbers)
 
-        html = _BARE_NUMERIC_RE.sub(bare_run, html)
-    return html
+        text = _BARE_NUMERIC_RE.sub(bare_run, text)
+    return text
+
+
+def _collapse_numeric_segments(segments: list[tuple[str, dict]],
+                               bare: bool = False) -> list[tuple[str, dict]]:
+    """Apply numeric-run collapsing to structured runs.
+
+    Numeric citations are uniform (all plain brackets or all superscript). Merge
+    same-format runs first so the regex can see the whole cluster; if a style
+    splits the pattern across formats, leave it alone rather than guess.
+    """
+    merged = merge_segments(segments)
+    if not merged:
+        return []
+    formats = {tuple(sorted(fmt.items())) for _text, fmt in merged}
+    if len(formats) == 1:
+        text = segments_text(merged)
+        collapsed = _collapse_numeric_runs(text, bare=bare)
+        return [(collapsed, merged[0][1])] if collapsed != text else merged
+    return merge_segments([
+        (_collapse_numeric_runs(text, bare=bare), fmt) for text, fmt in merged
+    ])
 
 
 _TERMINAL_PUNCT = ".!?:"
@@ -552,75 +595,29 @@ _CLOSING_QUOTES = "”’\"'"
 _SUFFIX_PERIOD_RE = re.compile(r"([.!?:][" + _CLOSING_QUOTES + r"]*)\.(?=\s|$)")
 
 
-def _merge_duplicate_period(html: str) -> str:
+def _merge_period_segments(segments: list[tuple[str, dict]]) -> list[tuple[str, dict]]:
     """终止标点后面不再补句点：`Automated?.` → `Automated?`、`“Automated?”.` → `“Automated?”`。
 
-    citeproc-js 有一张合并表（`?` + `.` → `?`、`!` + `.` → `!`、`:` + `.` → `:`），
-    用来吃掉样式在标题后补的那个 `suffix="."`；citeproc-py 没有，标题以问号结尾时
-    文献表就写成 `Automated?.`。只看文本、跳过标签：APA 的书名是斜体，句点落在 `</i>` 后面。
+    只看可见文本，格式边界不打断判断：APA 的书名是斜体，句点可能落在斜体 run 之后。
     """
-    parts: list[str] = []
+    output: list[tuple[str, dict]] = []
     tail = ""
-    pos = 0
-    for match in _TAG_RE.finditer(html or ""):
-        text, tail = _merge_text(html[pos : match.start()], tail)
-        parts.append(text)
-        parts.append(match.group(0))
-        pos = match.end()
-    text, tail = _merge_text((html or "")[pos:], tail)
-    parts.append(text)
-    return "".join(parts)
-
-
-def _merge_text(text: str, tail: str) -> tuple[str, str]:
-    """(合并后的文本, 这段最后几个非空白字符)——跨标签时上一段的结果要传过来。"""
-    if not text:
-        return text, tail
-    while text.startswith(".") and _absorbs_period(tail):
-        text = text[1:]
-    text = _SUFFIX_PERIOD_RE.sub(r"\1", text)
-    visible = text.rstrip()
-    return text, ((tail + visible)[-4:] if visible else tail)
+    for text, fmt in segments:
+        while text.startswith(".") and _absorbs_period(tail):
+            text = text[1:]
+        text = _SUFFIX_PERIOD_RE.sub(r"\1", text)
+        if text:
+            output.append((text, fmt))
+            visible = text.rstrip()
+            if visible:
+                tail = (tail + visible)[-4:]
+    return merge_segments(output)
 
 
 def _absorbs_period(tail: str) -> bool:
     """句点前面是不是「已经收过句号」的终止标点；右引号不算隔断（`“What?”.` 一样不补）。"""
     unquoted = tail.rstrip(_CLOSING_QUOTES)
     return bool(unquoted) and unquoted[-1] in _TERMINAL_PUNCT
-
-
-_TAG_RE = re.compile(r"</?(?P<tag>i|b|sup|sub|sc|span)[^>]*>")
-_TAG_FMT = {"i": "italic", "b": "bold", "sup": "superscript", "sub": "subscript"}
-
-
-def html_to_segments(html: str) -> list[tuple[str, dict]]:
-    """citeproc 的 html 输出 → (文本, 格式) 片段。只认 i/b/sup/sub，其余标签当分隔符丢掉。"""
-    from html import unescape
-
-    segments: list[tuple[str, dict]] = []
-    stack: list[str] = []
-    pos = 0
-    for match in _TAG_RE.finditer(html or ""):
-        if match.start() > pos:
-            text = unescape(html[pos : match.start()])
-            fmt = {_TAG_FMT[t]: True for t in stack if t in _TAG_FMT}
-            if text:
-                segments.append((text, fmt))
-        tag = match.group("tag")
-        if match.group(0).startswith("</"):
-            if tag in stack:
-                stack.reverse()
-                stack.remove(tag)
-                stack.reverse()
-        else:
-            stack.append(tag)
-        pos = match.end()
-    if pos < len(html or ""):
-        text = unescape(html[pos:])
-        fmt = {_TAG_FMT[t]: True for t in stack if t in _TAG_FMT}
-        if text:
-            segments.append((text, fmt))
-    return segments or [(unescape(html or ""), {})]
 
 
 def _suffix_label(index: int) -> str:
@@ -848,11 +845,21 @@ def _as_narrative(text: str, *, and_word: str | None = None) -> str:
     if not match:
         return text
     author = match.group("author")
-    if and_word and " &amp; " in author:
-        head, tail = author.rsplit(" &amp; ", 1)
-        author = f"{head} {and_word} {tail}"
+    if and_word:
+        for separator in (" &amp; ", " & "):
+            if separator in author:
+                head, tail = author.rsplit(separator, 1)
+                author = f"{head} {and_word} {tail}"
+                break
     return f"{author} ({match.group('rest')})"
 
+
+
+def _as_narrative_segments(segments: list[tuple[str, dict]],
+                           *, and_word: str | None = None) -> list[tuple[str, dict]]:
+    text = segments_text(segments)
+    rewritten = _as_narrative(text, and_word=and_word)
+    return segments if rewritten == text else [(rewritten, {})]
 
 def cited_keys(model) -> list[str]:
     """文档模型里引用到的文献 key，按出现顺序去重。
@@ -893,7 +900,8 @@ def _expand_range(value: str) -> str:
     return re.sub(r"(?<![\d.])(\d+)\s*[-\u2013]\s*(\d+)(?![\d.])", repl, value)
 
 
-def _with_year_suffix(text: str, entry: dict) -> str:
+def _with_year_suffix_segments(segments: list[tuple[str, dict]],
+                               entry: dict) -> list[tuple[str, dict]]:
     """样式没引用 `year-suffix` 变量时，按 CSL 默认位置把后缀补在年份后面。
 
     规范说后缀默认跟在「cite 与文献表里 cs:date 渲染出的第一个年份」后面，是否显式渲染
@@ -902,13 +910,13 @@ def _with_year_suffix(text: str, entry: dict) -> str:
     """
     suffix = entry.get("year-suffix")
     if not suffix:
-        return text
+        return segments
     issued = (entry.get("issued") or {}).get("date-parts", [[None]])
     year = str(issued[0][0]) if issued and issued[0] else ""
+    text = segments_text(segments)
     if not year or f"{year}{suffix}" in text:
-        return text
-    return text.replace(year, f"{year}{suffix}", 1)
-
+        return segments
+    return replace_first(segments, year, f"{year}{suffix}")
 
 def _citation_block(style_text: str) -> str:
     start = style_text.find("<citation")

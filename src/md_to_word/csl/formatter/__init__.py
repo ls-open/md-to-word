@@ -1,3 +1,3 @@
-from . import html
+from . import segments
 
-__all__ = ['html']
+__all__ = ['segments']

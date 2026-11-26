@@ -3,7 +3,7 @@ import os
 from lxml import etree
 
 from . import LOCALES_PATH
-from .formatter import html
+from .formatter import segments
 from .model import CitationStylesElement
 
 
@@ -62,7 +62,7 @@ class CitationStylesStyle(CitationStylesXML):
 
 
 class CitationStylesBibliography:
-    def __init__(self, style, source, formatter=html):
+    def __init__(self, style, source, formatter=segments):
         self.style = style
         self.source = source
         self.formatter = self.style.root.formatter = formatter

@@ -284,15 +284,16 @@ def test_the_number_column_is_cut_at_the_style_declared_marker() -> None:
     engine = CitationEngine(BIB, CSL / "chinese-gb7714-2015-numeric.csl", lang="zh")
     engine._first_field_column = True
     engine._number_prefix, engine._number_suffix = "[", "]"
-    assert engine._separate_first_field(["[1]J. Doe and J. Roe, ", "“T”"], 1) == (
-        "[1]\tJ. Doe and J. Roe, “T”")
+    separated = engine._separate_first_field(["[1]J. Doe and J. Roe, ", "“T”"], 1)
+    assert "".join(text for text, _ in separated) == "[1]\tJ. Doe and J. Roe, “T”"
 
 
 def test_no_separator_when_the_number_is_not_where_the_style_says() -> None:
     engine = CitationEngine(BIB, CSL / "chinese-gb7714-2015-numeric.csl", lang="zh")
     engine._first_field_column = True
     engine._number_prefix, engine._number_suffix = "[", "]"
-    assert engine._separate_first_field(["Doe, J. A study."], 3) == "Doe, J. A study."
+    separated = engine._separate_first_field(["Doe, J. A study."], 3)
+    assert "".join(text for text, _ in separated) == "Doe, J. A study."
 
 
 def test_edited_book_does_not_repeat_editors_and_capitalizes_label() -> None:
@@ -484,3 +485,31 @@ def test_style_level_locale_override_wins_for_page_ranges() -> None:
     rendered = engine.bibliography()[0]
     assert "101-110" in rendered
     assert "～" not in rendered
+
+
+def test_structured_segments_keep_italics_and_carry_no_html() -> None:
+    """引擎直接给 (文本, 格式)：斜体是 run 属性，不再靠 `<i>` 标签 + 正则解析。"""
+    bib = (
+        "@article{a, author={Adams, Bo}, title={A study}, "
+        "journal={Journal of Tests}, volume={3}, year={2019}}"
+    )
+    engine = CitationEngine(bib, CSL / "apa.csl", lang="en")
+    engine.cite([("a", "")])
+    segments = dict(engine.bibliography_entries())["a"]
+    text = "".join(part for part, _ in segments)
+    assert "Journal of Tests" in text
+    assert {"italic": True} in [fmt for _, fmt in segments]
+    assert "<i>" not in text and "</i>" not in text
+
+
+def test_superscript_numeric_runs_keep_their_format() -> None:
+    """Nature 的上标是 run 属性；合并连续编号时不能退回普通文本。"""
+    bib = "\n".join(
+        f"@article{{n{i}, author={{A{i}, X}}, title={{P{i}}}, journal={{J}}, year={{200{i}}}}}"
+        for i in range(1, 4)
+    )
+    engine = CitationEngine(bib, CSL / "nature.csl", lang="en")
+    segments = engine.cite([("n1", ""), ("n2", ""), ("n3", "")])
+    text = "".join(part for part, _ in segments)
+    assert "1–3" in text
+    assert all(fmt.get("superscript") for part, fmt in segments if part.strip())

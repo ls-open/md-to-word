@@ -568,7 +568,9 @@ class Affixed:
             prefix = self.get('prefix', '')
             suffix = self.get('suffix', '')
             string = normalize_seam(prefix, string)
-            text = prefix + string
+            # `String.__add__` keeps formatting objects intact; a raw `str +`
+            # would flatten a structured run back to plain text.
+            text = String(prefix) + string
             return text + normalize_seam(text, suffix)
         return None
 
@@ -1547,21 +1549,21 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
                     if (name_as_sort_order == 'all' or
                             (name_as_sort_order == 'first' and i == 0)):
                         if demote_ndp in ('never', 'sort-only'):
-                            family = ' '.join([n for n in (ndp, family) if n])
-                            given = ' '.join([n for n in (given, dp) if n])
+                            family = join([n for n in (ndp, family) if n], ' ')
+                            given = join([n for n in (given, dp) if n], ' ')
                         else:
-                            given = ' '.join([n for n in (given, dp, ndp) if n])
+                            given = join([n for n in (given, dp, ndp) if n], ' ')
 
                         given, family = format_name_parts(given, family)
                         order = family, given, suffix
-                        text = sort_separator.join([n for n in order if n])
+                        text = join([n for n in order if n], sort_separator)
                     else:
-                        family = ' '.join([n for n in (dp, ndp, family) if n])
+                        family = join([n for n in (dp, ndp, family) if n], ' ')
                         given, family = format_name_parts(given, family)
                         order = given, family, suffix
-                        text = ' '.join([n for n in order if n])
+                        text = join([n for n in order if n], ' ')
                 elif form == 'short':
-                    family = ' '.join([n for n in (ndp, family) if n])
+                    family = join([n for n in (ndp, family) if n], ' ')
                     given, family = format_name_parts(given, family)
                     text = family
 
@@ -1586,7 +1588,7 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
                     text = self.join([text, ''], ', ')
                 else:
                     text += ' '
-                text += f'{and_term} ' + output[-1]
+                text = text + and_term + ' ' + output[-1]
             else:
                 text = self.join(output, delimiter)
 
