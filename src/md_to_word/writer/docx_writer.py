@@ -773,8 +773,8 @@ class _Writer:
         正文上（多行公式实测能把邻居压穿）。最小值让高的内容自己撑开，单行公式看起来
         和原来一模一样。
 
-        只改行距规则，不补段后：段前段后跟正文样式走。为什么不用固定磅数去补偿
-        Word 的行盒，见 `references/design.md` §1.3。
+        只改行距规则，不补段后：段前段后跟正文样式走。固定行距下 Word 的行盒偏上，
+        公式下方会略紧；那是 Word 的行为，不再补固定磅数。
         """
         style = self._style_object("Body Text")
         if style is None:

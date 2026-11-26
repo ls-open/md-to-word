@@ -1,4 +1,4 @@
-"""PDF 图回归：300 dpi、无宽度时按物理尺寸、不支持的格式在预检拦下（原理见 references/design.md §1.6.1）。"""
+"""PDF 图回归：300 dpi、无宽度时按物理尺寸、不支持的格式在预检拦下。"""
 
 from __future__ import annotations
 

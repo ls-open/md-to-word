@@ -1,4 +1,4 @@
-"""导前预检四道门禁的回归：只比对「拦不拦」，不比对文案（原理见 references/design.md）。"""
+"""导前预检四道门禁的回归：只比对「拦不拦」，不比对文案。"""
 
 from __future__ import annotations
 
