@@ -103,8 +103,8 @@
 ### 1.5 页面尺寸、装订线与图片宽度（pgSz + pgMar）
 
 版心宽 = `pgSz.w - pgMar.left - pgMar.right - pgMar.gutter`；模板保存前由
-`src/md_to_word/template/core.py` 按 `纸张：`/`页边距：`/`装订线：` 写入 `pgSz` 与 `pgMar`，
-缺任一项按 A4 + 2.54cm 兜底。
+`src/md_to_word/template/core.py` 按 `纸张：`/`页边距：`/`装订线：` 写入 `pgSz` 与 `pgMar`。
+纸张不写默认 A4，页边距不写默认上下左右各 2.54cm；**写了不支持的纸张名直接报错，不静默按 A4 排**。
 
 **装订线改为原生 `w:gutter`**：`section.gutter = Cm(spec.gutter_cm or 0)`，不再把装订线折进
 `pgMar/@w:left`。这样两边对齐直观、双面镜像时内侧装订线能由 Word 自动翻边。相应地，以下四处全部
@@ -299,11 +299,11 @@ Word 的「文档网格」除了每页行数，还能指定每行字数，落点
 原因：citeproc-py **不支持 CSL-M 多语种 layout**。GB/T 7714 CSL 中的多语种 layout 块已被注释掉（取消注释会导致 `CiteprocParseError: Multiple layout elements present in bibliography`）。`.bib` 条目中的 `language={en}` 字段**不会**触发自动切换。
 解决：纯英文文献库 → 将 CSL 文件中的 `default-locale="zh-CN"` 改为 `default-locale="en-US"`，所有条目渲染"et al."。纯中文文献库 → 保持 `zh-CN`。中英文混排 → 不支持，需用户根据主体语言选一种 locale，或在 Word 中手动替换。
 
-### 2.5 图片宽度被截断为 14.82cm
+### 2.5 报「正文 w:sectPr 缺少纸张或页边距」
 
-症状：MD 中写 `{width=15cm}`，导出后图片实际宽度只有 14.817cm。
-原因与解决见 §1.5——模板 sectPr 缺 `pgSz`/`pgMar` 时只能按兜底值算版心；用
-`src/md_to_word/template/core.py` 重新生成模板即可（它按格式文件的 `纸张：` 行写入这两个元素）。
+症状：导出中止，提示 `正文 w:sectPr 缺少纸张或页边距，无法计算版心宽度`。
+原因与解决见 §1.5——模板的 `sectPr` 不完整时不再猜兜底值，避免按错误版心排版；
+用 `src/md_to_word/template/core.py` 重新生成模板即可（它按格式文件的 `纸张：` 行写入 `pgSz`/`pgMar`）。
 
 ### 2.6 图片因文件名空格无法加载
 

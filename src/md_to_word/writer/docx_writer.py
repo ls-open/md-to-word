@@ -444,7 +444,7 @@ class _Writer:
     def _content_width_twips(self) -> int:
         sect = self._body_sectpr()
         if sect is None:
-            return 8306
+            raise ValueError("正文缺少 w:sectPr，无法计算版心宽度")
         size = sect.find(qn("w:pgSz"))
         margins = sect.find(qn("w:pgMar"))
         try:
@@ -455,8 +455,8 @@ class _Writer:
                 - int(margins.get(qn("w:right")))
                 - int(margins.get(qn("w:gutter")) or 0)
             )
-        except (AttributeError, TypeError, ValueError):
-            return 8306
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise ValueError("正文 w:sectPr 缺少纸张或页边距，无法计算版心宽度") from exc
 
     def _body_sectpr(self):
         body = self.docx.element.body

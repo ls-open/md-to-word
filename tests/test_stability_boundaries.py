@@ -18,6 +18,7 @@ from docx.enum.section import WD_SECTION
 from md_to_word.cli import main
 from md_to_word.model.reader import MarkdownError, read_markdown
 from md_to_word.pipeline import ExportOptions, run_export_pipeline, run_validation
+from md_to_word.spec.constants import page_size_cm
 from md_to_word.spec.parser import parse_format
 from md_to_word.spec.serializer import serialize_format
 from md_to_word.template.builder import build_template
@@ -43,6 +44,14 @@ def _two_section_docx(path: Path) -> None:
 
 
 # ── 输入/输出边界 ──────────────────────────────────────────────────────
+
+
+def test_unknown_page_size_is_an_explicit_error() -> None:
+    """纸张名查不到时不能静默按 A4 排；直接报出支持范围。"""
+    assert page_size_cm("a4") == (21.0, 29.7)
+    assert page_size_cm("letter") == (21.59, 27.94)
+    with pytest.raises(ValueError, match="未知纸张尺寸"):
+        page_size_cm("a3")
 
 
 def test_output_must_be_docx_and_never_overwrites_an_existing_pdf(tmp_path: Path) -> None:

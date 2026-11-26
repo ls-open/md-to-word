@@ -23,7 +23,7 @@ from docx.shared import RGBColor
 
 from md_to_word.config import get_base_template_path
 from md_to_word.i18n import t
-from md_to_word.spec.constants import PAGE_SIZES_CM, W
+from md_to_word.spec.constants import W, page_size_cm
 from md_to_word.spec.parser import parse_format
 
 from md_to_word.template.checks import _check_required_fields
@@ -212,7 +212,7 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
                     logger.debug(f' ✓ {style_id}: 已清除主题色')
 
     from docx.shared import Cm
-    w_cm, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
+    w_cm, h_cm = page_size_cm(page_size)
     pg_w, pg_h = Cm(w_cm), Cm(h_cm)
 
     # 原生装订线（pgMar/@w:gutter）：左边距保持 declared margins['left']，

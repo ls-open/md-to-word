@@ -29,7 +29,7 @@ from md_to_word.i18n import style_name, t
 # 残符提醒与解析器共用同一条行内判据：预检另写一套，迟早对不上。
 from md_to_word.model.reader import inline_residue
 from md_to_word.spec.constants import (
-    BIBLIOGRAPHY_TITLES, PAGE_SIZES_CM, ROW_NAME_EN, YAML_KEYS,
+    BIBLIOGRAPHY_TITLES, ROW_NAME_EN, YAML_KEYS, page_size_cm,
 )
 from md_to_word.utils.section_syntax import SectionSyntaxError, parse_section_arg
 from md_to_word.spec.models import TemplateSpec
@@ -268,7 +268,7 @@ def content_width_cm(spec: TemplateSpec) -> Optional[float]:
     """版心宽度（cm）= 纸张宽 − 左页边距 − 右页边距 − 装订线。取不到页边距时返回 None。"""
     if not spec.margins:
         return None
-    width = PAGE_SIZES_CM.get(spec.page_size, PAGE_SIZES_CM["a4"])[0]
+    width = page_size_cm(spec.page_size)[0]
     return width - spec.margins["left"] - spec.margins["right"] - (spec.gutter_cm or 0)
 
 

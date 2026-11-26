@@ -53,9 +53,11 @@ def test_equation_relaxes_fixed_line_spacing(tmp_path: Path) -> None:
     assert 'w:line="400"' in spacing and 'w:lineRule="atLeast"' in spacing
 
 
-def test_equation_leaves_multiple_spacing_alone(tmp_path: Path) -> None:
-    """倍数行距本来就会撑开，不该多写一层。"""
-    assert _equation_spacing(tmp_path, _spec_with(MULTIPLE)) == ""
+@pytest.mark.parametrize("line", ["行距1.0倍", "行距1.3倍"])
+def test_equation_leaves_multiple_spacing_alone(tmp_path: Path, line: str) -> None:
+    """单倍/倍数行距本来就会撑开，不该多写一层；只有固定值需要改成最小值。"""
+    spec = _spec_with(MULTIPLE.replace("行距1.3倍", line))
+    assert _equation_spacing(tmp_path, spec) == ""
 
 
 def test_equation_does_not_override_paragraph_spacing(tmp_path: Path) -> None:

@@ -205,6 +205,18 @@ PAGE_SIZE_MAP: dict[str, str] = {
     "Letter": "letter",
     "letter": "letter",
 }
+
+
+def page_size_cm(page_size: str) -> tuple[float, float]:
+    """纸张名 → (宽, 高) cm。未知纸张明确报错，不静默退回 A4。"""
+    try:
+        return PAGE_SIZES_CM[page_size]
+    except KeyError:
+        raise ValueError(
+            f"未知纸张尺寸 {page_size!r}；只支持 {', '.join(PAGE_SIZES_CM)}"
+        ) from None
+
+
 TWIPS_PER_CM: float = 566.93
 
 # ── 对齐映射 ──

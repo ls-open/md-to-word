@@ -9,7 +9,7 @@ from docx.shared import Pt
 from lxml import etree
 
 from md_to_word.spec.constants import (
-    ALIGN_ENUM_VAL, PAGE_SIZES_CM, TWIPS_PER_CM, W, split_fonts,
+    ALIGN_ENUM_VAL, TWIPS_PER_CM, W, page_size_cm, split_fonts,
 )
 from md_to_word.spec.models import MinLineSpacing
 from md_to_word.utils.skill_utils import (
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 def page_size_twips(page_size: str) -> tuple:
     """纸张 → (宽, 高) twips（对账侧与写入侧共用，避免各写一份常量）。"""
-    w_cm, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
+    w_cm, h_cm = page_size_cm(page_size)
     return int(round(w_cm * TWIPS_PER_CM)), int(round(h_cm * TWIPS_PER_CM))
 
 
@@ -93,13 +93,9 @@ BOTTOM_BORDER_DEFAULT_PT = {'single': 0.5, 'double': 1.5, 'even': 0.5,
 # ── 版心宽度（twips）──
 # 目录的「点线制表位」要把页码顶到版心右边界，位置得由纸张与页边距算，不能写死：
 # 换纸张或改页边距后，写死的制表位会顶出边界或提前断线。
-# 兜底值 = A4 − 左右各 2.54cm；正常路径由 generate_template 按实际几何注入
-_FALLBACK_CONTENT_WIDTH_TWIPS = int(round((PAGE_SIZES_CM['a4'][0] - 2.54 * 2) * TWIPS_PER_CM))
-
-
 def _content_width_twips(page_size, margins, gutter_cm=None) -> int:
     """正文可用宽度（twips）：纸宽 - 左边距 - 右边距 - 原生装订线。"""
-    width_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])[0]
+    width_cm = page_size_cm(page_size)[0]
     return int(round((width_cm - margins['left'] - margins['right'] - (gutter_cm or 0)) * TWIPS_PER_CM))
 
 
@@ -119,7 +115,7 @@ def body_line_spacing_multiple(styles) -> float:
 
 
 def _body_height_twips(page_size, margins) -> int:
-    _, h_cm = PAGE_SIZES_CM.get(page_size, PAGE_SIZES_CM['a4'])
+    _, h_cm = page_size_cm(page_size)
     return int(round((h_cm - margins['top'] - margins['bottom']) * TWIPS_PER_CM))
 
 
@@ -296,7 +292,7 @@ def write_para_props(ppr, props):
         tab = etree.SubElement(tabs, W('tab'))
         tab.set(W('val'), 'right')
         tab.set(W('leader'), 'dot')
-        tab.set(W('pos'), str(props.get('dot_leader_pos', _FALLBACK_CONTENT_WIDTH_TWIPS)))
+        tab.set(W('pos'), str(props['dot_leader_pos']))
 
     if props.get('join_toc') is True:
         outline = ensure_ordered_child(ppr, 'outlineLvl', _PPR_ORDER)
