@@ -47,7 +47,7 @@ from md_to_word.preprocessor.markers import (
     toc_xml,
 )
 from md_to_word.utils.docx_decor import clear_decor_container, write_decor_container
-from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES, PAGE_NUMBER_FMT
+from md_to_word.spec.constants import BIBLIOGRAPHY_TITLES
 from md_to_word.template.generator import (
     _PPR_ORDER,
     _RPR_ORDER,

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release.sh — 一次发版的机械动作：升版本号 → 重出五份样例 → 重建样张页 → 跑门禁 → 提交并打 tag。
+# release.sh — 一次发版的机械动作：升版本号 → 重出七份样例 → 重建样张页 → 跑门禁 → 提交并打 tag。
 #
 # 只做仓库内的事。推远端要 `--push`，传 PyPI 要 `--publish`；两个都不带时，跑完就先停在那儿，
 # 你可以先看 diff 再决定。
@@ -34,13 +34,15 @@ for arg in "$@"; do
     esac
 done
 
-# 五份样例：目录 | 产物名 | 稿件 | 格式文件（`-` 表示同目录没有 format.txt，按语言选预设）
+# 七份样例：目录 | 产物名 | 稿件 | 格式文件（`-` 表示同目录没有 format.txt，按语言选预设）
 DEMOS=(
     "00_quickstart      hello        hello.md        format.txt"
     "01_chinese_thesis  thesis_sample thesis_sample.md format.txt"
     "02_modern_report   report_sample report_sample.md format.txt"
     "03_english_paper   paper        paper.md        -"
     "04_zh_tw_paper     paper_zh_tw  paper_zh_tw.md  format.txt"
+    "05_gb9704         gongwen_sample gongwen_sample.md format.txt"
+    "06_apa_student     paper        paper.md        -"
 )
 
 die() { echo "✗ $*" >&2; exit 1; }

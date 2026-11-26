@@ -307,7 +307,6 @@ def _paragraph_hits(root, needle: str) -> list[tuple[int, str, object]]:
     body = root.find(W + "body")
     if body is None:
         return []
-    toc = _toc_section(root)
     hits: list[tuple[int, str, object]] = []
     seen = 0
     for el in body.iter():
@@ -542,9 +541,9 @@ def inject_into_base(
             want = ["default", "even"]
             if sect.find(qn("w:titlePg")) is not None:
                 want.append("first")
-            for t in want:
+            for w_type in want:
                 ref = OxmlElement(tag)
-                ref.set(qn("w:type"), t)
+                ref.set(qn("w:type"), w_type)
                 ref.set(qn("r:id"), empty_refs[kind])
                 sect.insert(0, ref)
 

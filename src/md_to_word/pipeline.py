@@ -713,7 +713,6 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
         return res
     in_p = prep.path
     manuscript_text = prep.text
-    manuscript_encoding = prep.encoding
     doc_lang = prep.doc_lang
 
     # 1. 确定最终输出路径
@@ -1133,15 +1132,28 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
         # 11. 可选 PDF 渲染 (Visual QA)
         if options.make_pdf:
             pdf_path = out_p.with_suffix(".pdf")
-            # 先渲染到临时目录，成功后再替换：Word/AppleScript 中途失败时，不能把
+            # 先渲染到临时文件、成功后再替换：Word/AppleScript 中途失败时，不能把
             # 一半的 PDF 留在最终路径上，也不能让上一次的旧 PDF 混进来。
-            staged_pdf = Path(temp_dir) / "review.pdf"
-            success, reason = render_pdf_via_word(out_p, staged_pdf)
-            if success:
-                try:
+            # 临时文件必须和成品同盘（`out_p.parent`），不能放系统临时目录：
+            # 输出到外接盘/独立挂载卷时，`os.replace` 会因 EXDEV 失败，渲染成功却报跳过。
+            staged_pdf: Path | None = None
+            try:
+                fd, staged_name = tempfile.mkstemp(
+                    dir=out_p.parent, prefix=".md-to-word-pdf-", suffix=".pdf")
+                os.close(fd)
+                staged_pdf = Path(staged_name)
+                staged_pdf.unlink()  # 交给 Word 新建；空文件可能被 AppleScript 拒绝
+                success, reason = render_pdf_via_word(out_p, staged_pdf)
+                if success:
                     os.replace(staged_pdf, pdf_path)
-                except OSError as exc:
-                    success, reason = False, str(exc)
+                    staged_pdf = None
+            except OSError as exc:
+                # 输出目录不可写、Word 正在占用目标文件……都只是「PDF 没做成」，
+                # 不能连已经写好的 .docx 一起判失败，更不能留下隐藏临时文件。
+                success, reason = False, str(exc)
+            finally:
+                if staged_pdf is not None:
+                    staged_pdf.unlink(missing_ok=True)
             if success:
                 res.output_pdf = pdf_path
                 logger.info("🖨️ " + t("pipeline.pdf_ok", res.lang, path=pdf_path))

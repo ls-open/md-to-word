@@ -10,6 +10,7 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
+import pytest
 from docx import Document
 from docx.enum.section import WD_SECTION
 
@@ -22,6 +23,19 @@ from md_to_word.utils.metadata import (
 
 REPO = Path(__file__).resolve().parents[1]
 HELLO = REPO / "demo" / "00_quickstart" / "hello.md"
+
+
+@pytest.fixture(autouse=True)
+def _no_live_word(monkeypatch):
+    """灌底模时会顺手做版面验真；单元测试不因此启动 Microsoft Word。
+
+    真实排版验真在 `test_base_inject_render.py`，那台机器没有 Word 时整份跳过。
+    """
+    from md_to_word.visual_qa import word_pdf
+
+    monkeypatch.setattr(word_pdf, "can_render_word_pdf",
+                        lambda: (False, "disabled in unit tests"))
+
 
 def _base_with_identity(tmp_path: Path) -> Path:
     """两节底模：封面一节 + 待替换正文一节，docProps 里塞满身份信息。"""

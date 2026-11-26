@@ -63,7 +63,7 @@ def test_the_thesis_part_ships_in_both_manuals() -> None:
     for lang, path in MANUALS.items():
         text = path.read_text(encoding="utf-8")
         assert "## 9. " in text, f"{lang} 手册里没有学位论文那一章"
-        heads[lang] = [l for l in text.splitlines() if l.startswith("### 9.")]
+        heads[lang] = [line for line in text.splitlines() if line.startswith("### 9.")]
     assert heads["zh"] and len(heads["zh"]) == len(heads["en"]), (
         f"§9 小节数不同：中文 {len(heads['zh'])}，英文 {len(heads['en'])}"
     )

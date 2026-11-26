@@ -229,7 +229,7 @@ def test_extractor_third_party_docx_without_meta_marks_header_unverified(tmp_pat
     draft = extract_spec_from_docx(third_party)
     assert "参考文献标题：" in draft
     # 因缺少 mdw_meta.xml 佐证，对参考文献标题保守输出 不入页眉
-    ref_line = next(l for l in draft.splitlines() if l.startswith("参考文献标题："))
+    ref_line = next(line for line in draft.splitlines() if line.startswith("参考文献标题："))
     assert "不入页眉" in ref_line
     assert "加入页眉" in draft and "不入页眉" in draft  # 待确认提示中列出需核对
     # 但草稿仍合法且能直接 build

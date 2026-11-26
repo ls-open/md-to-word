@@ -1,9 +1,9 @@
 # web/ —— 官网样张页的生成器
 
-一条命令，把四套内置格式的样张编译成成品，再渲染出静态展示页：
+一条命令，把四套在线样张（预设共六套，展示页精选四套）编译成成品，再渲染出静态展示页：
 
 ```bash
-python3 web/build.py            # 四套全建
+python3 web/build.py            # 四套样张全建
 python3 web/build.py zh-report  # 只重建一套
 ```
 

@@ -20,8 +20,6 @@ from typing import Any
 
 import md_to_word
 from md_to_word.config import (
-    default_preset_name,
-    get_presets_dir,
     resolve_preset_path,
 )
 from md_to_word.contract import contract_payload

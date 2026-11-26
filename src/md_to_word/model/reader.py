@@ -24,6 +24,7 @@ from md_to_word.model.document import (
     Superscript, Table, Text, Toc, Underline,
 )
 from md_to_word.preprocessor.blocks import hard_break, resolve_style_name, split_style_line
+from md_to_word.utils.citation_syntax import CITE_KEY_PATTERN
 from md_to_word.utils.section_syntax import SectionSyntaxError, parse_section_arg
 from md_to_word.utils.typography import smart_quotes
 
@@ -188,8 +189,6 @@ def unparsed_stars(line: str) -> str:
 
 # 定位符：`,` 之后写 `p. 33`、`chap. 3`、`3, 7` 都认。标签换成 CSL 的变量名，
 # 单复数由 CSL 自己生成，所以 `p.` / `pp.` 一律按 page 传。
-from md_to_word.utils.citation_syntax import CITE_KEY_PATTERN
-
 _CITE_TOKEN_RE = re.compile(
     rf"(?<![A-Za-z0-9_@])(?P<suppress>-)?@(?P<key>{CITE_KEY_PATTERN})"
     r"(?P<rest>(?:,\s*[^;\[\]]+)?)"

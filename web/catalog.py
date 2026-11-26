@@ -3,8 +3,9 @@
 `web/build.py` 拿它去编译 `docs/assets/` 里的成品；`tests/test_web_templates.py` 直接
 导入它做检查。两边都不需要任何 Web 框架——展示页是静态的，没有后端。
 
-这里是预设的第四份真相源（CLI / MCP / 包里 / 展示页）：新增一个预设，这里必须跟上，
-否则页面上的样张与真正能用的格式就对不上了。
+展示页是**精选样张**，不要求覆盖每个预设：包里还有公文（zh-gb9704）与 APA 学生版
+（en-apa-student），它们的成品在 `demo/05_gb9704`、`demo/06_apa_student`。改这里的
+样张内容后要重建页面（`python3 web/build.py --page-only`）。
 """
 
 from __future__ import annotations

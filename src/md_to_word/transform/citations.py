@@ -14,6 +14,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import re
+import threading
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -34,6 +35,59 @@ _DISAMBIGUATE_KEYS: ContextVar[frozenset[str]] = ContextVar(
 )
 
 logger = logging.getLogger(__name__)
+
+
+class _ThreadLocalList:
+    """每个线程一份的列表，接口与 `list` 相同。
+
+    citeproc 的补丁用帧栈追踪 `<group>` / `<substitute>` 的渲染状态，这是**渲染期**
+    的可变状态。展示页、CLI 都是单线程，但 MCP 以 SSE/HTTP 运行时，两个导出可能在
+    不同线程里同时渲染：模块级列表会让 A 的帧被 B 读到，文献格式随机串味。按线程
+    转发后，补丁内部的写法一行都不用改。
+    """
+
+    def __init__(self) -> None:
+        self._local = threading.local()
+
+    @property
+    def _items(self) -> list:
+        try:
+            return self._local.items
+        except AttributeError:
+            items: list = []
+            self._local.items = items
+            return items
+
+    def __getitem__(self, index):
+        return self._items[index]
+
+    def __setitem__(self, index, value) -> None:
+        self._items[index] = value
+
+    def __delitem__(self, index) -> None:
+        del self._items[index]
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __bool__(self) -> bool:
+        return bool(self._items)
+
+    def __iter__(self):
+        return iter(self._items)
+
+    def __repr__(self) -> str:
+        return repr(self._items)
+
+    def append(self, value) -> None:
+        self._items.append(value)
+
+    def pop(self, index=-1):
+        return self._items.pop(index)
+
+    def clear(self) -> None:
+        self._items.clear()
+
 
 # 补丁是对着 citeproc-py 0.12 的内部实现写的（见 `_install_citeproc_shims`）。
 SUPPORTED_CITEPROC = (0, 12)
@@ -84,8 +138,10 @@ def _install_citeproc_shims() -> None:
     if getattr(_citeproc_model.Names.process, "_md2word_shimmed", False):
         return
 
-    group_frames: list[list[bool]] = []  # [var_called, var_rendered]
-    sub_frames: list[tuple[object, dict[str, set[str]]]] = []  # (parent_names_elem, staging_repressed)
+    # [var_called, var_rendered]
+    group_frames = _ThreadLocalList()
+    # (parent_names_elem, staging_repressed)
+    sub_frames = _ThreadLocalList()
 
     orig_macro_render = _citeproc_model.Macro.render
     orig_names_process = _citeproc_model.Names.process

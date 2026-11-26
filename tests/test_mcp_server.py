@@ -14,6 +14,15 @@ from md_to_word.mcp.server import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_live_word(monkeypatch):
+    """底模导出会顺带做版面验真；MCP 单测不启动 Word，真验真另有专门文件。"""
+    from md_to_word.visual_qa import word_pdf
+
+    monkeypatch.setattr(word_pdf, "can_render_word_pdf",
+                        lambda: (False, "disabled in unit tests"))
+
+
 def test_mcp_server_initialization():
     async def _run():
         server = create_mcp_server()

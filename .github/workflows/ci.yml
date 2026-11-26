@@ -18,6 +18,8 @@ jobs:
             python: "3.10"
           - os: ubuntu-latest
             python: "3.12"
+          - os: ubuntu-latest
+            python: "3.13"
           - os: macos-latest
             python: "3.12"
           # 目标用户大多在 Windows + WPS 上。核心路径没有任何平台分支（只有 `--pdf`
@@ -31,6 +33,17 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: pip install -e ".[test]"
       - run: pytest -q
+
+  lint:
+    name: ruff（未使用导入/变量与未定义名字）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check src tests
 
   end-to-end:
     name: end-to-end

@@ -11,12 +11,10 @@
 
 from __future__ import annotations
 
-import logging
 import os
 import shutil
 import sys
 import tempfile
-import zipfile
 
 from docx import Document
 from docx.enum.style import WD_STYLE_TYPE
@@ -29,6 +27,8 @@ from md_to_word.spec.constants import ALIGN_ENUM_VAL, PAGE_SIZES_CM, STYLE_MAP, 
 from md_to_word.spec.parser import parse_format
 
 # 拆分前的入口保持不变：写出器、对账、反推器与测试仍从本模块导入这些名字。
+# 这些是**重新导出**，不是本模块自己要用；F401 在这里是预期行为（见 pyproject 的
+# per-file-ignores）。删掉会让下游 import 在运行期才炸。
 from md_to_word.template.checks import (
     REQUIRED_STYLES, TOC_STYLE_GROUP, _LINKED_SECTION_TITLES, _check_required_fields,
     _has_heading_styleref, missing_styles_for_body,
@@ -110,24 +110,11 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
         logger.debug(f' 全局西文字体: {default_latin}')
 
     # 必填项的明细一直只进日志：CLI 的人看得到，`--json` 与 MCP 的调用方只拿到
-    # 一句「详见上方逐条提示」。这里把本次检查的日志一起收进异常，两个出口都能读。
-    class _Capture(logging.Handler):
-        def __init__(self) -> None:
-            super().__init__(level=logging.INFO)
-            self.lines: list[str] = []
-
-        def emit(self, record: logging.LogRecord) -> None:
-            self.lines.append(record.getMessage())
-
-    capture = _Capture()
-    old_level = logger.level
-    logger.addHandler(capture)
-    logger.setLevel(logging.INFO)
-    try:
-        has_errors, linkage_errors = _check_required_fields(spec, lang, format_text)
-    finally:
-        logger.removeHandler(capture)
-        logger.setLevel(old_level)
+    # 一句「详见上方逐条提示」。检查函数顺手把同一条消息写进 `details`，两个出口
+    # 都能读——不再临时抬高 logger 级别、挂 handler；那是进程级状态，并发导出会串。
+    details: list[str] = []
+    has_errors, linkage_errors = _check_required_fields(
+        spec, lang, format_text, sink=details)
 
     if has_errors:
         msg = t('template.required_missing', lang)
@@ -135,7 +122,7 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
             # 联动错误**只**随异常一起给出（不再单独打日志）：打一遍再贴一遍，
             # 用户会以为有两处问题；而只打日志的话，`--json` / MCP 这条路读不到。
             msg = msg + "\n" + "\n".join(linkage_errors)
-        details = [line for line in capture.lines if line.strip()]
+        details = [line for line in details if line.strip()]
         if details:
             msg = msg + "\n" + "\n".join(details[:24])
         raise TemplateError(msg)

@@ -26,6 +26,7 @@ from md_to_word.utils.masking import (
     unclosed_code_fence_line,
 )
 from md_to_word.preprocessor.blocks import hard_break
+from md_to_word.utils.citation_syntax import CITE_KEY_RE as _CITE_KEY_RE
 
 # ══════════════════════════════════════════════════════════════════════
 # 1. 统一日志配置
@@ -352,7 +353,6 @@ def section_pagebreak_issues(text: str, lang: str = "zh") -> list[tuple[int, str
 # `-@key`（抑制作者）的 `@` 前是 `-`，故 `-` 不能进排除集，否则那种写法会被整条漏掉。
 # 尖括号里带 `@` 或 `://` 的整段：自动链接与邮箱，里面的 `@` 不是引文
 _ANGLE_RE = re.compile(r"<[^>\s]*(?:@|://)[^>\s]*>")
-from md_to_word.utils.citation_syntax import CITE_KEY_RE as _CITE_KEY_RE
 # .bib 条目头：`@article{key,` / `@book{key,`
 _BIB_ENTRY_RE = re.compile(r'@\w+\s*\{\s*([^,\s}]+)\s*,')
 # 行内代码 `` `...` `` —— mask_code_fences 只管围栏块，行内代码得在这里单独遮掉

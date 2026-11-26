@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 from lxml import etree
@@ -229,7 +230,8 @@ def _style_line_numbers(fmt_content: str) -> dict[str, int]:
 
 
 def _check_required_fields(
-    spec, lang: str = "zh", fmt_content: str | None = None
+    spec, lang: str = "zh", fmt_content: str | None = None,
+    sink: list[str] | None = None,
 ) -> tuple[bool, list[str]]:
     """校验必填项是否齐备：必填样式 / 样式的必填字段 / 条件成套必填行 / 联动必填。
 
@@ -237,6 +239,8 @@ def _check_required_fields(
     直接用这份列表，别再调一次 `_check_linkage_fields`——那样同一句会打印两遍。
 
     `fmt_content` 给得出时，缺字段的那条会带上它在格式文件里的行号。
+    `sink` 给得出时，同一条消息也追加进去，供 `--json` / MCP 把明细带进异常。
+    这让调用方不必劫持 logger——并发导出时，劫持会收到别的请求的日志。
     """
     req_by_style = {r['style_name']: r for r in spec.styles}
 
@@ -341,32 +345,37 @@ def _check_required_fields(
     linkage_errors = _check_linkage_fields(spec, lang)
     has_errors = bool(missing_required or missing_styles or missing_rows or linkage_errors)
 
+    def say(level: int, message: str) -> None:
+        logger.log(level, message)
+        if sink is not None:
+            sink.append(message)
+
     if missing_styles:
-        logger.warning(t('template.missing_styles_header', lang))
+        say(logging.WARNING, t('template.missing_styles_header', lang))
         for style_name, alias in missing_styles:
-            logger.info(t('template.style_item', lang, alias=alias, style=style_name))
-        logger.info(t('template.missing_styles_hint', lang))
+            say(logging.INFO, t('template.style_item', lang, alias=alias, style=style_name))
+        say(logging.INFO, t('template.missing_styles_hint', lang))
 
     if missing_rows:
-        logger.warning(t('template.missing_rows_header', lang))
+        say(logging.WARNING, t('template.missing_rows_header', lang))
         for name, example in missing_rows:
-            logger.info(t('template.row_item', lang, name=_row_label(name, lang),
-                          example=t(example, lang)))
+            say(logging.INFO, t('template.row_item', lang, name=_row_label(name, lang),
+                                example=t(example, lang)))
 
     if missing_required:
-        logger.warning(t('template.missing_fields_header', lang))
+        say(logging.WARNING, t('template.missing_fields_header', lang))
         style_lines = _style_line_numbers(fmt_content) if fmt_content else {}
         for alias, field in missing_required:
             hint = t(f'template.hint.{field}', lang) if field in FIELD_KEYS else field
             line_no = style_lines.get(alias)
             where = t('template.field_where', lang, line=line_no) if line_no else ""
-            logger.info(t('template.field_item', lang, alias=alias, where=where,
-                          field=t(f'template.field.{field}', lang) if field in FIELD_KEYS else field))
-            logger.info(t('template.field_fix', lang, hint=hint))
+            say(logging.INFO, t('template.field_item', lang, alias=alias, where=where,
+                                field=t(f'template.field.{field}', lang) if field in FIELD_KEYS else field))
+            say(logging.INFO, t('template.field_fix', lang, hint=hint))
 
     if has_errors:
-        logger.error(t('template.abort', lang))
-        logger.error(t('template.abort_hint', lang))
+        say(logging.ERROR, t('template.abort', lang))
+        say(logging.ERROR, t('template.abort_hint', lang))
     else:
         logger.debug(t('template.check_ok', lang))
 
