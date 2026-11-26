@@ -122,6 +122,28 @@ def _absorbs_period(tail: str) -> bool:
     return bool(unquoted) and unquoted[-1] in _TERMINAL_PUNCT
 
 
+def _strip_author_segments(
+    segments: list[tuple[str, dict]], author: str,
+) -> list[tuple[str, dict]]:
+    """去掉引文里的作者部分：`(Smith, 2020)` → `(2020)`（Pandoc 的 `[-@key]`）。
+
+    作者后面紧跟的分隔符（`, `、空格）一并去掉，前缀里的括号与 `see` 保留。
+    """
+    if not author:
+        return segments
+    text = segments_text(segments)
+    index = text.find(author)
+    if index < 0:
+        # 渲染出的名字可能带外层 affix，和捕获值对不上：宁可不替换，也不能乱删。
+        return segments
+    end = index + len(author)
+    while end < len(text) and text[end] in " \u00a0,;":
+        end += 1
+    return merge_segments(
+        slice_segments(segments, 0, index) + slice_segments(segments, end, len(text))
+    )
+
+
 _QUOTE_PUNCT_RE = re.compile(r"[”’\"][.,]")
 
 

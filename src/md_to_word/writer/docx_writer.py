@@ -1235,7 +1235,7 @@ class _Writer:
                     yield from citations_in(getattr(node, field.name))
 
         for node in citations_in(footnote.blocks):
-            keys = [(item.key, item.locator, item.prefix, item.label) for item in node.items]
+            keys = [(item.key, item.locator, item.prefix, item.label, item.suppress_author) for item in node.items]
             self.citations.cite(keys, narrative=node.narrative)
 
     def _write_footnotes(self) -> None:
@@ -1366,7 +1366,7 @@ class _Writer:
         """脚注里的引文：与正文用同一个 CitationEngine，编号/作者-年份保持一致。"""
         if self.citations is None:
             raise UnsupportedFeature(t("writer.citation_without_bibliography", self.lang))
-        keys = [(item.key, item.locator, item.prefix, item.label) for item in node.items]
+        keys = [(item.key, item.locator, item.prefix, item.label, item.suppress_author) for item in node.items]
         segments = self.citations.cite(keys, narrative=node.narrative)
         inner = "".join(self._segment_run_xml(text, fmt) for text, fmt in segments)
         if self.model.meta.link_citations:
@@ -1468,7 +1468,7 @@ class _Writer:
         elif isinstance(node, Citation):
             if self.citations is None:
                 raise UnsupportedFeature(t("writer.citation_without_bibliography", self.lang))
-            keys = [(item.key, item.locator, item.prefix, item.label) for item in node.items]
+            keys = [(item.key, item.locator, item.prefix, item.label, item.suppress_author) for item in node.items]
             segments = self.citations.cite(keys, narrative=node.narrative)
             # 中文行文里「基石 [1]」应为「基石[1]」；西文保留空格
             if not node.narrative:

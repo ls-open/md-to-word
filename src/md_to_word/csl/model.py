@@ -781,8 +781,14 @@ class Key(CitationStylesElement):
             sort_keys = []
             for item in items:
                 layout.repressed = {}
-                sort_key = macro.render(item, context=context,
-                                        sort_options=sort_options)
+                # 排序用的宏也是 `<names>`；不隔离的话，suppress-author 捕获到的
+                # 「第一段作者名」会是排序键里的全名，而不是正文里显示的那段。
+                token = FIRST_NAMES.set(None)
+                try:
+                    sort_key = macro.render(item, context=context,
+                                            sort_options=sort_options)
+                finally:
+                    FIRST_NAMES.reset(token)
                 sort_keys.append(sort_key)
 
         return sort_keys

@@ -100,6 +100,7 @@ class CitationItem:
     prefix: str = ""
     locator: str = ""
     label: str = "page"     # CSL 的定位符标签：page / chapter / section / paragraph / figure…
+    suppress_author: bool = False   # Pandoc 的 `[-@key]`：只出年份，不出作者
 
 
 @dataclass(frozen=True)

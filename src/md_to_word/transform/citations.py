@@ -6,9 +6,9 @@ CSL 渲染由 `md_to_word.csl` 完成：它是 citeproc-py 0.12.2（BSD-2-Clause
 citeproc-py 自带的 BibTeX 读取器反而不产出 `issued`，直接用会抛 VariableError——所以
 转换这一步由我们做（见 transform/bibtex.py）。
 
-已知限制：citeproc-py 不支持 `suppress-author`，叙述式引用（`@key` 作句子主语）无法按
-CSL 的 author-in-text 形式渲染。这里对作者-年份制做一次保守改写把年份移进括号；
-数字制下与括号式相同。这条限制写在文档里，不藏着。
+已知限制：叙述式引用（`@key` 作句子主语）仍是一次保守改写——把作者-年份制的年份移进
+括号；数字制下与括号式相同。`[-@key]`（只出年份）走条目级的 suppress-author：照常渲染
+后去掉这次渲染出的作者段，数字制里与普通引用相同。这条限制写在文档里，不藏着。
 
 分阶段：`csl/` 负责求值与排序（`<sort>` 里的宏由引擎求值）；`citation_sort.py`
 补 CSL 不表达的 GB/T 文种分组与年份后缀折叠；`disambiguation.py` 消歧；
@@ -39,7 +39,7 @@ from md_to_word.transform.biblio import parse_bibliography
 from md_to_word.transform.citation_postprocess import (
     _as_narrative_segments, _collapse_numeric_runs as _collapse_numeric_runs, _collapse_numeric_segments,
     _expand_range, _merge_period_segments, _punctuation_in_quote_segments,
-    _with_year_suffix_segments, separate_first_field,
+    _strip_author_segments, _with_year_suffix_segments, separate_first_field,
 )
 from md_to_word.transform.citation_sort import _join_dates, _language_group
 from md_to_word.transform.disambiguation import (
@@ -56,6 +56,11 @@ from md_to_word.csl.model import (
 
 class CitationError(RuntimeError):
     """文献库或 CSL 样式无法使用。"""
+
+
+def _suppressed(pair) -> bool:
+    """这一条引用是否带 Pandoc 的 `-`（只出年份）。"""
+    return len(pair) > 4 and bool(pair[4])
 
 
 class CitationEngine:
@@ -276,7 +281,10 @@ class CitationEngine:
             locator = pair[1] if len(pair) > 1 else ""
             item_prefix = pair[2] if len(pair) > 2 else ""
             label = pair[3] if len(pair) > 3 else "page"
-            text = self._render(pair[0], self._variant(pair[0]), locator, item_prefix, label)
+            text = self._render(
+                pair[0], self._variant(pair[0]), locator, item_prefix, label,
+                suppress_author=_suppressed(pair),
+            )
             text = strip_prefix(text, prefix)
             text = strip_suffix(text, suffix)
             pieces.append((pair[0], text))
@@ -347,23 +355,37 @@ class CitationEngine:
         return rendered
 
     def _render(self, key: str, variant: Variant, locator: str = "",
-                prefix: str = "", label: str = "page") -> list[tuple[str, dict]]:
+                prefix: str = "", label: str = "page",
+                suppress_author: bool = False) -> list[tuple[str, dict]]:
         """用指定的名字形态渲染一条引用，返回结构化片段。
 
         补首字母走**条目数据**（只改这条引用用的副本，文献表用的原条目不动）：CSL 没有
         「只给第一个名字加首字母」的写法，`primary-name-with-initials` 只能这么做。
         补名字走**样式副本**：显示几个名字是样式属性，条目数据改不了。
+
+        `[-@key]`（只出年份）走条目级的 suppress-author：照常渲染，然后把这次渲染出的
+        那一段 `<names>` 去掉。渲染用主文献表，数字制的 `citation-number` 才不会重排成 1。
         """
         style = self._style
-        if variant.extra_names:
+        if variant.extra_names and not suppress_author:
             style = self._cloned_style(variant.extra_names)
-        bibliography = CitationStylesBibliography(
-            style, self._source_for(key, variant), formatter.segments
+        bibliography = (
+            self._bibliography if suppress_author
+            else CitationStylesBibliography(
+                style, self._source_for(key, variant), formatter.segments)
         )
         citation = Citation([self._citation_item((key, locator, prefix, label))])
         bibliography.register(citation)
-        with self._disambiguation_context():
-            rendered = to_segments(bibliography.cite(citation, lambda item: item))
+        names: list[str] = []
+        token = FIRST_NAMES.set(names) if suppress_author else None
+        try:
+            with self._disambiguation_context():
+                rendered = to_segments(bibliography.cite(citation, lambda item: item))
+        finally:
+            if token is not None:
+                FIRST_NAMES.reset(token)
+        if suppress_author and names:
+            rendered = _strip_author_segments(rendered, names[0])
         return _with_year_suffix_segments(rendered, self._by_key.get(key, {}))
 
     def _source_for(self, key: str, variant: Variant):
@@ -441,7 +463,9 @@ class CitationEngine:
         with self._disambiguation_context():
             if self._collapse and len(pairs) > 1:
                 segments = self._render_group(pairs)
-            elif any(not self._variant(pair[0]).plain for pair in pairs):
+            elif any(not self._variant(pair[0]).plain for pair in pairs) or any(
+                _suppressed(pair) for pair in pairs
+            ):
                 segments = self._render_group(pairs)
             else:
                 segments = to_segments(

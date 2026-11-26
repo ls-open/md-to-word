@@ -526,45 +526,28 @@ def test_audit_items_are_printed_in_the_requested_language(tmp_path: Path) -> No
 
 
 # ── 只出年份的引文（`-@`）────────────────────────────────────────────────
-# 引擎不实现 `<suppress-author>`，读到之后当普通引用渲染——**输出与不写 `-` 逐字相同**。
-# 所以预检必须拦；判据是「方括号组里任意一条引用带 `-`」，不是「方括号紧跟 `-@`」：
-# `[@a; -@b]` 是 Pandoc 的标准写法，只看开头会整组放行。
+# `[-@key]` 已实现：作者-年制只出年份，数字制与普通引用相同。预检不再拦它；
+# 判据从「方括号组里任意一条带 `-`」变成读取器自己带上的 suppress 标记。
+
+YEAR_ONLY_BIB = """
+@article{a, author={Adams, Bo}, title={A}, year={2019}}
+@article{b, author={Wang, Ming}, title={B}, year={2020}}
+@article{c, author={Cole, Di}, title={C}, year={2021}}
+"""
 
 
 @pytest.mark.parametrize("citation", ["[-@a]", "[@a; -@b]", "[see -@a]", "[@a;@b;-@c]"])
-def test_suppressed_author_is_blocked_anywhere_in_a_citation_group(
+def test_year_only_citation_is_accepted_in_any_group(
     tmp_path: Path, citation: str
 ) -> None:
+    (tmp_path / "refs.bib").write_text(YEAR_ONLY_BIB, encoding="utf-8")
     manuscript = tmp_path / "manuscript.md"
     manuscript.write_text(
-        f'---\nbibliography: refs.bib\n---\n\n# 一 引言\n\n正文{citation} 结束。\n',
+        f"---\nbibliography: refs.bib\n---\n\n# 一 引言\n\n正文{citation} 结束。\n",
         encoding="utf-8",
     )
     report = validate_manuscript(manuscript)
-    assert not report.valid
-    assert any("只出年份" in error for error in report.errors), report.errors
-
-
-def test_ordinary_citation_groups_are_not_blamed(tmp_path: Path) -> None:
-    """正常引用不能被这道门禁误伤——`-` 只出现在作者名里不算（如 `Doe-Smith`）。"""
-    manuscript = tmp_path / "manuscript.md"
-    manuscript.write_text(
-        "---\nbibliography: refs.bib\n---\n\n# 一 引言\n\n正文[@a; @b] 与 @doe-smith 结束。\n",
-        encoding="utf-8",
-    )
-    report = validate_manuscript(manuscript)
-    assert not any("只出年份" in error for error in report.errors), report.errors
-
-
-def test_suppressed_author_inside_a_code_fence_is_ignored(tmp_path: Path) -> None:
-    """围栏里演示这段语法是正当的：稿件讲的就是这个工具怎么写。"""
-    manuscript = tmp_path / "manuscript.md"
-    manuscript.write_text(
-        "---\n---\n\n# 一 引言\n\n```markdown\n正文[@a; -@b] 结束。\n```\n",
-        encoding="utf-8",
-    )
-    report = validate_manuscript(manuscript)
-    assert not any("只出年份" in error for error in report.errors), report.errors
+    assert report.valid, report.errors
 
 
 # ── 代码块里演示语法是正当写法 ─────────────────────────────────────────

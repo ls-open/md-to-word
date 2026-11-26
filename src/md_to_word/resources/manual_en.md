@@ -614,7 +614,7 @@ compliant `.docx` first, then fine-tune from feedback.
   | Syntax | Rendered as |
   |:--|:--|
   | `[@key]` | parenthetical citation; several `[@a; @b]`, with a page `[@a, p. 33]` (`[@a, 33]` is the same), with a prefix `[see @a]` |
-  | `[-@a]` | **not supported**: the engine has no year-only form; pre-flight blocks it and names the fix |
+  | `[-@a]` | year only: `[-@a]` renders as `(2020)`; mix with full citations as `[@a; -@b]`, or add a prefix `[see -@a]` |
   | `@key` | narrative citation (`as @a points out`); with a page `@a [p. 33]` |
   | `user@example.com` | emitted verbatim — an `@` preceded by an ASCII letter or digit is not a citation (Chinese characters do not count, so `见@eq-1` is a reference) |
 

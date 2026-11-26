@@ -551,21 +551,6 @@ def validate_manuscript(
                 line=None,
             )
 
-        # 1c2. `[-@key]`（只出年份）：引擎不实现，静默当普通引用就等于改写了作者的话。
-        # 判据是「方括号组里任意一条引用带了 `-` 前缀」，不是「方括号紧跟 `-@`」：
-        # `[@a; -@b]` 是 Pandoc 的标准写法，只看开头会把它整组放行，渲染结果与不带 `-`
-        # 逐字相同——正是这条注释要防的「改写作者的话」。
-        for line_no, line in enumerate(visible.split("\n"), 1):
-            for group in re.findall(r"\[[^\]\n]*\]", line):
-                if re.search(r"(?:^|[\s;,\[])-\s*@[\w:.-]+", group):
-                    report.valid = False
-                    report.error(
-                        "gate.citation.suppress_author",
-                        t("gate.citation.suppress_author", lang, line=line_no),
-                        line=line_no,
-                    )
-                    break
-
         known = set(YAML_KEYS)
         blocked = {"title", "subtitle", "author", "date", "abstract", "keywords"}
         unknown = [

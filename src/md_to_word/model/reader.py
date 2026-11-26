@@ -225,6 +225,11 @@ def _parse_citation_body(body: str, narrative: bool) -> Citation:
         if not m:
             continue
         prefix = chunk[: m.start()].strip()
+        # Pandoc 的 `-@key`：减号不是前缀，而是「只出年份」的标记。
+        # 前缀可以写在同一组里：`[see -@a]` → 前缀 `see`，作者省掉。
+        suppress_author = prefix == "-" or prefix.endswith(" -")
+        if suppress_author:
+            prefix = prefix[:-1].rstrip()
         label, locator = _locator(m.group("rest") or "")
         items.append(
             CitationItem(
@@ -232,6 +237,7 @@ def _parse_citation_body(body: str, narrative: bool) -> Citation:
                 prefix=prefix,
                 locator=locator,
                 label=label,
+                suppress_author=suppress_author,
             )
         )
     return Citation(items=tuple(items), narrative=narrative)

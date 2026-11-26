@@ -63,6 +63,36 @@ def test_the_docx_keeps_the_page_number(tmp_path: Path) -> None:
     assert "p. 33" in text, text
 
 
+def test_year_only_reaches_the_docx(tmp_path: Path) -> None:
+    """写出器要带上 suppress 标记：成品里是 `(2019)`，不是完整引用。"""
+    (tmp_path / "refs.bib").write_text(BIB, encoding="utf-8")
+    (tmp_path / "m.md").write_text(
+        "---\nbibliography: refs.bib\ncsl: apa.csl\n---\n\n# 一\n\n见 [-@adams2019]。\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "m.docx"
+    result = run_export_pipeline(ExportOptions(input_path=tmp_path / "m.md", output_path=out))
+    assert result.returncode == 0, result.errors
+
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    text = "".join(re.findall(r"<w:t[^>]*>([^<]*)</w:t>", xml))
+    assert "见(2019)" in text, text
+    assert "(Adams & Cole, 2019)" not in text, text
+
+
+def test_year_only_marker_is_parsed_before_the_key() -> None:
+    """`-` 不是前缀：`[see -@a]` 的前缀是 `see`，作者抑制标记单独带走。"""
+    from md_to_word.model.reader import read_markdown
+
+    for body, prefix in (("见 [-@a]。", ""), ("见 [see -@a]。", "see")):
+        model = read_markdown("# 一\n\n" + body + "\n", citation_keys={"a"})
+        item = next(
+            i for b in model.blocks for n in getattr(b, "inlines", [])
+            if type(n).__name__ == "Citation" for i in n.items
+        )
+        assert item.suppress_author and item.prefix == prefix, body
+
+
 def test_bare_page_number_is_a_locator(tmp_path: Path) -> None:
     """`[@a, 33]` 与 `[@a, p. 33]` 等价；不带 `p.` 的写法以前会静默丢掉。"""
     from md_to_word.model.reader import read_markdown
@@ -87,17 +117,39 @@ def test_narrative_locator_is_attached() -> None:
     assert citation.items[0].locator == "33"
 
 
-def test_year_only_citation_is_blocked(tmp_path: Path) -> None:
-    """`[-@a]` 引擎不实现：静默渲染成完整引用等于改写了作者的话，所以拦下。"""
+def test_year_only_citation_drops_the_author() -> None:
+    """`[-@a]` 是 Pandoc 的「只出年份」：APA 下是 `(2019)`，页码与混合组照常工作。"""
+    engine = _apa()
+    engine.reserve(["adams2019", "wang2020"])
+    assert _text(engine, ("adams2019", "", "", "page", True)) == "(2019)"
+    assert _text(engine, ("adams2019", "33", "", "page", True)) == "(2019, p. 33)"
+    assert _text(
+        engine,
+        ("adams2019", "", "", "page", False),
+        ("wang2020", "", "", "page", True),
+    ) == "(Adams & Cole, 2019; 2020)"
+    # 前缀保留，减号不吃进正文
+    assert _text(engine, ("adams2019", "", "see", "page", True)) == "(see 2019)"
+
+
+def test_year_only_citation_is_a_no_op_for_numeric_styles() -> None:
+    """数字制本来就不印作者：`[-@a]` 与 `[@a]` 相同，编号不能被打乱。"""
+    engine = CitationEngine(BIB, CSL / "chinese-gb7714-2015-numeric.csl", lang="zh")
+    engine.reserve(["adams2019", "wang2020"])
+    assert _text(engine, ("wang2020", "", "", "page")) == "[1]"
+    assert _text(engine, ("adams2019", "", "", "page", True)) == "[2]"
+
+
+def test_year_only_citation_passes_preflight(tmp_path: Path) -> None:
     from md_to_word.validator.check import validate_manuscript
 
     (tmp_path / "refs.bib").write_text(BIB, encoding="utf-8")
     (tmp_path / "m.md").write_text(
-        "---\nbibliography: refs.bib\n---\n\n# 一\n\n见 [-@adams2019]。\n", encoding="utf-8"
+        "---\nbibliography: refs.bib\n---\n\n# 一\n\n见 [-@adams2019] 与 [see -@wang2020]。\n",
+        encoding="utf-8",
     )
     report = validate_manuscript(tmp_path / "m.md")
-    assert not report.valid
-    assert any("[-@" in error for error in report.errors)
+    assert report.valid, report.errors
 
 
 def test_group_authors_and_name_particles_survive() -> None:
