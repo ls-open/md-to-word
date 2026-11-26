@@ -10,7 +10,9 @@ from lxml import etree
 
 from . import DATES, LANGUAGE_NAMES, NAMES, NUMBERS, PRIMARY_DIALECTS
 from .source import DateRange, LiteralDate, VariableError
-from .string import LINE_BREAK, MixedString, String, join, normalize_seam
+from .string import (
+    LINE_BREAK, SEAM_PUNCTUATION, MixedString, String, join, normalize_seam,
+)
 
 LANG_KEY = '{http://www.w3.org/XML/1998/namespace}lang'
 
@@ -111,6 +113,9 @@ def _join_blocks(parts, delimiter=''):
     output = None
     previous_block = False
     for part in parts:
+        # 空串不是内容：留着它会多出分隔符和多余空格（`2017.  University`）。
+        if part is None or str(part) == '':
+            continue
         is_block = isinstance(part, Block)
         if output is None:
             output = part
@@ -651,6 +656,10 @@ class Affixed:
         if string is not None:
             prefix = '' if skip_prefix else self.get('prefix', '')
             suffix = '' if skip_suffix else self.get('suffix', '')
+            # 样式常用 `suffix=" "` 撑开与下一段的距离；若紧接着是标点后缀，
+            # 那个空格必须让位（`Self-published .` → `Self-published.`）。
+            if suffix and suffix[0] in SEAM_PUNCTUATION:
+                string = string.rstrip()
             string = normalize_seam(prefix, string)
             # `String.__add__` keeps formatting objects intact; a raw `str +`
             # would flatten a structured run back to plain text.

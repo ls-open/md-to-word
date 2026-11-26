@@ -117,6 +117,25 @@ def _merge_period_segments(segments: list[tuple[str, dict]]) -> list[tuple[str, 
     return merge_segments(output)
 
 
+_DOUBLE_SPACE_RE = re.compile(r" {2,}")
+_SPACE_BEFORE_PUNCT_RE = re.compile(r" +([.,;:!?])")
+
+
+def _normalize_spaces_segments(segments: list[tuple[str, dict]]) -> list[tuple[str, dict]]:
+    """合并连续空格、去掉标点前的空格。
+
+    样式常用 `suffix=" "` 把两段隔开；当相邻的组为空时，那个空格会留在句点前
+    （`Self-published .`）或与分隔符叠成双空格（`2017.  University`）。
+    """
+    output: list[tuple[str, dict]] = []
+    for text, fmt in segments:
+        text = _DOUBLE_SPACE_RE.sub(" ", text)
+        text = _SPACE_BEFORE_PUNCT_RE.sub(r"\1", text)
+        if text:
+            output.append((text, fmt))
+    return merge_segments(output)
+
+
 def _absorbs_period(tail: str) -> bool:
     """句点前面是不是「已经收过句号」的终止标点；右引号不算隔断（`“What?”.` 一样不补）。"""
     unquoted = tail.rstrip(_CLOSING_QUOTES)

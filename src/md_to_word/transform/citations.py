@@ -38,8 +38,9 @@ from md_to_word.csl.source.json import CiteProcJSON
 from md_to_word.transform.biblio import parse_bibliography
 from md_to_word.transform.citation_postprocess import (
     _as_narrative_segments, _collapse_numeric_runs as _collapse_numeric_runs, _collapse_numeric_segments,
-    _expand_range, _merge_period_segments, _punctuation_in_quote_segments,
-    _strip_author_segments, _with_year_suffix_segments, separate_first_field,
+    _expand_range, _merge_period_segments, _normalize_spaces_segments,
+    _punctuation_in_quote_segments, _strip_author_segments,
+    _with_year_suffix_segments, separate_first_field,
 )
 from md_to_word.transform.citation_sort import _join_dates, _language_group
 from md_to_word.transform.disambiguation import (
@@ -501,6 +502,7 @@ class CitationEngine:
                                        enabled=not has_extra))
         if self._punctuation_in_quote:
             segments = _punctuation_in_quote_segments(segments)
+        segments = _normalize_spaces_segments(segments)
         self._rendered[cache_key] = segments
         return segments
 
@@ -583,7 +585,7 @@ class CitationEngine:
         segments = _merge_period_segments(segments)
         if self._punctuation_in_quote:
             segments = _punctuation_in_quote_segments(segments)
-        return segments
+        return _normalize_spaces_segments(segments)
 
     def bibliography(self) -> list[str]:
         """文末文献列表（纯文本；要片段用 bibliography_segments）。

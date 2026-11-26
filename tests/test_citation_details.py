@@ -941,3 +941,25 @@ def test_single_quoted_style_attributes_are_read(tmp_path: Path) -> None:
     engine = CitationEngine(bib, style, lang="en")
     engine.reserve(["a", "b"])
     assert _text(engine, ("a", ""), ("b", "")) == "(Smith, 2020, 2021)"
+
+
+def test_style_affix_spaces_do_not_double_or_precede_punctuation() -> None:
+    """`suffix=" "` 遇上空子元素会留下 `Self-published .` 或双空格。"""
+    bib = (
+        '[{"id": "b", "type": "book", "title": "The Chicago Manual of Style", '
+        '"edition": "17", "publisher": "University of Chicago Press", '
+        '"publisher-place": "Chicago", "issued": {"date-parts": [[2017]]}}]'
+    )
+    engine = CitationEngine(bib, CSL / "elsevier-harvard.csl", lang="en")
+    engine.reserve(["b"])
+    engine.cite([("b", "")])
+    text = "".join(t for t, _ in engine.bibliography_entries()[0][1])
+    assert "  " not in text and " ." not in text, repr(text)
+
+    undated = bib.replace(', "issued": {"date-parts": [[2017]]}', "").replace(
+        "University of Chicago Press", "Self-published")
+    bmj = CitationEngine(undated, CSL / "bmj.csl", lang="en")
+    bmj.reserve(["b"])
+    bmj.cite([("b", "")])
+    text = "".join(t for t, _ in bmj.bibliography_entries()[0][1])
+    assert "Self-published." in text and "Self-published ." not in text, repr(text)
