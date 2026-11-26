@@ -140,9 +140,14 @@ class CitationEngine:
         self._add_names = options.get("disambiguate-add-names") == "true"
         mode = options.get("collapse", "")
         self._collapse = mode in ("year", "year-suffix", "year-suffix-ranged")
-        # 后缀区间只有 year-suffix 系样式才折（CSL 的 year-suffix-ranged）；
-        # collapse="year" 与数字制该逐条列出，不能折
-        self._collapse_ranged = mode in ("year-suffix", "year-suffix-ranged")
+        # `year-suffix` 只省略重复年份（`2020a, b, c`）；把后缀折成区间是
+        # `year-suffix-ranged` 的事，前者的 `a–c` 不符合规范。
+        self._collapse_mode = mode
+        self._year_suffix_delimiter = (
+            options.get("year-suffix-delimiter")
+            or options.get("cite-group-delimiter")
+            or ", "
+        )
         # 数字制的连续编号合并：方括号形态（GB/T、IEEE）与上标形态（Nature、AMA）
         self._numeric = options.get("collapse") == "citation-number"
         self._expand_pages = 'page-range-format="expanded"' in style_text
@@ -313,7 +318,10 @@ class CitationEngine:
             else:
                 body_pieces.append(
                     group["segments"]
-                    + [(_join_dates(group["dates"], self._collapse_ranged), {})]
+                    + [(_join_dates(
+                        group["dates"], self._collapse_mode,
+                        self._year_suffix_delimiter,
+                    ), {})]
                 )
         body = join_segments(body_pieces, delimiter)
         return merge_segments([(prefix, {})] + body + [(suffix, {})])

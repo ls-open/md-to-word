@@ -44,6 +44,34 @@ def test_url_date_becomes_accessed() -> None:
     assert entry["accessed"] == {"date-parts": [[2026, 9, 9]]}
 
 
+def test_biblatex_date_range_becomes_two_date_parts() -> None:
+    """`date = {2020/2021}` 是区间；一次抓完数字会得到 `[[2020, 2021]]`，即「2021 月」。"""
+    entry = _entry("@article{k,\n  date = {2020/2021}\n}\n", "k")
+    assert entry["issued"] == {"date-parts": [[2020], [2021]]}
+
+
+def test_biblatex_full_date_range_keeps_both_ends() -> None:
+    entry = _entry("@article{k,\n  date = {2020-03-01/2020-03-05}\n}\n", "k")
+    assert entry["issued"] == {"date-parts": [[2020, 3, 1], [2020, 3, 5]]}
+
+
+def test_bibtex_year_range_is_a_range_not_a_month() -> None:
+    """真实文献库里 `year = {2020-2021}` 很常见，不能把结束年当月份。"""
+    entry = _entry("@article{k,\n  year = {2020-2021}\n}\n", "k")
+    assert entry["issued"] == {"date-parts": [[2020], [2021]]}
+
+
+def test_bibtex_date_range_renders_both_years() -> None:
+    engine = CitationEngine(
+        "@article{k,\n  author = {Smith, John},\n  title = {Range},\n"
+        "  journal = {J},\n  year = {2020-2021}\n}\n",
+        get_csl_dir() / "apa.csl",
+        lang="en",
+    )
+    engine.reserve(["k"])
+    assert "".join(t for t, _ in engine.cite([("k", "")])) == "(Smith, 2020–2021)"
+
+
 def test_printed_book_keeps_type_marker() -> None:
     """印刷版专著没有 URL/DOI，`[M]` 不能因为"组里变量全空"被整组抑制掉。"""
     engine = CitationEngine(

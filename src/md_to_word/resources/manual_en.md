@@ -810,13 +810,8 @@ laid out slightly differently from the reference implementation — check here w
 
 | What you will see | What to do instead |
 |:--|:--|
-| Styles that quote titles (MLA, Chicago and similar) print the full stop outside the closing quote: `“A Study of Things”.`; a title ending in a question mark gains an extra stop: `“Why Things Happen?”.`. Punctuation-in-quote follows the engine's own implementation, so a few styles end up with one mark too many where a quote meets a comma | Fix those entries in Word after export (search for `”.`), or use a style that does not quote titles (APA, Nature, GB/T 7714) |
-| With `collapse="year-suffix"` (e.g. `springer-basic-author-date.csl`) several works by the same author in the same year repeat the year: `(Smith 2020a, 2020b, 2020c)` where the reference implementation gives `(Smith 2020a, b, c)` | The content is complete, just less compact; merge the years in Word if the style must be followed exactly |
-| A year range prints its start year only: `year = {2020-2021}` comes out as `2020`, the end year never appears | Export with the start year and add the range in Word, or split it into two entries |
-| Styles that print only `et al.` and no author names (`et-al-use-first="0"`) gain a stray leading space: `( et al., 2020)` | Use a style that lists authors, or delete the space after export |
 | Chinese author-date bibliographies are grouped by language (Chinese, Japanese, Western, Russian, other), then sorted by code point rather than pinyin (observed: 吴, 周, 张, 王, 赵, 陈) | Reorder in Word if pinyin or stroke order is required, or use a numeric style |
-| A branch meant to run only when disambiguation is needed (`disambiguate="true"` in `<choose>`) always runs: a citation that should take the plain branch carries that branch's content too | Affects a few styles only; check that citation after export and edit it in Word if needed |
-| Full-name-level disambiguation (`all-names`) compares first authors only: when the clash is in the second author it is not resolved, and `(Roe, Doe, 2020)` comes out twice identically | Tell them apart with page numbers, or spell out the authors in the text |
+| Full-name-level disambiguation (`all-names`) compares first authors only: when the clash is in the second author, in-text citations are told apart by the year suffix alone (`(Roe & Doe, 2020a)` / `2020b`) and the second author's name is not added; the bibliography still prints full names | Tell them apart with page numbers, or spell out the authors in the text |
 | A narrative citation is rewritten as `Smith (2020)` only when it is a single reference and the style prints one pair of parentheses; with several references, a prefix, or a numeric style it stays parenthetical or numeric | Write several references as separate sentences; a single `@key` is unaffected |
 
 **Per-entry language**: Chinese entries print 等 and Western entries print et al. in the same

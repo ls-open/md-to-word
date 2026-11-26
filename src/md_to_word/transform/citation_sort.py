@@ -22,19 +22,30 @@ from md_to_word.transform.disambiguation import (
 _SUFFIX_DATE_RE = re.compile(r"^(\d{4})([a-z]+)$")
 
 
-def _join_dates(dates: list[str], ranged: bool) -> str:
-    """同一作者下的年份串；ranged 时把同年后缀连续的 ≥3 条折成 `2020a–c`。
+def _join_dates(dates: list[str], mode: str = "", delimiter: str = ", ") -> str:
+    """同一作者下的年份串。
 
-    CSL 只在 year-suffix 系样式里折后缀，两条不折（citeproc-js 也不折）。
+    `collapse="year-suffix"` 省略后一条的重复年份（`2020a, b, c`）；年份不同或没有
+    后缀时印全年份。`year-suffix-ranged` 在此基础上把同年后缀连续的 ≥3 条折成
+    `2020a–c`，两条不折（与 citeproc-js 一致）。`year` 或普通样式逐条印全年份。
     """
-    if not ranged:
-        return ", ".join(dates)
+    if mode not in ("year-suffix", "year-suffix-ranged"):
+        return delimiter.join(dates)
+
     parts: list[str] = []
+    shown_year: str | None = None
     index = 0
     while index < len(dates):
         match = _SUFFIX_DATE_RE.match(dates[index])
-        if match:
-            year, suffix = match.group(1), match.group(2)
+        if not match:
+            # 带定位符等尾巴的日期不参与省略，原样印出来并重置年份
+            parts.append(dates[index])
+            shown_year = None
+            index += 1
+            continue
+
+        year, suffix = match.group(1), match.group(2)
+        if mode == "year-suffix-ranged":
             start = _suffix_index(suffix)
             end = index
             while end + 1 < len(dates):
@@ -48,12 +59,19 @@ def _join_dates(dates: list[str], ranged: bool) -> str:
                 end += 1
             if end - index + 1 >= 3:
                 label = _suffix_label(start + end - index)
-                parts.append(f"{year}{suffix}–{label}")
+                head = year if year != shown_year else ""
+                parts.append(f"{head}{suffix}–{label}")
+                shown_year = year
                 index = end + 1
                 continue
-        parts.append(dates[index])
+
+        if year == shown_year:
+            parts.append(suffix)
+        else:
+            parts.append(dates[index])
+            shown_year = year
         index += 1
-    return ", ".join(parts)
+    return delimiter.join(parts)
 
 
 _WESTERN_LANGUAGES = {

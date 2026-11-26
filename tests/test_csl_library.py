@@ -51,3 +51,26 @@ def test_numeric_styles_have_tabs_and_author_date_do_not(style: str) -> None:
         assert entry.startswith(f"{prefix}1{suffix}".rstrip()), f"{style} 序号标记格式不符：{entry!r}"
     else:
         assert "\t" not in entry, f"著者年制样式 {style} 不应包含制表符：{entry!r}"
+
+
+def test_zero_et_al_names_do_not_leave_a_leading_space(tmp_path: Path) -> None:
+    """`et-al-use-first="0"` 只印 `et al.` 时，名单是空的，不能再补一个前导空格。"""
+    style = tmp_path / "etal-zero.csl"
+    style.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" '
+        'version="1.0" default-locale="en-US">\n'
+        '  <info><title>Probe</title><id>http://example.com/probe</id>'
+        '<updated>2024-01-01T00:00:00+00:00</updated></info>\n'
+        '  <citation><layout prefix="(" suffix=")">\n'
+        '    <names variable="author"><name et-al-min="1" et-al-use-first="0"/>'
+        '<et-al term="et-al"/></names>\n'
+        '    <date variable="issued" prefix=", "><date-part name="year"/></date>\n'
+        '  </layout></citation>\n'
+        '  <bibliography><layout><text variable="title"/></layout></bibliography>\n'
+        "</style>\n",
+        encoding="utf-8",
+    )
+    engine = CitationEngine(BIB, style, lang="en")
+    engine.reserve(["a"])
+    assert "".join(t for t, _ in engine.cite([("a", "")])) == "(et al., 2020)"

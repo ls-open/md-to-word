@@ -608,15 +608,49 @@ def _month(raw: str) -> int | None:
     return _MONTHS.get(text)
 
 
+# BibLaTeX 的区间写法：`date = {2020/2021}`、`date = {2020-03-01/2020-03-05}`。
+_DATE_RANGE_RE = re.compile(r"^(?P<start>[^/]+?)\s*/\s*(?P<end>.+)$")
+# `year = {2020-2021}` 与 `date = {2020-2021}`：整串是「四位年份 - 四位年份」。
+_YEAR_RANGE_RE = re.compile(r"^(?P<start>\d{4})\s*[-–—]\s*(?P<end>\d{4})$")
+
+
+def _date_parts(value: str) -> list[int] | None:
+    parts = re.findall(r"\d+", value)
+    return [int(p) for p in parts[:3]] if parts else None
+
+
 def _issued(raw_date: str, year: str) -> dict | None:
+    """`date` / `year` → CSL-JSON 的 `issued`。
+
+    区间必须落成两个 `date-parts` 数组（`[[2020], [2021]]`）；把 `2020/2021` 的
+    数字一次抓完会得到 `[[2020, 2021]]`，那是「2020 年 2021 月」，结束年被悄悄吃掉。
+    """
     if raw_date:
-        parts = re.findall(r"\d+", raw_date)
+        text = raw_date.strip()
+        match = _DATE_RANGE_RE.match(text)
+        if match:
+            start = _date_parts(match.group("start"))
+            end = _date_parts(match.group("end"))
+            if start and end:
+                return {"date-parts": [start, end]}
+        match = _YEAR_RANGE_RE.match(text)
+        if match:
+            return {"date-parts": [
+                [int(match.group("start"))], [int(match.group("end"))],
+            ]}
+        parts = _date_parts(text)
         if parts:
-            return {"date-parts": [[int(p) for p in parts[:3]]]}
+            return {"date-parts": [parts]}
     if year:
-        m = re.search(r"\d{4}", year)
-        if m:
-            return {"date-parts": [[int(m.group(0))]]}
+        text = year.strip()
+        match = _YEAR_RANGE_RE.match(text)
+        if match:
+            return {"date-parts": [
+                [int(match.group("start"))], [int(match.group("end"))],
+            ]}
+        match = re.search(r"\d{4}", text)
+        if match:
+            return {"date-parts": [[int(match.group(0))]]}
     return None
 
 
@@ -788,7 +822,8 @@ def parse_bibtex(text: str) -> list[dict]:
                     item.setdefault("note", fields["howpublished"])
         issued = _issued(fields.get("date", ""), fields.get("year", ""))
         month = _month(fields.get("month", ""))
-        if issued and month and len(issued["date-parts"][0]) == 1:
+        if (issued and month and len(issued["date-parts"]) == 1
+                and len(issued["date-parts"][0]) == 1):
             issued["date-parts"][0].append(month)
         if issued:
             item["issued"] = issued

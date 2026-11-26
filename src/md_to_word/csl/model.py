@@ -102,7 +102,12 @@ class Block(MixedString):
 
 
 def _join_blocks(parts, delimiter=''):
-    """按 `display="block"` 组装子元素：块与相邻元素之间用换行代替分隔符。"""
+    """按 `display="block"` 组装子元素：块与相邻元素之间用换行代替分隔符。
+
+    非块分支与 `string.join()` 一样做两次边界归一化：先接分隔符、再接内容。直接把
+    `output + delimiter + part` 拼起来会跳过其中一次，`"Things. "` 后接 `". "`
+    就会留下两个空格。
+    """
     output = None
     previous_block = False
     for part in parts:
@@ -112,7 +117,8 @@ def _join_blocks(parts, delimiter=''):
         elif is_block or previous_block:
             output = output + LINE_BREAK + part
         else:
-            output = output + delimiter + part
+            output = output + normalize_seam(output, delimiter)
+            output = output + normalize_seam(output, part)
         previous_block = is_block
     return output
 
@@ -1628,7 +1634,9 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
                     output.append(et_al)
                     text = self.join(output, delimiter)
                 else:
-                    text = self.join(output, delimiter) + ' ' + et_al
+                    head = self.join(output, delimiter)
+                    # `et-al-use-first="0"`：名单为空，不能再补一个空格
+                    text = head + ' ' + et_al if head else et_al
             elif and_ is not None and len(output) > 1:
                 text = self.join(output[:-1], ', ')
                 if (delimiter_precedes_last == 'always'

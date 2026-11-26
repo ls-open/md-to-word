@@ -1,7 +1,9 @@
-"""`collapse="year-suffix-ranged"`：同作者同年后缀连续的多条并成 `2020a–c`。
+"""`collapse` 的年份省略：同作者同年只印一次年份。
 
-`citeproc-py` 不实现 collapse，这一段由 citations.py 补；`collapse="year"` 的样式只并
-年份、后缀仍逐条写，不能跟着折，数字制也不受影响。
+`year-suffix` 印成 `2020a, b, c`；只有 `year-suffix-ranged` 才把同年后缀连续的三条
+以上折成 `2020a–c`。`collapse="year"` 的样式不省后缀，数字制也不受影响。
+
+`citeproc-py` 不实现 collapse，这一段由 citations.py 补；两条不折（与 citeproc-js 一致）。
 """
 
 from __future__ import annotations
@@ -32,25 +34,35 @@ def _text(engine: CitationEngine, keys: list[str]) -> str:
     return "".join(segment[0] for segment in engine.cite([(key, "", "", "page") for key in keys]))
 
 
-def test_three_consecutive_suffixes_collapse_to_a_range() -> None:
+def test_year_suffix_omits_the_repeated_year() -> None:
     engine = _engine(3, SPRINGER)
-    assert _text(engine, ["g0", "g1", "g2"]) == "(Green 2020a–c)"
+    assert _text(engine, ["g0", "g1", "g2"]) == "(Green 2020a, b, c)"
 
 
-def test_two_suffixes_are_not_collapsed() -> None:
-    """参考实现（citeproc-js）两条不折，这里保持一致。"""
+def test_two_suffixes_also_omit_the_second_year() -> None:
     engine = _engine(2, SPRINGER)
-    assert _text(engine, ["g0", "g1"]) == "(Green 2020a, 2020b)"
+    assert _text(engine, ["g0", "g1"]) == "(Green 2020a, b)"
 
 
-def test_four_consecutive_suffixes_span_the_whole_run() -> None:
+def test_four_suffixes_print_one_year() -> None:
     engine = _engine(4, SPRINGER)
-    assert _text(engine, ["g0", "g1", "g2", "g3"]) == "(Green 2020a–d)"
+    assert _text(engine, ["g0", "g1", "g2", "g3"]) == "(Green 2020a, b, c, d)"
 
 
-def test_a_gap_breaks_the_range() -> None:
+def test_a_gap_keeps_the_suffix_order() -> None:
     engine = _engine(4, SPRINGER)
-    assert _text(engine, ["g0", "g1", "g3"]) == "(Green 2020a, 2020b, 2020d)"
+    assert _text(engine, ["g0", "g1", "g3"]) == "(Green 2020a, b, d)"
+
+
+def test_a_different_year_prints_in_full() -> None:
+    bib = (
+        "@article{g0, author={Green, George}, title={T0}, journal={J}, year={2020}}\n"
+        "@article{g1, author={Green, George}, title={T1}, journal={J}, year={2020}}\n"
+        "@article{g2, author={Green, George}, title={T2}, journal={J}, year={2021}}\n"
+    )
+    engine = CitationEngine(bib, SPRINGER, lang="en")
+    engine.reserve(["g0", "g1", "g2"])
+    assert _text(engine, ["g0", "g1", "g2"]) == "(Green 2020a, b, 2021)"
 
 
 def test_year_styles_keep_listing_suffixes() -> None:

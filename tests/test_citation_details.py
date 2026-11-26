@@ -438,6 +438,15 @@ def test_block_display_starts_a_new_line(tmp_path: Path) -> None:
         assert LINE_BREAK in "".join(text for text, _ in segments)
 
 
+def test_block_join_keeps_the_seam_normalization() -> None:
+    """`display` 的组装路径不能绕过 `join()` 的边界归一化，否则会多一个空格。"""
+    from md_to_word.csl.model import _join_blocks
+    from md_to_word.csl.string import String
+
+    parts = [String("Things. "), String("London")]
+    assert str(_join_blocks(parts, ". ")) == "Things. London"
+
+
 def test_block_display_becomes_a_word_line_break(tmp_path: Path) -> None:
     """OOXML 里段内换行是 `<w:br/>`，不能写进 `<w:t>` 当普通字符。"""
     (tmp_path / "block.csl").write_text(
