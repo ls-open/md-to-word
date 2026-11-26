@@ -14,6 +14,25 @@ from .string import String, join, normalize_seam
 
 LANG_KEY = '{http://www.w3.org/XML/1998/namespace}lang'
 
+CSL_NAMESPACE = 'http://purl.org/net/xbiblio/csl'
+
+
+def _is_csl(node, *names):
+    """`node` 是 CSL 命名空间下的 `names` 之一。"""
+    tag = node.tag if node is not None else None
+    return (isinstance(tag, str)
+            and tag.startswith('{' + CSL_NAMESPACE + '}')
+            and tag.rsplit('}', 1)[-1] in names)
+
+
+def _ancestor(node, *names, include_self=False):
+    """最近的 CSL 祖先（或自身）；xpath 的 `ancestor::…[1]` 慢在每次重新求值。"""
+    if not include_self:
+        node = node.getparent()
+    while node is not None and not _is_csl(node, *names):
+        node = node.getparent()
+    return node
+
 
 def _script_language(text):
     if re.search(r'[぀-ヿ]', text):
@@ -178,7 +197,23 @@ class CitationStylesElement(SomewhatObjectifiedElement):
         return self.getroottree().getroot()
 
     def xpath_search(self, expression):
-        return self.xpath(expression, namespaces=self.nsmap)
+        """带缓存的 XPath。
+
+        样式树解析之后不再改动，查询（term、macro、date-part、子元素）结果都是固定的；
+        lxml 每次重新求值要几十微秒，一次导出会问上万次。缓存挂在文档根上：lxml 只有
+        在 Python 还引用着代理对象时才复用同一个代理，挂在元素自己身上会在代理回收后
+        丢掉；以元素为键顺带把代理钉住。不同的样式副本各有各的树，互不影响。
+        """
+        root = self.get_root()
+        cache = root.__dict__.get('_xpath_cache')
+        if cache is None:
+            cache = root.__dict__['_xpath_cache'] = {}
+        key = (self, expression)
+        result = cache.get(key)
+        if result is None:
+            result = self.xpath(expression, namespaces=self.nsmap)
+            cache[key] = result
+        return result
 
     def get_option(self, name):
         return self.get(name, self._default_options[name])
@@ -188,7 +223,10 @@ class CitationStylesElement(SomewhatObjectifiedElement):
         return self.get_root().xpath_search(expression)[0]
 
     def get_layout(self):
-        return self.xpath_search('./ancestor-or-self::cs:layout[1]')[0]
+        layout = _ancestor(self, 'layout', include_self=True)
+        if layout is None:
+            raise IndexError('no enclosing layout')
+        return layout
 
     def get_formatter(self):
         if isinstance(self.get_root(), Locale):
@@ -1033,12 +1071,7 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
 class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
 
     def is_locale_date(self):
-        expr = './ancestor::cs:locale[1]'
-        try:
-            self.xpath_search(expr)[0]
-            return True
-        except IndexError:
-            return False
+        return _ancestor(self, 'locale') is not None
 
     def render_single_date(self, date, show_parts=None, context=None):
         if context != self:
@@ -1286,10 +1319,11 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
 class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
 
     def get_parent_delimiter(self, context=None):
-        expr = './ancestor::*[self::cs:citation or self::cs:bibliography][1]'
         if context is None:
             context = self
-        parent = context.xpath_search(expr)[0]
+        parent = _ancestor(context, 'citation', 'bibliography')
+        if parent is None:
+            raise IndexError('no enclosing citation or bibliography')
         return parent.get_option('names-delimiter')
 
     def substitute(self):
@@ -1406,11 +1440,11 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
         try:
             value = sort_options[name]
         except (TypeError, KeyError):
-            expr = ('./ancestor::*[self::cs:citation or '
-                                  'self::cs:bibliography][1]')
             if context is None:
                 context = self
-            parent = context.xpath_search(expr)[0]
+            parent = _ancestor(context, 'citation', 'bibliography')
+            if parent is None:
+                raise IndexError('no enclosing citation or bibliography') from None
             if name in ('form', 'delimiter'):
                 value = self.get(name, parent.get_option('name-' + name))
             else:
@@ -1547,11 +1581,8 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
         init_opt = self.get("initialize")
         if init_opt is None:
             ctx = context if context is not None else self
-            try:
-                parent = ctx.xpath_search("./ancestor::*[self::cs:citation or self::cs:bibliography][1]")[0]
-                init_opt = parent.get("initialize")
-            except Exception:
-                init_opt = None
+            parent = _ancestor(ctx, 'citation', 'bibliography')
+            init_opt = parent.get("initialize") if parent is not None else None
             if init_opt is None:
                 try:
                     init_opt = self.get_root().get("initialize")
@@ -1608,10 +1639,8 @@ class Substitute(CitationStylesElement, Parent):
 
     def render(self, item, context=None, **kwargs):
         ctx = context if context is not None else self
-        try:
-            parent_names = self.xpath_search("./parent::cs:names[1]")[0]
-        except Exception:
-            parent_names = None
+        parent = self.getparent()
+        parent_names = parent if _is_csl(parent, 'names') else None
         for child in self.getchildren():
             staging: dict[str, set[str]] = {}
             sub_group_frame = [False, False]
@@ -1872,7 +1901,7 @@ class If(CitationStylesElement, Parent):
     def _position(self, item, context):
         if context is None:
             context = self
-        if context.xpath_search('./ancestor::*[self::cs:bibliography]'):
+        if _ancestor(context, 'bibliography') is not None:
             return [False]
         # citation node
         cites = context.get_layout().getparent().cites

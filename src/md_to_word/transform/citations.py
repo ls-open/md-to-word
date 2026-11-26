@@ -81,18 +81,21 @@ class CitationEngine:
                 "citations.style_unsupported", lang,
                 feature="; ".join(exc.errors), path=csl_path,
             )) from exc
+        self._style_locale = "en-US" if self.citation_lang == "en" else None
         try:
-            style = CitationStylesStyle(
-                str(csl_path),
-                locale="en-US" if self.citation_lang == "en" else None,
-            )
+            style = CitationStylesStyle(str(csl_path), locale=self._style_locale)
         except Exception as exc:  # 样式文件本身有问题
             raise CitationError(t("citations.style_unparsable", lang, path=csl_path, err=exc)) from exc
         # segments 而不是 plain：CSL 里的斜体、上标（Nature 的引文编号就是上标）
         # 直接作为 run 属性返回，写出器不用再从标记串里还原。
         self._style = style
+        # 条目数据只解析一次：CiteProcJSON 会把每条字符串拆成结构化 run，120 条就要
+        # 几毫秒。原先每次试探渲染都重建一遍，reserve() 的耗时基本都是它。
+        self._source = CiteProcJSON(self.entries)
+        self._name_sources: dict[tuple, CiteProcJSON] = {}
+        self._cloned_styles: dict[int, CitationStylesStyle] = {}
         self._bibliography = CitationStylesBibliography(
-            style, CiteProcJSON(self.entries), formatter.segments
+            style, self._source, formatter.segments
         )
         self._known = {entry["id"] for entry in self.entries}
         self._rendered: dict[tuple, str] = {}
@@ -126,6 +129,12 @@ class CitationEngine:
         self._rule_names = rule != "by-cite"
         self._initials_all = rule.startswith("all-names")
         self._initials_only = rule.endswith("with-initials")
+        # 数字制样式（29 份里 19 份）没有任何消歧设置：reserve() 的逐条探针渲染
+        # 只为消歧服务，样式不用就可以整段跳过。
+        self._needs_disambiguation = bool(
+            self._add_givenname or self._add_names or self._year_suffix
+            or "disambiguate" in style_text
+        )
         self._cloner = StyleCloner(style_text, int(options.get("et-al-use-first", "1") or 1))
         citation_block = _citation_block(style_text)
         sort_block = re.search(r"<sort>(.*?)</sort>", citation_block, re.S)
@@ -151,6 +160,8 @@ class CitationEngine:
         首字母在 `primary-name*` 规则下是名字级的：同姓不同人即使年份不同也要补（APA 8.20），
         所以按「第一作者姓」分组判定；在 `by-cite` 规则（如 MLA、Harvard）下仅对撞车的引用组补。
         """
+        if not self._needs_disambiguation:
+            return
         cited = [key for key in dict.fromkeys(keys) if key in self._known]
         if not cited:
             return
@@ -202,8 +213,10 @@ class CitationEngine:
                 for index, key in enumerate(group):
                     self._by_key[key]["year-suffix"] = _suffix_label(index)
             # 条目数据变了，重建引用源：CiteProcJSON 的条目在构造时已抓走
+            self._source = CiteProcJSON(self.entries)
+            self._name_sources.clear()
             self._bibliography = CitationStylesBibliography(
-                self._style, CiteProcJSON(self.entries), formatter.segments
+                self._style, self._source, formatter.segments
             )
             self._variant_cache.clear()
 
@@ -296,20 +309,41 @@ class CitationEngine:
         「只给第一个名字加首字母」的写法，`primary-name-with-initials` 只能这么做。
         补名字走**样式副本**：显示几个名字是样式属性，条目数据改不了。
         """
-        entries = self.entries
-        if variant.initials or variant.full_names:
-            entries = with_names(self.entries, key, initials_all=self._initials_all, full=variant.full_names)
         style = self._style
         if variant.extra_names:
-            style = CitationStylesStyle(str(self._cloner.path(Variant(extra_names=variant.extra_names))))
+            style = self._cloned_style(variant.extra_names)
         bibliography = CitationStylesBibliography(
-            style, CiteProcJSON(entries), formatter.segments
+            style, self._source_for(key, variant), formatter.segments
         )
         citation = Citation([self._citation_item((key, locator, prefix, label))])
         bibliography.register(citation)
         with self._disambiguation_context():
             rendered = to_segments(bibliography.cite(citation, lambda item: item))
         return _with_year_suffix_segments(rendered, self._by_key.get(key, {}))
+
+    def _source_for(self, key: str, variant: Variant):
+        """这条引用用的条目源；补首字母/展开全名的条目副本各建一次。"""
+        if not (variant.initials or variant.full_names):
+            return self._source
+        cache_key = (key, self._initials_all, variant.full_names)
+        source = self._name_sources.get(cache_key)
+        if source is None:
+            entries = with_names(
+                self.entries, key, initials_all=self._initials_all, full=variant.full_names,
+            )
+            source = self._name_sources[cache_key] = CiteProcJSON(entries)
+        return source
+
+    def _cloned_style(self, extra_names: int):
+        """`et-al-use-first` 改过的样式副本；同一形态只解析一次。"""
+        style = self._cloned_styles.get(extra_names)
+        if style is None:
+            style = CitationStylesStyle(
+                str(self._cloner.path(Variant(extra_names=extra_names))),
+                locale=self._style_locale,
+            )
+            self._cloned_styles[extra_names] = style
+        return style
 
     @contextmanager
     def _disambiguation_context(self):
