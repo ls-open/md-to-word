@@ -52,6 +52,7 @@ from md_to_word.csl.model import (
     DISAMBIGUATE_KEYS as _DISAMBIGUATE_KEYS,
     FIRST_NAMES,
 )
+from md_to_word.csl.string import LINE_BREAK
 
 
 class CitationError(RuntimeError):
@@ -570,7 +571,10 @@ class CitationEngine:
         求值，`names-min`、`sort="descending"` 都在其中）；没声明的（数字顺序制，如
         GB/T 7714、Nature）按首次引用顺序。GB/T 7714 著者-年制再按文种分组。
         """
-        return [segments_text(segs) for _key, segs in self.bibliography_segments()]
+        return [
+            segments_text(segs).replace(LINE_BREAK, "\n")
+            for _key, segs in self.bibliography_segments()
+        ]
 
     def _separate_first_field(self, entry, number: int) -> list[tuple[str, dict]]:
         return separate_first_field(

@@ -5,9 +5,9 @@ implementation here. This gate turns the dangerous ones into a clear error
 before rendering instead of letting an unknown element crash with a `TypeError`
 or an unimplemented attribute silently change the output.
 
-It is deliberately capability-based, not schema-only: several attributes that
-the schema accepts (`display`, `range-delimiter`, `entry-spacing`, …) are used
-by the bundled styles and are accepted.
+It is deliberately capability-based, not schema-only: attributes that change
+nothing when ignored (`entry-spacing`, `line-spacing`, …) are accepted, while
+`display` and `range-delimiter` are implemented and therefore accepted too.
 """
 
 from __future__ import annotations

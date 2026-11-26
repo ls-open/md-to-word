@@ -10,7 +10,7 @@ from lxml import etree
 
 from . import DATES, LANGUAGE_NAMES, NAMES, NUMBERS, PRIMARY_DIALECTS
 from .source import DateRange, LiteralDate, VariableError
-from .string import String, join, normalize_seam
+from .string import LINE_BREAK, MixedString, String, join, normalize_seam
 
 LANG_KEY = '{http://www.w3.org/XML/1998/namespace}lang'
 
@@ -92,6 +92,29 @@ DISAMBIGUATE_KEYS: ContextVar[frozenset[str]] = ContextVar(
 FIRST_NAMES: ContextVar[list[str] | None] = ContextVar(
     "md2word_first_names", default=None
 )
+
+# `display="block"` 只在文献表里有意义；正文引用不受影响。
+BLOCK_MODE: ContextVar[bool] = ContextVar("md2word_block_mode", default=False)
+
+
+class Block(MixedString):
+    """由 `display="block"` 元素渲染出的值：父级在它前后断行。"""
+
+
+def _join_blocks(parts, delimiter=''):
+    """按 `display="block"` 组装子元素：块与相邻元素之间用换行代替分隔符。"""
+    output = None
+    previous_block = False
+    for part in parts:
+        is_block = isinstance(part, Block)
+        if output is None:
+            output = part
+        elif is_block or previous_block:
+            output = output + LINE_BREAK + part
+        else:
+            output = output + delimiter + part
+        previous_block = is_block
+    return output
 
 
 class _ThreadLocalList:
@@ -246,7 +269,18 @@ class CitationStylesElement(SomewhatObjectifiedElement):
         return self.preformat(unicodedata.lookup(name))
 
     def render(self, *args, **kwargs):
-        return self.markup(self.process(*args, **kwargs))
+        return self._blockify(self.markup(self.process(*args, **kwargs)))
+
+    def _blockify(self, value):
+        """`display="block"` 的值打上标记，交给父级在边界处断行。"""
+        if (
+            value is not None
+            and BLOCK_MODE.get()
+            and not isinstance(value, Block)
+            and str(self.get('display', '')).lower() in ('block', 'indent')
+        ):
+            return Block(value if isinstance(value, MixedString) else [value])
+        return value
 
     def _locales_for(self, language):
         """Locale chain for one item, most specific first.
@@ -847,7 +881,7 @@ class Parent:
             except VariableError:
                 pass
         if output:
-            return join(output, delimiter)
+            return _join_blocks(output, delimiter)
         else:
             return None
 
@@ -908,12 +942,16 @@ class Layout(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
 
     def render_bibliography(self, citation_items, layout_for=None):
         output_items = []
-        for item in citation_items:
-            layout = layout_for(item) if layout_for else self
-            layout.repressed = {}
-            text = layout.format(layout.wrap(layout.render_children(item)))
-            if text is not None:
-                output_items.append(text)
+        token = BLOCK_MODE.set(True)
+        try:
+            for item in citation_items:
+                layout = layout_for(item) if layout_for else self
+                layout.repressed = {}
+                text = layout.format(layout.wrap(layout.render_children(item)))
+                if text is not None:
+                    output_items.append(text)
+        finally:
+            BLOCK_MODE.reset(token)
         return output_items
 
 
@@ -996,7 +1034,7 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
 
     def render(self, *args, **kwargs):
         text, language = self.process(*args, **kwargs)
-        return self.markup(text, language)
+        return self._blockify(self.markup(text, language))
 
     def process(self, item, context=None, **kwargs):
         if context is None:
@@ -1833,7 +1871,7 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
             default_locale = root.get("default-locale", "en") if root is not None else "en"
             lang = default_locale
         lang = str(lang)[:2].lower()
-        return self.wrap(self.format(self.case(self.strip_periods(text), lang)))
+        return self._blockify(self.wrap(self.format(self.case(self.strip_periods(text), lang))))
 
 
 class Group(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
@@ -1863,7 +1901,7 @@ class Group(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
             output = [part for part in output if part is not None]
             success = (not frame[0]) or frame[1]
             if output and success:
-                return self.join(output)
+                return _join_blocks(output, self.get('delimiter', ''))
             raise VariableError
         finally:
             group_frames.pop()

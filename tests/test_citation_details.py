@@ -406,6 +406,56 @@ def test_repeated_author_is_replaced_in_mla_bibliography() -> None:
     assert rendered[2].startswith("———."), rendered
 
 
+BLOCK_STYLE = '''<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>probe</title><id>probe</id><updated>2024-01-01T00:00:00+00:00</updated></info>
+  <citation><layout><text variable="title"/></layout></citation>
+  <bibliography><layout suffix=".">
+    <group display="block"><text variable="title"/></group>
+    <group display="{display}"><text variable="publisher"/></group>
+    <group delimiter=", "><text variable="publisher-place"/>
+      <date variable="issued"><date-part name="year"/></date></group>
+  </layout></bibliography>
+</style>'''
+
+
+def test_block_display_starts_a_new_line(tmp_path: Path) -> None:
+    """`display="block"`（以及 `indent`）让文献条目内部换行，而不是挤成一段。"""
+    from md_to_word.csl.string import LINE_BREAK
+
+    for display in ("block", "indent"):
+        style = tmp_path / f"{display}.csl"
+        style.write_text(BLOCK_STYLE.replace("{display}", display), encoding="utf-8")
+        engine = CitationEngine(
+            "@book{b, author={Smith, John}, title={A Book}, publisher={Acme Press}, "
+            "address={London}, year={2020}}",
+            style, lang="en",
+        )
+        engine.reserve(["b"])
+        engine.cite([("b", "")])
+        assert engine.bibliography()[0] == "A Book\nAcme Press\nLondon, 2020."
+
+        segments = engine.bibliography_segments()[0][1]
+        assert LINE_BREAK in "".join(text for text, _ in segments)
+
+
+def test_block_display_becomes_a_word_line_break(tmp_path: Path) -> None:
+    """OOXML 里段内换行是 `<w:br/>`，不能写进 `<w:t>` 当普通字符。"""
+    (tmp_path / "block.csl").write_text(
+        BLOCK_STYLE.replace("{display}", "block"), encoding="utf-8")
+    (tmp_path / "refs.bib").write_text(
+        "@book{b, author={Smith, John}, title={A Book}, publisher={Acme Press}, "
+        "address={London}, year={2020}}\n", encoding="utf-8")
+    (tmp_path / "m.md").write_text(
+        "---\nbibliography: refs.bib\ncsl: block.csl\n---\n\n# 一\n\n引用 [@b]。\n\n"
+        "%% 参考文献标题 参考文献\n", encoding="utf-8")
+    out = tmp_path / "m.docx"
+    result = run_export_pipeline(ExportOptions(input_path=tmp_path / "m.md", output_path=out))
+    assert result.returncode == 0, result.errors
+
+    xml = zipfile.ZipFile(out).read("word/document.xml").decode("utf-8")
+    assert "A Book</w:t><w:br/><w:t" in xml, xml[xml.find("A Book")-80:xml.find("A Book")+300]
+
+
 def test_date_range_uses_the_declared_range_delimiter(tmp_path: Path) -> None:
     """日期区间的分隔符写在 `<date-part range-delimiter>` 上，默认才是短横线。"""
     style = '''<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">

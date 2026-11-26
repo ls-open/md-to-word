@@ -37,6 +37,7 @@ from docx.section import Section
 from docx.shared import Cm, Emu
 
 from md_to_word.config import default_crossref_prefixes, looks_chinese
+from md_to_word.csl.string import LINE_BREAK
 from md_to_word.i18n import t
 from md_to_word.utils.docx_zip import normalize_zip
 from md_to_word.utils.pdf_figure import PdfFigureError, is_pdf, rasterize
@@ -1353,13 +1354,16 @@ class _Writer:
             props.append('<w:vertAlign w:val="subscript"/>')
         rpr = f"<w:rPr>{''.join(props)}</w:rPr>" if props else ""
         runs = []
-        for index, chunk in enumerate(text.split("\t")):
-            if index:
-                runs.append("<w:r><w:tab/></w:r>")
-            if chunk:
-                runs.append(
-                    f'<w:r>{rpr}<w:t xml:space="preserve">{_escape(chunk)}</w:t></w:r>'
-                )
+        for line_index, line in enumerate(text.split(LINE_BREAK)):
+            if line_index:
+                runs.append(f"<w:r>{rpr}<w:br/></w:r>")
+            for index, chunk in enumerate(line.split("\t")):
+                if index:
+                    runs.append("<w:r><w:tab/></w:r>")
+                if chunk:
+                    runs.append(
+                        f'<w:r>{rpr}<w:t xml:space="preserve">{_escape(chunk)}</w:t></w:r>'
+                    )
         return "".join(runs)
 
     def _citation_xml(self, node: Citation) -> str:
@@ -1517,15 +1521,19 @@ class _Writer:
                 el.set(qn("w:val"), "subscript")
                 rpr.append(el)
             run.append(rpr)
-        # 制表符在 OOXML 里是 `<w:tab/>`，写进 `<w:t>` 会被 Word 当普通空白
-        for index, chunk in enumerate(text.split("\t")):
-            if index:
-                run.append(run.makeelement(qn("w:tab"), {}))
-            if chunk:
-                t = run.makeelement(qn("w:t"), {})
-                t.text = chunk
-                t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-                run.append(t)
+        # 制表符在 OOXML 里是 `<w:tab/>`，写进 `<w:t>` 会被 Word 当普通空白；
+        # `display="block"` 的换行同理，落成 `<w:br/>`。
+        for line_index, line in enumerate(text.split(LINE_BREAK)):
+            if line_index:
+                run.append(run.makeelement(qn("w:br"), {}))
+            for index, chunk in enumerate(line.split("\t")):
+                if index:
+                    run.append(run.makeelement(qn("w:tab"), {}))
+                if chunk:
+                    t = run.makeelement(qn("w:t"), {})
+                    t.text = chunk
+                    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+                    run.append(t)
         return run
 
     def _hyperlink(self, paragraph, node: Link) -> None:

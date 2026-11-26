@@ -4,6 +4,10 @@ from functools import wraps
 # Punctuation characters that should not be duplicated when two of them end up
 # adjacent at a concatenation seam (e.g. a suffix '.' following text that
 # already ends in '.').
+# `display="block"` 在一条文献里断行。用行分隔符而不是 `\n`：空格合并、rstrip 这些
+# 处理不会把它当成普通空白吃掉；写出器见到它落成 `<w:br/>`。
+LINE_BREAK = '\u2028'
+
 SEAM_PUNCTUATION = frozenset('.,;:!?')
 # Punctuation that already closes a clause or sentence. A period appended after
 # one of these is redundant: `2020;` + `. ` must not become `2020;.`.
