@@ -42,6 +42,10 @@ from md_to_word.spec.constants import (
     TWIPS_PER_CM,
     is_cjk_font,
 )
+from md_to_word.template.tables import (
+    TABLE_CELL_MARGIN_DEFAULT_LR_CM,
+    TABLE_CELL_MARGIN_DEFAULT_TB_CM,
+)
 from md_to_word.template.checks import (
     REQUIRED_STYLES,
     TOC_STYLE_GROUP,
@@ -590,10 +594,15 @@ def read_table(ref: Ref) -> tuple:
                 e = mar.find(q(side))
                 raw = (e.get(q('w')) or '').strip() if e is not None else ''
                 twips.append(int(raw) if raw.isdigit() else None)
+            default_lr = int(round(TABLE_CELL_MARGIN_DEFAULT_LR_CM * TWIPS_PER_CM))
+            default_tb = int(round(TABLE_CELL_MARGIN_DEFAULT_TB_CM * TWIPS_PER_CM))
             if len(set(twips)) == 1 and twips[0] is not None:
                 line.append(f'单元格内边距{round(twips[0] / TWIPS_PER_CM, 2):g}cm')
+            elif twips == [default_tb, default_lr, default_tb, default_lr]:
+                # Word 的常规默认（左右 0.19、上下 0）：不写就是它，不必写进草稿
+                pass
             else:
-                # 四边不同值：格式文件只有一个数，读不出来就要说，不能挑一边写上去
+                # 四边不同值，或只有左右有非默认值：格式文件只有一个四边同值的数，读不出来就要说
                 doubt.append(t('extractor.note.table_cell_margin_uneven', ref.lang,
                                name=_style_label(tbl)))
         out.append(' '.join(line))

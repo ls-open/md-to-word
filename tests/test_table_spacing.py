@@ -56,18 +56,30 @@ def _part(tmp_path: Path, name: str) -> bytes:
     return zipfile.ZipFile(tmp_path / "m.docx").read(name)
 
 
-def test_cell_margin_reaches_all_four_sides(tmp_path):
-    """`单元格内边距` 说的是四周：只管左右的话，词名就在骗人。"""
-    assert SPEC != PRESET, "预设里的表格行改了，这条断言要跟着改"
-    result = _export(tmp_path)
-    assert result.returncode == 0, result.errors
+def _table_margins(tmp_path: Path) -> list[str]:
     styles = etree.fromstring(_part(tmp_path, "word/styles.xml"))
     cell_mar = next(
         s.find(f"{W}tblPr/{W}tblCellMar") for s in styles.iter(f"{W}style")
         if any(n.get(W + "val") == "Table" for n in s.findall(f"{W}name"))
     )
-    assert [cell_mar.find(W + s).get(W + "w")
-            for s in ("top", "left", "bottom", "right")] == ["85"] * 4
+    return [cell_mar.find(W + s).get(W + "w")
+            for s in ("top", "left", "bottom", "right")]
+
+
+def test_cell_margin_reaches_all_four_sides(tmp_path):
+    """`单元格内边距` 说的是四周：只管左右的话，词名就在骗人。"""
+    assert SPEC != PRESET, "预设里的表格行改了，这条断言要跟着改"
+    result = _export(tmp_path)
+    assert result.returncode == 0, result.errors
+    assert _table_margins(tmp_path) == ["85"] * 4
+
+
+def test_default_cell_margin_matches_word(tmp_path):
+    """不写时跟 Word 的 Normal Table 一致：左右 0.19cm（108 twips）、上下 0。"""
+    result = _export(tmp_path, spec=PRESET)
+    assert result.returncode == 0, result.errors
+    assert _table_margins(tmp_path) == ["0", "108", "0", "108"]
+    assert not any("单元格内边距" in msg for _, msg in audit(tmp_path / "m.docx", tmp_path / "f.txt"))
 
 
 def test_table_gap_lands_after_the_table_note(tmp_path):
@@ -147,6 +159,29 @@ def test_extractor_reads_cell_margin_only_when_it_is_uniform(tmp_path, sides, ex
         assert any("单元格内边距" in note for note in doubt), doubt
     else:
         assert expected in lines[0], lines
+
+
+def test_extractor_accepts_word_default_cell_margin(tmp_path: Path) -> None:
+    """参考表用 Word 默认（左右 0.19、上下 0）时，草稿不必写，也不该报“读不出来”。"""
+    document = Document()
+    document.add_table(rows=2, cols=2, style="Table Grid")
+    style = next(s for s in document.styles.element.findall(q("style"))
+                 if s.get(q("styleId")) == "TableGrid")
+    tbl_pr = style.find(q("tblPr"))
+    for stale in tbl_pr.findall(q("tblCellMar")):
+        tbl_pr.remove(stale)
+    mar = tbl_pr.makeelement(q("tblCellMar"), {})
+    for side, twips in zip(("top", "left", "bottom", "right"), (0, 108, 0, 108)):
+        el = mar.makeelement(q(side), {})
+        el.set(q("w"), str(twips))
+        mar.append(el)
+    tbl_pr.append(mar)
+    path = tmp_path / "reference.docx"
+    document.save(path)
+
+    lines, doubt = read_table(Ref(path, "zh"))
+    assert not any("单元格内边距" in line for line in lines)
+    assert not any("单元格内边距" in note for note in doubt), doubt
 
 
 def _rewrite(docx: Path, name: str, content: str) -> None:

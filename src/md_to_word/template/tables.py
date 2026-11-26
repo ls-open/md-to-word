@@ -32,14 +32,22 @@ TABLE_DEFAULT_WIDTHS = {
 
 TABLE_BORDER_SIDES = ('top', 'left', 'bottom', 'right', 'insideH', 'insideV')
 
-# ── 表格单元格左右内边距：**声明项**，不写即 0 ──
-# 要求文件写「单元格内边距0.19cm」即生效；不写时用 0，且**显式写进产物**——
-# 不能让底模的 Table→Normal Table 继承值替我们决定（继承来的值没人声明过，却实实在在
-# 决定产物长相）。默认 0 不是审美选择：渲染器把 `tblW` 写成 100%、`tblLayout` 写成 fixed，
-# 列宽由 Markdown 分隔行的比例决定，**列宽之和恒等于版心宽度**——内边距没有"额外空间"
-# 可占，只能从列里扣。默认取 0，"分隔行的比例"才等于"文字实际能用的宽度"；要留白就写出来，
-# 那时少掉的那点宽度是声明过的、可追责的。
-TABLE_CELL_MARGIN_DEFAULT_CM = 0.0
+# ── 表格单元格内边距 ──
+# 默认跟 Word 的 Normal Table 一致：左右 0.19cm、上下 0。上下留 0 是为了不把行撑高，
+# 左右留一点是为了三线表没有竖线时相邻列的文字不粘在一起。显式写
+# 「单元格内边距Ncm」时仍按四周同一个值处理，想四周留白就写出来。
+TABLE_CELL_MARGIN_DEFAULT_LR_CM = 0.19
+TABLE_CELL_MARGIN_DEFAULT_TB_CM = 0.0
+
+
+def cell_margin_twips(table: dict | None = None) -> dict[str, int]:
+    """单元格四边内边距（twips）：显式声明按四周同值，否则用 Word 的左右 0.19 / 上下 0。"""
+    if table and 'cell_margin_cm' in table:
+        value = int(round(float(table['cell_margin_cm']) * TWIPS_PER_CM))
+        return {side: value for side in ('top', 'left', 'bottom', 'right')}
+    lr = int(round(TABLE_CELL_MARGIN_DEFAULT_LR_CM * TWIPS_PER_CM))
+    tb = int(round(TABLE_CELL_MARGIN_DEFAULT_TB_CM * TWIPS_PER_CM))
+    return {'top': tb, 'left': lr, 'bottom': tb, 'right': lr}
 
 
 def table_border_widths(style: str, declared: dict) -> dict:
@@ -180,14 +188,13 @@ def apply_table_format(doc, spec, default_latin=None, lang: str = "zh"):
         # （写出器按 spec.table_header.repeat_header 补）。
         logger.debug(' ✓ Table: 已设置表头行格式')
 
-    # 单元格内边距：四周同一个值，要求文件写「单元格内边距Ncm」才生效，不写用 0。
-    # 无论声明与否都要**写进产物**：底模的 Table→Normal Table 继承链里有 0.19cm，
-    # 不写就等于默认被它决定（见 TABLE_CELL_MARGIN_DEFAULT_CM）。
-    margin_twips = int(round(table.get('cell_margin_cm', TABLE_CELL_MARGIN_DEFAULT_CM) * TWIPS_PER_CM))
+    # 单元格内边距：不写时跟 Word 默认（左右 0.19、上下 0）；写了「单元格内边距」按
+    # 四周同值。无论声明与否都**写进产物**，不让底模的继承链替我们决定。
+    margins = cell_margin_twips(table)
     cell_mar = ensure_ordered_child(tbl_pr, 'tblCellMar', _TBLPR_ORDER)
     for side in ('top', 'left', 'bottom', 'right'):
         el = ensure_ordered_child(cell_mar, side, ('top', 'left', 'bottom', 'right'))
-        el.set(W('w'), str(margin_twips))
+        el.set(W('w'), str(margins[side]))
         el.set(W('type'), 'dxa')
     if 'cell_margin_cm' in table:
         logger.debug(f' ✓ Table: 单元格内边距={table["cell_margin_cm"]}cm')

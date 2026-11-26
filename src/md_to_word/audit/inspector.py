@@ -28,13 +28,12 @@ from md_to_word.template.core import (
 )
 from md_to_word.template.decor import read_header_styles_meta
 from md_to_word.template.tables import (
-    TABLE_BORDER_SIDES, TABLE_CELL_MARGIN_DEFAULT_CM, TABLE_DEFAULT_WIDTHS,
-    table_border_widths,
+    TABLE_BORDER_SIDES, TABLE_DEFAULT_WIDTHS, cell_margin_twips, table_border_widths,
 )
 
 from md_to_word.config import looks_chinese
 from md_to_word.spec.constants import (
-    ALIGN_ENUM_VAL, ROW_NAME_EN, TWIPS_PER_CM, is_cjk_font,
+    ALIGN_ENUM_VAL, ROW_NAME_EN, is_cjk_font,
 )
 from md_to_word.spec.parser import parse_format
 from md_to_word.i18n import t
@@ -595,19 +594,18 @@ def audit(docx: Path, fmt_path: Path, lang: str = "zh") -> list:
                                      t('audit.msg.table_valign', lang,
                                        want=want_va, got=got_va)))
 
-            # 单元格内边距：四周同值，由 `单元格内边距Ncm` 定。
-            # **不写也要对账**——底模的继承链里有个默认值，它不落进 Table 样式就等于由
-            # 继承链说了算，而要求文件里写着"不写即 0"。
-            want_cm = spec.table.get('cell_margin_cm', TABLE_CELL_MARGIN_DEFAULT_CM)
-            want_w = str(int(round(want_cm * TWIPS_PER_CM)))
+            # 单元格内边距：显式 `单元格内边距Ncm`（cell_margin_cm）按四周同值；
+            # 不写时按 Word 默认（左右 0.19、上下 0）。两者都由 cell_margin_twips 折算，
+            # **不写也要对账**，不让底模继承链替我们决定。
+            want = cell_margin_twips(spec.table)
             cell_mar = tbl_pr.find(W + 'tblCellMar') if tbl_pr is not None else None
             for side in ('top', 'left', 'bottom', 'right'):
                 e = cell_mar.find(W + side) if cell_mar is not None else None
                 got_w = e.get(W + 'w') if e is not None else None
-                if got_w != want_w:
+                if got_w != str(want[side]):
                     problems.append((t('audit.cat.table', lang),
                                      t('audit.msg.table_cell_margin', lang, side=side,
-                                       want=want_w, got=got_w)))
+                                       want=str(want[side]), got=got_w)))
 
     # ── 5. 表头跨页重复 ──
     # `w:tblHeader` 是**行属性**，要写在正文第一行的 `<w:tr>` 上；写进表样式的
