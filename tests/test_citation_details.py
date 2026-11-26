@@ -393,43 +393,13 @@ def test_substituted_names_are_not_substituted_twice(tmp_path: Path) -> None:
     assert rendered == "Ann Smith / ", rendered
 
 
-def test_unsupported_citeproc_version_is_reported_not_silently_degraded(
-    monkeypatch, caplog
-) -> None:
-    """装了范围外的 citeproc-py：九处 CSL 补丁会整体不生效，但不会报错。
-
-    文献表照样能生成，只是悄悄退回上游的已知缺陷。既然结果是「看着正常、其实是旧的
-    bug」，那就必须吵一句——所以这里锁两条：版本不对要说，同一个进程只说一次。
-    """
-    import importlib.metadata
-
+def test_engine_comes_from_the_vendored_tree() -> None:
+    """引擎在仓库里，不是外部依赖：否则补丁与引擎版本会再次各走各的。"""
     import md_to_word.transform.citations as citations
 
-    monkeypatch.setattr(citations, "_citeproc_version_checked", False)
-    monkeypatch.setattr(importlib.metadata, "version", lambda name: "0.11.1")
-
-    with caplog.at_level("WARNING", logger="md_to_word.transform.citations"):
-        _apa()
-    assert "citeproc-py" in caplog.text and "0.11.1" in caplog.text
-
-    caplog.clear()
-    with caplog.at_level("WARNING", logger="md_to_word.transform.citations"):
-        _apa()
-    assert not caplog.text, "同一个进程不该反复念同一句"
-
-
-def test_supported_citeproc_version_stays_quiet(monkeypatch, caplog) -> None:
-    """范围内（0.12.x）不出声——否则这句提醒会因为太常见而被忽略。"""
-    import importlib.metadata
-
-    import md_to_word.transform.citations as citations
-
-    monkeypatch.setattr(citations, "_citeproc_version_checked", False)
-    monkeypatch.setattr(importlib.metadata, "version", lambda name: "0.12.2")
-
-    with caplog.at_level("WARNING", logger="md_to_word.transform.citations"):
-        _apa()
-    assert not caplog.text
+    assert citations.CitationStylesStyle.__module__.startswith(
+        "md_to_word._vendor.citeproc"
+    )
 
 
 def test_gbt_uses_the_document_language_for_et_al() -> None:

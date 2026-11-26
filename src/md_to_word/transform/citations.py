@@ -1,8 +1,11 @@
 """md_to_word.transform.citations — 文献引用的编译（CSL）。
 
-用 citeproc-py（2 MB，只依赖 lxml）做 CSL 渲染。实测：把我们自己的 .bib 转成
-CSL-JSON 之后，两套内置样式（nature、GB/T 7714）都能正常渲染；citeproc-py 自带的 BibTeX 读取器反而不产出 `issued`，直接用会抛
-VariableError——所以转换这一步由我们做（见 transform/bibtex.py）。
+CSL 渲染由内置的 citeproc-py 0.12.2 完成（BSD-2-Clause，源码在
+`md_to_word/_vendor/citeproc/`）。把它放进仓库而不是装成依赖：补丁要改的是引擎内部
+（Names/Group/Macro/Label/FormatNumber/to_ordinal），上游一换签名就会静默失效；内置之后
+补丁和引擎同版本发布，不再靠版本号互相猜。实测：把我们自己的 .bib 转成 CSL-JSON 之后，
+两套内置样式（nature、GB/T 7714）都能正常渲染；citeproc-py 自带的 BibTeX 读取器反而不
+产出 `issued`，直接用会抛 VariableError——所以转换这一步由我们做（见 transform/bibtex.py）。
 
 已知限制：citeproc-py 不支持 `suppress-author`，叙述式引用（`@key` 作句子主语）无法按
 CSL 的 author-in-text 形式渲染。这里对作者-年份制做一次保守改写把年份移进括号；
@@ -12,17 +15,18 @@ CSL 的 author-in-text 形式渲染。这里对作者-年份制做一次保守�
 from __future__ import annotations
 
 import dataclasses
-import logging
 import re
 import threading
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from citeproc import Citation, CitationItem, CitationStylesBibliography, CitationStylesStyle, formatter
-import citeproc.model as _citeproc_model
-from citeproc.source import Locator
-from citeproc.source.json import CiteProcJSON
+from md_to_word._vendor.citeproc import (
+    Citation, CitationItem, CitationStylesBibliography, CitationStylesStyle, formatter,
+)
+import md_to_word._vendor.citeproc.model as _citeproc_model
+from md_to_word._vendor.citeproc.source import Locator
+from md_to_word._vendor.citeproc.source.json import CiteProcJSON
 
 from md_to_word.transform.biblio import parse_bibliography
 from md_to_word.transform.disambiguation import (
@@ -33,9 +37,6 @@ from md_to_word.i18n import t
 _DISAMBIGUATE_KEYS: ContextVar[frozenset[str]] = ContextVar(
     "md2word_disambiguate_keys", default=frozenset()
 )
-
-logger = logging.getLogger(__name__)
-
 
 class _ThreadLocalList:
     """每个线程一份的列表，接口与 `list` 相同。
@@ -89,33 +90,8 @@ class _ThreadLocalList:
         self._items.clear()
 
 
-# 补丁是对着 citeproc-py 0.12 的内部实现写的（见 `_install_citeproc_shims`）。
-SUPPORTED_CITEPROC = (0, 12)
-_citeproc_version_checked = False
-
-
-def _warn_if_unsupported_citeproc(lang: str) -> None:
-    """citeproc-py 不在支持范围内时明说一句，每个进程一次。
-
-    九处补丁修的都是 citeproc-py 内部方法。版本不对时它们**不会报错**，只会整体不生效：
-    文献表照样生成，却悄悄退回上游的已知缺陷（APA 学位论文多印 `(Publication)`、MLA
-    每条引用强带题名、`3.5.0--rc1` 被判成复数……）。这里把「静默降级」变成一句提醒。
-    """
-    global _citeproc_version_checked
-    if _citeproc_version_checked:
-        return
-    _citeproc_version_checked = True
-    try:
-        from importlib.metadata import PackageNotFoundError, version
-
-        found = version("citeproc-py")
-        major, minor = (int(p) for p in found.split(".")[:2])
-    except (PackageNotFoundError, ValueError):
-        return
-    if (major, minor) != SUPPORTED_CITEPROC:
-        logger.warning(t("citations.citeproc_version", lang, found=found))
-
-
+# 补丁是对着内置引擎 0.12.2 的内部实现写的（见 `_install_citeproc_shims`）。引擎在
+# `_vendor/citeproc/` 里随本包发布，版本不会漂移，因此不再做运行期版本检查。
 def _install_citeproc_shims() -> None:
     """修补 citeproc-py 几处 CSL 1.0 规范遗漏：
 
@@ -565,7 +541,6 @@ class CitationEngine:
         self, bib_text: str, csl_path: Path | str, lang: str = "zh",
         citation_lang: str | None = None,
     ) -> None:
-        _warn_if_unsupported_citeproc(lang)
         self.lang = lang
         # 消息语言与引文语言是两件事：`--lang en` 只该改提示语，不该把中文稿的
         # CSL term 换成英文（反之亦然）。流水线把文档语言单独传进来。
