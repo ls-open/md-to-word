@@ -47,10 +47,11 @@ MULTIPLE = "正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对
 
 
 def test_equation_relaxes_fixed_line_spacing(tmp_path: Path) -> None:
-    """固定行距下公式段落改成同值的「最小值」：单行不变，高的自己撑开。"""
+    """固定行距下公式段落改成同值的「最小值」，并补足 6 磅段后。"""
     spacing = _equation_spacing(tmp_path, _spec_with(EXACT))
 
     assert 'w:line="400"' in spacing and 'w:lineRule="atLeast"' in spacing
+    assert 'w:after="120"' in spacing
 
 
 @pytest.mark.parametrize("line", ["行距1.0倍", "行距1.3倍"])
@@ -60,8 +61,15 @@ def test_equation_leaves_multiple_spacing_alone(tmp_path: Path, line: str) -> No
     assert _equation_spacing(tmp_path, spec) == ""
 
 
-def test_equation_does_not_override_paragraph_spacing(tmp_path: Path) -> None:
-    """公式段前段后跟正文样式走，不能再用直接格式改写成固定值。"""
+def test_equation_fills_a_small_template_gap_to_six_points(tmp_path: Path) -> None:
+    """固定行距下模板段后不足 6 磅时补到 6 磅，避免公式贴着下文。"""
+    spacing = _equation_spacing(tmp_path, _spec_with(EXACT.replace("段后0磅", "段后3磅")))
+
+    assert 'w:after="120"' in spacing
+
+
+def test_equation_does_not_override_a_larger_paragraph_gap(tmp_path: Path) -> None:
+    """模板段后大于 6 磅时保留模板值，不压回 6 磅。"""
     spacing = _equation_spacing(tmp_path, _spec_with(EXACT.replace("段后0磅", "段后12磅")))
 
     assert "w:after" not in spacing
