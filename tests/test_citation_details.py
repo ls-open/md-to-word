@@ -393,27 +393,94 @@ def test_substituted_names_are_not_substituted_twice(tmp_path: Path) -> None:
     assert rendered == "Ann Smith / ", rendered
 
 
-def test_engine_comes_from_the_vendored_tree() -> None:
-    """引擎在仓库里，不是外部依赖：否则补丁与引擎版本会再次各走各的。"""
+def test_engine_comes_from_the_csl_package() -> None:
+    """引擎在仓库里，不是外部依赖：否则修正与引擎版本会再次各走各的。"""
     import md_to_word.transform.citations as citations
 
     assert citations.CitationStylesStyle.__module__.startswith(
-        "md_to_word._vendor.citeproc"
+        "md_to_word.csl"
     )
 
 
-def test_gbt_uses_the_document_language_for_et_al() -> None:
-    """英文稿配 GB/T 不能印「等」；消息语言与文档语言是两件事。"""
+def test_each_gbt_entry_uses_its_own_language_for_et_al() -> None:
+    """GB/T 8.1.2：中文条目印「等」，西文条目印「et al.」——同一份文献表里各按各的。
+
+    消息语言与文档语言是两件事，逐条语言又不随文档语言变；这里把两种组合都锁住。
+    """
     bib = """
-@article{five, author={Alpha, Ann and Beta, Bob and Gamma, Gail and Delta, Dan and Epsilon, Eve},
-  title={T}, journal={J}, year={2020}}
+@article{zh, author={张三 and 李四 and 王五 and 赵六 and 钱七},
+  title={中文文献}, journal={中国科学}, year={2020}}
+@article{en, author={Alpha, Ann and Beta, Bob and Gamma, Gail and Delta, Dan and Epsilon, Eve},
+  title={An English Work}, journal={J}, year={2020}}
 """
     csl = CSL / "chinese-gb7714-2015-numeric.csl"
-    english = CitationEngine(bib, csl, lang="zh", citation_lang="en")
-    english.cite([("five", "")])
-    assert "et al." in english.bibliography()[0]
-    assert "等" not in english.bibliography()[0]
+    for lang, citation_lang in (("zh", "zh"), ("en", "zh"), ("zh", "en")):
+        engine = CitationEngine(bib, csl, lang=lang, citation_lang=citation_lang)
+        engine.cite([("zh", ""), ("en", "")])
+        entries = dict(engine.bibliography_entries())
+        zh_text = "".join(text for text, _ in entries["zh"])
+        en_text = "".join(text for text, _ in entries["en"])
+        assert "等" in zh_text, (lang, citation_lang, zh_text)
+        assert "et al." in en_text, (lang, citation_lang, en_text)
+        assert "等" not in en_text, (lang, citation_lang, en_text)
 
-    chinese = CitationEngine(bib, csl, lang="en", citation_lang="zh")
-    chinese.cite([("five", "")])
-    assert "等" in chinese.bibliography()[0]
+
+def test_multilayout_style_picks_layout_by_item_language(tmp_path: Path) -> None:
+    """CSL-M 的多 layout：英文条目走 `locale="en"` 那一支，中文条目走默认那一支。
+
+    2015 版 GB/T 的两份样式原本把英文 layout 注释掉了，就是因为引擎只认第一个
+    layout；现在按条目语言选，注释已经恢复。
+    """
+    csl = tmp_path / "multi.csl"
+    csl.write_text("""<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>multi</title><id>multi</id><updated>2024-01-01T00:00:00+00:00</updated></info>
+  <citation>
+    <layout locale="en" delimiter="; "><text value="EN:"/><text variable="title"/></layout>
+    <layout delimiter="; "><text value="ZH:"/><text variable="title"/></layout>
+  </citation>
+  <bibliography>
+    <layout locale="en" suffix="."><text value="EN:"/><text variable="title"/></layout>
+    <layout suffix="."><text value="ZH:"/><text variable="title"/></layout>
+  </bibliography>
+</style>""", encoding="utf-8")
+    bib = """
+@book{en, author={Alpha, Ann}, title={English}, year={2020}}
+@book{zh, author={张三}, title={中文}, year={2020}}
+"""
+    engine = CitationEngine(bib, csl, lang="zh")
+    assert _text(engine, ("en", ""), ("zh", "")) == "EN:English; ZH:中文"
+    entries = dict(engine.bibliography_entries())
+    assert "".join(t for t, _ in entries["en"]) == "EN:English."
+    assert "".join(t for t, _ in entries["zh"]) == "ZH:中文."
+
+
+def test_gbt_author_date_groups_bibliography_by_language() -> None:
+    """GB/T 7714-2015 §9.2：著者-年制按中文、日文、西文、俄文、其他集中。"""
+    bib = """
+@article{zh, author={张三}, title={中文文献}, journal={中国科学}, year={2020}}
+@article{en, author={Smith, Ann}, title={An English Work}, journal={J}, year={2021}}
+@article{ru, author={Иванов, Иван}, title={Русская статья}, journal={Журнал}, year={2019}}
+@article{ja, author={山田, 太郎}, title={日本語の論文}, journal={雑誌}, year={2022}}
+"""
+    order = [("zh", ""), ("en", ""), ("ru", ""), ("ja", "")]
+
+    author_date = CitationEngine(
+        bib, CSL / "chinese-gb7714-2015-author-date.csl", lang="zh")
+    author_date.cite(order)
+    assert [key for key, _ in author_date.bibliography_entries()] == ["zh", "ja", "en", "ru"]
+
+    numeric = CitationEngine(
+        bib, CSL / "chinese-gb7714-2015-numeric.csl", lang="zh")
+    numeric.cite(order)
+    assert [key for key, _ in numeric.bibliography_entries()] == ["zh", "en", "ru", "ja"]
+
+
+def test_style_level_locale_override_wins_for_page_ranges() -> None:
+    """GB/T 样式在通用 `<locale>` 里把页码分隔符定为 `-`；不能因为条目是中文，
+    就让系统 zh-CN 的 `～` 反盖样式自己的声明。"""
+    bib = "@article{zh, author={张三}, title={中文}, journal={中国科学}, year={2025}, pages={101--110}}"
+    engine = CitationEngine(bib, CSL / "chinese-gb7714-2015-numeric.csl", lang="zh")
+    engine.cite([("zh", "")])
+    rendered = engine.bibliography()[0]
+    assert "101-110" in rendered
+    assert "～" not in rendered

@@ -207,4 +207,4 @@ class BibliographySource(dict):
         self[entry.key] = entry
 
 
-from . import bibtex, json  # ruff: ignore[unused-import]
+from . import json as json  # noqa: E402

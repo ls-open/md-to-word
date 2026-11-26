@@ -378,6 +378,26 @@ def _clean(value: str) -> str:
     )
 
 
+_LANGUAGE_CODES = {
+    "english": "en", "american": "en", "british": "en",
+    "chinese": "zh", "中文": "zh", "汉语": "zh", "英文": "en", "英语": "en",
+    "german": "de", "french": "fr", "japanese": "ja", "russian": "ru",
+    "spanish": "es", "italian": "it", "portuguese": "pt", "korean": "ko",
+    "dutch": "nl", "swedish": "sv", "polish": "pl", "turkish": "tr",
+    "arabic": "ar", "latin": "la",
+}
+
+
+def _language_code(value: str) -> str:
+    """`english` / `en` / `en-US` → a code CSL can match against locale files."""
+    text = _clean(value)
+    key = text.lower()
+    if key in _LANGUAGE_CODES:
+        return _LANGUAGE_CODES[key]
+    first = re.split(r"[\s,;/]+", key)[0]
+    return _LANGUAGE_CODES.get(first, text)
+
+
 def _is_whole_braced(s: str) -> bool:
     """判断整段字符串是否由一对完整包裹首尾的花括号组成（排除 `{A} {B}`）。"""
     if len(s) < 2 or s[0] != "{" or s[-1] != "}":
@@ -721,6 +741,9 @@ def parse_bibtex(text: str) -> list[dict]:
             ("note", "note"),
             ("isbn", "ISBN"),
             ("issn", "ISSN"),
+            # BibTeX 的标准字段是 `language`，biblatex 另有 `langid`；两者都收，
+            # 先出现的优先。值可能是 `english` 这类语言名，统一成 `en`。
+            ("language", "language"),
             ("langid", "language"),
             ("numpages", "number-of-pages"),
             ("numberofpages", "number-of-pages"),
@@ -730,6 +753,8 @@ def parse_bibtex(text: str) -> list[dict]:
         ):
             if fields.get(source) and target not in item:
                 item[target] = fields[source]
+        if item.get("language"):
+            item["language"] = _language_code(item["language"])
         # 副题名在 CSL-JSON 里的常规写法是并进 `title`（`Title: Subtitle`）；
         # 丢掉 `subtitle` 的后果是题名被腰斩，比多印一个冒号糟得多。
         if fields.get("subtitle") and item.get("title"):

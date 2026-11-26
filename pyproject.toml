@@ -34,9 +34,8 @@ dependencies = [
     # LaTeX → MathML：MathML 是 W3C 标准，解析器借成熟的；MathML → OMML 没有标准，
     # 那一段在我们自己的 transform/mathml2omml.py 里
     "latex2mathml>=3.0",
-    # CSL 引文引擎：内置 citeproc-py 0.12.2（BSD-2-Clause），源码在
-    # `src/md_to_word/_vendor/citeproc/`。改变的是引擎内部方法，补丁与引擎必须同版本
-    # 发布，所以不再作为外部依赖——否则上游一换签名，补丁会静默失效。
+    # CSL 引文引擎：`src/md_to_word/csl/`，派生自 citeproc-py 0.12.2（BSD-2-Clause），
+    # 引擎内部方法已按本项目需要直接改写，因此不再作为外部依赖。
     # PDF 图 → 位图（Word 的内联图片只认位图），以及底模页面验真时读 PDF 页文本/坐标。
     # 学术稿的图大多默认导出 PDF，这一步不装就有一半稿件导不出去；页面读取也不再有
     # poppler 这个外部依赖。4.30 起 API 与 5.x 一致，老 macOS 也还有轮子
@@ -77,9 +76,9 @@ where = ["src"]
 md_to_word = [
     "presets/*.txt",
     "resources/**/*",
-    "_vendor/citeproc/LICENSE",
-    "_vendor/citeproc/data/locales/*.xml",
-    "_vendor/citeproc/data/locales/locales.json",
+    "csl/LICENSE",
+    "csl/data/locales/*.xml",
+    "csl/data/locales/locales.json",
 ]
 
 [tool.pytest.ini_options]

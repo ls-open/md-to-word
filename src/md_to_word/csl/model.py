@@ -1,6 +1,8 @@
 
 import re
+import threading
 import unicodedata
+from contextvars import ContextVar
 from functools import cmp_to_key
 from operator import itemgetter
 
@@ -9,6 +11,133 @@ from lxml import etree
 from . import DATES, LANGUAGE_NAMES, NAMES, NUMBERS, PRIMARY_DIALECTS
 from .source import DateRange, LiteralDate, VariableError
 from .string import String, join, normalize_seam
+
+LANG_KEY = '{http://www.w3.org/XML/1998/namespace}lang'
+
+
+def _script_language(text):
+    if re.search(r'[぀-ヿ]', text):
+        return 'ja'
+    if re.search(r'[Ѐ-ӿ]', text):
+        return 'ru'
+    if re.search(r'[㐀-鿿]', text):
+        return 'zh'
+    if re.search(r'[A-Za-zÀ-ɏ]', text):
+        return 'en'
+    return None
+
+
+def item_language(item):
+    """CSL-JSON `language` of the item, or a script-based inference.
+
+    Terms are looked up per item, not per document: a Chinese paper can cite an
+    English work, and GB/T 7714 requires `et al.` for that entry while Chinese
+    entries use `等`. Many BibTeX entries omit `language`, so fall back to the
+    script of the title (then the names) rather than the document locale.
+    """
+    if item is None:
+        return None
+    reference = getattr(item, 'reference', None)
+    if reference is None:
+        return None
+    try:
+        language = str(reference.language).strip()
+    except (AttributeError, VariableError, KeyError):
+        language = ''
+    if language:
+        return language
+
+    title = reference.get('title')
+    if title:
+        inferred = _script_language(str(title))
+        if inferred:
+            return inferred
+    for role in ('author', 'editor', 'translator'):
+        people = reference.get(role) or []
+        text = ' '.join(
+            str(person.get('family') or person.get('literal') or '')
+            for person in people
+        )
+        inferred = _script_language(text)
+        if inferred:
+            return inferred
+    return None
+
+# 消歧阶段由适配层写入；`<if disambiguate="true">` 在渲染期读取。
+DISAMBIGUATE_KEYS: ContextVar[frozenset[str]] = ContextVar(
+    "md2word_disambiguate_keys", default=frozenset()
+)
+
+
+class _ThreadLocalList:
+    """每个线程一份的列表，接口与 `list` 相同。
+
+    渲染期的 `<group>` / `<substitute>` 帧栈是可变状态；MCP 会在线程池里并发导出，
+    模块级列表会让两个导出互相串帧，所以按线程转发。
+    """
+
+    def __init__(self) -> None:
+        self._local = threading.local()
+
+    @property
+    def _items(self) -> list:
+        try:
+            return self._local.items
+        except AttributeError:
+            items: list = []
+            self._local.items = items
+            return items
+
+    def __getitem__(self, index):
+        return self._items[index]
+
+    def __setitem__(self, index, value) -> None:
+        self._items[index] = value
+
+    def __delitem__(self, index) -> None:
+        del self._items[index]
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __bool__(self) -> bool:
+        return bool(self._items)
+
+    def __iter__(self):
+        return iter(self._items)
+
+    def __repr__(self) -> str:
+        return repr(self._items)
+
+    def append(self, value) -> None:
+        self._items.append(value)
+
+    def pop(self, index=-1):
+        return self._items.pop(index)
+
+    def clear(self) -> None:
+        self._items.clear()
+
+
+# [var_called, var_rendered]
+group_frames = _ThreadLocalList()
+# (parent_names_elem, staging_repressed)
+sub_frames = _ThreadLocalList()
+
+
+def _is_repressed(elem, var, context) -> bool:
+    if not var:
+        return False
+    ctx = context if context is not None else elem
+    try:
+        repressed = getattr(ctx.get_layout(), "repressed", {})
+    except Exception:
+        return False
+    for item_var in repressed.get(elem.tag, ()):
+        if item_var and var in item_var.split():
+            return True
+    return False
+
 
 
 # Base class
@@ -92,19 +221,87 @@ class CitationStylesElement(SomewhatObjectifiedElement):
         return self.markup(self.process(*args, **kwargs))
 
     # TODO: Locale methods
-    def get_term(self, name, form=None, fallback_locale=True, zero_padded=False):
-        lg_key = '{http://www.w3.org/XML/1998/namespace}lang'
+    def _locales_for(self, language):
+        """Locale chain for one item, most specific first.
+
+        The style's own locales keep their precedence; the document locale stays
+        as fallback. A language missing from the chain (e.g. a French item in a
+        Chinese paper) is loaded from the bundled locale files on demand.
+        """
+        root = self.get_root()
+        locales = list(getattr(root, 'locales', ()) or ())
+        language = str(language).replace('_', '-')
+        base = language.split('-')[0].lower()
+
+        def tag(locale):
+            return (locale.get(LANG_KEY) or '').strip()
+
+        # In-style `<locale>` elements have the style as parent; system locale
+        # files are standalone roots. Style-level overrides must stay ahead of
+        # the system locale for the item language (e.g. a generic `<locale>`
+        # declaring the page-range delimiter as `-`).
+        in_style = [locale for locale in locales if locale.getparent() is not None]
+        system = [locale for locale in locales if locale.getparent() is None]
+
+        def matches(locale):
+            value = tag(locale)
+            return bool(value) and (
+                value.lower() == language.lower()
+                or value.split('-')[0].lower() == base
+            )
+
+        preferred_in_style = [locale for locale in in_style if matches(locale)]
+        generic_in_style = [locale for locale in in_style if not tag(locale)]
+        preferred_system = [locale for locale in system if matches(locale)]
+        rest = [locale for locale in locales
+                if locale not in preferred_in_style
+                and locale not in generic_in_style
+                and locale not in preferred_system]
+        if not preferred_system:
+            extra = self._load_locale(language)
+            if extra is not None:
+                preferred_system = [extra]
+        for group in (preferred_in_style, preferred_system):
+            group.sort(key=lambda locale: 0 if tag(locale).lower() == language.lower() else 1)
+        return preferred_in_style + generic_in_style + preferred_system + rest
+
+    def _load_locale(self, language):
+        root = self.get_root()
+        cache = getattr(root, '_md2word_locale_cache', None)
+        if cache is None:
+            cache = {}
+            root._md2word_locale_cache = cache
+        key = language.lower()
+        if key in cache:
+            return cache[key]
+        from .frontend import CitationStylesLocale
+
+        code = language
+        if '-' not in code:
+            code = PRIMARY_DIALECTS.get(code.lower(), code)
+        try:
+            locale = CitationStylesLocale(code).root
+        except (OSError, ValueError):
+            cache[key] = None
+            return None
+        locale.style = root
+        cache[key] = locale
+        return locale
+
+    def get_term(self, name, form=None, fallback_locale=True, zero_padded=False,
+                 language=None):
         if isinstance(self.get_root(), Locale):
             return self.get_root().get_term(name, form)
         else:
-            locales = self.get_root().locales
+            locales = (self._locales_for(language) if language
+                       else self.get_root().locales)
             if not fallback_locale and len(locales) > 1:
                 main_locale = locales[0]
-                main_lg = main_locale.attrib.get(lg_key, None)
+                main_lg = main_locale.attrib.get(LANG_KEY, None)
                 if main_lg:
                     new_locales = [main_locale]
                     for locale in locales[1::]:
-                        if locale.get(lg_key, main_lg) == main_lg:
+                        if locale.get(LANG_KEY, main_lg) == main_lg:
                             new_locales.append(locale)
                     locales = new_locales
             for locale in locales:
@@ -151,7 +348,7 @@ class CitationStylesElement(SomewhatObjectifiedElement):
 # Top level elements
 
 class Style(CitationStylesElement):
-    def set_locale_list(self, output_locale, validate=True):
+    def set_locale_list(self, output_locale):
         """Set up list of locales in which to search for localizable units"""
         from .frontend import CitationStylesLocale
 
@@ -168,7 +365,7 @@ class Style(CitationStylesElement):
 
         def add_system_locale(locale):
             if locale not in system_locales_added:
-                csl_locale = CitationStylesLocale(locale, validate=validate)
+                csl_locale = CitationStylesLocale(locale)
                 self.locales.append(csl_locale.root)
                 system_locales_added.add(locale)
 
@@ -234,6 +431,30 @@ class FormattingInstructions:
     def render(self, reference):
         raise NotImplementedError
 
+    def layouts(self):
+        return self.findall('cs:layout', self.nsmap)
+
+    def default_layout(self):
+        layouts = self.layouts()
+        return next((layout for layout in layouts if not layout.get('locale')),
+                    layouts[0] if layouts else None)
+
+    def layout_for(self, item):
+        """CSL-M: choose the layout whose `locale` matches the item language.
+
+        GB/T's bilingual styles use one layout per language. Items without a
+        language use the layout without a `locale` attribute.
+        """
+        language = item_language(item)
+        if language:
+            language = language.replace('_', '-').lower()
+            base = language.split('-')[0]
+            for layout in self.layouts():
+                tag = (layout.get('locale') or '').lower()
+                if tag and (tag == language or tag.split('-')[0] == base):
+                    return layout
+        return self.default_layout()
+
 
 class Citation(FormattingInstructions, CitationStylesElement):
     _default_options = {
@@ -253,7 +474,8 @@ class Citation(FormattingInstructions, CitationStylesElement):
 
     def render(self, citation, cites, callback):
         self.cites = cites
-        return self.layout.render_citation(citation, callback)
+        return self.default_layout().render_citation(
+            citation, callback, layout_for=self.layout_for)
 
 
 class Bibliography(FormattingInstructions, CitationStylesElement):
@@ -268,10 +490,11 @@ class Bibliography(FormattingInstructions, CitationStylesElement):
                         'subsequent-author-substitute': None}
 
     def sort(self, citation_items):
-        return self.layout.sort_bibliography(citation_items)
+        return self.default_layout().sort_bibliography(citation_items)
 
     def render(self, citation_items):
-        return self.layout.render_bibliography(citation_items)
+        return self.default_layout().render_bibliography(
+            citation_items, layout_for=self.layout_for)
 
 
 # Style behavior
@@ -365,11 +588,11 @@ class Displayed:
 
 
 class Quoted:
-    def quote(self, string):
+    def quote(self, string, language=None):
         # piq = self.get_locale_option('punctuation-in-quote').lower() == 'true'
         if self.get('quotes', 'false').lower() == 'true':
-            open_quote = self.get_single_term(name='open-quote')
-            close_quote = self.get_single_term(name='close-quote')
+            open_quote = self.get_single_term(name='open-quote', language=language)
+            close_quote = self.get_single_term(name='close-quote', language=language)
             string = open_quote + string + close_quote
             # quoted_string = QuotedString(string, open_quote, close_quote, piq)
         return string
@@ -622,13 +845,34 @@ class Macro(CitationStylesElement, Parent):
         return self.process_children(item, context=context,
                                     sort_options=sort_options)
 
-    def render(self, item, context=None, sort_options=None):
+    def _base_render(self, item, context=None, sort_options=None):
         return self.render_children(item, context=context,
                                     sort_options=sort_options)
 
+    def render(self, item, context=None, sort_options=None):
+        frame = [False, False]
+        group_frames.append(frame)
+        failed = False
+        try:
+            out = self._base_render(item, context=context, sort_options=sort_options)
+        except VariableError:
+            failed = True
+            out = None
+        finally:
+            group_frames.pop()
+        if failed or (frame[0] and not frame[1]):
+            if group_frames and frame[0]:
+                group_frames[-1][0] = True
+            return None
+        if out and group_frames:
+            # CSL 1.0：非空 macro 自身未因变量全空失败时，在外层 `<group>` 中视同非空变量输出
+            group_frames[-1][0] = True
+            group_frames[-1][1] = True
+        return out
+
 
 class Layout(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
-    def render_citation(self, citation, callback):
+    def render_citation(self, citation, callback, layout_for=None):
         # first sort citation items according to bibliography order
         bibliography = citation.bibliography
         good_cites = [cite for cite in citation.cites if not cite.is_bad()]
@@ -639,11 +883,12 @@ class Layout(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
             good_cites = self.getparent().sort.sort(good_cites, self)
         out = []
         for item in good_cites:
-            self.repressed = {}
+            layout = layout_for(item) if layout_for else self
+            layout.repressed = {}
             prefix = item.get('prefix', '')
             suffix = item.get('suffix', '')
             try:
-                output = self.render_children(item)
+                output = layout.render_children(item)
                 if output is not None:
                     text = prefix + output + suffix
                     out.append(text)
@@ -661,19 +906,21 @@ class Layout(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
             citation_items = sort.sort(citation_items, self)
         return citation_items
 
-    def render_bibliography(self, citation_items):
+    def render_bibliography(self, citation_items, layout_for=None):
         output_items = []
         for item in citation_items:
-            self.repressed = {}
-            text = self.format(self.wrap(self.render_children(item)))
+            layout = layout_for(item) if layout_for else self
+            layout.repressed = {}
+            text = layout.format(layout.wrap(layout.render_children(item)))
             if text is not None:
                 output_items.append(text)
         return output_items
 
 
 class FormatNumber:
-    def _process(self, value, variable):
-        page_range_delimiter = self.get_single_term(name='page-range-delimiter') \
+    def _process(self, value, variable, language=None):
+        page_range_delimiter = self.get_single_term(
+            name='page-range-delimiter', language=language) \
             if variable.startswith('page') else None
         range_delimiter = (page_range_delimiter
                            or self.unicode_character('EN DASH'))
@@ -685,12 +932,13 @@ class FormatNumber:
                 first, last = (number.strip() for number
                                in item.replace(en_dash, '-').split('-'))
             except ValueError:
-                return self.format_number(item.strip())
-            first = self.format_number(first)
+                return self.format_number(item.strip(), language=language)
+            first = self.format_number(first, language=language)
             if variable == 'page-first':
                 return first
             last = self.format_number(self._format_last_page(first, last)
-                                      if variable == 'page' else last)
+                                      if variable == 'page' else last,
+                                      language=language)
             return join((first, last), range_delimiter)
 
         amp_delimiter = ' ' + self.unicode_character('AMPERSAND') + ' '
@@ -698,11 +946,11 @@ class FormatNumber:
                            for item in comma_item.split('&')), amp_delimiter)
                      for comma_item in str(value).split(',')), delimiter=', ')
 
-    def _format_last_page(self, first, last):
+    def _base_format_last_page(self, first, last):
         def find_common(first, last):
             count = 0
-            for count, (f, l) in enumerate(zip(first, last)):  # ruff: ignore[ambiguous-variable-name]
-                if f != l:
+            for count, (first_char, last_char) in enumerate(zip(first, last)):
+                if first_char != last_char:
                     return count
             return count + 1
 
@@ -728,8 +976,29 @@ class FormatNumber:
             index = min(common, len(first) - 2)
         return last[index:]
 
-    def format_number(self, number):
+    def format_number(self, number, language=None):
         return str(number)
+
+    def _format_last_page(self, first, last):
+        range_format = self.get_root().get_option("page-range-format")
+        if not range_format or range_format == "expanded":
+            return self._base_format_last_page(first, last)
+        if len(first) != len(last):
+            return last
+        if range_format in ("minimal", "minimal-two"):
+            common = 0
+            for idx, (fch, lch) in enumerate(zip(first, last)):
+                if fch != lch:
+                    common = idx
+                    break
+            else:
+                return last
+            if range_format == "minimal":
+                index = common
+            else:
+                index = max(0, min(common, len(first) - 2))
+            return last[index:]
+        return self._base_format_last_page(first, last)
 
 
 class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
@@ -752,10 +1021,8 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
         if context is None:
             context = self
 
-        try:
-            language = item.reference.language[:2]
-        except VariableError:
-            language = self.get_root().get('default-locale', 'en')[:2]
+        language = item_language(item) or self.get_root().get('default-locale', 'en')
+        language = str(language)[:2]
         if 'variable' in self.attrib:
             text = self._variable(item, context)
         elif 'macro' in self.attrib:
@@ -767,7 +1034,7 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
 
         return text, language
 
-    def _variable(self, item, context):
+    def _base_variable(self, item, context):
         variable = self.get('variable')
         repressed = context.get_layout().repressed
         if self.tag in repressed and variable in repressed[self.tag]:
@@ -779,7 +1046,8 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
                 variable = short_variable
 
         if variable.startswith('page'):
-            text = self._process(item.reference.page, variable)
+            text = self._process(item.reference.page, variable,
+                                 language=item_language(item))
         elif variable == 'citation-number':
             text = item.number
         elif variable == 'locator':
@@ -794,21 +1062,39 @@ class Text(CitationStylesElement, FormatNumber, Formatted, Affixed, Quoted,
         form = self.get('form', 'long')
         plural = self.get('plural', 'false').lower() == 'true'
         variable = self.get('term')
+        language = item_language(item)
         if plural:
             text = self.get_plural_term(name=variable,
-                                        form=form if form != 'long' else None)
+                                        form=form if form != 'long' else None,
+                                        language=language)
         else:
             text = self.get_single_term(name=variable,
-                                        form=form if form != 'long' else None)
+                                        form=form if form != 'long' else None,
+                                        language=language)
 
         return text
 
     def markup(self, text, language):
         if text:
             tmp = self.format(self.case(self.strip_periods(text), language))
-            return self.wrap(self.quote(tmp))
+            return self.wrap(self.quote(tmp, language))
         else:
             return None
+
+    def _variable(self, item, context):
+        var = self.get("variable")
+        is_generated = var in self.generated_variables
+        if group_frames and not is_generated:
+            group_frames[-1][0] = True
+        if _is_repressed(self, var, context):
+            return None
+        val = self._base_variable(item, context)
+        if val is not None and str(val) != "":
+            if group_frames and not is_generated:
+                group_frames[-1][1] = True
+            if sub_frames and var and not is_generated:
+                sub_frames[-1][1].setdefault(self.tag, set()).add(var)
+        return val
 
 
 class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
@@ -879,7 +1165,7 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
 
         return text
 
-    def process(self, item, variable=None, show_parts=None, context=None,
+    def _base_process(self, item, variable=None, show_parts=None, context=None,
                 **kwargs):
         if variable is None:
             variable = self.get('variable')
@@ -929,6 +1215,23 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
     def markup(self, text):
         # TODO: fix
         return text
+
+    def process(self, item, variable=None, show_parts=None, context=None, **kwargs):
+        var = variable or self.get("variable")
+        ctx = context if context is not None else self
+        track_var = not self.is_locale_date()
+        if track_var and group_frames:
+            group_frames[-1][0] = True
+        if _is_repressed(self, var, ctx):
+            return None
+        val = self._base_process(item, variable=variable, show_parts=show_parts, context=context, **kwargs
+        )
+        if val is not None and str(val) != "" and track_var:
+            if group_frames:
+                group_frames[-1][1] = True
+            if sub_frames and var:
+                sub_frames[-1][1].setdefault(self.tag, set()).add(var)
+        return val
 
 
 class Date_Part(CitationStylesElement, Formatted, Affixed, TextCased,
@@ -1002,7 +1305,7 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
     def calls_variable(self):
         return True
 
-    def process(self, item, context=None, **kwargs):
+    def _base_process(self, item, context=None, **kwargs):
         variable = self.get('variable')
         if variable == 'locator':
             try:
@@ -1014,9 +1317,9 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
             value = item.reference.page
         else:
             value = item.reference[variable]
-        return self._process(value, variable)
+        return self._process(value, variable, language=item_language(item))
 
-    def format_number(self, number):
+    def format_number(self, number, language=None):
         form = self.get('form', 'numeric')
         try:
             number = int(number)
@@ -1025,9 +1328,10 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
         if form == 'numeric':
             text = str(number)
         elif form == 'ordinal' or form == 'long-ordinal' and number > 10:
-            text = to_ordinal(number, self)
+            text = to_ordinal(number, self, language=language)
         elif form == 'long-ordinal':
-            text = self.get_single_term(name=f'long-ordinal-{number:02}')
+            text = self.get_single_term(name=f'long-ordinal-{number:02}',
+                                        language=language)
         elif form == 'roman':
             text = romanize(number).lower()
         return text
@@ -1037,6 +1341,21 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
             return self.wrap(self.format(self.case(self.strip_periods(text))))
         else:
             return None
+
+    def process(self, item, context=None, **kwargs):
+        var = self.get("variable")
+        ctx = context if context is not None else self
+        if group_frames:
+            group_frames[-1][0] = True
+        if _is_repressed(self, var, ctx):
+            return None
+        val = self._base_process(item, context=context, **kwargs)
+        if val is not None and str(val) != "":
+            if group_frames:
+                group_frames[-1][1] = True
+            if sub_frames and var:
+                sub_frames[-1][1].setdefault(self.tag, set()).add(var)
+        return val
 
 
 class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
@@ -1058,7 +1377,7 @@ class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
             result = None
         return result
 
-    def process(self, item, names_context=None, context=None, **kwargs):
+    def _base_process(self, item, names_context=None, context=None, **kwargs):
         if context is None:
             context = self
         if names_context is None:
@@ -1068,7 +1387,8 @@ class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
         try:
             ed_trans = (set(roles) == set(['editor', 'translator']) and
                         item.reference.editor == item.reference.translator and
-                        self.get_term('editortranslator').getchildren())
+                        self.get_term('editortranslator',
+                                      language=item_language(item)).getchildren())
             if ed_trans:
                 roles = ['editor']
         except VariableError:
@@ -1124,6 +1444,56 @@ class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
         else:
             return None
 
+    def process(self, item, names_context=None, context=None, **kwargs):
+        ctx = context if context is not None else self
+        if names_context is None and self.name is None and sub_frames:
+            parent_names = sub_frames[-1][0]
+            if parent_names is not None and parent_names is not self:
+                names_context = parent_names
+
+        try:
+            layout = ctx.get_layout()
+            repressed_list = getattr(layout, "repressed", {}).get(self.tag, [])
+        except Exception:
+            repressed_list = []
+        repressed_vars: set[str] = set()
+        for var in repressed_list:
+            if var:
+                repressed_vars.update(var.split())
+
+        orig_var = self.get("variable") or ""
+        roles = orig_var.split()
+        filtered = [role for role in roles if role not in repressed_vars]
+        if group_frames:
+            group_frames[-1][0] = True
+        if roles and not filtered:
+            # 声明的 role 全被上游的 `<substitute>` 抑制掉了：这里本来就该什么都不出。
+            # 若把 `variable` 改写成空串再交给上游，上游会当成「变量缺失」，
+            # 于是把本元素自己的 `<substitute>` 再渲染一遍——实测得到
+            # `Ann Ed / Solo Title`（本该是 `Ann Ed /`）。
+            return None
+        present = [r for r in filtered if r in item.reference and item.reference[r]]
+
+        def _invoke():
+            return self._base_process(item, names_context=names_context, context=context, **kwargs
+            )
+
+        if len(filtered) != len(roles):
+            self.attrib["variable"] = " ".join(filtered)
+            try:
+                out = _invoke()
+            finally:
+                self.attrib["variable"] = orig_var
+        else:
+            out = _invoke()
+
+        if out:
+            if group_frames:
+                group_frames[-1][1] = True
+            if present and sub_frames:
+                sub_frames[-1][1].setdefault(self.tag, set()).update(present)
+        return out
+
 
 class Name(CitationStylesElement, Formatted, Affixed, Delimited):
     def get_option(self, name, context=None, sort_options=None):
@@ -1147,12 +1517,13 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
 
         return value
 
-    def et_al(self):
+    def et_al(self, item=None):
         expr = './following-sibling::cs:et-al[1]'
         try:
-            result = self.xpath_search(expr)[0].render()
+            result = self.xpath_search(expr)[0].render(item)
         except IndexError:
-            result = self.get_single_term(name='et-al')
+            result = self.get_single_term(name='et-al',
+                                          language=item_language(item))
         return result
 
     def process(self, item, variable, context=None, sort_options=None, **kwargs):
@@ -1184,12 +1555,13 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
 
         names = item.reference.get(variable, [])
 
+        language = item_language(item)
         if and_ == 'text':
-            and_term = self.get_single_term(name='and')
+            and_term = self.get_single_term(name='and', language=language)
         elif and_ == 'symbol':
             and_term = self.preformat('&')
 
-        et_al = self.et_al()
+        et_al = self.et_al(item)
         output = []
         if form == 'count':
             count = min(len(names), et_al_use_first)
@@ -1259,7 +1631,7 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
 
             return text
 
-    def initialize(self, given, mark, context):
+    def _base_initialize(self, given, mark, context):
         if self.get_option('initialize-with-hyphen', context):
             hyphen_parts = given.split('-')
         else:
@@ -1289,6 +1661,24 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
         else:
             return None
 
+    def initialize(self, given, mark, context=None):
+        init_opt = self.get("initialize")
+        if init_opt is None:
+            ctx = context if context is not None else self
+            try:
+                parent = ctx.xpath_search("./ancestor::*[self::cs:citation or self::cs:bibliography][1]")[0]
+                init_opt = parent.get("initialize")
+            except Exception:
+                init_opt = None
+            if init_opt is None:
+                try:
+                    init_opt = self.get_root().get("initialize")
+                except Exception:
+                    init_opt = None
+        if init_opt is not None and str(init_opt).lower() == "false":
+            return given
+        return self._base_initialize(given, mark, context)
+
 
 class Name_Part(CitationStylesElement, Formatted, Affixed, TextCased):
     def format_part(self, given, family):
@@ -1300,9 +1690,9 @@ class Name_Part(CitationStylesElement, Formatted, Affixed, TextCased):
 
 
 class Et_Al(CitationStylesElement, Formatted, Affixed):
-    def process(self):
+    def process(self, item=None):
         variable = self.get('term', 'et-al')
-        return self.get_single_term(variable)
+        return self.get_single_term(variable, language=item_language(item))
 
     def markup(self, text):
         if text:
@@ -1312,7 +1702,7 @@ class Et_Al(CitationStylesElement, Formatted, Affixed):
 
 
 class Substitute(CitationStylesElement, Parent):
-    def render(self, item, context=None, **kwargs):
+    def _base_render(self, item, context=None, **kwargs):
         for child in self.getchildren():
             try:
                 if isinstance(child, Names) and child.name is None:
@@ -1337,13 +1727,59 @@ class Substitute(CitationStylesElement, Parent):
         tag_list.append(child.get('variable'))
         layout.repressed[child.tag] = tag_list
 
+    def render(self, item, context=None, **kwargs):
+        ctx = context if context is not None else self
+        try:
+            parent_names = self.xpath_search("./parent::cs:names[1]")[0]
+        except Exception:
+            parent_names = None
+        for child in self.getchildren():
+            staging: dict[str, set[str]] = {}
+            sub_group_frame = [False, False]
+            sub_frames.append((parent_names, staging))
+            group_frames.append(sub_group_frame)
+            text = None
+            try:
+                if isinstance(child, Names) and child.name is None and parent_names is not None:
+                    text = child.render(item, names_context=parent_names, context=ctx, **kwargs)
+                else:
+                    text = child.render(item, context=ctx, **kwargs)
+            except VariableError:
+                continue
+            finally:
+                sub_frames.pop()
+                group_frames.pop()
+            if text:
+                if group_frames and sub_group_frame[1]:
+                    group_frames[-1][0] = True
+                    group_frames[-1][1] = True
+                try:
+                    layout = ctx.get_layout()
+                except Exception:
+                    return text
+                for rtag, rvars in staging.items():
+                    bucket = layout.repressed.setdefault(rtag, [])
+                    for rvar in rvars:
+                        if rvar not in bucket:
+                            bucket.append(rvar)
+                direct_var = child.get("variable")
+                if direct_var:
+                    bucket = layout.repressed.setdefault(child.tag, [])
+                    for rvar in direct_var.split():
+                        if rvar not in bucket:
+                            bucket.append(rvar)
+                return text
+        if group_frames:
+            group_frames[-1][0] = True
+        return None
+
 
 class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
             TextCased):
     def calls_variable(self):
         return self.get('variable') == 'locator'
 
-    def process(self, item, variable=None, plural=None, context=None, **kwargs):
+    def _base_process(self, item, variable=None, plural=None, context=None, **kwargs):
         if variable is None:
             variable = self.get('variable')
             # A cs:label that names its own variable renders the term only if
@@ -1361,13 +1797,16 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
         if variable == 'locator' and item.has_locator:
             variable = item.locator.label
 
+        language = item_language(item)
         if (plural_option == 'contextual' and plural or
             plural_option == 'always'):
             text = self.get_plural_term(name=variable,
-                                        form=form if form != 'long' else None)
+                                        form=form if form != 'long' else None,
+                                        language=language)
         else:
             text = self.get_single_term(name=variable,
-                                        form=form if form != 'long' else None)
+                                        form=form if form != 'long' else None,
+                                        language=language)
 
         return text
 
@@ -1405,7 +1844,7 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
 
         return value is not None and str(value) != ''
 
-    def _is_plural(self, item):
+    def _base_is_plural(self, item):
         variable = self.get('variable')
         if variable == 'locator':
             value = item.locator.identifier
@@ -1420,12 +1859,63 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
         else:
             return self.RE_MULTIPLE_NUMBERS.search(str(value)) is not None
 
+    def process(self, item, variable=None, plural=None, context=None, **kwargs):
+        var = variable or self.get("variable")
+        standalone = variable is None
+        if var == "locator":
+            if group_frames:
+                group_frames[-1][0] = True
+            if not getattr(item, "has_locator", False):
+                return None
+        elif var and standalone and group_frames:
+            # 独立 `<label variable="X"/>` 在变量为空时不渲染——这件事上游 0.12 的
+            # `Label._variable_is_set` 已经做了（含 `page-first` / `citation-number`
+            # 这些派生变量的特判）。这里只补 group 的运行期变量追踪，
+            # 不再自己查一遍字典：自己查会漏掉派生变量，比上游更窄。
+            group_frames[-1][0] = True
+        val = self._base_process(item, variable=variable, plural=plural, context=context, **kwargs)
+        if val is not None and str(val) != "" and (var == "locator" or (var and standalone)) and group_frames:
+            group_frames[-1][1] = True
+        return val
+
+    def _is_plural(self, item):
+        var = self.get("variable")
+        if var in ("version", "number", "collection-number"):
+            try:
+                value = item.reference[var.replace("-", "_")]
+            except VariableError:
+                return False
+            # 复数 = 整串就是「数字 分隔符 数字…」：`3-5` / `1, 2` / `1 & 2` / `1/2`。
+            # 上游 0.12 的 `\d+[^\d.]+\d+` 会匹配到 `3.5.0--rc1`（`--rc` 里带字母），
+            # 那是一条版本号不是区间；反过来我们的旧正则不认 `-`，`3-5` 又丢复数。
+            # 用整串匹配同时挡住 `TR-2023-04` 这类编号：它不是区间，不该复数。
+            return bool(
+                re.fullmatch(
+                    r"\d+(?:\s*[-–—,;，；/、&]\s*\d+)+",
+                    str(value).strip(),
+                )
+            )
+        return self._base_is_plural(item)
+
+    def render(self, *args, **kwargs):
+        text = self.process(*args, **kwargs)
+        if not text:
+            return None
+        item = kwargs.get("item") if "item" in kwargs else (args[0] if args else None)
+        lang = item_language(item)
+        if not lang:
+            root = self.get_root()
+            default_locale = root.get("default-locale", "en") if root is not None else "en"
+            lang = default_locale
+        lang = str(lang)[:2].lower()
+        return self.wrap(self.format(self.case(self.strip_periods(text), lang)))
+
 
 class Group(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
     def calls_variable(self):
         return True
 
-    def process(self, item, context=None, **kwargs):
+    def _base_process(self, item, context=None, **kwargs):
         output = []
         variable_called = False
         variable_rendered = False
@@ -1459,6 +1949,33 @@ class Group(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
         else:
             return None
 
+    def process(self, item, context=None, **kwargs):
+        frame = [False, False]
+        group_frames.append(frame)
+        try:
+            output = []
+            delimiter = self.get("delimiter", "")
+            for child in self.iterchildren():
+                try:
+                    if isinstance(child, Choose):
+                        child_text = child.render(item, context=context, delimiter=delimiter, **kwargs)
+                    else:
+                        child_text = child.render(item, context=context, **kwargs)
+                    if child_text is not None:
+                        output.append(child_text)
+                except VariableError:
+                    pass
+            output = [part for part in output if part is not None]
+            success = (not frame[0]) or frame[1]
+            if output and success:
+                return self.join(output)
+            raise VariableError
+        finally:
+            group_frames.pop()
+            if group_frames:
+                group_frames[-1][0] = group_frames[-1][0] or frame[0]
+                group_frames[-1][1] = group_frames[-1][1] or frame[1]
+
 
 class ConditionFailed(Exception):
     pass
@@ -1479,7 +1996,7 @@ class Choose(CitationStylesElement, Parent):
 
 
 class If(CitationStylesElement, Parent):
-    def render(self, item, context=None, delimiter='', **kwargs):
+    def _base_render(self, item, context=None, delimiter='', **kwargs):
         # TODO self.get('disambiguate')
         results = []
         if 'type' in self.attrib:
@@ -1589,6 +2106,35 @@ class If(CitationStylesElement, Parent):
             results.append(result)
         return results
 
+    def render(self, item, context=None, delimiter="", **kwargs):
+        if "disambiguate" not in self.attrib:
+            return self._base_render(item, context=context, delimiter=delimiter, **kwargs)
+        disambig_want = str(self.get("disambiguate")).lower() == "true"
+        cond_ok = (item.key in DISAMBIGUATE_KEYS.get()) == disambig_want
+        results: list[bool] = [cond_ok]
+        if "type" in self.attrib:
+            results += self._type(item)
+        if "variable" in self.attrib:
+            results += self._variable(item)
+        if "is-numeric" in self.attrib:
+            results += self._is_numeric(item)
+        if "is-uncertain-date" in self.attrib:
+            results += self._is_uncertain_date(item)
+        if "locator" in self.attrib:
+            results += self._locator(item)
+        if "position" in self.attrib:
+            results += self._position(item, context)
+        match_mode = self.get("match")
+        if match_mode == "any":
+            result = any(results)
+        elif match_mode == "none":
+            result = not any(results)
+        else:
+            result = all(results)
+        if not result:
+            raise ConditionFailed
+        return self.render_children(item, context=context, delimiter=delimiter, **kwargs)
+
 
 class Else_If(If, CitationStylesElement):
     pass
@@ -1602,7 +2148,7 @@ class Else(CitationStylesElement, Parent):
 
 # utility functions
 
-def to_ordinal(number, context):
+def _base_to_ordinal(number, context, language=None):
     def _find_ordinal(fallback_locale):
         if len(str(number)) == 1:
             ordinal_term = f'ordinal-{number:02}'
@@ -1611,23 +2157,64 @@ def to_ordinal(number, context):
 
         if (term := context.get_single_term(name=ordinal_term,
                                             fallback_locale=fallback_locale,
-                                            zero_padded=False)):
+                                            zero_padded=False,
+                                            language=language)):
             return term
 
         ordinal_term = f'ordinal-{int(str(number)[-1]):02}'
         if (term := context.get_single_term(name=ordinal_term,
                                             fallback_locale=fallback_locale,
-                                            zero_padded=True)):
+                                            zero_padded=True,
+                                            language=language)):
             return term
 
         return context.get_single_term(name='ordinal',
                                        fallback_locale=fallback_locale,
-                                       zero_padded=False)
+                                       zero_padded=False,
+                                       language=language)
 
     result = _find_ordinal(fallback_locale=False)
     if not result:
         result = _find_ordinal(fallback_locale=True)
     return str(number) + result
+
+def to_ordinal(number, context, language=None):
+    lg_key = "{http://www.w3.org/XML/1998/namespace}lang"
+
+    def _find(fallback_locale: bool):
+        locales = (context._locales_for(language) if language
+                   else context.get_root().locales)
+        if not fallback_locale and locales:
+            main_lg = (locales[0].get(lg_key) or "").split("-")[0]
+            if main_lg:
+                candidates = [
+                    loc for loc in locales
+                    if (loc.get(lg_key) or main_lg).split("-")[0] == main_lg
+                ]
+            else:
+                candidates = list(locales[:1])
+        else:
+            candidates = list(locales)
+
+        keys = [
+            (f"ordinal-{number:02}" if len(str(number)) == 1 else f"ordinal-{number}", False),
+            (f"ordinal-{int(str(number)[-1]):02}", True),
+            ("ordinal", False),
+        ]
+        for term_name, zp in keys:
+            for loc in candidates:
+                try:
+                    t_el = loc.get_term(term_name, zero_padded=zp)
+                except IndexError:
+                    continue
+                if t_el is not None:
+                    return True, str(t_el.single)
+        return False, ""
+
+    found, suffix = _find(fallback_locale=False)
+    if not found:
+        _f2, suffix = _find(fallback_locale=True)
+    return str(number) + suffix
 
 
 def romanize(n):

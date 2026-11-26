@@ -1,11 +1,10 @@
 """md_to_word.transform.citations — 文献引用的编译（CSL）。
 
-CSL 渲染由内置的 citeproc-py 0.12.2 完成（BSD-2-Clause，源码在
-`md_to_word/_vendor/citeproc/`）。把它放进仓库而不是装成依赖：补丁要改的是引擎内部
-（Names/Group/Macro/Label/FormatNumber/to_ordinal），上游一换签名就会静默失效；内置之后
-补丁和引擎同版本发布，不再靠版本号互相猜。实测：把我们自己的 .bib 转成 CSL-JSON 之后，
-两套内置样式（nature、GB/T 7714）都能正常渲染；citeproc-py 自带的 BibTeX 读取器反而不
-产出 `issued`，直接用会抛 VariableError——所以转换这一步由我们做（见 transform/bibtex.py）。
+CSL 渲染由 `md_to_word.csl` 完成：它是 citeproc-py 0.12.2（BSD-2-Clause）的派生版，
+源码就在仓库里，规范修正直接写在引擎方法中，不再靠运行期 monkey-patch。实测：把我们
+自己的 .bib 转成 CSL-JSON 之后，两套内置样式（nature、GB/T 7714）都能正常渲染；
+citeproc-py 自带的 BibTeX 读取器反而不产出 `issued`，直接用会抛 VariableError——所以
+转换这一步由我们做（见 transform/bibtex.py）。
 
 已知限制：citeproc-py 不支持 `suppress-author`，叙述式引用（`@key` 作句子主语）无法按
 CSL 的 author-in-text 形式渲染。这里对作者-年份制做一次保守改写把年份移进括号；
@@ -16,17 +15,14 @@ from __future__ import annotations
 
 import dataclasses
 import re
-import threading
-from contextvars import ContextVar
 from pathlib import Path
 from typing import Iterable, Sequence
 
-from md_to_word._vendor.citeproc import (
+from md_to_word.csl import (
     Citation, CitationItem, CitationStylesBibliography, CitationStylesStyle, formatter,
 )
-import md_to_word._vendor.citeproc.model as _citeproc_model
-from md_to_word._vendor.citeproc.source import Locator
-from md_to_word._vendor.citeproc.source.json import CiteProcJSON
+from md_to_word.csl.source import Locator
+from md_to_word.csl.source.json import CiteProcJSON
 
 from md_to_word.transform.biblio import parse_bibliography
 from md_to_word.transform.disambiguation import (
@@ -34,500 +30,9 @@ from md_to_word.transform.disambiguation import (
 )
 from md_to_word.i18n import t
 
-_DISAMBIGUATE_KEYS: ContextVar[frozenset[str]] = ContextVar(
-    "md2word_disambiguate_keys", default=frozenset()
+from md_to_word.csl.model import (
+    DISAMBIGUATE_KEYS as _DISAMBIGUATE_KEYS,
 )
-
-class _ThreadLocalList:
-    """每个线程一份的列表，接口与 `list` 相同。
-
-    citeproc 的补丁用帧栈追踪 `<group>` / `<substitute>` 的渲染状态，这是**渲染期**
-    的可变状态。展示页、CLI 都是单线程，但 MCP 以 SSE/HTTP 运行时，两个导出可能在
-    不同线程里同时渲染：模块级列表会让 A 的帧被 B 读到，文献格式随机串味。按线程
-    转发后，补丁内部的写法一行都不用改。
-    """
-
-    def __init__(self) -> None:
-        self._local = threading.local()
-
-    @property
-    def _items(self) -> list:
-        try:
-            return self._local.items
-        except AttributeError:
-            items: list = []
-            self._local.items = items
-            return items
-
-    def __getitem__(self, index):
-        return self._items[index]
-
-    def __setitem__(self, index, value) -> None:
-        self._items[index] = value
-
-    def __delitem__(self, index) -> None:
-        del self._items[index]
-
-    def __len__(self) -> int:
-        return len(self._items)
-
-    def __bool__(self) -> bool:
-        return bool(self._items)
-
-    def __iter__(self):
-        return iter(self._items)
-
-    def __repr__(self) -> str:
-        return repr(self._items)
-
-    def append(self, value) -> None:
-        self._items.append(value)
-
-    def pop(self, index=-1):
-        return self._items.pop(index)
-
-    def clear(self) -> None:
-        self._items.clear()
-
-
-# 补丁是对着内置引擎 0.12.2 的内部实现写的（见 `_install_citeproc_shims`）。引擎在
-# `_vendor/citeproc/` 里随本包发布，版本不会漂移，因此不再做运行期版本检查。
-def _install_citeproc_shims() -> None:
-    """修补 citeproc-py 几处 CSL 1.0 规范遗漏：
-
-    1. `<substitute>` 触发后，`Names.process` / `Text._variable` 等未跳过已写入 `layout.repressed`
-       的变量，且嵌套在 `<choose>`/`<macro>` 内的 `<names>` 未继承父 `<names>` 的格式与抑制状态；
-    2. `Group.process` / `Macro.render` 用静态 `calls_variable()` 扫描 `<choose>` 全部未命中分支，
-       导致如 APA 学位论文无报告号却印出 `(Publication)`；按 CSL 1.0 规范改为运行期实际变量追踪，
-       同时保持非空 `<macro>` 在外层 `<group>` 里视同已成功渲染的变量（如 Chicago software 的 `released`）；
-    3. 独立 `<label variable="..."/>` 的抑制**不需要再补**（0.12 的 `Label._variable_is_set`
-       已实现，且认 `page-first` / `citation-number` 这类派生变量）；这里只补 group 的变量追踪，
-       不再自己查一遍字典——自己查比上游更窄，会漏掉派生变量；
-    4. `<if disambiguate="true">` 在 citeproc-py 里是未实现的 TODO（恒为真），导致 MLA 每条文内引用都强行附带题名；
-    5. `Label.markup` 未向 `TextCased.case` 传递条目语言，导致英文 `(Eds.)`/`(Ed.)` 退化为小写；
-    6. `Label._is_plural` 把 `3.5.0--rc1` / `TR-2023-04` 里的 `-` 误判为复数范围，输出 `(Versions ...)`；
-       但反过来也不能不认真区间（`number = {3-5}` 是 `numbers`），故按「整串就是数字-分隔符-数字」判定；
-    7. `Name.initialize` 忽略 `<name initialize="false"/>`，导致 Chicago/MLA 文献表人名被错误缩写成首字母；
-    8. `FormatNumber._format_last_page` 在 `minimal-two`/`minimal` 遇到 `1–40`/`11–112` 等不等位页码时截断错误（输出 `1–0`/`11–2`）；
-    9. `to_ordinal` 遇到中文区域显式空 `<term name="ordinal"/>` 时误回退到 `en-US`（输出 `3rd 版`）。
-    """
-    if getattr(_citeproc_model.Names.process, "_md2word_shimmed", False):
-        return
-
-    # [var_called, var_rendered]
-    group_frames = _ThreadLocalList()
-    # (parent_names_elem, staging_repressed)
-    sub_frames = _ThreadLocalList()
-
-    orig_macro_render = _citeproc_model.Macro.render
-    orig_names_process = _citeproc_model.Names.process
-    orig_name_initialize = _citeproc_model.Name.initialize
-    orig_text_variable = _citeproc_model.Text._variable
-    orig_date_process = _citeproc_model.Date.process
-    orig_number_process = _citeproc_model.Number.process
-    orig_label_process = _citeproc_model.Label.process
-    orig_label_is_plural = _citeproc_model.Label._is_plural
-    orig_if_render = _citeproc_model.If.render
-    orig_format_last_page = _citeproc_model.FormatNumber._format_last_page
-
-    def _is_repressed(elem, var: str | None, context) -> bool:
-        if not var:
-            return False
-        ctx = context if context is not None else elem
-        try:
-            repressed = getattr(ctx.get_layout(), "repressed", {})
-        except Exception:
-            return False
-        for item_var in repressed.get(elem.tag, ()):
-            if item_var and var in item_var.split():
-                return True
-        return False
-
-    def _substitute_render(self, item, context=None, **kwargs):
-        ctx = context if context is not None else self
-        try:
-            parent_names = self.xpath_search("./parent::cs:names[1]")[0]
-        except Exception:
-            parent_names = None
-        for child in self.getchildren():
-            staging: dict[str, set[str]] = {}
-            sub_group_frame = [False, False]
-            sub_frames.append((parent_names, staging))
-            group_frames.append(sub_group_frame)
-            text = None
-            try:
-                if isinstance(child, _citeproc_model.Names) and child.name is None and parent_names is not None:
-                    text = child.render(item, names_context=parent_names, context=ctx, **kwargs)
-                else:
-                    text = child.render(item, context=ctx, **kwargs)
-            except _citeproc_model.VariableError:
-                continue
-            finally:
-                sub_frames.pop()
-                group_frames.pop()
-            if text:
-                if group_frames and sub_group_frame[1]:
-                    group_frames[-1][0] = True
-                    group_frames[-1][1] = True
-                try:
-                    layout = ctx.get_layout()
-                except Exception:
-                    return text
-                for rtag, rvars in staging.items():
-                    bucket = layout.repressed.setdefault(rtag, [])
-                    for rvar in rvars:
-                        if rvar not in bucket:
-                            bucket.append(rvar)
-                direct_var = child.get("variable")
-                if direct_var:
-                    bucket = layout.repressed.setdefault(child.tag, [])
-                    for rvar in direct_var.split():
-                        if rvar not in bucket:
-                            bucket.append(rvar)
-                return text
-        if group_frames:
-            group_frames[-1][0] = True
-        return None
-
-    def _names_process(self, item, names_context=None, context=None, **kwargs):
-        ctx = context if context is not None else self
-        if names_context is None and self.name is None and sub_frames:
-            parent_names = sub_frames[-1][0]
-            if parent_names is not None and parent_names is not self:
-                names_context = parent_names
-
-        try:
-            layout = ctx.get_layout()
-            repressed_list = getattr(layout, "repressed", {}).get(self.tag, [])
-        except Exception:
-            repressed_list = []
-        repressed_vars: set[str] = set()
-        for var in repressed_list:
-            if var:
-                repressed_vars.update(var.split())
-
-        orig_var = self.get("variable") or ""
-        roles = orig_var.split()
-        filtered = [role for role in roles if role not in repressed_vars]
-        if group_frames:
-            group_frames[-1][0] = True
-        if roles and not filtered:
-            # 声明的 role 全被上游的 `<substitute>` 抑制掉了：这里本来就该什么都不出。
-            # 若把 `variable` 改写成空串再交给上游，上游会当成「变量缺失」，
-            # 于是把本元素自己的 `<substitute>` 再渲染一遍——实测得到
-            # `Ann Ed / Solo Title`（本该是 `Ann Ed /`）。
-            return None
-        present = [r for r in filtered if r in item.reference and item.reference[r]]
-
-        def _invoke():
-            return orig_names_process(
-                self, item, names_context=names_context, context=context, **kwargs
-            )
-
-        if len(filtered) != len(roles):
-            self.attrib["variable"] = " ".join(filtered)
-            try:
-                out = _invoke()
-            finally:
-                self.attrib["variable"] = orig_var
-        else:
-            out = _invoke()
-
-        if out:
-            if group_frames:
-                group_frames[-1][1] = True
-            if present and sub_frames:
-                sub_frames[-1][1].setdefault(self.tag, set()).update(present)
-        return out
-
-    def _text_variable(self, item, context):
-        var = self.get("variable")
-        is_generated = var in self.generated_variables
-        if group_frames and not is_generated:
-            group_frames[-1][0] = True
-        if _is_repressed(self, var, context):
-            return None
-        val = orig_text_variable(self, item, context)
-        if val is not None and str(val) != "":
-            if group_frames and not is_generated:
-                group_frames[-1][1] = True
-            if sub_frames and var and not is_generated:
-                sub_frames[-1][1].setdefault(self.tag, set()).add(var)
-        return val
-
-    def _date_process(self, item, variable=None, show_parts=None, context=None, **kwargs):
-        var = variable or self.get("variable")
-        ctx = context if context is not None else self
-        track_var = not self.is_locale_date()
-        if track_var and group_frames:
-            group_frames[-1][0] = True
-        if _is_repressed(self, var, ctx):
-            return None
-        val = orig_date_process(
-            self, item, variable=variable, show_parts=show_parts, context=context, **kwargs
-        )
-        if val is not None and str(val) != "" and track_var:
-            if group_frames:
-                group_frames[-1][1] = True
-            if sub_frames and var:
-                sub_frames[-1][1].setdefault(self.tag, set()).add(var)
-        return val
-
-    def _number_process(self, item, context=None, **kwargs):
-        var = self.get("variable")
-        ctx = context if context is not None else self
-        if group_frames:
-            group_frames[-1][0] = True
-        if _is_repressed(self, var, ctx):
-            return None
-        val = orig_number_process(self, item, context=context, **kwargs)
-        if val is not None and str(val) != "":
-            if group_frames:
-                group_frames[-1][1] = True
-            if sub_frames and var:
-                sub_frames[-1][1].setdefault(self.tag, set()).add(var)
-        return val
-
-    def _label_process(self, item, variable=None, plural=None, context=None, **kwargs):
-        var = variable or self.get("variable")
-        standalone = variable is None
-        if var == "locator":
-            if group_frames:
-                group_frames[-1][0] = True
-            if not getattr(item, "has_locator", False):
-                return None
-        elif var and standalone and group_frames:
-            # 独立 `<label variable="X"/>` 在变量为空时不渲染——这件事上游 0.12 的
-            # `Label._variable_is_set` 已经做了（含 `page-first` / `citation-number`
-            # 这些派生变量的特判）。这里只补 group 的运行期变量追踪，
-            # 不再自己查一遍字典：自己查会漏掉派生变量，比上游更窄。
-            group_frames[-1][0] = True
-        val = orig_label_process(self, item, variable=variable, plural=plural, context=context, **kwargs)
-        if val is not None and str(val) != "" and (var == "locator" or (var and standalone)) and group_frames:
-            group_frames[-1][1] = True
-        return val
-
-    def _macro_render(self, item, context=None, sort_options=None):
-        frame = [False, False]
-        group_frames.append(frame)
-        failed = False
-        try:
-            out = orig_macro_render(self, item, context=context, sort_options=sort_options)
-        except _citeproc_model.VariableError:
-            failed = True
-            out = None
-        finally:
-            group_frames.pop()
-        if failed or (frame[0] and not frame[1]):
-            if group_frames and frame[0]:
-                group_frames[-1][0] = True
-            return None
-        if out and group_frames:
-            # CSL 1.0：非空 macro 自身未因变量全空失败时，在外层 `<group>` 中视同非空变量输出
-            group_frames[-1][0] = True
-            group_frames[-1][1] = True
-        return out
-
-    def _group_process(self, item, context=None, **kwargs):
-        frame = [False, False]
-        group_frames.append(frame)
-        try:
-            output = []
-            delimiter = self.get("delimiter", "")
-            for child in self.iterchildren():
-                try:
-                    if isinstance(child, _citeproc_model.Choose):
-                        child_text = child.render(item, context=context, delimiter=delimiter, **kwargs)
-                    else:
-                        child_text = child.render(item, context=context, **kwargs)
-                    if child_text is not None:
-                        output.append(child_text)
-                except _citeproc_model.VariableError:
-                    pass
-            output = [part for part in output if part is not None]
-            success = (not frame[0]) or frame[1]
-            if output and success:
-                return self.join(output)
-            raise _citeproc_model.VariableError
-        finally:
-            group_frames.pop()
-            if group_frames:
-                group_frames[-1][0] = group_frames[-1][0] or frame[0]
-                group_frames[-1][1] = group_frames[-1][1] or frame[1]
-
-    def _if_render(self, item, context=None, delimiter="", **kwargs):
-        if "disambiguate" not in self.attrib:
-            return orig_if_render(self, item, context=context, delimiter=delimiter, **kwargs)
-        disambig_want = str(self.get("disambiguate")).lower() == "true"
-        cond_ok = (item.key in _DISAMBIGUATE_KEYS.get()) == disambig_want
-        results: list[bool] = [cond_ok]
-        if "type" in self.attrib:
-            results += self._type(item)
-        if "variable" in self.attrib:
-            results += self._variable(item)
-        if "is-numeric" in self.attrib:
-            results += self._is_numeric(item)
-        if "is-uncertain-date" in self.attrib:
-            results += self._is_uncertain_date(item)
-        if "locator" in self.attrib:
-            results += self._locator(item)
-        if "position" in self.attrib:
-            results += self._position(item, context)
-        match_mode = self.get("match")
-        if match_mode == "any":
-            result = any(results)
-        elif match_mode == "none":
-            result = not any(results)
-        else:
-            result = all(results)
-        if not result:
-            raise _citeproc_model.ConditionFailed
-        return self.render_children(item, context=context, delimiter=delimiter, **kwargs)
-
-    def _label_is_plural(self, item):
-        var = self.get("variable")
-        if var in ("version", "number", "collection-number"):
-            try:
-                value = item.reference[var.replace("-", "_")]
-            except _citeproc_model.VariableError:
-                return False
-            # 复数 = 整串就是「数字 分隔符 数字…」：`3-5` / `1, 2` / `1 & 2` / `1/2`。
-            # 上游 0.12 的 `\d+[^\d.]+\d+` 会匹配到 `3.5.0--rc1`（`--rc` 里带字母），
-            # 那是一条版本号不是区间；反过来我们的旧正则不认 `-`，`3-5` 又丢复数。
-            # 用整串匹配同时挡住 `TR-2023-04` 这类编号：它不是区间，不该复数。
-            return bool(
-                re.fullmatch(
-                    r"\d+(?:\s*[-–—,;，；/、&]\s*\d+)+",
-                    str(value).strip(),
-                )
-            )
-        return orig_label_is_plural(self, item)
-
-    def _label_render(self, *args, **kwargs):
-        text = self.process(*args, **kwargs)
-        if not text:
-            return None
-        item = kwargs.get("item") if "item" in kwargs else (args[0] if args else None)
-        lang = None
-        if item is not None:
-            try:
-                lang = str(item.reference.language)[:2].lower()
-            except Exception:
-                lang = None
-        if not lang:
-            root = self.get_root()
-            default_locale = root.get("default-locale", "en") if root is not None else "en"
-            lang = str(default_locale)[:2].lower()
-        return self.wrap(self.format(self.case(self.strip_periods(text), lang)))
-
-    def _name_initialize(self, given, mark, context=None):
-        init_opt = self.get("initialize")
-        if init_opt is None:
-            ctx = context if context is not None else self
-            try:
-                parent = ctx.xpath_search("./ancestor::*[self::cs:citation or self::cs:bibliography][1]")[0]
-                init_opt = parent.get("initialize")
-            except Exception:
-                init_opt = None
-            if init_opt is None:
-                try:
-                    init_opt = self.get_root().get("initialize")
-                except Exception:
-                    init_opt = None
-        if init_opt is not None and str(init_opt).lower() == "false":
-            return given
-        return orig_name_initialize(self, given, mark, context)
-
-    def _format_last_page(self, first, last):
-        range_format = self.get_root().get_option("page-range-format")
-        if not range_format or range_format == "expanded":
-            return orig_format_last_page(self, first, last)
-        if len(first) != len(last):
-            return last
-        if range_format in ("minimal", "minimal-two"):
-            common = 0
-            for idx, (fch, lch) in enumerate(zip(first, last)):
-                if fch != lch:
-                    common = idx
-                    break
-            else:
-                return last
-            if range_format == "minimal":
-                index = common
-            else:
-                index = max(0, min(common, len(first) - 2))
-            return last[index:]
-        return orig_format_last_page(self, first, last)
-
-    def _to_ordinal(number, context):
-        lg_key = "{http://www.w3.org/XML/1998/namespace}lang"
-
-        def _find(fallback_locale: bool):
-            locales = context.get_root().locales
-            if not fallback_locale and locales:
-                main_lg = (locales[0].get(lg_key) or "").split("-")[0]
-                if main_lg:
-                    candidates = [
-                        loc for loc in locales
-                        if (loc.get(lg_key) or main_lg).split("-")[0] == main_lg
-                    ]
-                else:
-                    candidates = list(locales[:1])
-            else:
-                candidates = list(locales)
-
-            keys = [
-                (f"ordinal-{number:02}" if len(str(number)) == 1 else f"ordinal-{number}", False),
-                (f"ordinal-{int(str(number)[-1]):02}", True),
-                ("ordinal", False),
-            ]
-            for term_name, zp in keys:
-                for loc in candidates:
-                    try:
-                        t_el = loc.get_term(term_name, zero_padded=zp)
-                    except IndexError:
-                        continue
-                    if t_el is not None:
-                        return True, str(t_el.single)
-            return False, ""
-
-        found, suffix = _find(fallback_locale=False)
-        if not found:
-            _f2, suffix = _find(fallback_locale=True)
-        return str(number) + suffix
-
-    _substitute_render._md2word_shimmed = True
-    _macro_render._md2word_shimmed = True
-    _names_process._md2word_shimmed = True
-    _name_initialize._md2word_shimmed = True
-    _text_variable._md2word_shimmed = True
-    _date_process._md2word_shimmed = True
-    _number_process._md2word_shimmed = True
-    _label_process._md2word_shimmed = True
-    _group_process._md2word_shimmed = True
-    _if_render._md2word_shimmed = True
-    _label_is_plural._md2word_shimmed = True
-    _label_render._md2word_shimmed = True
-    _format_last_page._md2word_shimmed = True
-    _to_ordinal._md2word_shimmed = True
-
-    _citeproc_model.Substitute.render = _substitute_render
-    _citeproc_model.Macro.render = _macro_render
-    _citeproc_model.Names.process = _names_process
-    _citeproc_model.Name.initialize = _name_initialize
-    _citeproc_model.Text._variable = _text_variable
-    _citeproc_model.Date.process = _date_process
-    _citeproc_model.Number.process = _number_process
-    _citeproc_model.Label.process = _label_process
-    _citeproc_model.Group.process = _group_process
-    _citeproc_model.If.render = _if_render
-    _citeproc_model.Label._is_plural = _label_is_plural
-    _citeproc_model.Label.render = _label_render
-    _citeproc_model.FormatNumber._format_last_page = _format_last_page
-    _citeproc_model.to_ordinal = _to_ordinal
-
-
-_install_citeproc_shims()
 
 
 class CitationError(RuntimeError):
@@ -553,7 +58,6 @@ class CitationEngine:
             style = CitationStylesStyle(
                 str(csl_path),
                 locale="en-US" if self.citation_lang == "en" else None,
-                validate=False,
             )
         except Exception as exc:  # 样式文件本身有问题
             raise CitationError(t("citations.style_unparsable", lang, path=csl_path, err=exc)) from exc
@@ -574,6 +78,10 @@ class CitationEngine:
         self._sort_by_initials = _sort_names_initialized(style_text)
         self._sort_order = _declared_sort_keys(style_text)
         self._sorted = bool(self._sort_order)
+        # 只有 GB/T 7714 的著者-年制要求按文种分组；数字制仍按引用顺序。
+        self._gbt_language_groups = (
+            "author-date" in style_text.lower() and "GB/T 7714" in style_text
+        )
         options = citation_attrs(style_text)
         self._year_suffix = options.get("disambiguate-add-year-suffix") == "true"
         self._add_names = options.get("disambiguate-add-names") == "true"
@@ -811,7 +319,7 @@ class CitationEngine:
             entries = self._with_names(key, full=variant.full_names)
         style = self._style
         if variant.extra_names:
-            style = CitationStylesStyle(str(self._cloner.path(Variant(extra_names=variant.extra_names))), validate=False)
+            style = CitationStylesStyle(str(self._cloner.path(Variant(extra_names=variant.extra_names))))
         bibliography = CitationStylesBibliography(
             style, CiteProcJSON(entries), formatter.html
         )
@@ -909,7 +417,12 @@ class CitationEngine:
         return result
 
     def _ordered_keys(self) -> list[str]:
-        return self._sorted_keys(self._order) if self._sorted else list(self._order)
+        keys = self._sorted_keys(self._order) if self._sorted else list(self._order)
+        if self._gbt_language_groups:
+            # GB/T 7714-2015 §9.2：著者-年制先按文种集中，再按作者/年份。
+            # 稳定排序保留组内已有的 `<sort>` 次序。
+            keys.sort(key=lambda key: _language_group(self._by_key.get(key, {})))
+        return keys
 
     def bibliography_segments(self) -> list[tuple[str, list[tuple[str, dict]]]]:
         """(key, 片段序列)——写出器要用 key 建书签、用片段还原斜体。"""
@@ -941,7 +454,7 @@ class CitationEngine:
             return rendered
 
         text_by_key = dict(zip(self._order, rendered))
-        return [text_by_key[key] for key in self._sorted_keys(self._order)]
+        return [text_by_key[key] for key in self._ordered_keys()]
 
     def _separate_first_field(self, entry, number: int) -> str:
         """顺序数字制或 `second-field-align` 声明了「首个字段自成一栏」：在序号后面补一个制表符。
@@ -1198,6 +711,50 @@ def _sort_kind(name: str) -> str:
     if lowered.startswith("title"):
         return "title"
     return "status" if lowered == "status" else ""
+
+
+_WESTERN_LANGUAGES = {
+    "en", "de", "fr", "es", "it", "pt", "nl", "sv", "da", "no", "fi", "is",
+    "pl", "cs", "sk", "hu", "ro", "hr", "sl", "bg", "el", "la", "et", "lv",
+    "lt", "tr", "id", "ms", "vi",
+}
+
+
+def _language_group(entry: dict) -> int:
+    """GB/T 7714 著者-年制文献表的文种序号：中文、日文、西文、俄文、其他。
+
+    有 `language` 就按它；没有就按文字本身判——很多 BibTeX 条目不写语言，但题名和
+    作者已经说明了文种。显式的 `ko` / `ar` 这类不在五组里的语言落到「其他」，不能
+    因为文字不是拉丁字母就猜成西文。
+    """
+    language = str(entry.get("language") or "").strip().lower()
+    base = re.split(r"[-_]", language)[0] if language else ""
+
+    if base == "zh":
+        return 0
+    if base == "ja":
+        return 1
+    if base == "ru":
+        return 3
+
+    text = " ".join(
+        str(part)
+        for part in (
+            entry.get("title"),
+            entry.get("container-title"),
+            *(person.get("family", "") for person in entry.get("author") or []),
+        )
+        if part
+    )
+    if re.search(r"[぀-ヿ]", text):
+        return 1
+    if re.search(r"[Ѐ-ӿ]", text):
+        return 3
+    if re.search(r"[一-鿿]", text):
+        return 0
+    if base in _WESTERN_LANGUAGES or re.search(r"[A-Za-zÀ-ɏ]", text):
+        return 2
+    return 4
 
 
 def _sort_value(kind: str, entry: dict, by_initials: bool = True):

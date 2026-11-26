@@ -14,7 +14,8 @@ from md_to_word.config import get_csl_dir, get_presets_dir
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.spec.parser import parse_format
 from md_to_word.template.checks import _check_required_fields
-from md_to_word.transform.citations import CitationEngine, _ThreadLocalList
+from md_to_word.transform.citations import CitationEngine
+from md_to_word.csl.model import _ThreadLocalList
 
 BIB = r"""
 @article{a,

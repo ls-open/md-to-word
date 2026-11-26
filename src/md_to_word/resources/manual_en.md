@@ -810,11 +810,16 @@ laid out slightly differently from the reference implementation — check here w
 | With `collapse="year-suffix"` (e.g. `springer-basic-author-date.csl`) several works by the same author in the same year repeat the year: `(Smith 2020a, 2020b, 2020c)` where the reference implementation gives `(Smith 2020a, b, c)` | The content is complete, just less compact; merge the years in Word if the style must be followed exactly |
 | A year range prints its start year only: `year = {2020-2021}` comes out as `2020`, the end year never appears | Export with the start year and add the range in Word, or split it into two entries |
 | Styles that print only `et al.` and no author names (`et-al-use-first="0"`) gain a stray leading space: `( et al., 2020)` | Use a style that lists authors, or delete the space after export |
-| Mixed Chinese/English entries use one term for the whole list: English entries in a Chinese manuscript print 等, Chinese entries in an English manuscript print et al. | Per-entry language switching is not supported by citeproc-py; choose the dominant language or edit entries in Word |
-| Chinese author-date bibliographies sort by code point, not pinyin (observed: 吴, 周, 张, 王, 赵, 陈) | Reorder in Word if pinyin or stroke order is required, or use a numeric style |
+| Chinese author-date bibliographies are grouped by language (Chinese, Japanese, Western, Russian, other), then sorted by code point rather than pinyin (observed: 吴, 周, 张, 王, 赵, 陈) | Reorder in Word if pinyin or stroke order is required, or use a numeric style |
 | A branch meant to run only when disambiguation is needed (`disambiguate="true"` in `<choose>`) always runs: a citation that should take the plain branch carries that branch's content too | Affects a few styles only; check that citation after export and edit it in Word if needed |
 | Full-name-level disambiguation (`all-names`) compares first authors only: when the clash is in the second author it is not resolved, and `(Roe, Doe, 2020)` comes out twice identically | Tell them apart with page numbers, or spell out the authors in the text |
 | A narrative citation is rewritten as `Smith (2020)` only when it is a single reference and the style prints one pair of parentheses; with several references, a prefix, or a numeric style it stays parenthetical or numeric | Write several references as separate sentences; a single `@key` is unaffected |
+
+**Per-entry language**: Chinese entries print 等 and Western entries print et al. in the same
+bibliography. The language comes from the entry's `language` / `langid` field (CSL-JSON:
+`language`); when absent it is inferred from the title (then the names): Han characters mean
+Chinese, kana Japanese, Cyrillic Russian, Latin is treated as English. Chinese journals often give
+an English title — add `language = {chinese}` to those entries or they will be treated as Western.
 
 **Not possible**: a fenced code block inside a list item. List items carry paragraphs only; the
 block would be written as a top-level paragraph and lose its place in the list, so the export stops

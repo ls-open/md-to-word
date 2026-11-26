@@ -329,7 +329,7 @@ def test_venue_subtitle_and_shortjournal_map_to_csl_fields() -> None:
     assert entry["title"] == "主标题: 副标题"
     assert entry["container-title"] == "Information and Software Technology"
     assert entry["container-title-short"] == "Inf. Softw. Technol."
-    assert entry["language"] == "english"
+    assert entry["language"] == "en", "语言名要归一成 CSL 能匹配的代码"
 
 
 def test_percent_comments_are_not_fields_but_values_keep_percent() -> None:
@@ -370,3 +370,12 @@ def test_latex_markup_is_stripped_from_titles() -> None:
         "k",
     )
     assert entry["title"] == "The Foo and Bar TeX book"
+
+
+def test_language_field_is_normalized_and_precedes_langid() -> None:
+    """BibTeX 的标准字段是 `language`，biblatex 用 `langid`；两者都在时以前者为准。"""
+    entry = _entry(
+        "@book{k, title={T}, language={Chinese}, langid={english}, year={2020}}", "k")
+    assert entry["language"] == "zh"
+    assert _entry(
+        "@book{k, title={T}, language={fr-FR}, year={2020}}", "k")["language"] == "fr-FR"

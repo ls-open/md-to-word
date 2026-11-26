@@ -2,8 +2,8 @@
 # tests / demo / scripts / references 留在仓库里——它们是回归网、展示与开发工具，
 # 不进用户机器。包内数据（presets、resources）由 pyproject 的 package-data 负责。
 include README.md README_EN.md LICENSE THIRD_PARTY_NOTICES.md pyproject.toml
-recursive-include src/md_to_word/_vendor/citeproc/data/locales *.xml locales.json
-include src/md_to_word/_vendor/citeproc/LICENSE
+recursive-include src/md_to_word/csl/data/locales *.xml locales.json
+include src/md_to_word/csl/LICENSE
 prune tests
 prune demo
 prune scripts

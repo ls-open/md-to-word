@@ -2,13 +2,10 @@
 import json
 import os
 
-from . import formatter, types
+from . import formatter
 
-DATA_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'data')
-
-SCHEMA_PATH = os.path.join(DATA_PATH, 'schema', 'schemas', 'styles', 'csl.rng')
-LOCALES_PATH = os.path.join(DATA_PATH, 'locales')
-STYLES_PATH = os.path.join(DATA_PATH, 'styles')
+LOCALES_PATH = os.path.join(
+    os.path.abspath(os.path.dirname(__file__)), 'data', 'locales')
 
 
 NAMES = ['author', 'collection_editor', 'composer', 'container_author',
@@ -41,9 +38,9 @@ with open(os.path.join(LOCALES_PATH, 'locales.json'),
     LANGUAGE_NAMES = locales_json['language-names']
 
 
-from . import _version
-from .frontend import CitationStylesBibliography, CitationStylesStyle
-from .source import Citation, CitationItem, Locator
+from . import _version  # noqa: E402
+from .frontend import CitationStylesBibliography, CitationStylesStyle  # noqa: E402
+from .source import Citation, CitationItem, Locator  # noqa: E402
 
 __version__ = _version.get_versions()['version']
 __all__ = [
@@ -51,7 +48,6 @@ __all__ = [
     'CitationItem',
     'CitationStylesBibliography',
     'CitationStylesStyle',
-    'DATA_PATH',
     'DATES',
     'LANGUAGE_NAMES',
     'LOCALES_PATH',
@@ -59,9 +55,6 @@ __all__ = [
     'NAMES',
     'NUMBERS',
     'PRIMARY_DIALECTS',
-    'SCHEMA_PATH',
-    'STYLES_PATH',
     'VARIABLES',
     'formatter',
-    'types',
 ]

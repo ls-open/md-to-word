@@ -411,8 +411,16 @@ def test_gb7714_matrix_types_and_chinese_ordinals() -> None:
             _cite_str(eng, [(k, "")])
         bib = _bib_map(eng)
 
-        assert "3 版" in bib["book_auth"] and "3rd 版" not in bib["book_auth"]
-        assert "2 版" in bib["book_ed_only"] and "2nd 版" not in bib["book_ed_only"]
+        # 西文书的版次用西文词：`3rd ed.`；中文书仍是 `3 版`
+        assert "3rd ed." in bib["book_auth"] and "3 版" not in bib["book_auth"]
+        assert "2nd ed." in bib["book_ed_only"] and "2 版" not in bib["book_ed_only"]
+        zh_ed = CitationEngine(
+            "@book{zh, author={张三}, title={中文图书}, edition={3}, "
+            "publisher={出版社}, year={2022}}",
+            CSL_DIR / style, lang="zh",
+        )
+        zh_ed.cite([("zh", "")])
+        assert "3 版" in zh_ed.bibliography()[0] or "3版" in zh_ed.bibliography()[0]
         assert "Self-published" in bib["booklet_entry"]
         assert "[D]" in bib["phd_zh"] and "清华大学" in bib["phd_zh"]
         assert "AAI-1234567" in bib["phd_num"]
