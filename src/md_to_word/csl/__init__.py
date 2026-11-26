@@ -8,12 +8,17 @@ LOCALES_PATH = os.path.join(
     os.path.abspath(os.path.dirname(__file__)), 'data', 'locales')
 
 
-NAMES = ['author', 'collection_editor', 'composer', 'container_author',
-         'editor', 'editorial_director', 'illustrator', 'interviewer',
-         'original_author', 'recipient', 'translator']
+# CSL 1.0.2 的全部 name 变量。漏一个，Zotero/CSL-JSON 里该角色会被当成普通
+# 字符串塞进 Reference，渲染时 `Name.process` 调 `.parts()` 直接崩。
+NAMES = ['author', 'chair', 'collection_editor', 'compiler', 'composer',
+         'container_author', 'contributor', 'curator', 'director', 'editor',
+         'editorial_director', 'editor_translator', 'executive_producer',
+         'guest', 'host', 'illustrator', 'interviewer', 'narrator',
+         'organizer', 'original_author', 'performer', 'producer', 'recipient',
+         'reviewed_author', 'script_writer', 'series_creator', 'translator']
 
-DATES = ['accessed', 'container', 'event_date', 'issued', 'original_date',
-         'submitted']
+DATES = ['accessed', 'available_date', 'container', 'event_date', 'issued',
+         'original_date', 'submitted']
 
 NUMBERS = ['chapter_number', 'collection_number', 'edition', 'issue', 'number',
            'number_of_pages', 'number_of_volumes', 'volume']

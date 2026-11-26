@@ -767,6 +767,14 @@ class Term(CitationStylesElement):
         return String(text)
 
 
+_CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]")
+
+
+def _is_cjk_text(text) -> bool:
+    """东亚文字姓名：CSL 规定按「姓在前、名在后」显示，不缩写、不插分隔符。"""
+    return bool(text and _CJK_RE.search(str(text)))
+
+
 # Sorting elements
 
 class Sort(CitationStylesElement):
@@ -872,6 +880,9 @@ class Key(CitationStylesElement):
                 sort_separator = self._default_options['sort-separator']
 
                 given, family, dp, ndp, suffix = name.parts()
+                if _is_cjk_text(family) or _is_cjk_text(given):
+                    output.append(''.join(str(n) for n in (family, given, suffix) if n))
+                    continue
                 if demote_ndp in ('sort-only', 'display-and-sort'):
                     given = ' '.join([n for n in (given, dp, ndp) if n])
                 else:
@@ -952,7 +963,15 @@ class Layout(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
         bibliography = citation.bibliography
         good_cites = [cite for cite in citation.cites if not cite.is_bad()]
         bad_cites = [cite for cite in citation.cites if cite.is_bad()]
-        good_cites.sort(key=lambda item: bibliography.keys.index(item.key))
+        # 只有数字制需要按编号升序排出（`[2], [1]` → `[1], [2]`）；作者-年份制
+        # 没有 `<sort>` 时按作者在正文里的书写顺序，不能按文献表排序。
+        try:
+            numeric = bool(self.get_root().xpath_search(
+                './/cs:text[@variable="citation-number"]'))
+        except Exception:
+            numeric = False
+        if numeric and self.getparent().sort is None:
+            good_cites.sort(key=lambda item: bibliography.keys.index(item.key))
         # sort using citation/sort element
         if self.getparent().sort is not None:
             good_cites = self.getparent().sort.sort(good_cites, self)
@@ -1029,15 +1048,6 @@ class FormatNumber:
         range_format = self.get_root().get_option('page-range-format')
         common = find_common(first, last)
 
-        if range_format in ('minimal', 'minimal-two'):
-            # Equal-length numbers only: `1-40` is not `1-0`, it is the full
-            # last page; unequal lengths mean the caller cannot abbreviate.
-            if len(first) != len(last) or common == len(first):
-                return last
-            index = (common if range_format == 'minimal'
-                     else max(0, min(common, len(first) - 2)))
-            return last[index:]
-
         if range_format in ('chicago', 'chicago-15', 'chicago-16'):
             m = re.search(r'\d+', first)
             if not m:
@@ -1052,12 +1062,23 @@ class FormatNumber:
             elif first_number % 100 in range(10, 100):
                 range_format = 'minimal-two'
 
-        index = 0  # 'expanded' format (and default): return the full last page
+        if range_format == 'expanded':
+            # `321-8` → `321-328`：把起始页的公共前缀补到末页。
+            if len(last) < len(first):
+                return first[:len(first) - len(last)] + last
+            return last
         if range_format == 'minimal':
-            index = common
-        elif range_format == 'minimal-two':
-            index = min(common, len(first) - 2)
-        return last[index:]
+            if len(first) != len(last) or common == len(last):
+                return last
+            return last[common:]
+        if range_format == 'minimal-two':
+            if len(last) < 2:
+                last = first[:2 - len(last)] + last
+            if len(first) != len(last):
+                return last
+            keep = max(0, min(common, len(last) - 2))
+            return last[keep:]
+        return last
 
     def format_number(self, number, language=None):
         return str(number)
@@ -1169,50 +1190,55 @@ class Date(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
             return None
 
     def render_date_range(self, date_range, show_parts=None, context=None):
-        same_show_parts = []
         if date_range.end.is_nil():
-            same = None
-            diff_begin = self.render_single_date(date_range.begin, show_parts,
-                                                 context)
-            diff_end = ''
-        else:
-            if date_range.begin.year == date_range.end.year:
-                show_parts.remove('year')
-                same_show_parts.append('year')
-                try:
-                    if ('month' in show_parts and
-                        date_range.begin.month == date_range.end.month):
-                        show_parts.remove('month')
-                        same_show_parts.append('month')
-                        try:
-                            if ('day' in show_parts and
-                                date_range.begin.day == date_range.end.day):
-                                show_parts.remove('day')
-                                same_show_parts.append('day')
-                        except AttributeError:
-                            show_parts.remove('day')
-                except AttributeError:
-                    show_parts.remove('month')
+            return self.render_single_date(date_range.begin, show_parts, context)
 
-            same = self.render_single_date(date_range.end, same_show_parts,
-                                           context)
-            # 前缀归区间开头、后缀归区间末尾，各印一次。
-            diff_begin = self.render_single_date(date_range.begin, show_parts,
-                                                 context, skip_last_suffix=True)
-            diff_end = self.render_single_date(date_range.end, show_parts,
-                                               context, skip_first_prefix=True)
-
-        if not (diff_begin and diff_begin):
+        show_parts = show_parts or ['year', 'month', 'day']
+        order = [part.get('name') for part in self.iterchildren()
+                 if part.get('name') in show_parts]
+        if not order:
             return None
 
-        diff = (diff_begin.rstrip() + self._range_delimiter(date_range) +
-                diff_end)
-        if same:
-            text = context.join([diff, same.rstrip()])
-        else:
-            text = diff
+        def value(date, name):
+            try:
+                return getattr(date, name)
+            except AttributeError:
+                return None
 
-        return text
+        differing = [
+            index for index, name in enumerate(order)
+            if value(date_range.begin, name) != value(date_range.end, name)
+        ]
+        if not differing:
+            return self.render_single_date(date_range.begin, show_parts, context)
+
+        first, last = differing[0], differing[-1]
+
+        def render_part(name, date, **flags):
+            for part in self.iterchildren():
+                if part.get('name') == name:
+                    return part.render(date, context, **flags)
+            return None
+
+        # 相同部分只印一次；从第一个不同的部分到最后一个不同的部分整体成区间。
+        # 前后缀只包住区间一次：`(2020–2021)`，不是 `(2020)–(2021)`。
+        parts = [render_part(name, date_range.begin) for name in order[:first]]
+        parts += [
+            render_part(name, date_range.begin, skip_suffix=(index == last))
+            for index, name in enumerate(order) if first <= index <= last
+        ]
+        parts.append(String(self._range_delimiter(date_range)))
+        parts += [
+            render_part(name, date_range.end, skip_prefix=(index == first))
+            for index, name in enumerate(order) if first <= index <= last
+        ]
+        parts += [render_part(name, date_range.begin) for name in order[last + 1:]]
+        parts = [part for part in parts if part is not None]
+        if not parts:
+            return None
+
+        style_context = context if self.is_locale_date() else self
+        return style_context.join(parts)
 
     def _range_delimiter(self, date_range) -> str:
         """日期区间用的分隔符：取「第一个不同的日期部分」上的 `range-delimiter`。
@@ -1424,7 +1450,8 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed,
         elif variable == 'page-first':
             value = item.reference.page
         else:
-            value = item.reference[variable]
+            # CSL 变量名带连字符，Reference 的键是下划线。
+            value = item.reference[variable.replace('-', '_')]
         val = self._process(value, variable, language=item_language(item))
 
         if val is not None and str(val) != "":
@@ -1500,13 +1527,15 @@ class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
 
         def render_roles(active_roles):
             try:
-                ed_trans = (set(active_roles) == set(['editor', 'translator']) and
-                            item.reference.editor == item.reference.translator and
-                            self.get_term('editortranslator',
-                                          language=item_language(item)).getchildren())
+                ed_trans = (
+                    set(active_roles) == {'editor', 'translator'}
+                    and item.reference.editor == item.reference.translator
+                    and self.get_term('editortranslator',
+                                      language=item_language(item)) is not None
+                )
                 if ed_trans:
                     active_roles = ['editor']
-            except VariableError:
+            except (VariableError, IndexError):
                 ed_trans = False
 
             output = []
@@ -1653,11 +1682,15 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
             for i, name in enumerate(names):
                 given, family, dp, ndp, suffix = name.parts()
 
-                if given is not None and initialize_with is not None:
+                # 东亚姓名不缩写：`张` + `三` 就是 `张三`，不能变成 `张, . 三`。
+                cjk = _is_cjk_text(family) or _is_cjk_text(given)
+                if given is not None and initialize_with is not None and not cjk:
                     given = self.initialize(given, initialize_with, context)
 
                 if form == 'long':
-                    if (name_as_sort_order == 'all' or
+                    if cjk:
+                        text = join([n for n in (family, given, suffix) if n], '')
+                    elif (name_as_sort_order == 'all' or
                             (name_as_sort_order == 'first' and i == 0)):
                         if not demote_particle:
                             family = join([n for n in (ndp, family) if n], ' ')
@@ -1927,8 +1960,11 @@ class Label(CitationStylesElement, Formatted, Affixed, StrippedPeriods,
             except VariableError:
                 return False
 
-        if variable.startswith('number-of') and int(item[variable]) > 1:
-            return True
+        if variable.startswith('number-of'):
+            try:
+                return int(str(value)) > 1
+            except (TypeError, ValueError):
+                return False
         return self.RE_MULTIPLE_NUMBERS.search(str(value)) is not None
 
     def render(self, *args, **kwargs):
@@ -2011,8 +2047,18 @@ class If(CitationStylesElement, Parent):
         for variable in variables:
             if variable == 'locator':
                 output.append('locator' in item)
+                continue
+            try:
+                value = item.reference[variable]
+            except (KeyError, VariableError):
+                output.append(False)
+                continue
+            if isinstance(value, str):
+                output.append(bool(value.strip()))
+            elif isinstance(value, (list, tuple)):
+                output.append(bool(value))
             else:
-                output.append(variable in item.reference)
+                output.append(value is not None)
         return output
 
     re_numeric = re.compile(r'^([A-Z]*\d+[A-Z]*)$', re.I)

@@ -963,3 +963,113 @@ def test_style_affix_spaces_do_not_double_or_precede_punctuation() -> None:
     bmj.cite([("b", "")])
     text = "".join(t for t, _ in bmj.bibliography_entries()[0][1])
     assert "Self-published." in text and "Self-published ." not in text, repr(text)
+
+
+def test_extended_creator_roles_do_not_crash() -> None:
+    """Zotero 的影视条目会带 director/producer 等角色；这些字段不能当普通字符串。"""
+    data = (
+        '[{"id": "x", "type": "motion_picture", "title": "Film", '
+        '"director": [{"family": "Doe", "given": "Jane"}], '
+        '"issued": {"date-parts": [[2020]]}}]'
+    )
+    engine = CitationEngine(data, CSL / "apa.csl", lang="en")
+    engine.reserve(["x"])
+    engine.cite([("x", "")])
+    text = "".join(t for t, _ in engine.bibliography_entries()[0][1])
+    assert "Doe, J." in text and "Director" in text, text
+
+
+def test_available_date_is_a_date_variable() -> None:
+    data = (
+        '[{"id": "x", "type": "book", "title": "Book", '
+        '"author": [{"family": "Doe", "given": "Jane"}], '
+        '"available-date": {"date-parts": [[2020, 5, 1]]}}]'
+    )
+    engine = CitationEngine(data, CSL / "chicago-author-date.csl", lang="en")
+    engine.reserve(["x"])
+    engine.cite([("x", "")])
+    assert "Book" in "".join(t for t, _ in engine.bibliography_entries()[0][1])
+
+
+def test_same_year_date_range_keeps_the_year() -> None:
+    data = (
+        '[{"id": "x", "type": "article-journal", "title": "R", '
+        '"author": [{"family": "Doe", "given": "Jane"}], '
+        '"container-title": "J", "issued": {"date-parts": [[2020, 3, 1], [2020, 3, 5]]}}]'
+    )
+    apa = CitationEngine(data, CSL / "apa.csl", lang="en")
+    apa.reserve(["x"])
+    assert _text(apa, ("x", "")) == "(Doe, 2020)"
+    apa.cite([("x", "")])
+    assert "2020" in "".join(t for t, _ in apa.bibliography_entries()[0][1])
+
+    chicago = CitationEngine(data, CSL / "chicago-author-date.csl", lang="en")
+    chicago.reserve(["x"])
+    chicago.cite([("x", "")])
+    text = "".join(t for t, _ in chicago.bibliography_entries()[0][1])
+    assert "March 1–5" in text, text
+
+
+def test_cjk_names_are_family_then_given_without_separator() -> None:
+    data = (
+        '[{"id": "x", "type": "article-journal", "title": "研究", '
+        '"author": [{"family": "张", "given": "三"}], '
+        '"container-title": "学报", "issued": {"date-parts": [[2020]]}, "language": "zh"}]'
+    )
+    for style in ("apa.csl", "chicago-author-date.csl", "chinese-gb7714-2015-author-date.csl"):
+        engine = CitationEngine(data, CSL / style, lang="zh")
+        engine.reserve(["x"])
+        engine.cite([("x", "")])
+        text = "".join(t for t, _ in engine.bibliography_entries()[0][1])
+        assert "张三" in text and "张," not in text and "张 " not in text, (style, text)
+
+
+def test_number_of_volumes_renders_number_and_label() -> None:
+    data = (
+        '[{"id": "x", "type": "book", "title": "Works", '
+        '"author": [{"family": "Smith", "given": "John"}], '
+        '"number-of-volumes": 3, "issued": {"date-parts": [[2020]]}}]'
+    )
+    engine = CitationEngine(data, CSL / "apa.csl", lang="en")
+    engine.reserve(["x"])
+    engine.cite([("x", "")])
+    text = "".join(t for t, _ in engine.bibliography_entries()[0][1])
+    assert "(Vols. 1–3)" in text, text
+
+
+def test_expanded_page_range_pads_the_last_page() -> None:
+    data = (
+        '[{"id": "x", "type": "article-journal", "title": "R", '
+        '"author": [{"family": "Doe", "given": "J"}], "container-title": "J", '
+        '"page": "33-5", "issued": {"date-parts": [[2020]]}}]'
+    )
+    engine = CitationEngine(data, CSL / "apa.csl", lang="en")
+    engine.reserve(["x"])
+    engine.cite([("x", "")])
+    assert "33–35" in "".join(t for t, _ in engine.bibliography_entries()[0][1])
+
+
+def test_citation_order_without_sort_follows_the_text() -> None:
+    bib = (
+        "@article{a, author={Alpha, Ann}, title={A}, journal={J}, year={2020}}\n"
+        "@article{b, author={Beta, Bob}, title={B}, journal={J}, year={2020}}\n"
+    )
+    engine = CitationEngine(bib, CSL / "modern-language-association.csl", lang="en")
+    engine.reserve(["a", "b"])
+    assert _text(engine, ("b", ""), ("a", "")) == "(Beta; Alpha)"
+
+
+def test_if_variable_ignores_empty_values(tmp_path: Path) -> None:
+    style = tmp_path / "if-var.csl"
+    style.write_text(
+        '<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">'
+        "<info><title>p</title><id>p</id>"
+        "<updated>2024-01-01T00:00:00+00:00</updated></info>"
+        '<citation><layout><choose><if variable="title"><text value="HAS"/></if>'
+        '<else><text value="NONE"/></else></choose></layout></citation>'
+        '<bibliography><layout><text variable="title"/></layout></bibliography></style>',
+        encoding="utf-8",
+    )
+    data = '[{"id": "x", "type": "book", "title": "", "author": [{"family": "A", "given": "B"}]}]'
+    engine = CitationEngine(data, style, lang="en")
+    assert _text(engine, ("x", "")) == "NONE"
