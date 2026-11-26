@@ -28,7 +28,7 @@ from md_to_word.csl import (
     Citation, CitationItem, CitationStylesBibliography, CitationStylesStyle, formatter,
 )
 from md_to_word.csl.formatter.segments import (
-    join_segments, merge_segments, segments_text, slice_segments,
+    join_segments, merge_segments, replace_first, segments_text, slice_segments,
     strip_prefix, strip_suffix, to_segments,
 )
 from md_to_word.csl.features import CslFeatureError, check_style
@@ -50,6 +50,7 @@ from md_to_word.i18n import t
 
 from md_to_word.csl.model import (
     DISAMBIGUATE_KEYS as _DISAMBIGUATE_KEYS,
+    FIRST_NAMES,
 )
 
 
@@ -114,6 +115,10 @@ class CitationEngine:
         citation = self._style.root.citation
         self._bib_sort = bibliography.sort if bibliography is not None else None
         self._bib_layout = bibliography.default_layout() if bibliography is not None else None
+        self._substitute = (
+            bibliography.get('subsequent-author-substitute')
+            if bibliography is not None else None
+        ) or None
         self._cite_sort = citation.sort if citation is not None else None
         self._cite_layout = citation.default_layout() if citation is not None else None
         self._renders_citation_number = (
@@ -490,13 +495,41 @@ class CitationEngine:
     def bibliography_segments(self) -> list[tuple[str, list[tuple[str, dict]]]]:
         """(key, 片段序列)——写出器要用 key 建书签、用片段还原斜体。"""
         ordered = self._ordered_items()
-        rendered = self._style.render_bibliography([item for _key, item in ordered])
+        items = [item for _key, item in ordered]
+        if self._substitute is None:
+            rendered = [(entry, None) for entry in self._style.render_bibliography(items)]
+        else:
+            # 重复作者替换要按相邻两条判断，所以逐条渲染并收下 names 输出
+            rendered = [self._render_entry_with_names(item) for item in items]
         if len(rendered) != len(ordered):
-            return [(f"item{i}", segs) for i, segs in enumerate(rendered)]
-        return [
-            (key, self._finish_bibliography_entry(entry, key, item.number))
-            for (key, item), entry in zip(ordered, rendered)
-        ]
+            return [
+                (f"item{i}", to_segments(entry))
+                for i, (entry, _names) in enumerate(rendered)
+            ]
+        output = []
+        previous_names = None
+        for (key, item), (entry, names) in zip(ordered, rendered):
+            segments = self._finish_bibliography_entry(entry, key, item.number)
+            if names and names == previous_names:
+                segments = replace_first(segments, names, self._substitute)
+            previous_names = names
+            output.append((key, segments))
+        return output
+
+    def _render_entry_with_names(self, item):
+        """渲染一条文献表条目，同时记下它渲染出的第一段作者名。
+
+        `subsequent-author-substitute` 比较的是**渲染结果**，不是原始条目数据：
+        样式把名缩写成首字母、把编者换成作者，判断都得跟着变。
+        """
+        names: list[str] = []
+        token = FIRST_NAMES.set(names)
+        try:
+            rendered = self._style.render_bibliography([item])
+        finally:
+            FIRST_NAMES.reset(token)
+        entry = rendered[0] if rendered else None
+        return entry, (names[0] if names else None)
 
     def _finish_bibliography_entry(self, entry, key: str, number: int):
         segments = _with_year_suffix_segments(

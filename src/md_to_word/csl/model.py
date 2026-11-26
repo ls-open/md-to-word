@@ -87,6 +87,12 @@ DISAMBIGUATE_KEYS: ContextVar[frozenset[str]] = ContextVar(
     "md2word_disambiguate_keys", default=frozenset()
 )
 
+# 文献表渲染期间收集 `<names>` 的输出，供 `subsequent-author-substitute` 判断
+# 相邻两条的作者是否相同。适配层在渲染单条前后设置/复位。
+FIRST_NAMES: ContextVar[list[str] | None] = ContextVar(
+    "md2word_first_names", default=None
+)
+
 
 class _ThreadLocalList:
     """每个线程一份的列表，接口与 `list` 相同。
@@ -1318,6 +1324,13 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed, Displayed,
 
 
 class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
+
+    def render(self, *args, **kwargs):
+        output = super().render(*args, **kwargs)
+        bucket = FIRST_NAMES.get()
+        if bucket is not None and output is not None:
+            bucket.append(str(output))
+        return output
 
     def get_parent_delimiter(self, context=None):
         if context is None:

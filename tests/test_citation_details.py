@@ -331,6 +331,29 @@ def test_sort_keys_named_by_a_macro_are_evaluated() -> None:
     assert [key for key, _ in engine.bibliography_segments()] == ["doe", "smith"]
 
 
+def test_repeated_author_is_replaced_in_mla_bibliography() -> None:
+    """MLA 的 `subsequent-author-substitute`：相邻同作者的第二条换成 `———`。
+
+    替换按**渲染出来的**姓名比较，样式把名缩写、用编者顶替作者时都跟着变。
+    """
+    bib = """
+@book{s1, author={Smith, John}, title={Alpha}, publisher={P}, year={2020}}
+@book{s2, author={Smith, John}, title={Beta}, publisher={P}, year={2022}}
+@book{d1, author={Doe, Jane}, title={Gamma}, publisher={P}, year={2021}}
+"""
+    engine = CitationEngine(bib, CSL / "modern-language-association.csl", lang="en")
+    engine.reserve(["s1", "s2", "d1"])
+    for key in ("s1", "s2", "d1"):
+        engine.cite([(key, "")])
+    rendered = [
+        "".join(text for text, _ in segments)
+        for _key, segments in engine.bibliography_segments()
+    ]
+    assert rendered[0].startswith("Doe, Jane."), rendered
+    assert rendered[1].startswith("Smith, John."), rendered
+    assert rendered[2].startswith("———."), rendered
+
+
 def test_citation_number_follows_the_sorted_bibliography() -> None:
     """文献表按作者排的数字制样式（ACM），编号也按文献表走。
 

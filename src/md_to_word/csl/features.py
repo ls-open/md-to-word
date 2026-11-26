@@ -38,11 +38,15 @@ SUPPORTED_VERSIONS = {"1.0", "1.0.1", "1.0.2"}
 UNSUPPORTED_ATTRIBUTES = {
     "et-al-subsequent-min",
     "et-al-subsequent-use-first",
-    "subsequent-author-substitute-rule",
     "gender",
     "gender-form",
     "suppress-author",
 }
+
+# `subsequent-author-substitute` itself is implemented for the default rule.
+# The other rules substitute only part of the name list; accepting them would
+# print a different bibliography than the style asks for.
+SUPPORTED_SUBSTITUTE_RULES = {"complete-all"}
 
 
 class CslFeatureError(ValueError):
@@ -101,6 +105,14 @@ def check_style(style) -> None:
             attr_name = etree.QName(attr).localname
             if attr_name in UNSUPPORTED_ATTRIBUTES:
                 errors.append(f"unsupported attribute {name}@{attr_name}={value!r}")
+            elif (
+                attr_name == "subsequent-author-substitute-rule"
+                and value not in SUPPORTED_SUBSTITUTE_RULES
+            ):
+                errors.append(
+                    f"unsupported attribute {name}@{attr_name}={value!r} "
+                    "(only complete-all is supported)"
+                )
 
     version = root.get("version", "")
     if version and version not in SUPPORTED_VERSIONS:

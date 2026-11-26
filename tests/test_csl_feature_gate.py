@@ -53,6 +53,27 @@ def test_unimplemented_attribute_is_rejected(tmp_path: Path) -> None:
     assert "et-al-subsequent-min" in str(caught.value)
 
 
+def test_only_complete_all_substitute_rule_is_accepted(tmp_path: Path) -> None:
+    """`subsequent-author-substitute` 只实现了默认规则；其它规则会只替换部分姓名。"""
+    unsupported = _style('<text variable="title"/>').replace(
+        "<bibliography>",
+        '<bibliography subsequent-author-substitute="—" '
+        'subsequent-author-substitute-rule="partial-first">',
+    )
+    with pytest.raises(CitationError) as caught:
+        _engine(tmp_path, unsupported)
+    assert "partial-first" in str(caught.value)
+
+    accepted = _style('<text variable="title"/>').replace(
+        "<bibliography>",
+        '<bibliography subsequent-author-substitute="—" '
+        'subsequent-author-substitute-rule="complete-all">',
+    )
+    path = tmp_path / "ok.csl"
+    path.write_text(accepted, encoding="utf-8")
+    check_style(path)
+
+
 def test_metadata_outside_info_is_rejected(tmp_path: Path) -> None:
     style = _style("<text variable=\"title\"/>").replace(
         "</style>", "<title>stray</title></style>")
