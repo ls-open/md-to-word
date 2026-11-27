@@ -1810,7 +1810,7 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
                     init_opt = None
         if init_opt is not None and str(init_opt).lower() == "false":
             # 规范：initialize="false" 不缩写全名，但仍要在**已有的**首字母后补
-            # `initialize-with`（". “ + ”James T Kirk“ → ”James T. Kirk“）。
+            # `initialize-with`（`.` + `James T Kirk` → `James T. Kirk`）。
             if mark is None:
                 return given
             words = []
