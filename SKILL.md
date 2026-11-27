@@ -137,8 +137,8 @@ exports) — the file content decides, not the extension. Citation style comes f
 bundled name (manual §7) or a path to the user's own CSL. Without `csl:`, Chinese manuscripts get
 GB/T 7714 numeric and everything else APA 7th.
 
-Without `-f` the only file picked up is one named exactly `format.txt` beside the manuscript;
-anything else there is ignored and named in a reminder. With no `format.txt`, the preset follows the
+Without `-f` the only file picked up is one named exactly `format.txt` beside the manuscript.
+When `format.txt` is absent, other `.txt` files there are ignored and named in a reminder. With no `format.txt`, the preset follows the
 **manuscript's language**. `--lang` changes the **message language only**; it never changes the
 document language, the default preset or the default CSL.
 

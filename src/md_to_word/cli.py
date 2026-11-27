@@ -129,7 +129,7 @@ Machine-readable contract (for agents): md-to-word --contract --json
 样式名（写错会带行号报错）：{'、'.join(_style_names(ascii_only=False))}
 
 格式要求：不传 -f 时只认同目录的 format.txt，没有则用内置预设（按稿件语种：中文 zh-academic、其他 en-nature），
-每一行一种样式，如 `正文：宋体/Times New Roman 小四 行距1.5倍 首行缩进2字符`。
+每一行一种样式，如 `正文：宋体/Times New Roman 小四 不加粗 不倾斜 两端对齐 行距1.5倍 段前0磅 段后0磅 首行缩进2字符`。
 推荐从预设起步：将下面那份复制到稿件旁，仅修改需要的行。
 
 中文速览（与 `--guide` 同文）：{guide}

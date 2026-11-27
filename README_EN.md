@@ -87,7 +87,7 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
 ### Key Capabilities
 
 - **Native Vector Equations**: Renders native Word OMML math objects (vector, double-click editable in Word, not raster images), centered with equation numbers right-aligned, supporting `@eq-` cross-references.
-- **Three-Line Tables**: Rule weights declared per style; header rows repeat across page breaks automatically.
+- **Three-Line Tables**: Rule weights declared per style; with `repeat header` (`跨页重复`) in the format file, header rows repeat across page breaks (built-in presets enable it).
 - **Independent Section Pagination**: Roman front-matter numerals (`i, ii`) and Arabic body numerals (`1, 2`) with native Word Table of Contents field (F9 to refresh) and dynamic chapter running headers.
 - **29 Built-in CSL Styles**: Supports GB/T 7714, Nature, IEEE, APA, Science, and more; bibliography generated automatically from `.bib` or CSL-JSON (Zotero, Mendeley, Crossref exports).
 - **Line-Numbered Quality Gates**: Pre-flight manuscript validation, post-flight content-loss check, and OpenXML styling reconciliation with line numbers for fast remediation. `--validate-only` runs the pre-flight check without writing a file.

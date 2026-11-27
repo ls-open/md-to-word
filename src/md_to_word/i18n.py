@@ -49,8 +49,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "cli.lang": ("消息语言：auto=按稿件语种 / zh / en", "Message language: auto / zh / en"),
     "cli.validate_only": (
-        "只跑导前预检，不生成 .docx（可配 --json 给程序读）",
-        "Run the pre-flight check only; write no .docx (pair with --json for programs)",
+        "预检 + 临时目录里试导出一次，不写目标 .docx（可配 --json 给程序读）",
+        "Pre-flight plus one trial export in a temporary directory; the target .docx is not written (pair with --json for programs)",
     ),
     "cli.validate_only_conflict": (
         "`--validate-only` 与 `--no-check` 不能同时使用：前者的全部工作就是预检",
@@ -508,8 +508,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "How many leading sections of the base template are front matter (used with --base-template)",
     ),
     "cli.keep_pages": (
-        "换一种说法：保留底模的前几页（工具试切几次换算成节数，慢一点，一次就够）",
-        "Say it in pages instead: keep the first N pages (the tool tries a few cuts; slow, one-off)",
+        "换一种说法：保留底模的前几页（需 macOS + Word 真排一次版，试切几次换算成节数，慢一点）",
+        "Say it in pages instead: keep the first N pages (needs macOS + Word for a real layout; the tool tries a few cuts, slow, one-off)",
     ),
     "cli.keep_until": (
         "按内容说：底模里出现这段文字的那一节为止，前面的原样保留（如 --keep-until 版权使用授权书）",

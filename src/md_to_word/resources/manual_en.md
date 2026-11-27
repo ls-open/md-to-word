@@ -46,7 +46,7 @@ Rule of thumb: **write span-level tweaks (bolding two words, subscript) in `.md`
 | Command line | `md-to-word manuscript.md -o out.docx` |
 | Python | `from md_to_word import export` |
 | Reverse-engineer a format-file draft from a reference `.docx` | `md-to-word-template reference.docx -o format.txt` |
-| Getting-started guide | `guide.md` inside the package: order of work, how to read the gates, boundaries. Read it first when only the package is installed: `md-to-word --guide` prints it |
+| Getting-started guide | `guide.md` inside the package (in a Chinese environment, `guide_zh.md`): order of work, how to read the gates, boundaries. Read it first when only the package is installed: `md-to-word --guide` prints it |
 | Starting from nothing | `md-to-word init [dir]`: writes a `format.txt` and a `hello.md` that exports as-is |
 
 ```bash
@@ -61,7 +61,7 @@ md-to-word manuscript.md --validate-only                      # pre-flight + tri
 md-to-word init                                               # format.txt + a hello.md that exports as-is
 md-to-word --guide                                            # getting-started guide (pipeline entry)
 md-to-word --contract                                         # cheatsheet + guide, manual and preset paths
-md-to-word --contract --lang en                               # same, in English (canonical English style names)
+md-to-word --contract --lang en                               # same, in English (style names as written in the format file)
 md-to-word --contract --json                                  # the same contract, machine-readable (agents)
 md-to-word manuscript.md -o out.docx --verbose                # per-style log, for "the format had no effect"
 md-to-word thesis.md --base-template base.docx --cover-sections 3 -o thesis.docx   # see §9.3
@@ -70,8 +70,9 @@ md-to-word thesis.md --base-template base.docx --cover-sections 3 -o thesis.docx
 **Choosing the format file — one of three**: pass `-f`; otherwise a file named exactly
 `format.txt` beside the manuscript is used; otherwise a built-in preset — auto-selected by the
 **manuscript's language** (`zh-academic` for Chinese, `en-nature` for every other language). The
-preset list and each preset's setup are in §3.3. No other `.txt` is guessed at — if there is one,
-the run names it in a reminder. Which file was used is always reported.
+preset list and each preset's setup are in §3.3. No other `.txt` is guessed at — when `format.txt` is absent, any
+other `.txt` beside the manuscript is named in a reminder; pass one with `-f`. Which file was
+used is recorded in `--json`'s `format_source` (`file:` or `preset:`).
 
 `--lang` changes the **message language** only; the default preset and default CSL follow the
 **manuscript's prose**, never `--lang`. Manuscripts, format files and `.bib` files may be UTF-8
@@ -79,7 +80,7 @@ the run names it in a reminder. Which file was used is always reported.
 save it as UTF-8 for portable Git diffs.
 
 **Exit codes**: `0` done; `1` a manuscript, gate or dependency problem; `2` a usage error; `3` the `.docx` was written
-but `--pdf` was not rendered (non-macOS). `0` means every gate passed — **it does not mean the
+but `--pdf` was not rendered (not macOS, Word missing, or Word failed to start). `0` means every gate passed — **it does not mean the
 layout has been checked by eye** (§5.3).
 
 **`--json`**: for programs and agents. stdout carries one JSON object; progress and errors still go
@@ -516,7 +517,7 @@ in print preview.
   `Footer Content: {page}` and then `Even Header Content: …` leaves even pages without any page
   number at all. The generator fills the empty slots automatically and says so.
 
-### 3.3 The five ways to obtain a format file
+### 3.3 The four ways to obtain a format file
 
 | What you have | What to do |
 |:--|:--|
@@ -607,7 +608,7 @@ compliant `.docx` first, then fine-tune from feedback.
 - **Numeric styles**: the engine puts a tab after `[n]`, which lands on the `Bibliography`
   hanging indent and lines the entry text up in a column.
 - **Without `csl:`**: Chinese manuscripts default to GB/T 7714-2015 numeric, everything else to
-  APA 7th (the criterion is the body language). The default is defined in one place, so it cannot
+  APA 7th (the criterion is doc_lang: body language by default, overridden by a `Proofing language:` row in the format file). The default is defined in one place, so it cannot
   produce two different reference lists through two entry points.
 - **Citation syntax**:
 
@@ -922,7 +923,7 @@ md-to-word manuscript.md -f format.txt --base-template base.docx --keep-until "c
 
 `--keep-until <text>` keeps everything through the section containing that text and reports the number;
 when it is not found it lists how each section starts. `--cover-sections N` says it in sections.
-`--keep-pages P` says it in pages and needs Word, because the conversion takes a real layout.
+`--keep-pages P` says it in pages and needs macOS + Word, because the conversion takes a real layout.
 The resulting PDF is read with the bundled pypdfium2; poppler is not required.
 
 On a single-section base (many real templates page with manual breaks, not section breaks)
