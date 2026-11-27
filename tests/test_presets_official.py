@@ -112,6 +112,47 @@ def test_declared_geometry_lands_in_the_document(name: str, tmp_path: Path) -> N
     assert ("<w:mirrorMargins" in settings) is bool(spec.mirror_margins)
 
 
+def test_academic_presets_declare_the_same_sections() -> None:
+    """两个学术预设是姊妹版：zh-tw 缺了四节声明，繁体学位论文就做不出
+    「前置罗马、正文阿拉伯再起 1」，只能自己去改格式文件。"""
+    for name in ("zh-academic", "zh-tw-academic"):
+        path = resolve_preset_path(name)
+        assert path is not None, name
+        spec = parse_format(path.read_text(encoding="utf-8"))
+        assert {"封面", "前置", "正文", "附录"} <= set(spec.section_roles), name
+
+
+def test_zh_tw_thesis_sections_number_front_matter_and_body(tmp_path: Path) -> None:
+    """端到端：繁体预设的节声明要真的落成页码格式，不能只是写在文件里。"""
+    manuscript = tmp_path / "thesis.md"
+    manuscript.write_text(
+        "{{< section 封面 >}}\n\n"
+        "%% 文档标题 繁體論文\n\n"
+        "{{< section 前置 >}}\n\n"
+        "{{< toc >}}\n\n"
+        "%% 摘要标题 摘要\n\n"
+        "%% 摘要 這是一段摘要。\n\n"
+        "{{< section 正文 >}}\n\n"
+        "# 第一章 緒論\n\n"
+        "正文。\n\n"
+        "{{< section 附录 >}}\n\n"
+        "# 附錄 A\n\n"
+        "內容。\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "thesis.docx"
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=manuscript, output_path=out, preset="zh-tw-academic",
+    ))
+
+    assert result.ok, result.errors
+    with zipfile.ZipFile(out) as archive:
+        document = archive.read("word/document.xml").decode("utf-8")
+    assert 'w:fmt="lowerRoman" w:start="1"' in document, "前置节没有小写罗马页码"
+    assert 'w:fmt="decimal" w:start="1"' in document, "正文节没有阿拉伯起始 1"
+
+
 def test_gb9704_body_layout_matches_the_standard(tmp_path: Path) -> None:
     _spec, doc, styles, settings = _built("zh-gb9704", tmp_path)
 

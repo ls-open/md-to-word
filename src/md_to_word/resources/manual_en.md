@@ -290,9 +290,9 @@ Only three are recognised, **each on its own line** and separated from body text
 
 **A section name is a name, not a parameter.** Declare it once in the format file (`Section: body`),
 then add `body page-number: lowerRoman start 1`, `body header: none`, `body footer: {page}` as
-needed; the manuscript only says which section starts where. The `zh-academic` preset declares
-封面 / 前置 / 正文 / 附录 out of the box. A name that was never declared stops the export and lists
-the declared ones.
+needed; the manuscript only says which section starts where. The `zh-academic` and
+`zh-tw-academic` presets declare 封面 / 前置 / 正文 / 附录 out of the box. A name that was never
+declared stops the export and lists the declared ones.
 
 - **It names the section below it**: to close the front matter, write `{{< section body >}}` after
   the contents and before chapter one; write `{{< section front >}}` after the cover and the front
@@ -985,7 +985,7 @@ name's look. So "front matter in lower-case Roman" is declared as `front page-nu
 start 1` (`front header: none`, `front footer: none`), and the manuscript writes
 `{{< section body >}}` after the contents, before chapter one.
 
-- `zh-academic` declares 封面 / 前置 / 正文 / 附录 for you; in your own format file, name the
+- `zh-academic` and `zh-tw-academic` declare 封面 / 前置 / 正文 / 附录 for you; in your own format file, name the
   sections as you like (`front`, `body`, `appendix`) and declare each with a `Section:` row.
 - A marker at the very start names the first section without adding a blank page.
 - A section break already starts a new page: **do not add a `{{< pagebreak >}}` after it**, or you
