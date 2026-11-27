@@ -11,7 +11,8 @@ from lxml import etree
 from . import DATES, LANGUAGE_NAMES, NAMES, NUMBERS, PRIMARY_DIALECTS
 from .source import DateRange, LiteralDate, VariableError
 from .string import (
-    LINE_BREAK, SEAM_PUNCTUATION, MixedString, String, join, normalize_seam,
+    LINE_BREAK, SEAM_PUNCTUATION, MixedString, String, case_text, join,
+    normalize_seam,
 )
 
 LANG_KEY = '{http://www.w3.org/XML/1998/namespace}lang'
@@ -699,50 +700,17 @@ class StrippedPeriods:
 
 
 class TextCased:
-    _stop_words = ['a', 'an', 'and', 'as', 'at', 'but', 'by', 'down', 'for',
-                   'from', 'in', 'into', 'nor', 'of', 'on', 'onto', 'or',
-                   'over', 'so', 'the', 'till', 'to', 'up', 'via', 'with',
-                   'yet']
+    _text_cases = ('lowercase', 'uppercase', 'capitalize-first',
+                   'capitalize-all', 'sentence', 'title')
 
     def case(self, text, language=None):
         text_case = self.get('text-case')
-        if text_case is not None:
-            if language != 'en' and text_case == 'title':
-                return text
-            if text_case == 'lowercase':
-                text = text.lower()
-            elif text_case == 'uppercase':
-                text = text.upper()
-            elif text_case == 'capitalize-first':
-                text = text.capitalize_first()
-            elif text_case == 'capitalize-all':
-                output = []
-                for word in text.words():
-                    word = word.capitalize_first()
-                    output.append(word)
-                text = ' '.join(output)
-            elif text_case == 'title':
-                output = []
-                prev = ':'   # This ensures first word is capitilized
-                for word in text.words():
-                    if word.islower() and (str(word) not in self._stop_words or
-                        prev in (':', '.')):
-                        word = word.capitalize_first()
-                    elif word.islower():  # Lowercase stop words
-                        word = word.soft_lower()
-                    prev = word[-1]
-                    output.append(word)
-                text = ' '.join(output)
-            elif text_case == 'sentence':
-                output = []
-                for i, word in enumerate(text.words()):
-                    if not text.isupper() and not word.isupper():
-                        word = word.soft_lower()
-                    if i == 0:
-                        word = word.capitalize_first()
-                    output.append(word)
-                text = ' '.join(output)
-        return text
+        if text_case not in self._text_cases:
+            return text
+        # 规范：title case 只作用于英文条目；其余转换与语言无关。
+        if text_case == 'title' and language != 'en':
+            return text
+        return case_text(text, text_case)
 
 
 # Locale elements

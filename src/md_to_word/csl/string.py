@@ -1,4 +1,5 @@
 
+import re
 from functools import wraps
 
 # Punctuation characters that should not be duplicated when two of them end up
@@ -94,16 +95,6 @@ class String(str):
     def upper(self):
         return self.__class__(super().upper())
 
-    def soft_lower(self):
-        return self.lower()
-
-    def capitalize_first(self):
-        return self.__class__(self[0].upper() + self[1:])
-
-    def words(self):
-        for word in self.split():
-            yield self.__class__(word)
-
 
 class MixedString(list):
     @discard_empty_other
@@ -142,15 +133,6 @@ class MixedString(list):
     def upper(self):
         return self.__class__([string.upper() for string in self])
 
-    def title(self):
-        return self.__class__([string.title() for string in self])
-
-    def capitalize_first(self):
-        self_iter = iter(self)
-        output = [next(self_iter).capitalize_first()]
-        output += [string for string in self_iter]
-        return self.__class__(output)
-
     def isupper(self):
         return all(string.isupper() for string in self)
 
@@ -163,20 +145,149 @@ class MixedString(list):
         output += [string for string in rev_iter]
         return self.__class__(reversed(output))
 
-    def words(self):
-        for string in self:
-            yield from string.words()
-
 
 class NoCase(String):
+    """A segment of CSL-JSON text inside `<span class="nocase">`: text-case
+    conversions must leave it exactly as the source has it."""
     def __repr__(self):
         return f'{self.__class__.__name__}({self})'
 
-    def soft_lower(self):
-        return self
 
-    def capitalize_first(self):
-        return self
+# --- text-case -------------------------------------------------------------
+#
+# CSL 1.0.2 “Text Case Conversion”。要点：
+#   * 词按标点切开，连字符连接的词段算独立的词（`two-thirds` → `Two-Thirds`）；
+#   * title 的停用词取自 schema 的 stop-words.json，包括几个词组；
+#   * 全大写的字符串先折成“首字母大写、其余小写”；
+#   * 停用词一律小写，除非位于字符串首、末，或紧跟冒号；
+#   * `nocase` 片段（Zotero 富文本）原样保留。
+
+# https://resource.citationstyles.org/schema/latest/styles/stop-words.json
+_STOP_WORDS = (
+    'a', 'across', 'afore', 'after', 'against', 'along', 'alongside',
+    'amid', 'amidst', 'among', 'amongst', 'an', 'and', 'anenst',
+    'apropos', 'apud', 'around', 'as', 'aside', 'astride', 'at',
+    'athwart', 'atop', 'barring', 'before', 'behind', 'below', 'beneath',
+    'beside', 'besides', 'between', 'beyond', 'but', 'by', 'c', 'ca',
+    'circa', "d'", 'de', 'despite', 'down', 'during', 'et', 'except',
+    'for', 'forenenst', 'from', 'given', 'in', 'inside', 'into', 'lest',
+    'like', 'modulo', 'near', 'next', 'nor', 'notwithstanding', 'of',
+    'off', 'on', 'onto', 'or', 'out', 'over', 'per', 'plus', 'pro', 'qua',
+    'sans', 'since', 'so', 'than', 'the', 'through', 'throughout', 'thru',
+    'thruout', 'till', 'to', 'toward', 'towards', 'under', 'underneath',
+    'until', 'unto', 'up', 'upon', 'v.', 'van', 'versus', 'via',
+    'vis-à-vis', 'von', 'vs.', 'with', 'within', 'without', 'yet')
+# 词条里的句点被词法切开，比对时按去掉句点的形式（`vs.` 配 `vs`）。
+STOP_WORDS = frozenset(word.rstrip('.') for word in _STOP_WORDS)
+
+STOP_PHRASES = ('according to', 'ahead of', 'apart from', 'as regards',
+                'back to', 'because of', 'close to', 'due to', 'far from',
+                'instead of', 'outside of', 'prior to', 'pursuant to',
+                'rather than', 'regardless of', 'such as', 'that of',
+                'where as')
+
+# 词：字母/数字串，允许词内撇号（`don't`、`O’Brien`）。连字符、句点、括号、
+# 引号、逗号、冒号等都算分隔符。
+_WORD_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)*")
+
+
+def _capitalise(word):
+    first = word[:1]
+    if first.isalpha() and first.islower():
+        return first.upper() + word[1:]
+    return word
+
+
+def _segments(text):
+    """把 (Mixed)String 拆成可分段改写的片段列表。"""
+    if isinstance(text, MixedString):
+        return list(text)
+    return [text]
+
+
+def case_text(text, text_case):
+    """按 `text_case` 转换文本，保留 MixedString 的分段与 `nocase` 片段。"""
+    segments = _segments(text)
+    pieces = [str(segment) for segment in segments]
+    offsets = []
+    position = 0
+    for piece in pieces:
+        offsets.append(position)
+        position += len(piece)
+    flat = ''.join(pieces)
+
+    protected = [False] * len(flat)
+    for index, segment in enumerate(segments):
+        if isinstance(segment, NoCase):
+            start = offsets[index]
+            protected[start:start + len(pieces[index])] = (
+                [True] * len(pieces[index]))
+
+    matches = list(_WORD_RE.finditer(flat))
+    if not matches:
+        return text
+    words = [match.group() for match in matches]
+    lowers = [word.lower() for word in words]
+
+    stop = [lower in STOP_WORDS for lower in lowers]
+    for index in range(len(words)):
+        for phrase in STOP_PHRASES:
+            length = len(phrase.split())
+            if (index + length <= len(words) and
+                    ' '.join(lowers[index:index + length]) == phrase):
+                for offset in range(index, index + length):
+                    stop[offset] = True
+
+    upper = flat.isupper()
+    edits = []
+    for index, match in enumerate(matches):
+        start, end = match.start(), match.end()
+        if any(protected[start:end]):
+            continue
+        word = words[index]
+        if text_case == 'lowercase':
+            new = word.lower()
+        elif text_case == 'uppercase':
+            new = word.upper()
+        elif text_case == 'capitalize-all':
+            new = _capitalise(word) if word.islower() else word
+        elif text_case == 'capitalize-first':
+            new = _capitalise(word) if index == 0 and word.islower() else word
+        elif text_case == 'sentence':
+            if upper:
+                new = (word[:1] + word[1:].lower() if index == 0
+                       else word.lower())
+            else:
+                new = (_capitalise(word)
+                       if index == 0 and word.islower() else word)
+        else:  # title
+            # 首词、末词、紧跟冒号的词不受停用词规则影响。
+            special = index in (0, len(words) - 1) or (
+                ':' in flat[matches[index - 1].end():start] if index else False)
+            if upper:
+                new = word[:1] + word[1:].lower()
+            elif word.islower():
+                new = _capitalise(word)
+            else:
+                new = word
+            if stop[index] and not special:
+                new = new.lower()
+        if new != word:
+            edits.append((start, end, new))
+
+    if not edits:
+        return text
+    output = []
+    for index, piece in enumerate(pieces):
+        start = offsets[index]
+        end = start + len(piece)
+        new_piece = piece
+        for edit_start, edit_end, new in reversed(edits):
+            if start <= edit_start and edit_end <= end:
+                new_piece = (new_piece[:edit_start - start] + new +
+                             new_piece[edit_end - start:])
+        output.append(segments[index].__class__(new_piece))
+    return MixedString(output) if isinstance(text, MixedString) else output[0]
 
 
 def join(items, delimiter=''):
