@@ -10,6 +10,9 @@
 #   bash scripts/release.sh 3.6.1 --push --publish   # 再加推送与上传
 #   bash scripts/release.sh 3.6.1 --full             # 提交前额外跑 acceptance.sh（建 wheel、干净 venv 装一遍）
 #
+# Python 默认用仓库 `.venv/bin/python`（存在时），否则用 `python3`；要换解释器就
+#   PYTHON=/path/to/python bash scripts/release.sh 3.6.1
+#
 # 为什么必须重出样例：`docProps` 里记着版本号，升版之后仓库里提交的 `.docx` 与现场导出的
 # 对不上，`test_committed_docx_matches_a_fresh_export` 会当场红——它红得对。
 #
@@ -18,6 +21,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$ROOT"
+
+# Python：优先用仓库自己的 .venv，避免系统 python3 缺依赖；可用 PYTHON=… 覆盖。
+if [ -z "${PYTHON:-}" ] && [ -x "$ROOT/.venv/bin/python" ]; then
+    PYTHON="$ROOT/.venv/bin/python"
+fi
+PYTHON="${PYTHON:-python3}"
+export PYTHON
 
 VERSION="${1:-}"
 [ -n "$VERSION" ] || { echo "用法: bash scripts/release.sh <x.y.z> [--dry-run] [--push] [--publish] [--full]" >&2; exit 2; }
@@ -54,10 +64,13 @@ step "前置检查"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "版本号要写成 x.y.z，收到: $VERSION"
 [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ] || die "当前不在 main 分支"
 git diff --quiet && git diff --cached --quiet || die "工作区不干净，先提交或 stash"
+command -v "$PYTHON" >/dev/null 2>&1 || die "找不到 Python 解释器：$PYTHON"
+"$PYTHON" -c 'import docx, lxml, yaml, latex2mathml, pypdfium2, pytest' >/dev/null 2>&1 \
+    || die "Python 缺少运行依赖：${PYTHON}；先 source .venv/bin/activate，或用 PYTHON=.venv/bin/python 重跑"
 
 CUR="$(grep -oE '__version__ = "[^"]+"' src/md_to_word/__init__.py | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
 [ -n "$CUR" ] || die "读不到当前版本号"
-python3 - "$CUR" "$VERSION" <<'PY' || die "新版本号必须大于当前版本号"
+"$PYTHON" - "$CUR" "$VERSION" <<'PY' || die "新版本号必须大于当前版本号"
 import sys
 cur, new = (tuple(int(x) for x in v.split(".")) for v in sys.argv[1:3])
 raise SystemExit(0 if new > cur else 1)
@@ -71,13 +84,13 @@ if [ "$DRY_RUN" = 1 ]; then
     step "dry-run：将要做的事"
     echo "  1. 改 src/md_to_word/__init__.py 与 .codebuddy-plugin/plugin.json 的版本号"
     echo "  2. 重出 ${#DEMOS[@]} 份样例的 .docx/.pdf 与首页图（需要本机 Word）"
-    echo "  3. python3 web/build.py 重建样张页与 docs/assets"
+    echo "  3. 重建样张页与 docs/assets"
     if [ "$FULL" = 1 ]; then
         echo "  4. 跑 pytest 与 scripts/acceptance.sh"
     else
         echo "  4. 跑 pytest"
     fi
-    echo "  5. git commit「release: $VERSION」并打 tag v$VERSION"
+    echo "  5. git commit「release: ${VERSION}」并打 tag v${VERSION}"
     if [ "$PUSH" = 1 ]; then echo "  6. git push origin main --tags"; fi
     if [ "$PUBLISH" = 1 ]; then echo "  7. uv build && uv publish（传 PyPI）"; fi
     echo
@@ -89,7 +102,7 @@ fi
 # 只有两处是手写的：__version__ 是权威，plugin.json 是插件市场直接读的静态第二份。
 # 样张页与 docProps 里的版本由 web/build.py 与导出器从 __version__ 算，不在这里改。
 step "升版本号"
-python3 - "$VERSION" <<'PY'
+"$PYTHON" - "$VERSION" <<'PY'
 import re, sys
 from pathlib import Path
 
@@ -130,7 +143,7 @@ for row in "${DEMOS[@]}"; do
         esac
         rc=$?
         set -e
-        [ "$rc" = 0 ] || die "demo/$dir 导出失败（退出码 $rc，3 = docx 出了但 PDF 没渲染，可能是本机没装 Word）"
+        [ "$rc" = 0 ] || die "demo/$dir 导出失败（退出码 ${rc}，3 = docx 出了但 PDF 没渲染，可能是本机没装 Word）"
         pdftoppm -png -r 110 "$stem.pdf" page
         echo "   demo/$dir → $stem.docx / .pdf / $(ls page-*.png | wc -l | tr -d ' ') 页图"
     )
@@ -138,11 +151,11 @@ done
 
 # ── 4. 重建样张页 ──────────────────────────────────────────────────────────────
 step "重建样张页"
-python3 web/build.py
+"$PYTHON" web/build.py
 
 # ── 5. 门禁 ────────────────────────────────────────────────────────────────────
 step "门禁"
-python3 -m pytest -q
+"$PYTHON" -m pytest -q
 if [ "$FULL" = 1 ]; then
     step "安装验收（acceptance.sh）"
     bash scripts/acceptance.sh

@@ -10,6 +10,13 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# 构建 wheel 只需要 pip/venv，不需要项目依赖；默认用 PATH 上的 python3。
+# 要换解释器：BUILD_PYTHON=/path/to/python bash scripts/acceptance.sh
+BUILD_PYTHON="${BUILD_PYTHON:-python3}"
+"$BUILD_PYTHON" -m pip --version >/dev/null 2>&1 || {
+    echo "构建 wheel 需要 pip：${BUILD_PYTHON} -m pip 不可用；请换一个带 pip 的 Python" >&2
+    exit 1
+}
 # 建在 /tmp 下：Word for Mac 是沙箱应用，读不到系统临时目录（/var/folders/…），
 # 那样 --pdf 会一直按"跳过"返回 3，验收就白测了。
 TMP="$(mktemp -d /tmp/md-to-word-accept.XXXXXX)"
@@ -22,12 +29,12 @@ step "构建 wheel"
 # 打出来的 wheel 就会带上已经不存在的文档（3.5.0 合并手册后实测如此）。
 # 每次从干净目录构建，wheel 的内容才等于源码树的内容。
 rm -rf "$ROOT/build"
-python3 -m pip wheel "$ROOT" --no-deps -w "$TMP/dist" -q
+"$BUILD_PYTHON" -m pip wheel "$ROOT" --no-deps -w "$TMP/dist" -q
 WHEEL=$(ls "$TMP"/dist/*.whl)
 echo "   $WHEEL"
 
 step "装进干净 venv"
-python3 -m venv "$TMP/venv"
+"$BUILD_PYTHON" -m venv "$TMP/venv"
 "$TMP/venv/bin/pip" install -q "$WHEEL"
 BIN="$TMP/venv/bin"
 
@@ -75,7 +82,7 @@ set -e
 [ "$INVALID_CODE" -ne 0 ] || { echo "   待办列表本应失败"; exit 1; }
 printf '%s' "$INVALID_JSON" |
     "$TMP/venv/bin/python" -c 'import json,sys; d=json.load(sys.stdin); assert not d["ok"] and d["errors"], d'
-echo "   失败时 --json 仍是一行可解析结果（退出码 $INVALID_CODE）"
+echo "   失败时 --json 仍是一行可解析结果（退出码 ${INVALID_CODE}）"
 
 step "PDF 核对（不可用时跳过，退出码 3）"
 set +e

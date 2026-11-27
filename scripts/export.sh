@@ -19,16 +19,31 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT="$(dirname "$SCRIPT_DIR")"
 VENDORED="$ROOT/src/md_to_word"
 
-# 1. 仓库自带的实现优先
-if [[ -d "$VENDORED" ]] && command -v python3 >/dev/null 2>&1; then
-    if python3 -c "import docx, lxml, yaml, latex2mathml, pypdfium2" >/dev/null 2>&1; then
-        export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
-        exec python3 -m md_to_word "$@"
-    fi
-    cat >&2 <<'MSG'
-缺少 Python 依赖，先在仓库根目录执行一次：
+# Python：优先用仓库自己的 .venv，避免系统 python3 缺依赖；可用 PYTHON=… 覆盖。
+if [ -z "${PYTHON:-}" ] && [ -x "$ROOT/.venv/bin/python" ]; then
+    PYTHON="$ROOT/.venv/bin/python"
+fi
+PYTHON="${PYTHON:-python3}"
+export PYTHON
 
-  pip install -e .
+# 1. 仓库自带的实现优先
+if [[ -d "$VENDORED" ]]; then
+    command -v "$PYTHON" >/dev/null 2>&1 || {
+        echo "找不到 Python 解释器：${PYTHON}" >&2
+        exit 1
+    }
+    if "$PYTHON" -c "import docx, lxml, yaml, latex2mathml, pypdfium2" >/dev/null 2>&1; then
+        export PYTHONPATH="$ROOT/src${PYTHONPATH:+:$PYTHONPATH}"
+        exec "$PYTHON" -m md_to_word "$@"
+    fi
+    cat >&2 <<MSG
+缺少 Python 依赖（当前解释器：${PYTHON}），先在仓库根目录执行一次：
+
+  "$PYTHON" -m pip install -e .
+
+或换一个解释器：
+
+  PYTHON=/path/to/python bash scripts/export.sh ...
 
 （依赖声明在 pyproject.toml，就这一份。）
 MSG
