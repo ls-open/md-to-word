@@ -813,6 +813,7 @@ laid out slightly differently from the reference implementation — check here w
 | Chinese author-date bibliographies are grouped by language (Chinese, Japanese, Western, Russian, other), then sorted by code point rather than pinyin (observed: 吴, 周, 张, 王, 赵, 陈) | Reorder in Word if pinyin or stroke order is required, or use a numeric style |
 | Full-name-level disambiguation (`all-names`) compares first authors only: when the clash is in the second author, in-text citations are told apart by the year suffix alone (`(Roe & Doe, 2020a)` / `2020b`) and the second author's name is not added; the bibliography still prints full names | Tell them apart with page numbers, or spell out the authors in the text |
 | A narrative citation is rewritten as `Smith (2020)` only when it is a single reference and the style prints one pair of parentheses; with several references, a prefix, or a numeric style it stays parenthetical or numeric | Write several references as separate sentences; a single `@key` is unaffected |
+| `display="block"` / `"indent"` only mean "start a new line"; the indentation amount of `indent` is not applied. `left-margin` / `right-inline` drive the number column of numeric styles and otherwise flow inline | Adjust indentation in Word, or edit the style |
 
 **Per-entry language**: Chinese entries print 等 and Western entries print et al. in the same
 bibliography. The language comes from the entry's `language` / `langid` field (CSL-JSON:

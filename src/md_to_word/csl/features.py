@@ -6,8 +6,12 @@ before rendering instead of letting an unknown element crash with a `TypeError`
 or an unimplemented attribute silently change the output.
 
 It is deliberately capability-based, not schema-only: attributes that change
-nothing when ignored (`entry-spacing`, `line-spacing`, …) are accepted, while
-`display` and `range-delimiter` are implemented and therefore accepted too.
+nothing when ignored (`entry-spacing`, `line-spacing`, …) are accepted.
+
+`display="block"` and `"indent"` are rendered as line breaks inside the entry
+(the indentation amount of `indent` is not applied); `left-margin` /
+`right-inline` drive the number column of numeric styles. Both are accepted,
+and the manual lists the exact behaviour under CSL typesetting differences.
 """
 
 from __future__ import annotations
