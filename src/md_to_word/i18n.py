@@ -900,8 +900,9 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
     ),
     "extractor.cli.description": (
-        "从参考 .docx 反推 format.txt 草稿（读不出的项单独列出，不猜值）",
-        "Draft a format.txt from a reference .docx (unreadable items are listed, never guessed)",
+        "从参考 .docx 反推 format.txt 草稿（只读样式；手调的直接格式读不出，表达不了的列在末尾）",
+        "Draft a format.txt from a reference .docx (styles only; direct formatting is not read; "
+        "inexpressible items are listed)",
     ),
     "extractor.cli.docx": ("参考 .docx 路径", "path to the reference .docx"),
     "extractor.cli.output": ("输出路径（默认打印到 stdout）", "output path (prints to stdout by default)"),

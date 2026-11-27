@@ -533,7 +533,7 @@ in print preview.
 | What you have | What to do |
 |:--|:--|
 | An empty directory, and you want to see output first | `md-to-word init` writes a complete preset as `format.txt` plus a `hello.md` that exports as-is; edit from there |
-| A reference `.docx` template | `md-to-word-template reference.docx -o format.txt` reverse-engineers a draft; **items it could not read are listed at the end of the draft** — check each one before using it |
+| A reference `.docx` template | `md-to-word-template reference.docx -o format.txt` reverse-engineers a draft; **items it can read but not express are listed at its end**; hand-applied direct formatting is invisible — compare against the original line by line |
 | Format instructions in text or given verbally | fill in whatever the user stated explicitly; derive and fill the unmentioned required fields of the same set per §3.5 |
 | Nothing at all | use a built-in preset, export a standard `.docx` first, then adjust from feedback |
 
@@ -684,7 +684,10 @@ Properties are read at their **effective** value: whatever a style does not set 
 along the `basedOn` chain and in `docDefaults`, so the most common shape — a derived style whose
 properties live on the base style — is read correctly instead of falling back to empty or default.
 
-**Where reverse-engineering stops** — two kinds, both listed at the end of the draft, neither guessed:
+**Where reverse-engineering stops** — two kinds, neither guessed. It reads the **styles part**:
+direct formatting on individual paragraphs cannot be detected and leaves no trace in the draft —
+check it against the original. Everything else it can detect but cannot express is listed at the
+end of the draft:
 
 - **Cannot be read**: anything a reference file expresses through **direct paragraph formatting**
   (hand-tuned spacing, manual indents, a single bold word), and tables that carry no style. This tool

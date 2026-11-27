@@ -611,8 +611,10 @@ def create_mcp_server() -> Any:
         title="Reverse-engineer a format file from a .docx",
         description=(
             "Read a reference .docx template (institution, journal, or organization) and produce "
-            "a draft format file. The draft lists every value it could determine and a "
-            "'to confirm' list it could not; review those before compiling."
+            "a draft format file. The draft writes every value it could determine and lists what "
+            "it could read but cannot express. Direct formatting (hand-tuned spacing, indents, "
+            "emphasis) lives outside styles and is neither read nor listed — compare the draft "
+            "against the original before compiling."
         ),
     )
     def extract_format_from_docx(
