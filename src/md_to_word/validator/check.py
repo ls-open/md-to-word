@@ -660,6 +660,27 @@ def validate_manuscript(
                     line=None,
                 )
 
+    # 1d. 手写文献列表：不在样式表里，格式无从谈起。不阻断（可能是未完成的草稿），
+    #     但必须说一声——否则交付时才发现列表是正文样式、且和生成的那份并存。
+    lines = visible.split("\n")
+    title_re = re.compile(r"^\s*(?:#{1,6}\s*参考文献\s*(?:\{.*\})?|%%\s*参考文献标题(?:\s|$))")
+    entry_re = re.compile(r"^\s*(?:\[\d+\]|［\d+］|\d+[.、]\s*\S)")
+    for idx, line in enumerate(lines):
+        if not title_re.match(line):
+            continue
+        count = 0
+        for follow in lines[idx + 1: idx + 41]:
+            if title_re.match(follow) or follow.lstrip().startswith("#"):
+                break
+            if entry_re.match(follow):
+                count += 1
+        if count >= 2:
+            report.warning(
+                "gate.bib.handwritten",
+                t("gate.bib.handwritten", lang, line=idx + 1, count=count),
+                line=idx + 1,
+            )
+
     # 1e. 编号格式用了 {c}（章号），稿件却没说按章编号：两个文件各写一半，等式不成立
     #     正文与附录两行都要查：附录里「按附录标识编号」同样依赖 {c}。
     for attr, name_key in (

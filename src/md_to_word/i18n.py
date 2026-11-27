@@ -1481,6 +1481,14 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "YAML frontmatter 必须是一组「键: 值」，现在解析出来的是 {kind}。",
         "The YAML frontmatter must be a mapping of `key: value` pairs; it parsed as {kind}.",
     ),
+    "gate.bib.handwritten": (
+        "行 {line}: 参考文献标题之后有 {count} 条手写条目。本工具不排版手写列表："
+        "没有 bibliography 时它们按正文样式排，有 bibliography 时生成的列表会和它们并存。"
+        "请改用 `.bib` 或 CSL-JSON 文献库。",
+        "Line {line}: {count} hand-written entries follow the references title. Hand-written "
+        "lists are not typeset: without `bibliography:` they use body styles, and with it the "
+        "generated list will sit next to them. Use a `.bib` or CSL-JSON bibliography instead.",
+    ),
     "gate.bib.missing": ("文献库不存在: {path}", "Bibliography file not found: {path}"),
     "gate.csl.missing": ("CSL 样式文件不存在: {path}", "CSL style file not found: {path}"),
     # YAML 里写了内容性字段：引擎只认正文的样式行，位置由作者定

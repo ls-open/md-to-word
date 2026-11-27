@@ -664,3 +664,16 @@ def test_a_too_narrow_table_column_is_reported(tmp_path: Path) -> None:
     report = validate_manuscript(manuscript, spec_path=PRESET)
     assert report.valid
     assert any(d.code == "gate.table.column_narrow" for d in report.diagnostics)
+
+
+def test_a_handwritten_reference_list_is_flagged(tmp_path: Path) -> None:
+    """手写文献列表不排版，但必须在预检里说一声，不能静默按正文样式排出去。"""
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text(
+        "# 一 引言\n\n正文。\n\n# 参考文献\n\n[1] 张三. 论文. 2020.\n[2] 李四. 另一篇. 2021.\n",
+        encoding="utf-8",
+    )
+    report = validate_manuscript(manuscript)
+
+    assert report.valid  # 是提醒，不阻断
+    assert any(d.code == "gate.bib.handwritten" for d in report.diagnostics), report.diagnostics
