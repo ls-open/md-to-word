@@ -106,7 +106,7 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
   ```bash
   md-to-word paper.md -f format.txt --base-template template.docx --keep-until "Author signature" -o paper.docx
   ```
-  `--keep-until` names the **last line you want kept** (inclusive); on a single-section template the cut is after that paragraph, so to keep a whole page name that page's last line.
+  `--keep-until` names the **last line you want kept** (inclusive); single- and multi-section bases are both cut after that paragraph. To keep a whole page name that page's last line; to keep whole sections use `--cover-sections N`. Compatibility mode, mirror margins, punctuation compression and odd/even headers must match the format, or the export is refused.
 
 ---
 

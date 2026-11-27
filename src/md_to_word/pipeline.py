@@ -58,8 +58,7 @@ class ExportOptions:
     lang: Optional[str] = None  # 消息语言：None=按稿件语种 | "zh" | "en"
     base_template: Optional[Path | str] = None  # 学校模板：把正文灌进它，保留它自己的封面版式
     cover_sections: int = 0  # 底模的前几节是前置件（封面、声明等），原样保留
-    keep_pages: int = 0  # 按"前几页"说：要排版才能换算成节数
-    keep_until: str = ""  # 按内容说：底模里出现这段文字的那一节为止
+    keep_until: str = ""  # 按内容说：这段文字所在的段落是最后一行
     blind_review: bool = False  # 清理文档属性：作者、单位、自定义属性、缩略图、批注作者
 
 
@@ -154,29 +153,6 @@ def _first_texts(blocks, limit: int = 5, min_len: int = 4) -> list[str]:
         if len(heads) >= limit:
             break
     return heads
-
-
-def _body_anchor(blocks) -> str:
-    """按页换算节数时的定位句：取正文段落，不取标题。
-
-    标题会同时出现在我们生成的目录里，拿它定位会把目录页当成正文起点；`--keep-pages`
-    因此永远差一页。
-    """
-    for block in blocks:
-        if getattr(block, "level", None) is not None:  # Heading
-            continue
-        inlines = getattr(block, "inlines", None) or []
-        text = re.sub(r"\s+", "", "".join(_inline_text(inline) for inline in inlines))
-        if len(text) >= 6:
-            return text[:12]
-    return _first_text(blocks)
-
-
-def _first_text(blocks) -> str:
-    """取正文第一段的前几个字：既要能在 PDF 里定位，又不能出现在封面上。"""
-    # 整段拼起来再截，不是取第一个有字的行内节点：拼出来的哨兵更长，误撞封面的机会更小
-    texts = _first_texts(blocks, limit=1, min_len=1)
-    return texts[0] if texts else ""
 
 
 def _note_encoding(
@@ -380,20 +356,19 @@ class BasePlan:
     """底模这件事在渲染前就能确定的全部结论。"""
 
     base: Path
-    sections: Optional[int]  # None = `--keep-pages`，要排一次版才能换算成节数
-    cut_at_paragraph: bool = False  # 单节模板：导出时在命中段落之后插入分节符
+    sections: int
+    cut_at_paragraph: bool = False  # 导出时在命中段落之后插入分节符
 
 
 def _prepare_base_plan(
-    options: ExportOptions, res: ExportResult, *, allow_keep_pages: bool
+    options: ExportOptions, res: ExportResult,
 ) -> tuple[bool, Optional[BasePlan]]:
     """渲染前把底模的前置条件全部查完，两个出口共用。
 
     返回 `(False, None)` 表示已经记下错误；`(True, None)` 表示没用底模。放在渲染前
-    是刻意的：底模不存在、切点歧义、需要 Word 却不在 macOS 上，都不该等整篇排完才说。
-    `allow_keep_pages=False` 给 `--validate-only`：它不排版，换算不了页数。
+    是刻意的：底模不存在、切点歧义、兼容模式不一致，都不该等整篇排完才说。
     """
-    if options.keep_pages < 0 or options.cover_sections < 0:
+    if options.cover_sections < 0:
         _fail(res, "pipeline.option_negative",
               t("pipeline.option_negative", res.lang))
         res.returncode = EXIT_USAGE
@@ -401,7 +376,6 @@ def _prepare_base_plan(
     if not options.base_template:
         used = [
             flag for flag, value in (
-                ("--keep-pages", options.keep_pages),
                 ("--keep-until", options.keep_until),
                 ("--cover-sections", options.cover_sections),
             ) if value
@@ -413,9 +387,11 @@ def _prepare_base_plan(
         return True, None
 
     from md_to_word.template.base_inject import (
+        BODY_COMPAT_MODE,
+        BaseTemplateError,
+        _compat_mode,
         inspect_base,
-        section_outline,
-        sections_until_text,
+        paragraph_cut_section,
     )
 
     base_p = Path(options.base_template).resolve()
@@ -430,6 +406,17 @@ def _prepare_base_plan(
               t("pipeline.base_failed", res.lang, reason=_join(report.blocking, res.lang)),
               file=base_p)
         res.errors.extend(f"  {n}" for n in report.notes)
+        return False, None
+
+    # 兼容模式是文档级的，后面没法补救；先查，别等渲染完才发现。
+    mode = _compat_mode(base_p)
+    if mode != BODY_COMPAT_MODE:
+        key = "base.compat_unknown" if not mode else "base.compat_mismatch"
+        _fail(res, "pipeline.base_failed", t(
+            key, res.lang,
+            base=mode or t("base.common.unset", res.lang),
+            body=BODY_COMPAT_MODE,
+        ), file=base_p)
         return False, None
 
     # 底模的 docProps 会原样跟着成品走。没开盲审清理时至少要说一声——
@@ -447,75 +434,32 @@ def _prepare_base_plan(
                 "pipeline.base_metadata", res.lang, fields=fields,
             ), file=base_p)
 
-    # 三个切点只能选一个。旧行为是「谁先命中谁生效」（keep_until 曾压过 keep_pages），
-    # 调用方以为另一个生效了，切出来的前置件却不是自己要的——宁可当场拒绝。
-    if sum(bool(v) for v in (
-        options.cover_sections, options.keep_until, options.keep_pages,
-    )) > 1:
+    if options.cover_sections and options.keep_until:
         _fail(res, "pipeline.base_multi_cut",
               t("pipeline.base_multi_cut", res.lang), file=base_p)
         return False, None
 
-    if options.keep_pages:
-        if not allow_keep_pages:
-            _fail(res, "pipeline.validate_base_keep_pages",
-                  t("pipeline.validate_base_keep_pages", res.lang))
-            return False, None
-        from md_to_word.template.base_inject import section_count
-        from md_to_word.visual_qa.word_pdf import can_render_word_pdf
-
-        if section_count(base_p) == 1:
-            _fail(res, "pipeline.base_keep_pages_single_section",
-                  t("pipeline.base_keep_pages_single_section", res.lang), file=base_p)
-            return False, None
-        if not can_render_word_pdf()[0]:
-            _fail(res, "pipeline.base_keep_pages_needs_word",
-                  t("pipeline.base_keep_pages_needs_word", res.lang,
-                    sections=section_count(base_p)))
-            return False, None
-        return True, BasePlan(base_p, None)
-
-    sections = options.cover_sections
-    if not sections and options.keep_until:
-        hits = sections_until_text(base_p, options.keep_until)
-        if not hits:
-            outline = "\n".join(
-                t("pipeline.section_line", res.lang, index=i, text=line)
-                for i, line in enumerate(section_outline(base_p, res.lang), 1)
-            )
-            _fail(res, "pipeline.base_until_missing",
-                  t("pipeline.base_until_missing", res.lang,
-                    text=options.keep_until, outline=outline), file=base_p)
-            return False, None
-        if len(hits) > 1:
-            _fail(res, "pipeline.base_until_ambiguous",
-                  t("pipeline.base_until_ambiguous", res.lang,
-                    text=options.keep_until,
-                    sections=join_terms([str(h) for h in hits], res.lang)), file=base_p)
-            return False, None
-        sections = hits[0]
-
-    if not sections:
-        _fail(res, "pipeline.base_need_sections",
-              t("pipeline.base_need_sections", res.lang), file=base_p)
-        return False, None
-
-    # 单节模板（用分页符分页）按节切不开；`--keep-until` 还能救：导出时在命中的段落
-    # 之后插入一个分节符，把前置件和正文分开。这里只拦住它，不产生文件。
     cut_at_paragraph = False
-    if options.keep_until and sections == 1:
-        from md_to_word.template.base_inject import section_count
-
-        cut_at_paragraph = section_count(base_p) == 1
-    if cut_at_paragraph:
+    if options.keep_until:
+        try:
+            sections = paragraph_cut_section(base_p, options.keep_until, res.lang)
+        except BaseTemplateError as exc:
+            _fail(res, "pipeline.base_failed",
+                  t("pipeline.base_failed", res.lang, reason=exc.reason), file=base_p)
+            res.errors.extend(f"  {n}" for n in exc.notes)
+            return False, None
         res.messages.append(t(
             "pipeline.base_paragraph_cut", res.lang, text=options.keep_until))
+        cut_at_paragraph = True
+        # 原底模的最后一节也可能是切点；此时 paragraph_cut 会再克隆一个 sectPr 出来，
+        # 所以不能拿 `sections == 总节数` 去判「全切走」。
         report = inspect_base(base_p, lang=res.lang)
     else:
-        if options.keep_until:
-            res.messages.append(t(
-                "pipeline.base_until_resolved", res.lang,
-                text=options.keep_until, sections=sections))
+        sections = options.cover_sections
+        if not sections:
+            _fail(res, "pipeline.base_need_sections",
+                  t("pipeline.base_need_sections", res.lang), file=base_p)
+            return False, None
         report = inspect_base(base_p, sections, res.lang)
     if not report.ok:
         _fail(res, "pipeline.base_failed",
@@ -554,7 +498,6 @@ def _trial_export(options: ExportOptions, fmt_file: Optional[Path], res: ExportR
             lang=res.lang,
             base_template=options.base_template,
             cover_sections=options.cover_sections,
-            keep_pages=options.keep_pages,
             keep_until=options.keep_until,
             blind_review=options.blind_review,
         )
@@ -595,7 +538,7 @@ def run_validation(options: ExportOptions) -> ExportResult:
     # 底模这条路不排版也能验的项：文件能不能读、切点是否唯一、节数够不够。
     # 与导出共用 `_prepare_base_plan`：两边各写一套，`--validate-only` 迟早会说
     # 「没问题」而真正导出立刻失败——对论文工作流是错误的安全信号。
-    ok, _plan = _prepare_base_plan(options, res, allow_keep_pages=False)
+    ok, _plan = _prepare_base_plan(options, res)
     if not ok:
         return res
 
@@ -788,9 +731,9 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
     if fmt_content is None:
         return res
 
-    # 3. 底模的前置条件在渲染前查完：底模不存在、切点歧义、需要 Word 却不在 macOS 上，
+    # 3. 底模的前置条件在渲染前查完：底模不存在、切点歧义、兼容模式不一致，
     #     都不该等整篇排完才说。与 `--validate-only` 共用同一份判断。
-    ok, base_plan = _prepare_base_plan(options, res, allow_keep_pages=True)
+    ok, base_plan = _prepare_base_plan(options, res)
     if not ok:
         return res
     # 学校模板常常与稿件同名、同目录；不传 -o 时默认输出正好就是底模本身。
@@ -906,7 +849,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
             render_target = Path(tmp_name)
         temp_tpl_path = Path(temp_dir) / "template.docx"
         try:
-            build_template(fmt_content, temp_tpl_path, lang=res.lang)
+            build_template(fmt_content, temp_tpl_path, lang=res.lang, doc_lang=doc_lang)
         except TemplateError as exc:
             _fail(res, "pipeline.format_template_failed",
                   t("pipeline.format_template_failed", res.lang, reason=exc), file=fmt_file)
@@ -1074,40 +1017,28 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
             )
 
             base_p = base_plan.base
+            origin_base = base_p
             sections = base_plan.sections
-            sentinel = _body_anchor(model.blocks)
             if base_plan.cut_at_paragraph:
-                # 单节模板：先切出一节前置件，再按「保留 1 节」灌入。
+                # 命中段落是最后一行：先在它之后插一个分节符，再把切出来的底模按
+                # 「保留 sections 节」灌入。单节和多节走同一条路。
                 derived = Path(temp_dir) / "base-cut.docx"
                 try:
                     from md_to_word.template.base_inject import paragraph_cut
 
-                    paragraph_cut(base_p, options.keep_until, derived, res.lang)
+                    sections = paragraph_cut(base_p, options.keep_until, derived, res.lang)
                 except BaseTemplateError as exc:
                     _fail(res, "pipeline.base_failed",
                           t("pipeline.base_failed", res.lang, reason=exc.reason), file=base_p)
                     return res
                 base_p = derived
-                report = inspect_base(base_p, 1, res.lang)
+                report = inspect_base(base_p, sections, res.lang)
                 if not report.ok:
                     _fail(res, "pipeline.base_failed",
                           t("pipeline.base_failed", res.lang,
                             reason=_join(report.blocking, res.lang)), file=base_p)
                     return res
             try:
-                if sections is None:
-                    # `--keep-pages`：按页换算节数要先真的排一次版。Word 能不能用、
-                    # 底模能不能读，前面已经查过；这里只做换算。
-                    from md_to_word.template.base_inject import resolve_sections_for_pages
-
-                    sections = resolve_sections_for_pages(
-                        base_p, render_target, options.keep_pages, Path(temp_dir), sentinel,
-                        res.lang,
-                    )
-                    res.messages.append(
-                        t("pipeline.base_resolved", res.lang,
-                          pages=options.keep_pages, sections=sections)
-                    )
                 # 注入也先落到输出目录里的临时文件：注入后的完整性检查不过，目标位置的
                 # 上一份成品仍然完好。
                 try:
@@ -1124,6 +1055,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                     base_p, render_target, sections, injected_target,
                     _first_texts(model.blocks), res.lang,
                     blind_review=options.blind_review,
+                    origin=origin_base,
                 )
             except BaseTemplateError as exc:
                 _fail(res, "pipeline.base_failed",

@@ -63,8 +63,12 @@ def cleanup_temp(path: str):
 # 都是必现基础段落；其余结构（二级及以上标题、摘要、关键词、图表、参考文献、目录、引用块）
 # 均通过下方 STRUCT_TRIGGERS 按「稿件实际用到即必填」精确拦截。
 
-def generate_template(format_text, output_path, margins=None, lang="zh"):
-    """主流程：生成模板"""
+def generate_template(format_text, output_path, margins=None, lang="zh", doc_lang=None):
+    """主流程：生成模板
+
+    `doc_lang`（`zh` / `en`）只在内置预设没有声明校对语言时兜底：注入底模时，校对语言
+    必须是一个显式值，不能沿用内置底模的 `en-US`。不传则保持旧行为（只写声明的值）。
+    """
     output_path = str(output_path)
     logger.debug('生成学术 Word 模板')
 
@@ -118,11 +122,14 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
     doc = Document(tmp_path)
     cleanup_temp(tmp_path)
 
-    if spec.proofing_lang:
-        apply_proofing_language(doc, spec.proofing_lang)
-        logger.debug(f' ✓ 校对语言: {spec.proofing_lang}')
-    if spec.punctuation_compression is not None or spec.proofing_lang is not None:
-        csc_val = apply_punctuation_compression(doc, spec.punctuation_compression, spec.proofing_lang)
+    proofing = spec.proofing_lang
+    if proofing is None and doc_lang in ("zh", "en"):
+        proofing = "zh-CN" if doc_lang == "zh" else "en-US"
+    if proofing:
+        apply_proofing_language(doc, proofing)
+        logger.debug(f' ✓ 校对语言: {proofing}')
+    if spec.punctuation_compression is not None or proofing is not None:
+        csc_val = apply_punctuation_compression(doc, spec.punctuation_compression, proofing)
         logger.debug(f' ✓ 标点压缩: {csc_val}')
     apply_mirror_margins(doc, spec.mirror_margins)
     if spec.mirror_margins:

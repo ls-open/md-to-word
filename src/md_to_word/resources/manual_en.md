@@ -19,7 +19,7 @@ One export combines **three input layers** (the third is optional):
 |:--|:--|:--|
 | **1. Content & inline spans** | Manuscript `*.md` | Body prose, headings (`#`), structure (`%% Style`, `{{< toc >}}`, `{{< section >}}`, `$$…$$ {#eq-}`), YAML (`bibliography:`, `csl:`, `crossref:`), and **inline formatting** (`**bold**`, `*italic*`, `~~strike~~`, `[text]{.underline}`, `^sup^`, `~sub~`, `` `code` ``, `[text](url)`, `[^1]`). |
 | **2. Styles & page setup** | Format `*.txt` (without `-f`, only a `format.txt` beside the manuscript is picked up; else a built-in preset) | Page geometry (`Paper`, `Margins`, `Gutter`, `Mirror Margins`), language/punctuation (`Proofing Language`, `Punctuation Compression`), header/footer content (`{page}`, `{total-pages}`, `{style-title:Heading 1}`), and **style-level** typography (fonts, sizes, paragraph `color#RRGGBB`, spacing, indents, tables). |
-| **3. Front-matter base** *(optional)* | `--base-template base.docx` | Preserves an existing institutional/publisher `.docx` cover, logos, and declarations verbatim in leading sections (`--keep-until` / `--cover-sections` / `--keep-pages`). Base supplies front sections and global `settings.xml`; body content and declared styles come from layers 1–2 (§9.3). |
+| **3. Front-matter base** *(optional)* | `--base-template base.docx` | Preserves an existing institutional/publisher `.docx` cover, logos, and declarations verbatim in leading sections (`--keep-until` / `--cover-sections`). The base supplies front sections, theme and default font; document-wide settings must match the format (§9.3). |
 
 Rule of thumb: **write span-level tweaks (bolding two words, subscript) in `.md`; write paragraph/page rules (fonts, style-level colour, gutter, mirror margins, punctuation compression) in `format.txt`; preserve complex graphical covers via `--base-template`; complete only unsupported features (merged cells, inline per-word colour, multi-column, floating wrapped figures) in Word.**
 
@@ -949,38 +949,36 @@ Three routes, ordered by how much can be guaranteed:
 md-to-word manuscript.md -f format.txt --base-template base.docx --keep-until "author signature" -o out.docx
 ```
 
-`--keep-until <text>`: on a multi-section base, keeps through the section containing that text
-(the whole section stays) and reports the number; when it is not found it lists how each section
-starts. On a single-section base (many real templates page with manual breaks, not section breaks),
-keeps through the matching paragraph (inclusive) and inserts a section break after it; everything
-after is dropped — so name the **last line you want kept**, and to keep a whole page name that
-page's last line (e.g. the signature or date), not its title. Pages only exist after Word lays the
-document out, so there is no "keep page N" at this cut point. `--cover-sections N` says it in
-sections. `--keep-pages P` says it in pages and needs macOS + Word, because the conversion takes a
-real layout. The resulting PDF is read with the bundled pypdfium2; poppler is not required.
-
-The cut point is a **body paragraph**: text inside a table cannot be used (a section break cannot
-sit in a cell) — pick a phrase after the table, or make the cover its own section in Word first.
+`--keep-until <text>`: the paragraph containing that text is the **last kept line** (inclusive); a
+section break is inserted after it and everything after is dropped. The same rule applies to
+single- and multi-section bases; to keep whole sections, use `--cover-sections N`. To keep a whole
+page, name that page's last line (e.g. the signature or date), not its title. Missing, ambiguous,
+or text after the contents page is refused. The cut point is a **body paragraph**: text inside a
+table cannot be used (a section break cannot sit in a cell) — pick a phrase after the table, or make
+the cover its own section in Word first.
 
 **The contents page is never kept**: if the base has one (a field or entries typed by hand, either
 counts), the cut must stop before it — the manuscript writes `{{< toc >}}` to generate it. Cutting too
-deep is refused, and the message names the most you may keep.
+deep is refused.
 
 What the base contributes: the front-matter sections verbatim (their page setup, headers, footers, page
 numbering), its theme and default font/size, and any style you did not declare. The body's paper
 size, margins, gutter, page numbering, mirroring, punctuation compression, proofing language, and
 declared styles come from the format file.
 
-Document-level settings exist once per `.docx`: `Mirror Margins`, `Punctuation Compression` and the
-proofing language come from your format file even with `--base-template` — a base setting the format
-does not declare is turned off (the export says so; even pages in the front matter may change).
-Compatibility mode is also document-wide and cannot differ per section: if the base and the
-generated body use different modes (common with older school templates, e.g. Word 2010 mode), the
-export is refused and asks you to open the base in Word and save it once, which usually upgrades the
-mode. When the modes match, body pagination matches a standalone export (page text and word
-positions were identical in a long test document). Theme and default font/size still follow the
-base; body styles set font and size explicitly, but paragraphs without an explicit style (table
-cells, empty paragraphs) inherit the base defaults and may differ slightly from a standalone export.
+Document-level settings exist once per `.docx`: `Mirror Margins`, `Punctuation Compression`, odd/even
+headers and Word compatibility mode must match the base. A mismatch is refused; nothing silently
+changes the cover, and no special compatibility is invented to support more templates. Edit the
+format file or use another base. For a compatibility mismatch, open the base in Word and use
+File > Info > Convert (a normal save does not upgrade it); conversion may reflow the cover, so
+re-check the cut point afterwards. Proofing language follows the format or manuscript language
+(spell-check only); theme and default font/size follow the base, so paragraphs without an explicit
+style (table cells, empty paragraphs) may differ slightly.
+
+**Body pagination is not promised page-for-page**: the front matter is preserved node-for-node and
+the body's content, styles and page setup match, but Word treats space-before after a section start
+differently, so body page breaks can differ from a standalone export. The export verifies front
+matter pages on a Word machine; review the body in Word.
 
 **No file is produced unless it verifies.** The structural check runs everywhere: front matter
 node-for-node identical, none of the original's styles/numbering/theme missing, and every style the body
@@ -995,10 +993,10 @@ Word's layout and page-by-page comparison is unreliable; the tool skips layout v
 for a manual check.
 
 **Blind submission**: the base's `docProps/` travels into the output verbatim — author, company,
-custom properties (student ID), cover thumbnail, comment authors. Pass `--blind-review` to strip those
-file properties before publishing (core/app, custom properties, thumbnail, comment and revision
-authors); without it, an identifying base is reported in the result. Text is not anonymised: names in
-the body, cover and headers still need to be replaced by the author.
+custom properties (student ID), cover thumbnail, comments (including their text). Pass
+`--blind-review` to strip those file properties before publishing (core/app, custom properties,
+thumbnail, comments and revision authors); without it, an identifying base is reported in the result.
+Text is not anonymised: names in the body, cover and headers still need to be replaced by the author.
 
 ### 9.4 Sections and page numbers
 

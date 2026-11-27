@@ -109,7 +109,7 @@ npx skills add ls-open/md-to-word
   ```bash
   md-to-word 论文.md -f format.txt --base-template 模板.docx --keep-until 作者签名 -o 论文.docx
   ```
-  `--keep-until` 写你想保留的**最后一行**（含这一行）；单节模板会在这一段之后切开，想留整页就写这一页的最后一行。
+  `--keep-until` 写你想保留的**最后一行**（含这一行）；单节和多节底模都在这一段之后切开，想留整页就写这一页的最后一行，想留整节用 `--cover-sections N`。底模与格式的兼容模式、镜像边距、标点压缩、奇偶页设置必须一致，不一致会直接拒绝。
 
 ---
 

@@ -49,6 +49,15 @@ BIB = """
 }
 """
 
+# 真实模板的预期结果：不能再用「成功数 ≥ N」把任意 base_failed 吞掉。
+# 新增/替换 testdata 时，这里必须同步写出它是成功还是因为什么被拒绝。
+EXPECTED_FAILURES = {
+    "ucl-thesis": ("对称页边距", "mirror margins"),  # 底模开镜像、格式没开
+    "gov-hainanu": ("目录", "contents"),             # 目录在首节，没有可保留的前置件
+    "uni-hust": ("兼容模式", "compatibility mode"),  # Word 2010 模式（14）
+    "uni-tju": ("目录", "contents"),
+}
+
 
 def _manifest() -> list[dict]:
     return json.loads(MANIFEST.read_text(encoding="utf-8"))
@@ -287,8 +296,15 @@ def test_real_templates_keep_the_body_identical(
             assert result.returncode == 1, (record["slug"], result.errors)
             assert "pipeline.base_failed" in {d.code for d in result.diagnostics}, (
                 record["slug"], result.diagnostics)
+            reasons = EXPECTED_FAILURES.get(record["slug"])
+            assert reasons is not None, (
+                f"{record['slug']} 意外失败（它不在 EXPECTED_FAILURES 里）：{result.errors}")
+            assert any(any(r in error for r in reasons) for error in result.errors), (
+                record["slug"], reasons, result.errors)
             continue
 
+        assert record["slug"] not in EXPECTED_FAILURES, (
+            f"{record['slug']} 本应被拒绝，却成功导出了")
         successes += 1
         Document(with_base)  # 产物仍是合法 docx
         assert _tail(with_base, marker) == _tail(reference, marker), record["slug"]
@@ -304,7 +320,12 @@ def test_real_templates_keep_the_body_identical(
         reference_math = set(_omath_texts(reference))
         assert reference_math <= set(_omath_texts(with_base)), (record["slug"], "公式内容丢失")
 
-    assert successes >= 5, f"真实模板成功注入太少：{successes}"
+    expected_successes = sum(
+        1 for record in _manifest()
+        if record["sections"] >= 2 and record["slug"] not in EXPECTED_FAILURES
+    )
+    assert successes == expected_successes, (
+        f"真实模板成功注入数不对：{successes}，预期 {expected_successes}")
 
 
 @pytest.mark.word

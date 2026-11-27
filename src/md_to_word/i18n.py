@@ -244,8 +244,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "install it on the machine that will open the file.",
     ),
     "pipeline.option_negative": (
-        "--keep-pages 与 --cover-sections 不能是负数",
-        "--keep-pages and --cover-sections cannot be negative",
+        "--cover-sections 不能是负数",
+        "--cover-sections cannot be negative",
     ),
     "pipeline.cut_without_base": (
         "{flags} 只对 --base-template 生效；本次没有给底模，这些参数已忽略，正文按整篇导出。",
@@ -304,13 +304,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "pipeline.validate_failed": (
         "导前预检发现 {count} 个问题；未生成 .docx。",
         "Pre-flight found {count} problem(s); no .docx was written.",
-    ),
-    "pipeline.validate_base_keep_pages": (
-        "`--validate-only` 无法验证 `--keep-pages`：它要真排一次版才能把页数换算成节数。"
-        "改用 `--keep-until 某段文字` 或 `--cover-sections N`，或直接导出时再按页换算。",
-        "`--validate-only` cannot verify `--keep-pages`: converting pages to sections needs a real "
-        "layout run. Use `--keep-until TEXT` or `--cover-sections N`, or do the page conversion at "
-        "export time.",
     ),
     "pipeline.rejected": (
         "稿件共有 {count} 处不符合契约，导出已中止。请按下列行号修改后重新导出。",
@@ -527,66 +520,38 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "底模的前几节是前置件（封面、声明…），原样保留；配合 --base-template 使用",
         "How many leading sections of the base template are front matter (used with --base-template)",
     ),
-    "cli.keep_pages": (
-        "换一种说法：保留底模的前几页（需 macOS + Word 真排一次版，试切几次换算成节数，慢一点）",
-        "Say it in pages instead: keep the first N pages (needs macOS + Word for a real layout; the tool tries a few cuts, slow, one-off)",
-    ),
     "cli.keep_until": (
-        "按内容说：多节底模保留到包含这段文字的那一节；单节底模保留到这一段（含），之后丢弃。"
-        "单节时要写你希望保留的最后一行（如 --keep-until 作者签名）",
-        "Say it by content: a multi-section base keeps through the section containing this text; a "
-        "single-section base keeps through this paragraph (inclusive) and drops the rest. On a "
-        "single-section base, name the last line you want kept (e.g. --keep-until \"author signature\")",
+        "按内容说：以这段文字所在的段落为最后一行（含这一段），在它之后插入分节符，之后丢弃。"
+        "要留整节请改用 --cover-sections N；表格里的文字不能当切点",
+        "Say it by content: the paragraph containing this text is the last kept line (inclusive); "
+        "a section break is inserted after it and everything after is dropped. To keep whole "
+        "sections, use --cover-sections N; text inside a table cannot be a cut point",
     ),
     "pipeline.base_paragraph_cut": (
-        "底模只有 1 节：以「{text}」这一段为最后一行（含这一段），在它之后插入分节符；"
-        "之后的内容不会保留。想保留整页，请写成这一页的最后一行。",
-        "the base has a single section: {text!r} is the last kept paragraph (inclusive); a section "
-        "break is inserted after it and everything after is discarded. To keep a whole page, name "
-        "that page's last line.",
+        "以「{text}」所在的段落为最后一行（含这一段），在它之后插入分节符；之后的内容不会保留。"
+        "想保留整页，请写成这一页的最后一行。",
+        "{text!r} is the last kept paragraph (inclusive); a section break is inserted after it "
+        "and everything after is discarded. To keep a whole page, name that page's last line.",
     ),
     "pipeline.section_line": (
         "  第 {index} 节：{text}",
         "  section {index}: {text}",
-    ),
-    "pipeline.base_until_resolved": (
-        "保留到「{text}」所在的第 {sections} 节（以后可以直接用 --cover-sections {sections}）",
-        "Keeping through section {sections}, the one containing \"{text}\" "
-        "(next time pass --cover-sections {sections})",
-    ),
-    "pipeline.base_until_missing": (
-        "底模里找不到「{text}」。搜索范围是正文段落（不含页眉、页脚与脚注）；"
-        "全半角与大小写已归一，繁简需一致。底模各节的开头是：\n{outline}\n"
-        "用 --cover-sections N 直接说明保留几节",
-        "\"{text}\" does not appear in the base. The search covers body paragraphs only (not "
-        "headers, footers or footnotes); full-width/half-width and case are normalised, "
-        "Traditional and Simplified must match. Its sections start with:\n{outline}\n"
-        "Pass --cover-sections N to say how many to keep",
-    ),
-    "pipeline.base_until_ambiguous": (
-        "「{text}」在第 {sections} 节里都出现过，没法确定停在哪。用 --cover-sections N 直接说明",
-        "\"{text}\" appears in sections {sections}; cannot tell where to stop. "
-        "Pass --cover-sections N directly",
-    ),
-    "pipeline.base_resolved": (
-        "前 {pages} 页 = 底模的前 {sections} 节，记下来以后直接用 --cover-sections {sections}",
-        "First {pages} pages = first {sections} sections of the base; use --cover-sections {sections} next time",
     ),
     "pipeline.base_missing": (
         "找不到底模文件：{path}",
         "Base template not found: {path}",
     ),
     "pipeline.base_multi_cut": (
-        "同时给了多个切点（--keep-until / --cover-sections / --keep-pages）：只能选一个。\n"
-        "  --keep-until 按内容、--cover-sections 按节数、--keep-pages 按页数；同时给时不知道该听谁的。",
-        "More than one cut point was given (--keep-until / --cover-sections / --keep-pages): choose one.\n"
-        "  --keep-until cuts by content, --cover-sections by section count, --keep-pages by page count.",
+        "同时给了两个切点（--keep-until / --cover-sections）：只能选一个。\n"
+        "  --keep-until 按内容、--cover-sections 按节数；同时给时不知道该听谁的。",
+        "More than one cut point was given (--keep-until / --cover-sections): choose one.\n"
+        "  --keep-until cuts by content, --cover-sections by section count.",
     ),
     "pipeline.base_need_sections": (
         "用 --base-template 时要说清前置件到哪儿结束：--keep-until 某段文字（推荐，"
-        "按内容说）、--cover-sections N（按节说）或 --keep-pages P（按页说，要装 Word）。猜错会切坏封面，所以不猜",
+        "按内容说）或 --cover-sections N（按节说）。猜错会切坏封面，所以不猜",
         "--base-template needs to know where the front matter ends: --keep-until <text> "
-        "(recommended), --cover-sections N, or --keep-pages P (needs Word)",
+        "(recommended) or --cover-sections N",
     ),
     "pipeline.base_failed": (
         "没有产出文件——底模这条路走不通：{reason}",
@@ -601,20 +566,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "前置件 {pages} 节的内容与原件逐节点一致（这台机器没有 Word，没做版面验真），正文已灌入",
         "Front matter ({pages} sections) matches the original node by node; no Word here, so "
         "the layout was not checked. Body poured in",
-    ),
-    "pipeline.base_keep_pages_single_section": (
-        "底模只有 1 节（用分页符分页），按页换算没有可切的节。"
-        "改用 --keep-until 某段文字：工具会在那一段之后插入分节符，再按节灌入。",
-        "The base has a single section (it pages with manual breaks), so there is no section "
-        "boundary to convert pages against. Use --keep-until <text> instead: a section break is "
-        "inserted after that paragraph before pouring the body in.",
-    ),
-    "pipeline.base_keep_pages_needs_word": (
-        "这台机器算不了 --keep-pages：按页换算节数要先真的排一次版，而排版只有装了 Word 的 "
-        "macOS 才能做。底模一共有 {sections} 节，数一下前置件占几节，直接用 --cover-sections N",
-        "--keep-pages needs a real page layout, which this machine cannot produce (Word "
-        "rendering is macOS-only). The base has {sections} sections; count the front matter "
-        "and pass --cover-sections N instead",
     ),
     "pipeline.blind_review_done": (
         "已清理文档属性（盲审）：作者、单位、自定义属性、缩略图、批注（含内容）与修订作者不再随成品带出。"
@@ -1726,24 +1677,48 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "{label}没搬进底模：要求 {want}，产物 {got}",
         "{label} did not carry into the base: expected {want}, got {got}.",
     ),
+    "base.settings.punctuation_mismatch": (
+        "底模的标点压缩是「{base}」，格式文件是「{format}」。标点压缩是文档级设置，"
+        "改它会同时改前置件的断行；请把格式文件改成与底模一致，或换一份底模。",
+        "The base uses punctuation compression \"{base}\", the format file uses \"{format}\". "
+        "This is document-wide: changing it also changes line breaks in the front matter. "
+        "Make the format file match the base, or use another base.",
+    ),
+    "base.settings.mirror_mismatch": (
+        "底模的对称页边距是「{base}」，格式文件是「{format}」。这是文档级设置，"
+        "改它会同时移动前置件的偶数页；请把格式文件改成与底模一致，或换一份底模。",
+        "The base has mirror margins \"{base}\", the format file has \"{format}\". This is "
+        "document-wide: changing it also moves even pages in the front matter. Make the format "
+        "file match the base, or use another base.",
+    ),
+    "base.settings.even_mismatch": (
+        "底模的奇偶页页眉/页脚设置是「{base}」，格式文件是「{format}」。这是文档级设置，"
+        "改它会让前置件或正文的偶数页页眉/页脚对不上；请把格式文件改成与底模一致，或换一份底模。",
+        "The base's odd/even header setting is \"{base}\", the format file's is \"{format}\". "
+        "This is document-wide: changing it breaks even-page headers/footers in the front matter "
+        "or body. Make the format file match the base, or use another base.",
+    ),
     "base.compat_mismatch": (
         "底模的 Word 兼容模式是 {base}，本工具排出的正文是 {body}。兼容模式是文档级设置，"
         "没法只给正文换：留着 {base}，正文分页会和单独导出不同；换成 {body}，封面位置会变。"
-        "请用 Word 打开底模、原样另存一次（通常会升级到当前模式）再灌入。",
+        "请用 Word 打开底模，走「文件 > 信息 > 转换」转换到当前格式（普通保存不会升级）；"
+        "转换可能重排封面，转换后请重新检查切点。",
         "The base uses Word compatibility mode {base}, while the body is laid out in mode {body}. "
         "Compatibility mode is document-wide: keeping {base} changes body pagination versus a "
-        "standalone export; switching to {body} shifts the cover. Open the base in Word and save "
-        "it once (this usually upgrades it), then inject again.",
+        "standalone export; switching to {body} shifts the cover. Open the base in Word and use "
+        "File > Info > Convert (a normal save does not upgrade it); conversion may reflow the "
+        "cover, so re-check the cut point afterwards.",
+    ),
+    "base.compat_unknown": (
+        "底模没有写 Word 兼容模式（读到 {base}，正文是 {body}），没法判断它和正文是否同一套排版。"
+        "请用 Word 打开底模，走「文件 > 信息 > 转换」转换到当前格式后再试。",
+        "The base does not declare a Word compatibility mode (base {base}, body {body}), so there "
+        "is no way to tell whether it lays out like the body. Open the base in Word and use "
+        "File > Info > Convert, then try again.",
     ),
     "base.settings.label.punctuation": ("标点压缩", "Punctuation compression"),
     "base.settings.label.mirror": ("对称页边距", "Mirror margins"),
-    "base.note.mirror_removed": (
-        "底模开了对称页边距，格式文件没声明：已按格式关掉，前置件的偶数页边距可能因此变化。"
-        "要保留镜像，请在格式文件写「对称页边距：是」。",
-        "The base has mirror margins but the format file does not: they were turned off to match "
-        "the format, so even-page margins in the front matter may change. To keep mirroring, add "
-        "`Mirror Margins: on` to the format file.",
-    ),
+    "base.settings.label.even": ("奇偶页页眉/页脚", "Odd/even headers"),
     "base.verify.unreadable": ("打不开文件：{err}", "The file cannot be opened: {err}"),
     "base.verify.node_count": (
         "前置件的节点数变了：原件 {want}，产物 {got}",
@@ -1831,6 +1806,17 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "第 {page} 页对不上：原件 {want} 个词，产物 {got} 个",
         "Page {page} does not match: {want} words in the original, {got} in the result.",
     ),
+    "base.layout.extra_blank": (
+        "第 {page} 页在原始底模里有内容，产物里却是空白页：切点后多插了一页。"
+        "请检查切点附近的分页符/分节符，或把切点移到这一页的最后一行。",
+        "Page {page} has content in the original base but is blank in the result: an extra "
+        "page was inserted after the cut. Check the page/section breaks near the cut, or move "
+        "the cut to the last line of that page.",
+    ),
+    "base.layout.extra_page": (
+        "产物前置件比原始底模多出第 {page} 页：切点后多插了一页。",
+        "The result's front matter has an extra page {page} that the original base does not.",
+    ),
     "base.layout.page_position": (
         "第 {page} 页位置对不上：「{word}」",
         "Page {page} does not match at {word!r}.",
@@ -1896,11 +1882,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "把切点放在目录之前，或先删掉底模的目录。",
         "The base's contents page comes before {text!r}, so cutting there keeps it next to the "
         "manuscript's own TOC. Cut before the contents page, or delete the template's TOC first.",
-    ),
-    "base.cut.already_split": (
-        "「{text}」所在的段落已经带分节符，按节切就够了。去掉 --keep-until，改用 --cover-sections。",
-        "The paragraph containing {text!r} already carries a section break; cut by section "
-        "instead: drop --keep-until and use --cover-sections.",
     ),
     "gate.section.argument": (
         "行 {line}: 分节标记只接受一个节名，例如 {{{{< section 正文 >}}}}；无法识别「{arg}」。"

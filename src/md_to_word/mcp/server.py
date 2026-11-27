@@ -319,7 +319,10 @@ def create_mcp_server() -> Any:
             "Compile Markdown into a Word (.docx) document. "
             "Ensure structures beyond standard Markdown (e.g. captions, TOC, page breaks, abstract, "
             "math blocks) follow the contract in get_guide. Uses the provided format file, or defaults "
-            "to a built-in preset."
+            "to a built-in preset. With `base_template`, use exactly one of `keep_until` (cut after "
+            "the named paragraph) or `cover_sections` (keep N whole sections); compatibility mode, "
+            "mirror margins, punctuation compression and odd/even headers must match the format, or "
+            "the export is refused."
         ),
     )
     def compile_markdown(
@@ -331,7 +334,6 @@ def create_mcp_server() -> Any:
         lang: str | None = None,
         base_template: str | None = None,
         cover_sections: int = 0,
-        keep_pages: int = 0,
         keep_until: str = "",
         blind_review: bool = False,
     ) -> dict[str, Any]:
@@ -356,12 +358,15 @@ def create_mcp_server() -> Any:
             base_template: Pre-existing .docx template (with cover pages, declarations, or front
                 matter) to pour the generated body into while preserving its leading front-matter
                 sections unchanged (nothing is written if verification fails). Pair with exactly one
-                of `keep_until` / `cover_sections` / `keep_pages`.
+                of `keep_until` / `cover_sections`. Document-wide layout settings (compatibility
+                mode, mirror margins, punctuation compression, odd/even headers) must match the
+                format; a mismatch is refused rather than silently changing the cover.
             cover_sections: Keep the base's first N sections as front matter.
-            keep_pages: Say it in pages instead; requires Word to convert pages to sections.
             keep_until: Say it by content (recommended) — name the last line you want kept
-                (inclusive), e.g. "作者签名". A multi-section base keeps through its section; a
-                single-section base keeps through its paragraph and drops the rest.
+                (inclusive), e.g. "作者签名". The paragraph containing it is the last kept
+                paragraph; a section break is inserted after it and everything after is dropped.
+                Text inside a table cannot be a cut point. To keep whole sections, use
+                `cover_sections`.
             blind_review: Strip identifying document properties (author, company, custom
                 properties, thumbnail, comment authors) from the final .docx. Cleans file
                 metadata only; names in the body/cover/headers are not anonymised.
@@ -401,7 +406,6 @@ def create_mcp_server() -> Any:
                 lang=lang,
                 base_template=base_template,
                 cover_sections=cover_sections,
-                keep_pages=keep_pages,
                 keep_until=keep_until,
                 blind_review=blind_review,
             )
@@ -615,7 +619,8 @@ def create_mcp_server() -> Any:
             "a draft format file. The draft writes every value it could determine and lists what "
             "it could read but cannot express. Direct formatting (hand-tuned spacing, indents, "
             "emphasis) lives outside styles and is neither read nor listed — compare the draft "
-            "against the original before compiling."
+            "against the original before compiling. Files exported by this tool are refused: "
+            "their styles are the compiler's own, not the reference template's."
         ),
     )
     def extract_format_from_docx(
@@ -646,28 +651,59 @@ def create_mcp_server() -> Any:
         title="Inspect a school/base .docx template",
         description=(
             "Check a .docx template before passing it as `base_template`: whether it can be "
-            "read, how many sections it has, and the first text of each section so a cut point "
-            "(`keep_until`) can be chosen without guessing. Run this instead of trial-and-error "
-            "compilation."
+            "read, how many sections it has, the first text of each section, and its document-wide "
+            "settings (compatibility mode, mirror margins, punctuation compression, odd/even headers, "
+            "proofing language). A compatibility mode other than 15 is reported as blocking. Run this "
+            "instead of trial-and-error compilation."
         ),
     )
     def inspect_base_template(docx_path: str, lang: str | None = None) -> dict[str, Any]:
-        """Return readability, section count and section outline for a base template."""
-        from md_to_word.template.base_inject import inspect_base, section_count, section_outline
+        """Return readability, section count, settings and outline for a base template."""
+        from md_to_word.template.base_inject import (
+            BODY_COMPAT_MODE,
+            _compat_mode,
+            _effective_even,
+            _effective_mirror,
+            _effective_punctuation,
+            _east_asia_lang,
+            inspect_base,
+            section_count,
+            section_outline,
+        )
 
         path = Path(docx_path).expanduser().resolve()
+        message_lang = resolve_lang("", lang)
         if not path.is_file():
             return {
                 "ok": False, "path": str(path), "section_count": None,
                 "sections": [], "blocking": [f"File not found: {path}"], "notes": [],
+                "compat_mode": None, "mirror_margins": None,
+                "punctuation_compression": None, "odd_even_headers": None,
+                "proofing_language": None,
             }
-        report = inspect_base(path, lang=resolve_lang("", lang))
+        report = inspect_base(path, lang=message_lang)
+        compat = _compat_mode(path)
+        mirror = punctuation = even = proofing = None
+        if compat != BODY_COMPAT_MODE:
+            key = "base.compat_unknown" if not compat else "base.compat_mismatch"
+            report.blocking.append(t(
+                key, message_lang,
+                base=compat or t("base.common.unset", message_lang),
+                body=BODY_COMPAT_MODE,
+            ))
         sections: list[str] = []
         count = None
         if report.ok:
             try:
+                from docx import Document
+
+                doc = Document(str(path))
                 count = section_count(path)
-                sections = section_outline(path, resolve_lang("", lang))
+                sections = section_outline(path, message_lang)
+                mirror = _effective_mirror(doc.settings.element)
+                punctuation = _effective_punctuation(doc.settings.element)
+                even = _effective_even(doc.settings.element)
+                proofing = _east_asia_lang(doc.styles.element)
             except Exception as exc:  # 结构坏到读不出节：体检已经给过原因，这里不重复抛
                 report.notes.append(str(exc))
         return {
@@ -677,6 +713,11 @@ def create_mcp_server() -> Any:
             "sections": sections,
             "blocking": report.blocking,
             "notes": report.notes,
+            "compat_mode": compat or None,
+            "mirror_margins": mirror,
+            "punctuation_compression": punctuation,
+            "odd_even_headers": even,
+            "proofing_language": proofing,
         }
 
     @server.tool(

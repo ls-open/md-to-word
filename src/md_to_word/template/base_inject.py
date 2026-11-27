@@ -367,19 +367,8 @@ def toc_before_cut(root, cut_paragraph) -> bool:
     return order.get(id(toc_el), 0) < order.get(id(cut_paragraph), 0)
 
 
-def paragraph_cut(base: Path, needle: str, out: Path, lang: str = "zh") -> int:
-    """在命中文字的那一段之后插入分节符，把单节底模切成「前置件 + 正文」两节。
-
-    真实模板大量用分页符而不是分节符；单节模板按「保留前 N 节」根本切不开。这里只在
-    **单节模板**上兜底：命中唯一一段，就把文末 sectPr 克隆一份挂到那一段的 pPr 里，
-    前置件的版式、页眉页脚、页面设置原样留在上面那一节。
-
-    分节符默认是 nextPage（正文节 sectPr 不写 `w:type` 就是 nextPage），所以前置页只排了
-    半页，正文也从下一页开始；不要再补分页符——分节符已经保证下一页开始，多补一个只会
-    在某些排版下多出空白页。
-
-    返回切出来的前置件节数（永远是 1）。
-    """
+def _paragraph_cut_plan(base: Path, needle: str, lang: str = "zh"):
+    """定位切点并完成所有拒绝，返回 `(root, 命中段落, 前置节数)`。不写文件。"""
     with zipfile.ZipFile(base) as z:
         root = etree.fromstring(z.read("word/document.xml"))
     hits = _paragraph_hits(root, needle)
@@ -403,17 +392,37 @@ def paragraph_cut(base: Path, needle: str, out: Path, lang: str = "zh") -> int:
     if toc_before_cut(root, hits[0][2]):
         raise BaseTemplateError(t("base.cut.toc_retained", lang, text=needle))
     body = root.find(W + "body")
-    body_sect = body.find(W + "sectPr")
-    if body_sect is None:
+    if body is None or body.find(W + "sectPr") is None:
         raise BaseTemplateError(t("base.cut.no_trailing_sectpr", lang))
-    p = hits[0][2]
-    if p.find(f"{W}pPr/{W}sectPr") is not None:
-        raise BaseTemplateError(t("base.cut.already_split", lang, text=needle))
-    ppr = p.find(W + "pPr")
-    if ppr is None:
-        ppr = etree.Element(W + "pPr")
-        p.insert(0, ppr)
-    ppr.append(copy.deepcopy(body_sect))
+    return root, hits[0][2], hits[0][0]
+
+
+def paragraph_cut_section(base: Path, needle: str, lang: str = "zh") -> int:
+    """只算「切完会留下几节」，不写文件；供导出前的计划阶段做歧义检查。"""
+    return _paragraph_cut_plan(base, needle, lang)[2]
+
+
+def paragraph_cut(base: Path, needle: str, out: Path, lang: str = "zh") -> int:
+    """在命中段落之后插入分节符；该段落是最后保留的一行，之后的内容丢弃。
+
+    单节底模没有节边界，必须把这一节该有的 sectPr 克隆到命中段落后面；多节底模如果
+    命中段落本身已经是节末（自带 sectPr），直接用它，否则同样克隆它所在节的 sectPr。
+    克隆出来的分节符默认 nextPage，正文从下一页开始；不要再补分页符，多补一个会在
+    某些排版下多出空白页。
+
+    返回切出来的前置件节数：命中段落所在的节号。调用方用这个数作为 `cover_sections`
+    去灌入，多节和单节走同一条路。
+    """
+    root, p, sect = _paragraph_cut_plan(base, needle, lang)
+    if p.find(f"{W}pPr/{W}sectPr") is None:
+        ends = p.xpath("following::w:sectPr[1]", namespaces={"w": W[1:-1]})
+        if not ends:
+            raise BaseTemplateError(t("base.cut.no_trailing_sectpr", lang))
+        ppr = p.find(W + "pPr")
+        if ppr is None:
+            ppr = etree.Element(W + "pPr")
+            p.insert(0, ppr)
+        ppr.append(copy.deepcopy(ends[0]))
 
     blob = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
     with zipfile.ZipFile(base) as zin, zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
@@ -423,33 +432,7 @@ def paragraph_cut(base: Path, needle: str, out: Path, lang: str = "zh") -> int:
     from md_to_word.utils.docx_zip import normalize_zip
 
     normalize_zip(out)
-    return 1
-
-
-def sections_until_text(base: Path, needle: str) -> list[int]:
-    """底模里包含这段文字的节号（从 1 起）。找不到返回空列表。
-
-    人说的是内容——「留到版权使用授权书那一页」——机器要的是节数。这里把前者翻成后者。
-    只看 XML 不看排版，所以在没装 Word 的机器上一样能用。
-    """
-    want = _match_text(needle)
-    if not want:
-        return []
-    with zipfile.ZipFile(base) as z:
-        root = etree.fromstring(z.read("word/document.xml"))
-    hits: list[int] = []
-    sect = 1
-    for el in root.find(W + "body"):
-        text = _match_text("".join(t.text or "" for t in el.iter(W + "t")))
-        if want in text and sect not in hits:
-            hits.append(sect)
-        if el.tag == W + "sectPr" or el.find(".//" + W + "sectPr") is not None:
-            sect += 1  # sectPr 归它上面那一节，所以先记内容再进一节
-    # 目录页会重复出现正文里的章名。有别的命中时，目录那一节不算切点。
-    toc = _toc_section(root)
-    if toc is not None and len(hits) > 1 and toc in hits:
-        hits = [h for h in hits if h != toc]
-    return hits
+    return sect
 
 
 def section_outline(base: Path, lang: str = "zh") -> list[str]:
@@ -507,6 +490,7 @@ def inject_into_base(
 
     style_ids: dict[str, str] = {}
     style_names: dict[str, str] = {}
+    check_doc_level_settings(ours, school, lang)
     _merge_styles(ours, school, style_ids, style_names, qn)
     _merge_doc_level_settings(ours, school, qn)
 
@@ -728,12 +712,86 @@ def _merge_styles(src, dst, ids: dict[str, str], names: dict[str, str], qn) -> N
                 ref.set(qn("w:val"), ids[ref.get(qn("w:val"))])
 
 
-def verify_doc_level_settings(rendered: Path, injected: Path, lang: str = "zh") -> None:
-    """灌完之后，我们声明的文档级设置还在不在。
+def _setting_on_off(el) -> bool:
+    """ST_OnOff：元素在且没有 val，或 val 不是 0/false/off，才算开。"""
+    if el is None:
+        return False
+    val = el.get(W + "val")
+    return val is None or val.strip().lower() not in ("0", "false", "off")
 
-    这两项不属于任何一条样式，丢了不会在 Word 里报错，只会安静地不起作用：校对语言退回
-    底模的值（中文满篇红波浪线），标点压缩退回底模的值（全角标点不再压缩）。所以在
-    「验不过就不产出」这一关也要看一眼。
+
+def _effective_punctuation(settings) -> str:
+    el = settings.find(W + "characterSpacingControl")
+    return (el.get(W + "val") if el is not None else None) or "doNotCompress"
+
+
+def _effective_mirror(settings) -> bool:
+    return _setting_on_off(settings.find(W + "mirrorMargins"))
+
+
+def _effective_even(settings) -> bool:
+    return _setting_on_off(settings.find(W + "evenAndOddHeaders"))
+
+
+def _east_asia_lang(styles) -> str | None:
+    node = styles.find(f"{W}docDefaults/{W}rPrDefault/{W}rPr/{W}lang")
+    return None if node is None else node.get(W + "eastAsia")
+
+
+def _compat_mode_element(settings) -> str:
+    for el in settings.iter(W + "compatSetting"):
+        if el.get(W + "name") == "compatibilityMode":
+            return el.get(W + "val") or ""
+    return ""
+
+
+def _flag(value: bool, lang: str) -> str:
+    return t("base.common.on" if value else "base.common.off", lang)
+
+
+def check_doc_level_settings(src, dst, lang: str = "zh") -> None:
+    """文档级设置必须一致；不一致时拒绝，不替用户改封面。
+
+    镜像、标点压缩、奇偶页页眉都只有一份，改任何一个都会同时改前置件或正文。两条路
+    都能走通的说法（“以格式为准”“以底模为准”）都只是把代价藏起来：改封面、或让正文
+    分页与单独导出不同。这里选第三条：两边不一致就明确拒绝，让人自己决定改哪一边。
+    """
+    src_s, dst_s = src.settings.element, dst.settings.element
+    src_mode, dst_mode = _compat_mode_element(src_s), _compat_mode_element(dst_s)
+    if not src_mode or not dst_mode:
+        raise BaseTemplateError(t(
+            "base.compat_unknown", lang,
+            base=dst_mode or t("base.common.unset", lang),
+            body=src_mode or t("base.common.unset", lang),
+        ))
+    if src_mode != dst_mode:
+        raise BaseTemplateError(t(
+            "base.compat_mismatch", lang, base=dst_mode, body=src_mode))
+    checks = (
+        ("base.settings.label.punctuation", "base.settings.punctuation_mismatch",
+         _effective_punctuation(src_s), _effective_punctuation(dst_s), False),
+        ("base.settings.label.mirror", "base.settings.mirror_mismatch",
+         _effective_mirror(src_s), _effective_mirror(dst_s), True),
+        ("base.settings.label.even", "base.settings.even_mismatch",
+         _effective_even(src_s), _effective_even(dst_s), True),
+    )
+    for label_key, message_key, want, got, is_flag in checks:
+        if want == got:
+            continue
+        raise BaseTemplateError(t(
+            message_key, lang,
+            format=_flag(want, lang) if is_flag else want,
+            base=_flag(got, lang) if is_flag else got,
+            label=t(label_key, lang),
+        ))
+
+
+def verify_doc_level_settings(rendered: Path, injected: Path, lang: str = "zh") -> None:
+    """灌完之后，两边约定好的文档级设置还在不在。
+
+    这些项不属于任何一条样式，丢了不会在 Word 里报错，只会安静地不起作用：校对语言
+    退回底模的值（中文满篇红波浪线），标点压缩退回底模的值（全角标点不再压缩），
+    镜像或奇偶页开关被中途改掉则会改变分页。所以在「验不过就不产出」这一关也要看。
     """
     import zipfile
 
@@ -741,105 +799,61 @@ def verify_doc_level_settings(rendered: Path, injected: Path, lang: str = "zh") 
         with zipfile.ZipFile(path) as z:
             return etree.fromstring(z.read(member))
 
-    want = read(rendered, "word/styles.xml")
-    got = read(injected, "word/styles.xml")
-    wanted_lang = want.find(f"{W}docDefaults/{W}rPrDefault/{W}rPr/{W}lang")
-    got_lang = got.find(f"{W}docDefaults/{W}rPrDefault/{W}rPr/{W}lang")
-    want_east = None if wanted_lang is None else wanted_lang.get(W + "eastAsia")
-    got_east = None if got_lang is None else got_lang.get(W + "eastAsia")
-    if want_east and got_east != want_east:
+    want_styles = read(rendered, "word/styles.xml")
+    got_styles = read(injected, "word/styles.xml")
+    want_lang = _east_asia_lang(want_styles)
+    got_lang = _east_asia_lang(got_styles)
+    if want_lang and got_lang != want_lang:
         raise BaseTemplateError(t(
-            "base.settings.proofing", lang, want=want_east, got=got_east or t("base.common.unset", lang)
+            "base.settings.proofing", lang, want=want_lang,
+            got=got_lang or t("base.common.unset", lang),
         ))
 
     want_s = read(rendered, "word/settings.xml")
     got_s = read(injected, "word/settings.xml")
-    for tag, label_key in (("characterSpacingControl", "base.settings.label.punctuation"),
-                           ("mirrorMargins", "base.settings.label.mirror")):
-        source = want_s.find(W + tag)
-        actual = got_s.find(W + tag)
-        if source is None:
-            # 格式文件没声明 = 关；底模的旧值不能留。
-            if actual is not None:
-                raise BaseTemplateError(t(
-                    "base.settings.option", lang, label=t(label_key, lang),
-                    want=t("base.common.off", lang), got=t("base.common.on", lang),
-                ))
+    checks = (
+        ("base.settings.label.punctuation",
+         _effective_punctuation(want_s), _effective_punctuation(got_s), False),
+        ("base.settings.label.mirror",
+         _effective_mirror(want_s), _effective_mirror(got_s), True),
+        ("base.settings.label.even",
+         _effective_even(want_s), _effective_even(got_s), True),
+    )
+    for label_key, want, got, is_flag in checks:
+        if want == got:
             continue
-        if actual is None or actual.get(W + "val") != source.get(W + "val"):
-            raise BaseTemplateError(t(
-                "base.settings.option", lang, label=t(label_key, lang),
-                want=source.get(W + "val") or t("base.common.on", lang),
-                got=None if actual is None else (actual.get(W + "val") or t("base.common.on", lang)),
-            ))
-
-
-# 这两项必须跟格式文件走：`mirrorMargins` 开着会让正文偶数页镜像，正文从第 1 页重新
-# 编号时还可能多一张空白页；标点压缩直接影响断行。底模里没有、格式里没有时一律删掉。
-_FORMAT_SETTINGS = (
-    "mirrorMargins",
-    "characterSpacingControl",
-)
+        raise BaseTemplateError(t(
+            "base.settings.option", lang, label=t(label_key, lang),
+            want=_flag(want, lang) if is_flag else want,
+            got=_flag(got, lang) if is_flag else got,
+        ))
 
 
 def _merge_doc_level_settings(src, dst, qn) -> None:
-    """把必须跟格式文件走的文档级设置搬进底模：校对语言、标点压缩、对称页边距。
+    """只搬校对语言；其余文档级设置已在 `check_doc_level_settings` 里要求一致。
 
-    只搬 `w:style` 是不够的：`docDefaults` 里的校对语言与 `settings.xml` 里的标点压缩
-    都不属于任何一条样式，底模的旧值留下就会静默生效。`mirrorMargins` 还会改变正文
-    偶数页边距，并在正文从第 1 页重新编号时让 Word 插一张空白页（实测）。
-
-    兼容模式、主题与默认字体等底模独有的全局设置不在这里搬：它们整份文档只有一份，
-    无法分节。兼容模式不一致时 `apply_base_template` 会直接拒绝（见 `_compat_mode`）；
-    默认字体字号不一致时正文里没有显式 pStyle 的段落（表格单元格、空段落）可能略有
-    出入，导出会给出提示。
+    校对语言只影响拼写检查，不改变版心或断行，所以可以覆盖底模的 `eastAsia` 槽；
+    西文槽与默认字体字号保持底模，避免把封面的默认字体一起换掉。
     """
-    from copy import deepcopy
-
-    # 1. 校对语言走 docDefaults：只覆盖 eastAsia 槽，西文槽与默认字体字号保持底模的值。
-    # 整块替换会把前置件的默认字体也换掉（实测能把封面文字整体移 10pt），所以只搬
-    # 这一项；正文样式都显式写了字体字号，未显式设字体的表格单元格/空段落仍跟底模。
-    src_lang = None
-    node = src.styles.element.find(qn("w:docDefaults"))
-    for tag in ("w:rPrDefault", "w:rPr", "w:lang"):
-        node = None if node is None else node.find(qn(tag))
-    src_lang = node
-    east_asia = None if src_lang is None else src_lang.get(qn("w:eastAsia"))
-    if east_asia:
-        root = dst.styles.element
-        defaults = root.find(qn("w:docDefaults"))
-        if defaults is None:
-            defaults = deepcopy(src.styles.element.find(qn("w:docDefaults")))
-            root.insert(0, defaults)
-        rpr_default = defaults.find(qn("w:rPrDefault"))
-        if rpr_default is None:
-            rpr_default = etree.SubElement(defaults, qn("w:rPrDefault"))
-        rpr = rpr_default.find(qn("w:rPr"))
-        if rpr is None:
-            rpr = etree.SubElement(rpr_default, qn("w:rPr"))
-        lang = rpr.find(qn("w:lang"))
-        if lang is None:
-            lang = etree.SubElement(rpr, qn("w:lang"))
-        lang.set(qn("w:eastAsia"), east_asia)
-
-    # 2. settings.xml：格式有就整项替换，没有就删掉底模的旧值
-    from md_to_word.template.core import _SETTINGS_ORDER, ensure_ordered_child
-
-    src_settings = src.settings.element
-    dst_settings = dst.settings.element
-    for tag in _FORMAT_SETTINGS:
-        source = src_settings.find(qn(f"w:{tag}"))
-        target = dst_settings.find(qn(f"w:{tag}"))
-        if source is None:
-            if target is not None:
-                dst_settings.remove(target)
-            continue
-        clone = deepcopy(source)
-        if target is not None:
-            dst_settings.replace(target, clone)
-        else:
-            placeholder = ensure_ordered_child(dst_settings, tag, _SETTINGS_ORDER)
-            dst_settings.replace(placeholder, clone)
+    east_asia = _east_asia_lang(src.styles.element)
+    if not east_asia:
+        return
+    root = dst.styles.element
+    defaults = root.find(qn("w:docDefaults"))
+    if defaults is None:
+        defaults = etree.Element(qn("w:docDefaults"))
+        root.insert(0, defaults)
+    rpr_default = defaults.find(qn("w:rPrDefault"))
+    if rpr_default is None:
+        rpr_default = etree.Element(qn("w:rPrDefault"))
+        defaults.insert(0, rpr_default)
+    rpr = rpr_default.find(qn("w:rPr"))
+    if rpr is None:
+        rpr = etree.SubElement(rpr_default, qn("w:rPr"))
+    lang_el = rpr.find(qn("w:lang"))
+    if lang_el is None:
+        lang_el = etree.SubElement(rpr, qn("w:lang"))
+    lang_el.set(qn("w:eastAsia"), east_asia)
 
 
 def _canon(el) -> bytes:
@@ -1307,7 +1321,7 @@ def _kept_front_text(base: Path, cover_sections: int) -> str:
 
 def verify_cover_pages(
     base: Path, result: Path, sentinels: str | list[str], lang: str = "zh",
-    cover_sections: int = 1,
+    cover_sections: int = 1, origin: Path | None = None,
 ) -> tuple[bool, str]:
     """拿原件和产物逐词比坐标，比到我们的正文出现为止。
 
@@ -1328,8 +1342,12 @@ def verify_cover_pages(
 
     work = result.parent
     base_pdf, out_pdf = work / ".base.pdf", work / ".result.pdf"
+    origin_pdf = work / ".origin.pdf" if origin is not None and origin.resolve() != base.resolve() else None
     try:
-        for src, pdf in ((base, base_pdf), (result, out_pdf)):
+        renders = [(base, base_pdf), (result, out_pdf)]
+        if origin_pdf is not None:
+            renders.append((origin, origin_pdf))
+        for src, pdf in renders:
             rendered, reason = render_pdf_via_word(src, pdf)
             if not rendered:
                 return False, t("base.layout.word_failed", lang, name=src.name, reason=reason)
@@ -1354,8 +1372,17 @@ def verify_cover_pages(
         if cover_pages < 1:
             return False, t("base.layout.zero_pages", lang)
 
+        origin_pages = _pages(origin_pdf) if origin_pdf is not None else 0
         for page in range(1, cover_pages + 1):
-            want, got = _words(base_pdf, page), _words(out_pdf, page)
+            got = _words(out_pdf, page)
+            if origin_pdf is not None:
+                # 派生底模自己可能也因为分节符多出一张空白页，拿它当基准会把空白页
+                # 对空白页混过去。原始底模同一页有字、产物却是空白，就是多插了一页。
+                if page > origin_pages:
+                    return False, t("base.layout.extra_page", lang, page=page)
+                if not got and _words(origin_pdf, page):
+                    return False, t("base.layout.extra_blank", lang, page=page)
+            want = _words(base_pdf, page)
             if len(want) != len(got):
                 return False, t("base.layout.page_words", lang,
                                 page=page, want=len(want), got=len(got))
@@ -1367,6 +1394,8 @@ def verify_cover_pages(
     finally:
         for pdf in (base_pdf, out_pdf):
             pdf.unlink(missing_ok=True)
+        if origin_pdf is not None:
+            origin_pdf.unlink(missing_ok=True)
 
 
 def _pdf_document(pdf: Path):
@@ -1485,54 +1514,7 @@ def _words(pdf: Path, page: int) -> list[tuple[str, str, str]]:
     return [(f"{w[1]:.3f}", f"{w[2]:.3f}", w[0]) for w in words]
 
 
-def resolve_sections_for_pages(
-    base: Path, rendered: Path, pages: int, work: Path, sentinel: str, lang: str = "zh"
-) -> int:
-    """按"保留前几页"反推该切在第几节——页是人说的话，节是机器说的话。
-
-    页切不了：分页是 Word 排出来的结果，切 XML 的时候还不知道第 N 页从哪个段落开始，
-    而且切完再排可能又不是那么多页。所以这里逐个节试切一次、渲染数页，找到页数正好
-    对上的那一节。结果只用于本次导出；下次仍会重新探测（底模或排版都可能变）。
-    """
-    from docx import Document
-
-    render_pdf_via_word = word_pdf.render_pdf_via_word
-
-    # `--keep-pages` 要读页数找切点；工具缺失时不能等 subprocess 抛 FileNotFoundError，
-    # 那会被 CLI 兜底成「工具内部错误」。与 `verify_cover_pages` 同一条提示。
-    ok, why = word_pdf.can_render_word_pdf()
-    if not ok:
-        raise BaseTemplateError(t("base.layout.need_word", lang, why=why))
-
-    total = len(Document(str(base)).sections)
-    staged = work / ".probe.docx"
-    pdf = work / ".probe.pdf"
-    try:
-        for n in range(1, min(pages + 2, total + 1)):
-            inject_into_base(base, rendered, n, staged, lang=lang)
-            ok, why = render_pdf_via_word(staged, pdf)
-            if not ok:
-                raise BaseTemplateError(t("base.pages.word_failed", lang, n=n, why=why))
-            start = _first_page_with(pdf, sentinel)
-            got = (start - 1) if start else _pages(pdf)
-            if got == pages:
-                return n
-            if got > pages:
-                raise BaseTemplateError(t("base.pages.too_many", lang,
-                                          n=n, got=got, pages=pages))
-        raise BaseTemplateError(t("base.pages.not_enough", lang, total=total, pages=pages))
-    finally:
-        staged.unlink(missing_ok=True)
-        pdf.unlink(missing_ok=True)
-
-
-def _has_mirror(path: Path) -> bool:
-    try:
-        with zipfile.ZipFile(path) as z:
-            root = etree.fromstring(z.read("word/settings.xml"))
-    except (OSError, KeyError, zipfile.BadZipFile, etree.XMLSyntaxError):
-        return False
-    return root.find(W + "mirrorMargins") is not None
+BODY_COMPAT_MODE = "15"
 
 
 def _compat_mode(path: Path) -> str:
@@ -1542,17 +1524,19 @@ def _compat_mode(path: Path) -> str:
             root = etree.fromstring(z.read("word/settings.xml"))
     except (OSError, KeyError, zipfile.BadZipFile, etree.XMLSyntaxError):
         return ""
-    for el in root.iter(W + "compatSetting"):
-        if el.get(W + "name") == "compatibilityMode":
-            return el.get(W + "val") or ""
-    return ""
+    return _compat_mode_element(root)
 
 
 def apply_base_template(
     base: Path, rendered: Path, cover_sections: int, out: Path,
     sentinels: str | list[str], lang: str = "zh", blind_review: bool = False,
+    origin: Path | None = None,
 ) -> BaseOutcome:
-    """体检 → 注入 → 验真。任何一步不过都抛 BaseTemplateError，**不写出 out**。"""
+    """体检 → 注入 → 验真。任何一步不过都抛 BaseTemplateError，**不写出 out**。
+
+    `origin` 是切点之前的原始底模。单节/多节按段落切时 `base` 是派生底模，它自己
+    也可能带一张空白页；封面验真拿 `origin` 做空白页基准，避免「空白对空白」。
+    """
     report = inspect_base(base, cover_sections, lang)
     if not report.ok:
         raise BaseTemplateError(_join(report.blocking, lang), report.notes)
@@ -1561,7 +1545,15 @@ def apply_base_template(
         comment_note = t("base.inspect.comments", lang)
         report.notes = [n for n in report.notes if n != comment_note]
     base_mode, body_mode = _compat_mode(base), _compat_mode(rendered)
-    if base_mode and body_mode and base_mode != body_mode:
+    if not base_mode or not body_mode:
+        # 读不到 compatSetting 时不能当成“一致”：Word 会按它自己的旧规则排版，正文
+        # 分页可能和单独导出不同。让它先转换，比静默放行诚实。
+        raise BaseTemplateError(t(
+            "base.compat_unknown", lang,
+            base=base_mode or t("base.common.unset", lang),
+            body=body_mode or t("base.common.unset", lang),
+        ), report.notes)
+    if base_mode != body_mode:
         # 兼容模式是文档级的，没法只给正文换：留底模的模式，正文分页会和单独导出不同；
         # 换成正文的模式，封面位置会变。两条都不能保证，就直接拒绝并给出一步可做的修法。
         raise BaseTemplateError(t(
@@ -1569,8 +1561,6 @@ def apply_base_template(
     head = dropped_head(base, cover_sections)
     if head:
         report.notes.append(t("base.note.retained", lang, head=head))
-    if _has_mirror(base) and not _has_mirror(rendered):
-        report.notes.append(t("base.note.mirror_removed", lang))
 
     staged = out.with_suffix(".base-staged.docx")
     try:
@@ -1586,7 +1576,9 @@ def apply_base_template(
         # 结构那一关已经保证封面一个字节没动，剩下的"排出来一样不一样"只能请人看。
         layout_verified = word_pdf.can_render_word_pdf()[0]
         skipped_for_markup = False
-        if layout_verified and _has_layout_markup(base):
+        if layout_verified and (
+            _has_layout_markup(base) or (origin is not None and _has_layout_markup(origin))
+        ):
             # 批注气泡与修订标记会占版面：Word 排底模时会算进去，排产物时又可能不同，
             # 逐页比坐标只会误报「封面位置对不上」。结构那一关已经证明封面节点没动，
             # 这一层明确跳过，交给人工核对。
@@ -1595,7 +1587,7 @@ def apply_base_template(
             skipped_for_markup = True
         if layout_verified:
             ok, why = verify_cover_pages(
-                base, staged, sentinels, lang, cover_sections=cover_sections)
+                base, staged, sentinels, lang, cover_sections=cover_sections, origin=origin)
             if not ok:
                 raise BaseTemplateError(why, report.notes)
         elif not skipped_for_markup:

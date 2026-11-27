@@ -15,24 +15,10 @@ from md_to_word.mcp.server import (
 
 
 def _compat15(path: Path) -> Path:
-    """python-docx 默认兼容模式 14；与本工具正文（15）一致才能灌入。"""
-    import zipfile
+    """python-docx 默认是兼容模式 14 + doNotCompress；对齐成本工具中文正文的设置。"""
+    from tests.docx_helpers import align_base
 
-    from lxml import etree
-
-    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-    with zipfile.ZipFile(path) as z:
-        parts = {n: z.read(n) for n in z.namelist()}
-    root = etree.fromstring(parts["word/settings.xml"])
-    for el in root.iter(w + "compatSetting"):
-        if el.get(w + "name") == "compatibilityMode":
-            el.set(w + "val", "15")
-    parts["word/settings.xml"] = etree.tostring(
-        root, xml_declaration=True, encoding="UTF-8", standalone=True)
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-        for name, blob in parts.items():
-            z.writestr(name, blob)
-    return path
+    return align_base(path, punctuation="compressPunctuation")
 
 
 @pytest.fixture(autouse=True)
@@ -95,6 +81,10 @@ def test_mcp_inspect_base_template():
         assert payload["section_count"] >= 1
         assert len(payload["sections"]) >= 1
         assert payload["blocking"] == []
+        assert payload["compat_mode"] == "15"
+        assert payload["mirror_margins"] is False
+        assert "punctuation_compression" in payload
+        assert "proofing_language" in payload
 
         missing = await server.call_tool(
             "inspect_base_template", {"docx_path": "/nonexistent/base.docx"}
@@ -111,6 +101,25 @@ def test_mcp_inspect_preset():
         assert not res.is_error
         content = res.structured_content["result"]
         assert "宋体" in content or "SimSun" in content or "font" in content
+    asyncio.run(_run())
+
+
+def test_mcp_inspect_shows_a_compat_mismatch(tmp_path: Path) -> None:
+    """inspect 必须先把兼容模式不一致摆出来，不能让 Agent 导出时才撞墙。"""
+    from docx import Document
+
+    base = tmp_path / "old.docx"
+    Document().save(base)  # python-docx 默认兼容模式 14
+
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool(
+            "inspect_base_template", {"docx_path": str(base), "lang": "en"})
+        payload = res.structured_content
+        assert payload["compat_mode"] == "14"
+        assert payload["ok"] is False
+        assert any("compatibility" in b.lower() for b in payload["blocking"]), payload["blocking"]
+
     asyncio.run(_run())
 
 
@@ -204,13 +213,19 @@ def test_mcp_guide_is_the_packaged_guide():
     asyncio.run(_run())
 
 
-def test_mcp_extract_format_from_docx():
+def test_mcp_extract_format_from_docx(tmp_path: Path):
     """模板反推是 MCP 的核心入口之一，不能只有 CLI 能用。"""
+    from md_to_word.config import resolve_preset_path
+    from md_to_word.template.builder import build_template
+
+    template = tmp_path / "template.docx"
+    preset = resolve_preset_path("zh-academic")
+    build_template(preset.read_text(encoding="utf-8"), template)
+
     async def _run():
         server = create_mcp_server()
-        docx = Path(__file__).resolve().parent.parent / "demo/00_quickstart/hello.docx"
         res = await server.call_tool(
-            "extract_format_from_docx", {"docx_path": str(docx)}
+            "extract_format_from_docx", {"docx_path": str(template)}
         )
         assert not res.is_error
         data = res.structured_content
@@ -489,7 +504,6 @@ def test_all_three_entrances_offer_the_same_options() -> None:
     pairs = {
         "base_template": "base_template",
         "cover_sections": "cover_sections",
-        "keep_pages": "keep_pages",
         "keep_until": "keep_until",
         "blind_review": "blind_review",
         # 同一个能力三个入口的历史叫法不同：Python/CLI 说 pdf，MCP 说 generate_pdf
@@ -499,7 +513,7 @@ def test_all_three_entrances_offer_the_same_options() -> None:
         assert field in fields, f"ExportOptions 缺 {field}"
         assert api_name in api, f"Python API export() 缺 {api_name}"
     assert "generate_pdf" in properties, "MCP compile_markdown 缺 generate_pdf"
-    for name in ("base_template", "cover_sections", "keep_pages", "keep_until", "blind_review"):
+    for name in ("base_template", "cover_sections", "keep_until", "blind_review"):
         assert name in properties, f"MCP compile_markdown 缺 {name}"
 
 

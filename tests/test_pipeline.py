@@ -456,34 +456,9 @@ def _two_section_base(path: Path) -> Path:
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
         for name, blob in parts.items():
             z.writestr(name, blob)
-    return path
+    from tests.docx_helpers import set_character_spacing
 
-
-def test_keep_pages_without_a_renderer_is_a_usage_answer_not_an_internal_error(
-    tmp_path: Path, monkeypatch
-) -> None:
-    """按页换算节数要先排版，而这台机器排不了。
-
-    以前它从深处抛出去，被 CLI 兜底成「这是本工具的缺陷，请把 traceback 发给维护者」——
-    Windows 上这条路永远走不通，却报得像我们出了 bug。
-    """
-    from md_to_word.visual_qa import word_pdf
-
-    monkeypatch.setattr(word_pdf, "can_render_word_pdf", lambda: (False, "not-darwin"))
-    manuscript = tmp_path / "m.md"
-    manuscript.write_text("# 第一章 绪论\n\n正文。\n", encoding="utf-8")
-
-    result = run_export_pipeline(ExportOptions(
-        input_path=manuscript,
-        output_path=tmp_path / "o.docx",
-        base_template=str(_two_section_base(tmp_path / "base.docx")),
-        keep_pages=2,
-    ))
-
-    assert result.returncode != 0
-    joined = " ".join(result.errors)
-    assert "--cover-sections" in joined and "2 节" in joined, joined
-    assert not (tmp_path / "o.docx").exists()
+    return set_character_spacing(path, "compressPunctuation")
 
 
 def test_the_success_line_does_not_claim_a_page_check_that_never_ran(
@@ -567,7 +542,7 @@ def test_a_skipped_pdf_says_why_and_what_to_do(tmp_path: Path, capsys, monkeypat
 def test_an_unreadable_base_is_refused_before_sections_are_counted(tmp_path: Path) -> None:
     """底模不是有效的 docx 时，按内容换算节数那一步不能先撞上去。
 
-    以前 `--keep-until` / `--keep-pages` 在体检之前就去读这份文件，BadZipFile 从深处抛出去，
+    以前 `--keep-until` 在体检之前就去读这份文件，BadZipFile 从深处抛出去，
     CLI 兜底成「这是本工具的缺陷，请把 traceback 发给维护者」——用户拿到的是一句我们自己的
     道歉，而不是「你给的文件打不开」。
     """
@@ -576,7 +551,7 @@ def test_an_unreadable_base_is_refused_before_sections_are_counted(tmp_path: Pat
     base = tmp_path / "base.docx"
     base.write_bytes(b"Forbidden")          # 网盘/邮件里下坏的那种
 
-    for kwargs in ({"keep_until": "版权使用授权书"}, {"keep_pages": 2}):
+    for kwargs in ({"keep_until": "版权使用授权书"}, {"cover_sections": 2}):
         result = run_export_pipeline(ExportOptions(
             input_path=manuscript,
             output_path=tmp_path / "o.docx",

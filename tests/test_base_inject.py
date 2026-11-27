@@ -30,6 +30,12 @@ from md_to_word.template.base_inject import (
 )
 from md_to_word.template.builder import build_template
 from md_to_word.writer import write_docx
+from tests.docx_helpers import (
+    align_base,
+    remove_compat_mode,
+    set_character_spacing,
+    set_on_off,
+)
 
 @pytest.fixture(autouse=True)
 def _no_live_word(monkeypatch):
@@ -76,7 +82,7 @@ def _school_base(path: Path, sections: int = 2) -> Path:
         if i < sections - 1:
             doc.add_section(WD_SECTION.NEW_PAGE)
     doc.save(path)
-    return _set_compat_mode(path, "15")
+    return align_base(path, punctuation="compressPunctuation")
 
 
 def _rendered(tmp_path: Path, manuscript: str) -> Path:
@@ -87,17 +93,7 @@ def _rendered(tmp_path: Path, manuscript: str) -> Path:
 
 def _with_mirror(path: Path) -> Path:
     """给 docx 的 settings.xml 打开 mirrorMargins（模拟学校模板的双面装订）。"""
-    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-    with zipfile.ZipFile(path) as z:
-        parts = {n: z.read(n) for n in z.namelist()}
-    root = etree.fromstring(parts["word/settings.xml"])
-    if root.find(w + "mirrorMargins") is None:
-        etree.SubElement(root, w + "mirrorMargins")
-    parts["word/settings.xml"] = etree.tostring(
-        root, xml_declaration=True, encoding="UTF-8", standalone=True)
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-        for name, blob in parts.items():
-            z.writestr(name, blob)
+    return set_on_off(path, "mirrorMargins", True)
     return path
 
 
@@ -344,11 +340,11 @@ def test_a_chapter_name_header_mid_document_follows_the_renamed_style(tmp_path: 
 
 def test_sentinel_reads_through_inline_wrappers() -> None:
     """正文以加粗开头时，哨兵不能跳过整段——跳了就会拿后面某一段去定位封面页数。"""
-    from md_to_word.pipeline import _first_text
+    from md_to_word.pipeline import _first_texts
 
     doc = read_markdown("**绪论**与背景\n\n第二段。\n")
 
-    assert _first_text(doc.blocks) == "绪论与背景"
+    assert _first_texts(doc.blocks, limit=1, min_len=1) == ["绪论与背景"]
 
 
 def _rels_of(result: Path, member: str) -> dict[str, tuple[str, str]]:
@@ -466,30 +462,38 @@ def test_the_attached_dot_template_is_dropped(tmp_path: Path) -> None:
 
 def test_find_the_section_by_its_text(tmp_path: Path) -> None:
     """人说的是内容，机器要的是节数——这一步只看 XML，Windows 上也走得通。"""
-    from md_to_word.template.base_inject import section_outline, sections_until_text
+    from md_to_word.template.base_inject import paragraph_cut_section, section_outline
 
-    base = _school_base(tmp_path / "base.docx", sections=3)
-    doc = Document(base)
+    base = tmp_path / "base.docx"
+    doc = Document()
+    for i in range(3):
+        doc.add_paragraph(f"第{i + 1}节")
+        if i < 2:
+            doc.add_section(WD_SECTION.NEW_PAGE)
     doc.paragraphs[-1].runs[0].text = "版权使用授权书 本人同意……"
     doc.save(base)
+    align_base(base, punctuation="compressPunctuation")
 
-    assert sections_until_text(base, "版权使用授权书") == [3]
-    assert sections_until_text(base, "根本不存在的句子") == []
+    assert paragraph_cut_section(base, "版权使用授权书") == 3
     assert len(section_outline(base)) == 3
+    with pytest.raises(BaseTemplateError, match="找不到"):
+        paragraph_cut_section(base, "根本不存在的句子")
 
 
 def test_ambiguous_anchor_is_refused_not_guessed(tmp_path: Path) -> None:
     """同一段文字在两节里都有，停在哪就不确定了——报出来，别挑一个。"""
-    from md_to_word.template.base_inject import sections_until_text
+    from md_to_word.template.base_inject import paragraph_cut_section
 
-    base = _school_base(tmp_path / "base.docx", sections=3)
-    doc = Document(base)
-    for paragraph in doc.paragraphs:
-        if paragraph.runs:
-            paragraph.runs[0].text = "版权使用授权书"
+    base = tmp_path / "base.docx"
+    doc = Document()
+    for _ in range(3):
+        doc.add_paragraph("版权使用授权书")
+        doc.add_section(WD_SECTION.NEW_PAGE)
     doc.save(base)
+    align_base(base, punctuation="compressPunctuation")
 
-    assert len(sections_until_text(base, "版权使用授权书")) > 1
+    with pytest.raises(BaseTemplateError, match="切点不唯一"):
+        paragraph_cut_section(base, "版权使用授权书")
 
 
 def test_a_zero_byte_theme_directory_does_not_fail_verification(tmp_path: Path) -> None:
@@ -760,50 +764,121 @@ def test_injected_package_keeps_the_doc_level_settings_we_declare(tmp_path: Path
         )
 
 
-def test_mirror_margins_follow_the_format_not_the_base(tmp_path: Path) -> None:
-    """底模的 mirrorMargins 不能漏进正文：格式没声明就关掉，声明了就打开。
+def test_mirror_margins_must_match_between_base_and_format(tmp_path: Path) -> None:
+    """镜像边距是文档级的：不一致就拒绝，不替用户改封面。
 
-    底模开着镜像、格式没开时，正文偶数页会跟着镜像；如果正文又从第 1 页重新编号，
-    Word 为了让第 1 页落在右手页会插一张空白页——和单独导出不一样。
+    底模开着、格式没开时，按格式关掉会移动前置件的偶数页；按底模留着又会让正文
+    偶数页跟着镜像，并在重新编号时插一张空白页。两条都是静默改，所以只留拒绝。
     """
-    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    base_mirror = _with_mirror(_school_base(tmp_path / "base.docx", sections=3))
+    rendered_plain = _rendered(tmp_path, "# 一 引言\n\n正文。\n")
+    with pytest.raises(BaseTemplateError, match="对称页边距"):
+        inject_into_base(base_mirror, rendered_plain, 2, tmp_path / "out.docx")
 
-    def mirror_of(path: Path) -> bool:
-        with zipfile.ZipFile(path) as z:
-            root = etree.fromstring(z.read("word/settings.xml"))
-        return root.find(w + "mirrorMargins") is not None
-
-    # 底模开、格式没开：注入后必须关掉
-    base = _with_mirror(_school_base(tmp_path / "base.docx", sections=3))
-    rendered = _rendered(tmp_path, "# 一 引言\n\n正文。\n")
-    out = tmp_path / "out.docx"
-    inject_into_base(base, rendered, 2, out)
-    assert not mirror_of(out), "格式没声明镜像，底模的 mirrorMargins 不该留下"
-    verify_doc_level_settings(rendered, out)
-
-    # 底模没开、格式开了：注入后必须打开
     mirror_format = PRESET.rstrip() + "\n对称页边距：开\n"
     template = tmp_path / "mirror-tpl.docx"
     build_template(mirror_format, template)
     rendered_mirror = write_docx(
         read_markdown("# 一 引言\n\n正文。\n"), template, tmp_path / "rendered-mirror.docx")
-    base2 = _school_base(tmp_path / "base2.docx", sections=3)
-    out2 = tmp_path / "out2.docx"
-    inject_into_base(base2, rendered_mirror, 2, out2)
-    assert mirror_of(out2), "格式声明了镜像，注入后要打开"
-    verify_doc_level_settings(rendered_mirror, out2)
+    base_plain = _school_base(tmp_path / "base2.docx", sections=3)
+    with pytest.raises(BaseTemplateError, match="对称页边距"):
+        inject_into_base(base_plain, rendered_mirror, 2, tmp_path / "out2.docx")
+
+    # 两边都开才允许注入，且验真不再改动它。
+    out3 = tmp_path / "out3.docx"
+    inject_into_base(_with_mirror(base_plain), rendered_mirror, 2, out3)
+    verify_doc_level_settings(rendered_mirror, out3)
 
 
 def test_a_base_with_a_different_compat_mode_is_refused(tmp_path: Path) -> None:
     """兼容模式是文档级的：留底模的会改正文分页，换格式的会移封面，只能拒绝。
 
-    修法是一步：用 Word 打开底模另存一次，模式通常就升到当前版本。
+    修法不是普通保存，而是 Word 的「文件 > 信息 > 转换」；转换可能重排封面。
     """
     base = _set_compat_mode(_school_base(tmp_path / "base.docx", sections=3), "14")
 
     rendered = _rendered(tmp_path, "# 一 引言\n\n正文。\n")
     with pytest.raises(BaseTemplateError, match="兼容模式"):
         apply_base_template(base, rendered, 2, tmp_path / "out.docx", "一 引言")
+
+
+def test_a_base_without_a_compat_mode_is_refused(tmp_path: Path) -> None:
+    """读不到兼容模式时不能当成一致：Word 会按旧规则排版，正文分页可能不同。"""
+    base = remove_compat_mode(_school_base(tmp_path / "base.docx", sections=3))
+    rendered = _rendered(tmp_path, "# 一 引言\n\n正文。\n")
+
+    with pytest.raises(BaseTemplateError, match="兼容模式"):
+        apply_base_template(base, rendered, 2, tmp_path / "out.docx", "一 引言")
+
+
+def test_punctuation_compression_must_match(tmp_path: Path) -> None:
+    """标点压缩不一致时拒绝：改它会让前置件的断行也变。"""
+    base = set_character_spacing(
+        _school_base(tmp_path / "base.docx", sections=3), "doNotCompress")
+    rendered = _rendered(tmp_path, "# 一 引言\n\n正文。\n")
+
+    with pytest.raises(BaseTemplateError, match="标点压缩"):
+        inject_into_base(base, rendered, 2, tmp_path / "out.docx")
+
+
+def test_odd_even_headers_must_match(tmp_path: Path) -> None:
+    """底模开了奇偶页不同、格式没开时拒绝：正文偶数页页眉会对不上。"""
+    base = set_on_off(
+        _school_base(tmp_path / "base.docx", sections=3), "evenAndOddHeaders", True)
+    rendered = _rendered(tmp_path, "# 一 引言\n\n正文。\n")
+
+    with pytest.raises(BaseTemplateError, match="奇偶页"):
+        inject_into_base(base, rendered, 2, tmp_path / "out.docx")
+
+
+def test_multi_section_keep_until_cuts_after_the_named_paragraph(tmp_path: Path) -> None:
+    """多节底模也按“命中段落是最后一行”切；后面的节和段落都丢弃。"""
+    from md_to_word.pipeline import ExportOptions, run_export_pipeline
+
+    base = tmp_path / "base.docx"
+    doc = Document()
+    doc.add_paragraph("封面")
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.add_paragraph("声明")
+    doc.add_paragraph("切点：作者签名")
+    doc.add_paragraph("这一段应被丢弃")
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.add_paragraph("后面的节也应被丢弃")
+    doc.save(base)
+    align_base(base, punctuation="compressPunctuation")
+
+    md = tmp_path / "m.md"
+    md.write_text("# 第一章 引言\n\n正文。\n", encoding="utf-8")
+    fmt = tmp_path / "f.txt"
+    fmt.write_text(PRESET, encoding="utf-8")
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=tmp_path / "o.docx", format_path=fmt,
+        base_template=base, keep_until="切点：作者签名",
+    ))
+
+    assert result.ok, result.errors
+    with zipfile.ZipFile(result.output_docx) as z:
+        xml = z.read("word/document.xml").decode("utf-8")
+    assert "切点：作者签名" in xml
+    assert "这一段应被丢弃" not in xml
+    assert "后面的节也应被丢弃" not in xml
+    assert "第一章 引言" in xml
+
+
+def test_write_docx_always_marks_a_product(tmp_path: Path) -> None:
+    """默认库调用（不传 header_styles）也不能把成品标成 template。"""
+    from md_to_word.template.decor import read_meta_kind
+    from md_to_word.template.extractor import Ref
+
+    template = tmp_path / "t.docx"
+    build_template(PRESET, template)
+    out = write_docx(
+        read_markdown("# 一 引言\n\n正文。\n"), template, tmp_path / "out.docx")
+
+    assert read_meta_kind(out) == "product"
+    with pytest.raises(ValueError, match="成品"):
+        Ref(out)
 
 
 def test_a_base_without_body_level_section_break_is_rejected_up_front(tmp_path: Path) -> None:
@@ -863,7 +938,7 @@ def _single_section_base(path: Path) -> Path:
     doc.add_paragraph("摘  要")
     doc.add_paragraph("本文研究了一种方法。")
     doc.save(path)
-    return _set_compat_mode(path, "15")
+    return align_base(path, punctuation="compressPunctuation")
 
 
 def test_single_section_template_cuts_after_the_matched_paragraph(tmp_path: Path) -> None:
@@ -922,25 +997,6 @@ def test_single_section_template_still_blocks_a_bad_cut(tmp_path: Path) -> None:
     assert any("找不到" in e for e in result.errors), result.errors
 
 
-def test_keep_pages_on_a_single_section_base_says_what_to_use(tmp_path: Path) -> None:
-    """按页换算在单节模板上没有可切的节：直接指向 --keep-until，而不是报页数不对。"""
-    from md_to_word.pipeline import ExportOptions, run_export_pipeline
-
-    base = _single_section_base(tmp_path / "base.docx")
-    md = tmp_path / "m.md"
-    md.write_text("# 第一章 引言\n\n本文研究了一种新方法。\n", encoding="utf-8")
-    fmt = tmp_path / "f.txt"
-    fmt.write_text(PRESET, encoding="utf-8")
-
-    result = run_export_pipeline(ExportOptions(
-        input_path=md, output_path=tmp_path / "o.docx", format_path=fmt,
-        base_template=base, keep_pages=2,
-    ))
-
-    assert not result.ok and result.output_docx is None
-    assert any("--keep-until" in e for e in result.errors), result.errors
-
-
 def _sdt_toc_base(path: Path) -> Path:
     """目录放在 `w:sdt` 里（Word 的目录控件）——模板里很常见。"""
     doc = Document()
@@ -972,25 +1028,25 @@ def test_a_toc_inside_sdt_is_found(tmp_path: Path) -> None:
     assert any("目录就在第 1 节" in msg for msg in report.blocking), report.blocking
 
 
-def test_keep_until_ignores_the_contents_page(tmp_path: Path) -> None:
-    """目录页会重复正文里的章名：有别的命中时，目录那一节不算切点。"""
-    from md_to_word.template.base_inject import sections_until_text
+def test_keep_until_refuses_a_cut_after_the_contents_page(tmp_path: Path) -> None:
+    """目录页会重复正文里的章名：切在它后面会把目录留在前置件里，只能拒绝。"""
+    from md_to_word.template.base_inject import paragraph_cut_section
 
     doc = Document()
     doc.add_paragraph("目  录")
     toc = parse_xml(
-        f'<w:p {nsdecls("w")}><w:r>'
-        '<w:instrText xml:space="preserve"> TOC \\o "1-3" \\h \\z \\u </w:instrText>'
-        "</w:r></w:p>"
+        f'<w:p {nsdecls("w")}><w:pPr><w:pStyle w:val="TOC1"/></w:pPr><w:r>'
+        "<w:t>Chapter 1 Introduction</w:t></w:r></w:p>"
     )
     doc.element.body[-2].addnext(toc)
-    doc.add_paragraph("Chapter 1 Introduction")
     doc.add_section(WD_SECTION.NEW_PAGE)
     doc.add_paragraph("Chapter 1 Introduction")
     base = tmp_path / "base.docx"
     doc.save(base)
+    align_base(base, punctuation="compressPunctuation")
 
-    assert sections_until_text(base, "Chapter 1") == [2]
+    with pytest.raises(BaseTemplateError, match="目录"):
+        paragraph_cut_section(base, "Chapter 1")
 
 
 def test_pdf_page_reading_does_not_need_poppler() -> None:
@@ -1026,14 +1082,15 @@ def test_a_hand_typed_toc_is_recognised(tmp_path: Path) -> None:
 
 
 def test_keep_until_folds_full_width_and_case(tmp_path: Path) -> None:
-    from md_to_word.template.base_inject import sections_until_text
+    from md_to_word.template.base_inject import paragraph_cut_section
 
     base = tmp_path / "fullwidth.docx"
     doc = Document()
     doc.add_paragraph("Ｖ１．０ 版权声明")
     doc.save(base)
+    align_base(base, punctuation="compressPunctuation")
 
-    assert sections_until_text(base, "v1.0") == [1]
+    assert paragraph_cut_section(base, "v1.0") == 1
 
 
 def test_an_ole_container_is_reported_as_encrypted(tmp_path: Path) -> None:

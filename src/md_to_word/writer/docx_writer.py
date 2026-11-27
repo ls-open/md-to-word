@@ -1687,8 +1687,9 @@ def write_docx(
         section_roles=section_roles,
     )
     writer.write()
-    if header_styles is not None:
-        write_header_styles_meta(docx, effective_header_styles, kind="product")
+    # 这是成品写出口，不是模板生成器：无论调用方是否显式传 `header_styles`，产物都得
+    # 自称 product。否则默认库调用会保留模板的 kind="template"，反推器照样接受成品。
+    write_header_styles_meta(docx, effective_header_styles, kind="product")
     if provenance:
         # 产物要能自证出处：版本与用的是哪份格式文件。只写固定字符串，不写时间戳，
         # 否则同一份稿件重复导出就不再逐字节一致了。

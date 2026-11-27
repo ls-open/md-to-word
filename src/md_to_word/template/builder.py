@@ -20,11 +20,12 @@ def build_template(
     *,
     margins: Optional[dict[str, float]] = None,
     lang: str = "zh",
+    doc_lang: Optional[str] = None,
 ) -> Path:
     """根据格式要求文本（或 TemplateSpec）生成 template.docx。
 
     传 TemplateSpec 时会先序列化成正典文本再生成；往返等价由
-    tests/test_serializer.py 守着。
+    tests/test_serializer.py 守着。`doc_lang` 用于在格式没写校对语言时兜底。
     """
     out = Path(output_path)
     if isinstance(spec_or_text, TemplateSpec):
@@ -32,5 +33,5 @@ def build_template(
     else:
         text = str(spec_or_text)
 
-    generate_template(text, str(out), margins=margins, lang=lang)
+    generate_template(text, str(out), margins=margins, lang=lang, doc_lang=doc_lang)
     return out

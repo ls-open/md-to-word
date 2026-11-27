@@ -24,7 +24,6 @@ def export(
     lang=None,
     base_template=None,
     cover_sections=0,
-    keep_pages=0,
     keep_until="",
     blind_review=False,
 ) -> "ExportResult":
@@ -33,9 +32,9 @@ def export(
     返回 `ExportResult`；`result.returncode` 为 0 即成功，`result.errors` 是失败原因。
     这一层只是把 `ExportOptions` 的默认值摆好——等价于命令行 `md-to-word`。
 
-    `base_template` / `cover_sections` / `keep_pages` / `keep_until` 与命令行同名同义，
+    `base_template` / `cover_sections` / `keep_until` 与命令行同名同义，
     见手册 §9.3。`blind_review=True` 清理文档属性（作者、单位、自定义属性、缩略图、
-    批注作者），只清文件元数据，正文里的姓名仍需自行替换。
+    批注与修订作者），只清文件元数据，正文里的姓名仍需自行替换。
     """
     return run_export_pipeline(
         ExportOptions(
@@ -47,7 +46,6 @@ def export(
             lang=lang,
             base_template=base_template,
             cover_sections=cover_sections,
-            keep_pages=keep_pages,
             keep_until=keep_until,
             blind_review=blind_review,
         )

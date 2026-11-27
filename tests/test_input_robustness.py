@@ -333,26 +333,13 @@ def test_validate_only_checks_the_base_template(tmp_path: Path, capsys) -> None:
     assert "底模" in capsys.readouterr().err
 
 
-def test_validate_only_refuses_keep_pages_without_layout(tmp_path: Path, capsys) -> None:
-    from docx import Document
-    from docx.enum.section import WD_SECTION
+def test_keep_pages_is_no_longer_an_option(capsys) -> None:
+    """`--keep-pages` 已删除：页不是文档的单位，按节/按内容切才可复现。"""
+    with pytest.raises(SystemExit) as exc:
+        main(["--keep-pages", "1"])
 
-    base = tmp_path / "base.docx"
-    doc = Document()
-    doc.add_paragraph("封面")
-    doc.add_section(WD_SECTION.NEW_PAGE)
-    doc.add_paragraph("正文占位")
-    doc.save(base)
-    manuscript = _manuscript(tmp_path, "# 引言\n\n正文。\n")
-
-    code = main([
-        str(manuscript), "--preset", "zh-academic", "--validate-only",
-        "--base-template", str(base), "--keep-pages", "1",
-    ])
-
-    captured = capsys.readouterr()
-    assert code == 1
-    assert "keep-pages" in captured.err or "keep-pages" in captured.out
+    assert exc.value.code == 2
+    assert "unrecognized arguments" in capsys.readouterr().err
 
 
 def test_encoding_fallback_message_is_bilingual() -> None:

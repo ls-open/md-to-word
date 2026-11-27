@@ -31,19 +31,11 @@ pytestmark = [
 
 
 def _compat15(path: Path) -> Path:
-    """python-docx 默认兼容模式 14；与本工具正文（15）一致才能一起验。"""
-    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-    with zipfile.ZipFile(path) as z:
-        parts = {n: z.read(n) for n in z.namelist()}
-    root = etree.fromstring(parts["word/settings.xml"])
-    for el in root.iter(w + "compatSetting"):
-        if el.get(w + "name") == "compatibilityMode":
-            el.set(w + "val", "15")
-    parts["word/settings.xml"] = etree.tostring(
-        root, xml_declaration=True, encoding="UTF-8", standalone=True)
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-        for name, blob in parts.items():
-            z.writestr(name, blob)
+    """python-docx 默认是兼容模式 14 + doNotCompress；对齐成中文正文的设置。"""
+    from tests.docx_helpers import set_character_spacing, set_compat_mode
+
+    set_compat_mode(path, "15")
+    set_character_spacing(path, "compressPunctuation")
     return path
 
 
@@ -76,8 +68,8 @@ def test_single_section_cut_starts_the_body_on_a_new_page(tmp_path: Path) -> Non
     """单节模板切在半页时，正文从下一页开始——不能挤回同一页，也不能多出空白页。
 
     结构上分节符是 nextPage；这条用 Word 排一次版，直接看 PDF 的页边界。
-    底模还开了对称页边距：格式没声明时它必须被关掉，否则正文从第 1 页重新编号时，
-    Word 会把第 1 页推到右手页，在授权书和正文之间插一张空白页。
+    底模和格式都开了对称页边距（文档级设置必须一致才能灌入）；前置件正好两页，
+    正文从第 3 页开始，不能因为重新编号再插一张空白页。
     """
     base = tmp_path / "base.docx"
     doc = Document()
@@ -107,11 +99,14 @@ def test_single_section_cut_starts_the_body_on_a_new_page(tmp_path: Path) -> Non
     with zipfile.ZipFile(base, "w", zipfile.ZIP_DEFLATED) as z:
         for name, blob in parts.items():
             z.writestr(name, blob)
+    from tests.docx_helpers import set_character_spacing
+
+    set_character_spacing(base, "compressPunctuation")
 
     md = tmp_path / "m.md"
     md.write_text("# 第一章 引言\n\n正文第一段。\n", encoding="utf-8")
     fmt = tmp_path / "f.txt"
-    fmt.write_text(PRESET, encoding="utf-8")
+    fmt.write_text(PRESET.rstrip() + "\n对称页边距：开\n", encoding="utf-8")
 
     result = run_export_pipeline(ExportOptions(
         input_path=md, output_path=tmp_path / "out.docx", format_path=fmt,
@@ -125,6 +120,39 @@ def test_single_section_cut_starts_the_body_on_a_new_page(tmp_path: Path) -> Non
     assert "第一章" not in pages[1], "正文不能挤回授权书的半页"
     assert "第一章" in pages[2]
     assert "旧正文" not in "".join(pages), "切点之后的内容不应保留"
+
+
+def test_mirror_on_with_a_one_page_front_refuses_the_blank_page(tmp_path: Path) -> None:
+    """镜像 + 1 页前置件 + 正文从第 1 页重新编号，Word 会插一张空白页。
+
+    派生底模自己也可能带同一张空白页，所以验真必须拿原始底模同页做基准；这里直接
+    断言导出被拒，而不是把空白页当成交付物。
+    """
+    from tests.docx_helpers import align_base
+
+    base = tmp_path / "base.docx"
+    doc = Document()
+    doc.add_paragraph("封面第一页：某某大学")
+    doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
+    doc.add_paragraph("版权使用授权书")
+    doc.add_paragraph("作者签名：________")
+    doc.save(base)
+    align_base(base, punctuation="compressPunctuation", mirror=True)
+
+    md = tmp_path / "m.md"
+    md.write_text("# 第一章 引言\n\n正文第一段。\n", encoding="utf-8")
+    fmt = tmp_path / "f.txt"
+    fmt.write_text(PRESET.rstrip() + "\n对称页边距：开\n", encoding="utf-8")
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=tmp_path / "out.docx", format_path=fmt,
+        base_template=base, keep_until="封面第一页", make_pdf=True,
+    ))
+
+    assert not result.ok
+    assert not (tmp_path / "out.docx").exists()
+    joined = " ".join(result.errors)
+    assert "空白页" in joined or "多插了一页" in joined, joined
 
 
 def test_word_opens_a_body_with_links_and_footnote_links(tmp_path: Path) -> None:

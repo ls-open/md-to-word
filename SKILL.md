@@ -26,7 +26,7 @@ Before editing files, understand how **three inputs combine** to produce the fin
 |:--|:--|:--|
 | **Content & inline** | Manuscript `.md` | Text, headings (`#`), structure (`%% Style`, `{{< toc >}}`, `{{< section >}}`, `$$…$$ {#eq-}`), YAML (`bibliography:`, `csl:`, `crossref:`), and **inline span formatting** (`**bold**`, `*italic*`, `~~strike~~`, `[text]{.underline}`, `^sup^`, `~sub~`, `` `code` ``, `[text](url)`). |
 | **Format & page** | `format.txt` or `--preset` | Global page geometry (`Paper`, `Margins`, `Gutter`, `Mirror Margins`), language/punctuation (`Proofing Language`, `Punctuation Compression`), running header/footer content (`{page}`, `{total-pages}`, `{style-title:Heading 1}`), and **style-level** typography (`Body Text`, `Heading 1`, `Table`, style `color#RRGGBB`, etc.). |
-| **Cover / base** *(optional)* | `--base-template x.docx` | Keeps an institutional cover/declaration `.docx` verbatim in leading sections (`--keep-until` / `--cover-sections` / `--keep-pages`). Note: the base's document settings (`settings.xml`, theme, `docDefaults`) apply globally; your declared styles and body page/margin/header rules come from `format.txt`. |
+| **Cover / base** *(optional)* | `--base-template x.docx` | Keeps an institutional cover/declaration `.docx` verbatim in leading sections (`--keep-until` / `--cover-sections`). `--keep-until` cuts after the paragraph containing the text; `--cover-sections N` keeps whole sections. The base supplies its front sections, theme and default font/size. Document-wide layout settings (compatibility mode, mirror margins, punctuation compression, odd/even headers) must match the format; a mismatch is refused rather than silently changing the cover. Proofing language follows the format/manuscript language. Body page breaks can still differ from a standalone export because Word treats a section start differently. |
 
 Workflow:
 
@@ -107,8 +107,8 @@ start names the first section without adding a blank page; never add a page brea
 
 | | command | what it takes from the `.docx` | limit |
 |:--|:--|:--|:--|
-| **read it** (反推) | `md-to-word-template x.docx -o format.txt` | its styles and page setup, as a draft `format.txt` | what `format.txt` can express; the rest lands in the "to confirm" list |
-| **pour into it** (灌入) | `--base-template x.docx --keep-until …` | its front matter, kept byte for byte; the body is replaced by ours | cut point must stop before its contents page; needs a Word-installed machine for the layout check |
+| **read it** (反推) | `md-to-word-template x.docx -o format.txt` | its styles and page setup, as a draft `format.txt` | style-level only; direct formatting is neither read nor listed; products exported by this tool are refused |
+| **pour into it** (灌入) | `--base-template x.docx --keep-until …` | its front matter, kept byte for byte; the body is replaced by ours | cut point must stop before its contents page; document-wide layout settings must match the format |
 
 Reading it gives a reusable format file; pouring into it keeps an existing template's cover and front
 matter verbatim. Neither replaces the other, and a document with an official cover usually wants both.
@@ -125,8 +125,9 @@ manuscript, or a target `.docx` worth reverse-engineering.
 2. **Copy and edit a preset** — change only the lines the user mentioned. Field order is fixed: font,
    size, bold, italic, alignment, line spacing, space before, space after, indent. Every style line
    must be complete; missing fields are errors.
-3. **Reverse-engineer a target `.docx`** — `md-to-word-template target.docx -o format.txt`, then work
-   through the "to confirm" list at the end of the draft.
+3. **Reverse-engineer a target `.docx`** — `md-to-word-template target.docx -o format.txt`, then
+   compare the draft against the original: it reads the styles part only, so hand-tuned direct
+   formatting is neither read nor listed. Products exported by this tool are refused.
 
 Each property has exactly one accepted spelling (Simplified Chinese or English — Traditional Chinese
 key names are not accepted in `format.txt`, even for `zh-TW` manuscripts); anything else is a hard
@@ -180,7 +181,8 @@ writer runs; post-flight and audit are skipped) and writes no `.docx`: exit `0` 
 and format are exportable, `1` carries the line-numbered errors.
 
 `--blind-review` strips identifying **document properties** from the final file: author, company,
-custom properties (student ID), cover thumbnail, comment and revision authors. It does not anonymise
+custom properties (student ID), cover thumbnail, comments (including their text) and revision
+authors. It does not anonymise
 text — names in the body, cover and headers still need to be replaced. With `--base-template`, an
 identifying base is reported in the result when the flag is absent; that metadata otherwise travels
 into the output verbatim.

@@ -38,21 +38,9 @@ def _no_live_word(monkeypatch):
 
 
 def _compat15(path: Path) -> Path:
-    from lxml import etree
+    from tests.docx_helpers import align_base
 
-    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-    with zipfile.ZipFile(path) as z:
-        parts = {n: z.read(n) for n in z.namelist()}
-    root = etree.fromstring(parts["word/settings.xml"])
-    for el in root.iter(w + "compatSetting"):
-        if el.get(w + "name") == "compatibilityMode":
-            el.set(w + "val", "15")
-    parts["word/settings.xml"] = etree.tostring(
-        root, xml_declaration=True, encoding="UTF-8", standalone=True)
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
-        for name, blob in parts.items():
-            z.writestr(name, blob)
-    return path
+    return align_base(path, punctuation="compressPunctuation")
 
 
 def _base_with_identity(tmp_path: Path) -> Path:
