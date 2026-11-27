@@ -609,6 +609,10 @@ compliant `.docx` first, then fine-tune from feedback.
   `[@id]` key). The **content** decides, not the extension — a `.json` file holding BibTeX works
   too. Malformed JSON is reported by pre-flight as `gate.bib.json` with the file; CSL-JSON has no
   `crossref` inheritance.
+- **`.bib` parsing is deliberately lenient**: a small BibTeX syntax error (a missing brace, a
+  malformed entry) may be skipped, or may swallow later entries; it does not produce a
+  `gate.bib.json` error. Check hand-written `.bib` files with a BibTeX tool first; Zotero exports
+  are usually fine.
 - **Hand-written reference lists are not supported**: if only hand-written entries exist, first turn
   them into `references.bib`, then cite from it.
 - When `csl:` names a built-in file (such as `apa.csl`), the package looks it up automatically; it

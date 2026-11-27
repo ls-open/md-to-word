@@ -1821,18 +1821,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "第 {page} 页位置对不上：「{word}」",
         "Page {page} does not match at {word!r}.",
     ),
-    "base.pages.word_failed": (
-        "试切到第 {n} 节时 Word 打不开：{why}",
-        "Word cannot open the probe at section {n}: {why}.",
-    ),
-    "base.pages.too_many": (
-        "切到第 {n} 节是 {got} 页，已经超过你要的 {pages} 页",
-        "Keeping {n} section(s) gives {got} pages, already more than the {pages} requested.",
-    ),
-    "base.pages.not_enough": (
-        "切到 {total} 节也凑不出 {pages} 页前置件",
-        "Even {total} sections do not add up to {pages} front-matter pages.",
-    ),
     "base.cut.too_few_sections": ("切不出前 {keep} 节", "Cannot keep {keep} sections."),
     "base.note.retained": (
         "前置件已保留；切点之后的内容**不会保留**，第一段是「{head}」。"

@@ -108,7 +108,7 @@ def inspect_base(
     """先体检再动手：改不了、验不了的文件，一开始就拒绝，不产出一个"大概能用"的。
 
     这里只拦**确定会出事**的特征。可疑但不致命的记进 notes，让人自己判断。
-    `cover_sections` 给 None 时只做文件体检——按内容/按页换算节数之前也得先知道这份
+    `cover_sections` 给 None 时只做文件体检——按内容定位切点之前也得先知道这份
     文件读不读得了。
     """
     report = BaseReport()
@@ -1371,6 +1371,9 @@ def verify_cover_pages(
         cover_pages = start - 1
         if cover_pages < 1:
             return False, t("base.layout.zero_pages", lang)
+        base_pages = _pages(base_pdf)
+        if cover_pages > base_pages:
+            return False, t("base.layout.extra_page", lang, page=base_pages + 1)
 
         origin_pages = _pages(origin_pdf) if origin_pdf is not None else 0
         for page in range(1, cover_pages + 1):

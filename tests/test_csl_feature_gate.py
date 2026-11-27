@@ -29,8 +29,8 @@ def _engine(tmp_path: Path, style: str) -> CitationEngine:
 
 def test_every_bundled_style_passes_the_gate() -> None:
     styles = sorted(get_csl_dir().glob("*.csl"))
-    # 目录空了就是打包坏了；没有这一句，整条门禁会变成「零份被检查」而仍然全绿。
-    assert len(styles) >= 20, f"内置 CSL 数量异常：{len(styles)}"
+    # 目录空了就是打包坏了；数量也必须和 README/手册里的「29 套」对上。
+    assert len(styles) == 29, f"内置 CSL 数量异常：{len(styles)}"
     for path in styles:
         check_style(path)
 
@@ -66,13 +66,16 @@ def test_display_indent_is_rejected_instead_of_silently_dropping_indent(
     assert 'display="indent"' in str(caught.value)
 
 
-def test_all_names_disambiguation_is_rejected_until_implemented(tmp_path: Path) -> None:
+@pytest.mark.parametrize("rule", ["all-names", "all-names-with-initials"])
+def test_all_names_disambiguation_is_rejected_until_implemented(
+    tmp_path: Path, rule: str
+) -> None:
     """内置样式用 primary-name；all-names 需要给所有作者判重，当前没有实现。"""
     style = _style('<text variable="title"/>').replace(
-        "<citation>", '<citation givenname-disambiguation-rule="all-names">')
+        "<citation>", f'<citation givenname-disambiguation-rule="{rule}">')
     with pytest.raises(CitationError) as caught:
         _engine(tmp_path, style)
-    assert "all-names" in str(caught.value)
+    assert rule in str(caught.value)
 
 
 def test_only_complete_all_substitute_rule_is_accepted(tmp_path: Path) -> None:

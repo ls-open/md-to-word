@@ -111,10 +111,10 @@ def check_style(style) -> None:
                 errors.append('display="indent" is not implemented')
             elif (
                 attr_name == "givenname-disambiguation-rule"
-                and value.strip().lower() == "all-names"
+                and value.strip().lower() in ("all-names", "all-names-with-initials")
             ):
                 errors.append(
-                    'givenname-disambiguation-rule="all-names" is not implemented; '
+                    f"givenname-disambiguation-rule={value!r} is not implemented; "
                     "use primary-name or primary-name-with-initials"
                 )
             elif (

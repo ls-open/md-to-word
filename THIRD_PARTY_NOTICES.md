@@ -37,3 +37,10 @@ its own license.
 - Bundled copy: `src/md_to_word/resources/csl/`.
 - Each style file carries its own `<rights>` element and author list; those
   notices are retained verbatim.
+- Local changes: all bundled styles are normalized with
+  `scripts/normalize_csl.py` (the `<bibliography>` `hanging-indent` and
+  `line-spacing` attributes are removed so paragraph formatting comes from the
+  Word template). The GB/T 7714-2015 numeric and author-date styles also
+  enable the upstream commented-out `locale="en"` layouts so Chinese and
+  English entries can share one bibliography. These changes are indicated here
+  as required by CC BY-SA 3.0.

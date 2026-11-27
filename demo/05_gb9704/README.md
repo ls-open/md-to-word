@@ -16,8 +16,12 @@ bash scripts/export.sh demo/05_gb9704/gongwen_sample.md -o /tmp/gongwen.docx
 
 ```bash
 md-to-word gongwen_sample.md -o gongwen_sample.docx \
-  --preset zh-gb9704 --base-template 红头模板.docx --keep-until "目录"
+  --preset zh-gb9704 --base-template 红头模板.docx --keep-until "签发人"
 ```
+
+切点要停在模板目录之前；上例的「签发人」只是红头里常见的一行，请按自己模板改成
+目录前的最后一行。红头模板若已经用分节符分开，也可以直接用 `--cover-sections N`。
+`--keep-until "目录"` 会被拒绝——目录不能保留，正文目录由稿件生成。
 
 已知差异：单页页码居右、双页居左的分置做不到（只有一个页脚样式）；署名/日期的
 「右空二字 / 右空四字」只能右对齐近似；页码数字随西文字体走 Times New Roman，

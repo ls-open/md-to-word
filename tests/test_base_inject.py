@@ -200,8 +200,8 @@ def test_injected_package_keeps_footnote_references_resolvable(tmp_path: Path) -
     rendered = _rendered(tmp_path, "# 一\n\n正文[^1]。\n\n[^1]: 脚注内容。\n")
 
     out = tmp_path / "out.docx"
-    with pytest.raises(BaseTemplateError):
-        # 没有 Word 的机器上验真会拒绝，但注入本身要先把包做得能自洽
+    with pytest.raises(BaseTemplateError, match="只有 1 节"):
+        # 单节底模按「保留 1 节」会全部切走；注入本身要先把包做得能自洽
         apply_base_template(base, rendered, 1, out, "正文")
 
     # 无论验真是否通过，注入口径本身必须把脚注搬过去：
@@ -1047,6 +1047,30 @@ def test_keep_until_refuses_a_cut_after_the_contents_page(tmp_path: Path) -> Non
 
     with pytest.raises(BaseTemplateError, match="目录"):
         paragraph_cut_section(base, "Chapter 1")
+
+
+def test_cover_verification_refuses_an_extra_page_instead_of_reading_past_the_pdf(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """产物前置页比基准多时，不能拿越界页码去读 PDF 抛 PdfiumError。"""
+    from md_to_word.template import base_inject
+
+    base = _school_base(tmp_path / "base.docx", sections=1)
+    result = tmp_path / "out.docx"
+    result.write_bytes(b"placeholder")
+
+    monkeypatch.setattr(base_inject.word_pdf, "can_render_word_pdf", lambda: (True, ""))
+    monkeypatch.setattr(
+        base_inject.word_pdf, "render_pdf_via_word", lambda src, pdf: (True, ""))
+    monkeypatch.setattr(
+        base_inject, "_pages", lambda pdf: 1 if pdf.name == ".base.pdf" else 3)
+    monkeypatch.setattr(base_inject, "_first_page_with", lambda pdf, needle: 3)
+    monkeypatch.setattr(base_inject, "_kept_front_text", lambda path, sections: "")
+
+    ok, why = base_inject.verify_cover_pages(base, result, ["正文"], cover_sections=1)
+
+    assert not ok
+    assert "第 2 页" in why, why
 
 
 def test_pdf_page_reading_does_not_need_poppler() -> None:

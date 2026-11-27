@@ -90,14 +90,18 @@ jobs:
           names = zipfile.ZipFile(wheel).namelist()
           for item in needed:
               assert any(n.endswith(item) for n in names), f"wheel 内缺少 {item}"
-          print(f"wheel 资源齐全（{len(names)} 个文件）")
+          wheel_csl = [n for n in names if "/resources/csl/" in n and n.endswith(".csl")]
+          assert len(wheel_csl) == 29, f"wheel 内 CSL 数量异常：{len(wheel_csl)}"
+          print(f"wheel 资源齐全（{len(names)} 个文件，{len(wheel_csl)} 套 CSL）")
 
           # sdist 也要带齐：MANIFEST 漏一行，从源码安装的用户就会拿到不完整的包。
           sdist = glob.glob("dist/*.tar.gz")[0]
           names = tarfile.open(sdist).getnames()
           for item in needed:
               assert any(n.endswith(item) for n in names), f"sdist 内缺少 {item}"
-          print(f"sdist 资源齐全（{len(names)} 个文件）")
+          sdist_csl = [n for n in names if "/resources/csl/" in n and n.endswith(".csl")]
+          assert len(sdist_csl) == 29, f"sdist 内 CSL 数量异常：{len(sdist_csl)}"
+          print(f"sdist 资源齐全（{len(names)} 个文件，{len(sdist_csl)} 套 CSL）")
           EOF
       - name: wheel 装进干净环境后能跑通
         # 只查文件名不等于装得上：源码检出跑测试会掩盖入口点、包内资源路径与依赖声明的问题。

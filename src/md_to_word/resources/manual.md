@@ -473,6 +473,9 @@ Word 放不下的图片格式（`.svg`、`.webp`、`.eps`、`.emf`、`.wmf`，
   顶层是条目数组，或 `{"items": [...]}`；每条至少要有 `id`（正文 `[@id]` 靠它对应）。
   按**文件内容**判断，不看扩展名——`.json` 里放 BibTeX 也能读。JSON 写坏时预检报
   `gate.bib.json` 并指到文件；CSL-JSON 没有 `crossref` 继承这回事。
+- **`.bib` 解析从宽**：BibTeX 的小语法错误（缺右括号、坏条目）可能被跳过，甚至吞掉
+  后面的条目；它不会像 JSON 那样给 `gate.bib.json`。手写 `.bib` 请先用 BibTeX 工具
+  检查一遍；Zotero 导出的 `.bib` 一般没这个问题。
 - **手写文献列表不受支持**：只有手写条目时，先据此生成 `references.bib` 再引用。
 - `csl:` 写内置文件名（如 `apa.csl`）时自动在包内查找；也可写相对稿件目录的路径或绝对路径。
   **自带 CSL 会自动规范化**：去掉 `<bibliography>` 上的 `hanging-indent` 与 `line-spacing` 并提示一行——
