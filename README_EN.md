@@ -115,9 +115,9 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
 |:--|:--|:--|
 | **Paragraph Style** | `%% Abstract This paper presents...` | `%% StyleName` at line start assigns specific Word style |
 | **Numbered Equation** | `$$E=mc^2$$ {#eq-mass}` | Standalone line; referenced in body text via `@eq-mass` |
-| **Captions** | `%% Table Caption **Table 1** Performance`<br>`%% Figure Caption Figure 1 Architecture` | Captions keep with next/previous to prevent separation across page breaks |
+| **Captions** | `%% Table Caption **Table 1** Performance`<br>`%% Image Caption Figure 1 Architecture` | The caption stays on the same page as its figure or table |
 | **Citations** | Body `[@smith2024]`, YAML `bibliography: refs.bib` | Formatted according to selected CSL style |
-| **Structure Tags** | `{{< toc >}}`, `{{< section body >}}` | Table of contents, named sections with their own numbering and headers |
+| **Structure Tags** | `{{< toc >}}`, `{{< section body >}}` | Table of contents; named sections (declare `Section: body` in the format file first) |
 
 > For the full vocabulary and contract specifications, see the [Manual](src/md_to_word/resources/manual_en.md) or run `md-to-word --contract`.
 

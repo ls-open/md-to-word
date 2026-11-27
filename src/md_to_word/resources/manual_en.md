@@ -85,8 +85,10 @@ preset list and each preset's setup are in §3.3. No other `.txt` is guessed at 
 other `.txt` beside the manuscript is named in a reminder; pass one with `-f`. Which file was
 used is recorded in `--json`'s `format_source` (`file:` or `preset:`).
 
-`--lang` changes the **message language** only; the default preset and default CSL follow the
-**manuscript's prose**, never `--lang`. Manuscripts, format files and `.bib` files may be UTF-8
+`--lang` changes the **message language** only. The default preset follows the **manuscript's
+prose**; the default CSL, cross-reference prefixes and equation-number appearance follow
+`doc_lang` (the format's `Proofing language:` row wins, otherwise the prose). Neither follows
+`--lang`. Manuscripts, format files and `.bib` files may be UTF-8
 (with or without BOM), UTF-16 or GB18030; a non-UTF-8 file is read and reported, with a reminder to
 save it as UTF-8 for portable Git diffs.
 
@@ -180,7 +182,8 @@ To style a paragraph, start the line with `%% Style Name content`:
   cannot encode, so the name follows the symbol.
 - Style names come from the closed vocabulary in §3.4; a wrong name is an error with a line number.
   **Heading styles (`Heading 1` etc.) cannot be written here**; the level is set by `#` only.
-- `Bibliography` cannot be written here either: the reference list is generated from `.bib` and is
+- `Bibliography` cannot be written here either: the reference list is generated from a bibliography
+  file (`.bib` or CSL-JSON) and is
   **inserted after the `%% References Title` line** (`# References` or `# References {.unlisted}`
   also work), so appendices and acknowledgements can follow the references normally.
 - Whether `%% Abstract Title` and `%% References Title` enter the TOC or drive
@@ -208,8 +211,8 @@ Write **variables, symbols and expressions** in running text as inline math (`$x
 $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 ```
 
-- Refer to it in the body as `@eq-model1`; the rendered prefix follows the manuscript language:
-  `Equation` for English manuscripts, 「式」 for Chinese ones. **The prefix is added by the engine**:
+- Refer to it in the body as `@eq-model1`; the rendered prefix follows the document language
+  (`doc_lang`): `Equation` for English, 「式」 for Chinese. **The prefix is added by the engine**:
   write `see @eq-model1`, not `see Equation @eq-model1`, which would render `see Equation Equation 1`.
   To override the prefix, write `crossref:` explicitly in YAML (§2.7); YAML wins.
 - **No brackets on cross-references**: `[@eq-model1]` is citation syntax and would be looked up as a bibliography entry; pre-flight rejects it and asks for `@eq-model1`.
@@ -219,7 +222,7 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   belongs to; a hand-typed number in the heading is not read.
 - **Number appearance**: write one line in the format file,
   `Equation Number Format: ({c}.{n})` — `{n}` is the ordinal (required) and `{c}` the chapter
-  number (optional). Without it the language default applies: `(5.1)` / `(1)` for English,
+  number (optional). Without it the document-language default applies: `(5.1)` / `(1)` for English,
   `（5-1）` / `（1）` for Chinese. The number beside the equation and `@eq-x` in the body use the
   same format — never parenthesised in one place and not in another.
 - **Appendices number their own equations**: a level-1 heading such as `# Appendix B Proof` or
@@ -250,9 +253,8 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
 | Image caption | one line above or below the image: `%% Image Caption Figure 1 System overview` | `Image Caption` |
 
 - A caption is a **separate paragraph**, not a field attached to the table or image; a leading
-  `%%` is the only styling entry point. "The caption stays on the same page as its figure or table"
-  is controlled by `keep-with-next` on the caption style, and the writer adds it according to
-  whether the caption sits above or below the figure.
+  `%%` is the only styling entry point. The writer adds "keep with next" to the first element of a
+  caption/figure/table pair, whatever the caption style declares (Word only has that one direction).
 - The image line describes the image itself only: the square brackets hold the accessible
   alternative text, and `{width=…}` is clamped to the text block (an over-wide value is clamped to
   the text-block width and reported as a reminder). Width may be absolute (`cm` / `mm` / `in` /
@@ -263,8 +265,8 @@ $$Y_{ij} = \alpha_0 + \beta_1 X_{1,ij} + \varepsilon_{ij}$$ {#eq-model1}
   uses page 1 with a reminder. Rasters may be `.png`, `.jpg/.jpeg/.jpe/.jfif`, `.gif`, `.bmp`,
   `.tif/.tiff`; formats Word cannot hold (`.svg`, `.webp`, `.eps`, `.emf`, `.wmf`) are blocked in
   pre-flight.
-- **Do not add a `{#fig-xxx}` label to an image line**: it would get the three-line table's rules
-  and lose its centring. Type the figure number into the caption text instead.
+- **Do not add a `{#fig-xxx}` label to an image line**: an image line accepts `width` only, so any
+  other attribute is stopped by pre-flight (§2.8). Type the figure number into the caption text instead.
 - Local formatting inside a caption is written directly in the text (`**Table 1**` for a bold
   number, `*Title*` for an italic title) and is preserved faithfully in the export.
 - Column widths are left alone by default (sized by content). **To set column-width ratios, make
@@ -407,7 +409,7 @@ definition lists, task checkboxes `- [ ]`, tables without leading and trailing p
 inside a block quote, full-width `％％`, four-space indented code blocks, inline maths spanning two lines, a second paragraph in a list item (blank line +
 indentation), a fenced code block directly after a list item's text (no blank line, see §6), a heading with no space after `#`, a heading with only `#` and no text, properties
 other than `width` on an image line (such as `{align=right}`), image formats Word cannot hold
-(`.svg`, `.webp`, `.eps` — save them as PNG, or reference a PDF), `==highlight==`,
+(`.svg`, `.webp`, `.eps`, `.emf`, `.wmf` — save them as PNG, or reference a PDF), `==highlight==`,
 `[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`), `\[...\]` display
 maths (write `$$...$$`), reference-style links `[text][ref]` with `[ref]: url` (write `[text](url)`).
 
@@ -699,7 +701,8 @@ end of the draft:
 
 Headers and footers are resolved **by reference** (when sections differ, the body's is taken and a note
 is added), so three chapter names are never mistaken for three kinds of header. The result is a
-**draft**: unread items are listed at its end — check them one by one before typesetting.
+**draft**: items it can read but cannot express are listed at its end; direct formatting leaves no
+trace — check the draft against the original before typesetting.
 
 ### 5.2 Two pre-flight levels; the criterion is "would the mistake be visible?"
 
@@ -947,7 +950,9 @@ The resulting PDF is read with the bundled pypdfium2; poppler is not required.
 
 On a single-section base (many real templates page with manual breaks, not section breaks)
 `--keep-until` inserts a section break after the matching paragraph, splitting front matter from
-body; `--cover-sections` cannot cut such a template.
+body; `--cover-sections` cannot cut such a template. The cut point is a **body paragraph**: text
+inside a table cannot be used (a section break cannot sit in a cell) — pick a phrase after the
+table, or make the cover its own section in Word first.
 
 **The contents page is never kept**: if the base has one (a field or entries typed by hand, either
 counts), the cut must stop before it — the manuscript writes `{{< toc >}}` to generate it. Cutting too
@@ -984,7 +989,7 @@ the body, cover and headers still need to be replaced by the author.
 
 **One rule**: a section marker names **the section below it**, and the format file defines that
 name's look. So "front matter in lower-case Roman" is declared as `front page-number: lowerRoman
-start 1` (`front header: none`, `front footer: none`), and the manuscript writes
+start 1` (`front header: none`, `front footer: {page}`), and the manuscript writes
 `{{< section body >}}` after the contents, before chapter one.
 
 - `zh-academic` and `zh-tw-academic` declare 封面 / 前置 / 正文 / 附录 for you; in your own format file, name the
@@ -1001,7 +1006,7 @@ start 1` (`front header: none`, `front footer: none`), and the manuscript writes
   takes `A`, and numbering restarts at 1 inside it. Headings without an identifier get A, B, C in
   order. Appendices **do not consume chapter numbers** — six chapters before an appendix stay 1–6,
   and an acknowledgement after it is chapter 7.
-- For a prefix such as `(App 2-1)`, add `Appendix Equation Number Format: (App {c}-{n})`; without it
+- For a prefix such as `(App 2.1)`, add `Appendix Equation Number Format: (App {c}.{n})`; without it
   the body's format applies.
 
 ### 9.6 Double-ruled chapter headers

@@ -3,8 +3,8 @@
 # Markdown → compliant Word
 
 Turns a Markdown manuscript into a `.docx` whose typography comes from a declared format file. The
-engine is deterministic — the same manuscript and the same declarations produce a byte-identical
-file on every run — so do not substitute a hand-written python-docx script; run this pipeline.
+engine is deterministic — on the same platform, the same manuscript and the same declarations
+produce a byte-identical file on every run — so do not substitute a hand-written python-docx script; run this pipeline.
 
 **Read this before the first run.** Check the engine with `md-to-word --version`; if it is missing,
 install it with `pip install md-to-word-docx`. Flags alone are not enough: the manuscript has a
@@ -42,7 +42,7 @@ document that looks acceptable while its formatting was never mapped.
 
 ## 2. The manuscript contract
 
-**Headings** — `#`, `##`, `###`, consecutive and unskipped; a heading that carries its own number
+**Headings** — `#` through `######` (at most six levels), consecutive and unskipped; a heading that carries its own number
 (`1.`, `2.1`) needs as many `#` as its number has levels. Heading levels are set by `#` only.
 Append `{.unlisted}` (or `{不入目录}`) to opt a single heading out of the TOC while keeping `#`
 hierarchy and chapter equation numbering (it will not update `{style-title:Heading 1}` headers
@@ -79,14 +79,15 @@ and prints the exact line to write instead.
 **YAML holds only position-independent configuration**: `bibliography:`, `csl:`, `crossref:`
 (`link-citations: false` drops the in-text hyperlink).
 
-**Equations** — `$$...$$ {#eq-name}` on its own line, referenced as `@eq-name` (no brackets: `[@eq-name]` is citation syntax and pre-flight rejects it). Chinese manuscripts
-get 「式/图/表」 prefixes and （1）numbering, English ones Equation/Figure/Table and (1);
+**Equations** — `$$...$$ {#eq-name}` on its own line, referenced as `@eq-name` (no brackets: `[@eq-name]` is citation syntax and pre-flight rejects it). The document language (`doc_lang`;
+the format's `Proofing language:` wins over the prose) selects 「式/图/表」+（1） or
+Equation/Figure/Table+(1);
 `chapters: true` under `crossref:` switches to per-chapter numbering (indented on its own line —
 `crossref: chapters: true` on one line is not valid YAML). `\tag{}` is blocked.
 
 **Citations** — `[@key]` parenthetical, `@key` narrative, resolved from `bibliography:` + `csl:`. A
-`.bib` is mandatory once the manuscript cites: handwritten reference lists are not supported, and
-`[@key]` without `bibliography:` would be printed literally.
+bibliography file (`.bib` or CSL-JSON) is mandatory once the manuscript cites: handwritten reference
+lists are not supported, and `[@key]` without `bibliography:` would be printed literally.
 
 **Figures and tables** — `![](path/img.png){width=13cm}`, caption in its own `%% Image Caption`
 paragraph; table caption above, note below. Do not put `{#fig-...}` labels on images. Column widths
@@ -134,8 +135,9 @@ any filename works, `-f` takes it.
 
 `bibliography:` accepts BibTeX / BibLaTeX (`.bib`) **or CSL-JSON** (Zotero, Mendeley and Crossref
 exports) — the file content decides, not the extension. Citation style comes from `csl:` with a
-bundled name (manual §7) or a path to the user's own CSL. Without `csl:`, Chinese manuscripts get
-GB/T 7714 numeric and everything else APA 7th.
+bundled name (manual §7) or a path to the user's own CSL. Without `csl:`, the document language
+(`doc_lang`; a `Proofing language:` row in the format file wins over the prose) picks GB/T 7714
+numeric for Chinese and APA 7th otherwise.
 
 Without `-f` the only file picked up is one named exactly `format.txt` beside the manuscript.
 When `format.txt` is absent, other `.txt` files there are ignored and named in a reminder. With no `format.txt`, the preset follows the
@@ -173,9 +175,9 @@ the prose. `--contract --json` returns version, guide/manual paths, preset paths
 accepted style names in both languages, YAML keys, block markers, figure formats, exit codes and
 the exact `--json` keys.
 
-`--validate-only` runs the same pre-flight, tries building the style template in a temporary
-directory, and writes no `.docx`: exit `0` means the manuscript and format are exportable, `1` carries
-the line-numbered errors.
+`--validate-only` runs the same pre-flight and a full trial export in a temporary directory (the
+writer runs; post-flight and audit are skipped) and writes no `.docx`: exit `0` means the manuscript
+and format are exportable, `1` carries the line-numbered errors.
 
 `--blind-review` strips identifying **document properties** from the final file: author, company,
 custom properties (student ID), cover thumbnail, comment and revision authors. It does not anonymise

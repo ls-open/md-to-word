@@ -809,8 +809,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Required styles or fields are missing:",
     ),
     "template.base_template_missing": (
-        "未找到基础模板 {path}；请运行 scripts/create_pure_modern_base.py 重新生成。",
-        "Base template not found: {path}; regenerate it with scripts/create_pure_modern_base.py.",
+        "未找到内置底模 {path}：安装不完整。请重新安装 md-to-word-docx，"
+        "或检查包内 resources/ 是否齐全。",
+        "Bundled base template not found: {path}. The installation is incomplete; reinstall "
+        "md-to-word-docx or check that resources/ in the package is intact.",
     ),
     "template.section_page_number_without_field": (
         "节「{role}」声明了页码，但这一节的页脚（或全局「页脚内容：」）里没有 {{页码}} 域，"
@@ -1504,13 +1506,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "gate.citation.no_bibliography": (
         "正文有 {count} 处 `[@key]` 引用语法，但稿件未声明 `bibliography:`（{shown}）；"
-        "不处理会把这几个字符原样印进 docx。本工具只支持由 .bib 生成文献列表："
-        "在 YAML 里加 `bibliography: refs.bib`（配合 `csl:` 选样式），"
+        "不处理会把这几个字符原样印进 docx。文献表只能由文献库生成"
+        "（支持 .bib 与 CSL-JSON）：在 YAML 里加 `bibliography: refs.bib`（配合 `csl:` 选样式），"
         "若只是想展示语法字面量，用反引号包起来",
         "The body has {count} `[@key]` citation(s) but the manuscript declares no `bibliography:` ({shown}); "
-        "left as is, those characters are printed into the docx verbatim. This tool builds reference lists "
-        "from .bib only: add `bibliography: refs.bib` to the YAML (with `csl:` to pick a style); to show the "
-        "syntax literally, wrap it in backticks",
+        "left as is, those characters are printed into the docx verbatim. Reference lists come only from "
+        "a bibliography file (.bib or CSL-JSON): add `bibliography: refs.bib` to the YAML (with `csl:` "
+        "to pick a style); to show the syntax literally, wrap it in backticks",
     ),
     "gate.crossref.undefined": (
         "引用了 {key}，但稿子里没有 {{#{key}}} 这个标签定义",

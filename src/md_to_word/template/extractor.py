@@ -6,8 +6,9 @@
     python3 scripts/read_reference_docx.py 参考.docx      # 源码检出
 
 目标方给的参考文件（学校模板 / 期刊样例 / 客户旧文档）里的格式，靠人肉目测抄写既慢又漏。
-本脚本把**能确定的**读出来写成本工具的写法，把**确定不了的**单独列在末尾注释块里（不猜值
-填空）。读完请人工过一遍那份"需确认"清单。
+本脚本把**能确定的**读出来写成本工具的写法，把**读得出、但格式文件表达不了的**单独列在末尾
+注释块里（不猜值填空）。**直接格式（手敲的行距、缩进）读不到，也不会出现在清单里**——读完
+请照着原文件过一遍。
 
 口径（这三条是实测踩出来的，别用 python-docx 的现成 API 代替）：
   1. **中文字体在 `w:rFonts/@w:eastAsia`**：`font.name` 只给西文槽（ascii/hAnsi），
@@ -118,8 +119,8 @@ class Ref:
                     if aval and aval not in self.by_id:
                         self.by_id[aval] = st
         self.theme = self._theme_fonts()
-        # 页面设置一律取 **body 末尾那个 sectPr**（正文节），与导出后对账 / 标记展开 /
-        # fix_docx_equations 同一口径。多节文档里第一个 sectPr 是**前置节**（目录、摘要），
+        # 页面设置一律取 **body 末尾那个 sectPr**（正文节），与导出后的对账同一口径。
+        # 多节文档里第一个 sectPr 是**前置节**（目录、摘要），
         # 按"第一个"取会把前置节的小写罗马页码当成正文的页码读出来。
         doc_root = etree.fromstring(self.parts['word/document.xml'])
         self.document = doc_root      # 正文 XML：表格用的是哪个样式，只能从这儿看

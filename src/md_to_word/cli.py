@@ -73,7 +73,7 @@ def contract_cheatsheet(lang: str = "zh") -> str:
         return f"""A manuscript = plain Markdown + three conventions
 ===============================================
 
-1. Headings: # / ## / ###, consecutive levels, never skipped.
+1. Headings: # / ## / … / ###### (at most six levels), consecutive levels, never skipped.
 2. One line is one paragraph. To style a paragraph, start the line with
    `%% Style Name content` (no closing fence):
        %% Abstract Title Abstract
@@ -110,7 +110,7 @@ Machine-readable contract (for agents): md-to-word --contract --json
     return f"""稿件 = 普通 Markdown + 三条约定
 ================================
 
-1. 标题用 # / ## / ###，层级连续不跳级。
+1. 标题用 # / ## / … / ######（最多六级），层级连续不跳级。
 2. 一行一段；要给某一段指定样式，在行首写 `%% 样式名 内容`（一行即一段，没有闭合符号）：
        %% 摘要标题 摘要
        %% 摘要 本文提出……
