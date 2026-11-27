@@ -976,8 +976,11 @@ references present. The layout check runs where Word is installed: both files ar
 front-matter pages compared word by word; any mismatch deletes the output. Windows gets the first layer
 only, and the export says so.
 
-Two things it cannot verify: whether the cut point is right (the export reports "the first paragraph
-after the cut is ..."), and whether fields or macro buttons in the cover need a click when opened.
+Two things it cannot verify: whether the cut point is right (the export warns that everything after
+the cut is not kept and names the first paragraph), and whether fields or macro buttons in the cover
+need a click when opened. When the base carries comments or tracked changes, those markers shift
+Word's layout and page-by-page comparison is unreliable; the tool skips layout verification and asks
+for a manual check.
 
 **Blind submission**: the base's `docProps/` travels into the output verbatim — author, company,
 custom properties (student ID), cover thumbnail, comment authors. Pass `--blind-review` to strip those

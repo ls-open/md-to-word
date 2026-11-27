@@ -905,3 +905,40 @@ def test_pdf_page_reading_does_not_need_poppler() -> None:
     # 先按视觉行、再按 x 排：表格与多栏 PDF 的字符顺序不一定是阅读顺序。
     keys = [(round(float(y), 1), float(x)) for x, y, _ in words]
     assert keys == sorted(keys)
+
+
+def test_a_hand_typed_toc_is_recognised(tmp_path: Path) -> None:
+    """手排目录（Normal 段落 + 点线页码）也要当目录：留着会和稿件自己的目录重复。"""
+    base = tmp_path / "plain-toc.docx"
+    doc = Document()
+    doc.add_paragraph("封面")
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.add_paragraph("目录")
+    doc.add_paragraph("第一章 绪论 ........ 1")
+    doc.add_section(WD_SECTION.NEW_PAGE)
+    doc.add_paragraph("正文")
+    doc.save(base)
+
+    assert not inspect_base(base, 2).ok
+    assert inspect_base(base, 1).ok
+
+
+def test_keep_until_folds_full_width_and_case(tmp_path: Path) -> None:
+    from md_to_word.template.base_inject import sections_until_text
+
+    base = tmp_path / "fullwidth.docx"
+    doc = Document()
+    doc.add_paragraph("Ｖ１．０ 版权声明")
+    doc.save(base)
+
+    assert sections_until_text(base, "v1.0") == [1]
+
+
+def test_an_ole_container_is_reported_as_encrypted(tmp_path: Path) -> None:
+    fake = tmp_path / "locked.docx"
+    fake.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64)
+
+    report = inspect_base(fake, 1)
+
+    assert not report.ok
+    assert any("密码" in msg for msg in report.blocking), report.blocking

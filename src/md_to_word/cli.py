@@ -159,6 +159,16 @@ def guide_document(lang: str = "zh") -> str:
     return (resources / "guide.md").read_text(encoding="utf-8")
 
 
+def _non_negative_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(text) from exc
+    if value < 0:
+        raise argparse.ArgumentTypeError(text)
+    return value
+
+
 def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="md-to-word",
@@ -177,7 +187,7 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument(
         "--keep-pages",
         dest="keep_pages",
-        type=int,
+        type=_non_negative_int,
         default=0,
         help=t("cli.keep_pages", lang),
     )
@@ -190,7 +200,7 @@ def build_parser(lang: str = "zh") -> argparse.ArgumentParser:
     parser.add_argument(
         "--cover-sections",
         dest="cover_sections",
-        type=int,
+        type=_non_negative_int,
         default=0,
         help=t("cli.cover_sections", lang),
     )

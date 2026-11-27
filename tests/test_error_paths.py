@@ -264,3 +264,18 @@ def test_unbalanced_equation_braces_are_blocked(workdir: Path, capsys) -> None:
 
     assert code == EXIT_ERROR
     assert "花括号" in output and "Traceback" not in output, output
+
+
+def test_a_word_document_as_input_says_what_to_do(workdir: Path, capsys) -> None:
+    """把 .docx 当稿件：不能只说「另存为 UTF-8」，那永远修不好。"""
+    import json
+
+    docx = workdir / "paper.docx"
+    docx.write_bytes(b"PK\x03\x04" + b"\x00" * 32)
+
+    code = main([str(docx), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == EXIT_ERROR
+    assert "Word 文档" in payload["errors"][0]
+    assert "--base-template" in payload["errors"][0]

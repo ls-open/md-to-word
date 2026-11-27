@@ -32,7 +32,7 @@ from md_to_word.i18n import join_terms, resolve_lang, t
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
-from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED
+from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED, EXIT_USAGE
 from md_to_word.template.core import TemplateError, join_reasons as _join
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
@@ -156,6 +156,22 @@ def _first_texts(blocks, limit: int = 5, min_len: int = 4) -> list[str]:
     return heads
 
 
+def _body_anchor(blocks) -> str:
+    """按页换算节数时的定位句：取正文段落，不取标题。
+
+    标题会同时出现在我们生成的目录里，拿它定位会把目录页当成正文起点；`--keep-pages`
+    因此永远差一页。
+    """
+    for block in blocks:
+        if getattr(block, "level", None) is not None:  # Heading
+            continue
+        inlines = getattr(block, "inlines", None) or []
+        text = re.sub(r"\s+", "", "".join(_inline_text(inline) for inline in inlines))
+        if len(text) >= 6:
+            return text[:12]
+    return _first_text(blocks)
+
+
 def _first_text(blocks) -> str:
     """取正文第一段的前几个字：既要能在 PDF 里定位，又不能出现在封面上。"""
     # 整段拼起来再截，不是取第一个有字的行内节点：拼出来的哨兵更长，误撞封面的机会更小
@@ -202,6 +218,21 @@ def prepare_manuscript(options: ExportOptions) -> PreparedManuscript:
         key = "pipeline.input_not_file" if in_p.exists() else "pipeline.input_missing"
         _fail(res, key, t(key, res.lang, path=in_p), file=in_p)
         return PreparedManuscript(res, in_p, ok=False)
+    # 把 Word 文档当稿件是第一次使用最常见的误解：按编码错误提示「另存为 UTF-8」
+    # 永远修不好。按扩展名与二进制头认出来，直接给正确入口。
+    try:
+        with in_p.open("rb") as fh:
+            head = fh.read(4)
+    except OSError:
+        head = b""
+    if in_p.suffix.lower() in {".docx", ".docm", ".doc"} or head.startswith(
+        (b"PK\x03\x04", b"\xd0\xcf\x11\xe0")
+    ):
+        _fail(res, "pipeline.input_word_document",
+              t("pipeline.input_word_document", res.lang, suffix=in_p.suffix or "(none)"),
+              file=in_p)
+        return PreparedManuscript(res, in_p, ok=False)
+
     try:
         text, encoding = read_text_file(in_p)
     except TextDecodeError:
@@ -222,7 +253,12 @@ def prepare_manuscript(options: ExportOptions) -> PreparedManuscript:
     res.doc_lang = doc_lang
     # 繁体稿在自动选预设时会落到简体 zh-academic；这不改变默认行为，但必须说一声。
     # 显式给了 --preset 或 -f 时用户已经做了选择，不再打扰。
-    if not options.preset and not options.format_path and looks_traditional(text):
+    if (
+        not options.preset
+        and not options.format_path
+        and not (in_p.parent / "format.txt").is_file()
+        and looks_traditional(text)
+    ):
         _warn(res, "pipeline.traditional_preset",
               t("pipeline.traditional_preset", res.lang), file=in_p)
     _note_encoding("textio.label.manuscript", encoding, res, file=in_p)
@@ -273,6 +309,7 @@ def resolve_format(
         # 拿到的却是另一份格式。宁可当场拒绝，也不替人猜。
         _fail(res, "pipeline.format_preset_conflict",
               t("pipeline.format_preset_conflict", res.lang))
+        res.returncode = EXIT_USAGE  # 参数写法错误，不是稿件/依赖问题
         return None, None
 
     if format_path:
@@ -356,6 +393,11 @@ def _prepare_base_plan(
     是刻意的：底模不存在、切点歧义、需要 Word 却不在 macOS 上，都不该等整篇排完才说。
     `allow_keep_pages=False` 给 `--validate-only`：它不排版，换算不了页数。
     """
+    if options.keep_pages < 0 or options.cover_sections < 0:
+        _fail(res, "pipeline.option_negative",
+              t("pipeline.option_negative", res.lang))
+        res.returncode = EXIT_USAGE
+        return False, None
     if not options.base_template:
         used = [
             flag for flag, value in (
@@ -481,7 +523,10 @@ def _prepare_base_plan(
               file=base_p)
         res.errors.extend(f"  {n}" for n in report.notes)
         return False, None
+    comment_note = t("base.inspect.comments", res.lang)
     for note in report.notes:
+        if options.blind_review and note == comment_note:
+            continue  # 盲审会把批注整件删掉，这时提示「会带批注气泡」是反的
         _warn(res, "pipeline.base_note", note, file=base_p)
     return True, BasePlan(base_p, sections, cut_at_paragraph)
 
@@ -1030,7 +1075,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
 
             base_p = base_plan.base
             sections = base_plan.sections
-            sentinel = _first_text(model.blocks)
+            sentinel = _body_anchor(model.blocks)
             if base_plan.cut_at_paragraph:
                 # 单节模板：先切出一节前置件，再按「保留 1 节」灌入。
                 derived = Path(temp_dir) / "base-cut.docx"
@@ -1078,6 +1123,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                 outcome = apply_base_template(
                     base_p, render_target, sections, injected_target,
                     _first_texts(model.blocks), res.lang,
+                    blind_review=options.blind_review,
                 )
             except BaseTemplateError as exc:
                 _fail(res, "pipeline.base_failed",

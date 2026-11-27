@@ -91,7 +91,7 @@ def test_format_and_preset_conflict_is_rejected(tmp_path: Path) -> None:
         preset="zh-academic",
     ))
 
-    assert result.returncode == 1
+    assert result.returncode == 2  # 参数用法错误，不是稿件问题
     assert [d.code for d in result.diagnostics] == ["pipeline.format_preset_conflict"]
     assert not (tmp_path / "o.docx").exists()
 

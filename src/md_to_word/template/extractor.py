@@ -1031,6 +1031,11 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
                 ref.notes.append(t('extractor.note.header_inclusion_unverified', ref.lang, name=cn))
         lines.append(f'{cn}：' + ' '.join(cs))
         styled.append(cn)
+    if not styled:
+        ref.notes.insert(0, t("extractor.note.no_styles", ref.lang))
+    if len(ref.all_sects) > 1:
+        ref.notes.append(t("extractor.note.section_roles", ref.lang,
+                           count=len(ref.all_sects)))
     if skipped:
         ref.notes.append(t('extractor.note.styles_skipped', ref.lang,
                            names=join_terms(skipped, ref.lang)))

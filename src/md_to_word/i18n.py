@@ -62,8 +62,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "`--validate-only` and `--no-check` cannot be combined: the former is the pre-flight check",
     ),
     "cli.blind_review": (
-        "清理文档属性（作者/单位/自定义属性/缩略图/批注作者），用于盲审提交；正文中的姓名仍需自行替换",
-        "Strip identifying document properties (author, company, custom properties, thumbnail, comment authors) for blind review; names in the text are not anonymised",
+        "清理文档属性（作者/单位/自定义属性/缩略图，批注含内容一并删除），用于盲审提交；正文中的姓名仍需自行替换",
+        "Strip identifying document properties (author, company, custom properties, thumbnail; comments including their content) for blind review; names in the text are not anonymised",
     ),
     "cli.no_check": ("跳过导前语法与排版契约预检（不推荐）", "Skip the pre-flight check (not recommended)"),
     "cli.no_postflight": ("跳过产物防丢内容检查（不推荐）", "Skip the content-integrity check (not recommended)"),
@@ -171,6 +171,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "The input manuscript is not a file: {path} (if this is a folder, point at the .md "
         "file inside it)",
     ),
+    "pipeline.input_word_document": (
+        "输入是 Word 文档（{suffix}），本工具的输入是 Markdown（.md）。要保留它的封面，"
+        "请把正文写成 Markdown，并用 `--base-template` 把它当底模。",
+        "The input is a Word document ({suffix}); the input here is Markdown (.md). To keep "
+        "its cover, write the body in Markdown and pass the file as `--base-template`.",
+    ),
     "pipeline.write_failed": (
         "写出 {path} 失败：{err}\n  目录只读、磁盘已满、或文件正被 Word 打开时都会这样。",
         "Could not write {path}: {err}\n  This happens when the directory is read-only, the disk is full, or Word has the file open.",
@@ -236,6 +242,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "The format declares \"{font}\": it is not a system font on Windows or macOS. "
         "Without it Word substitutes another face, changing glyphs and pagination; "
         "install it on the machine that will open the file.",
+    ),
+    "pipeline.option_negative": (
+        "--keep-pages 与 --cover-sections 不能是负数",
+        "--keep-pages and --cover-sections cannot be negative",
     ),
     "pipeline.cut_without_base": (
         "{flags} 只对 --base-template 生效；本次没有给底模，这些参数已忽略，正文按整篇导出。",
@@ -541,8 +551,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "(next time pass --cover-sections {sections})",
     ),
     "pipeline.base_until_missing": (
-        "底模里找不到「{text}」。底模各节的开头是：\n{outline}\n用 --cover-sections N 直接说明保留几节",
-        "\"{text}\" does not appear in the base. Its sections start with:\n{outline}\n"
+        "底模里找不到「{text}」。搜索范围是正文段落（不含页眉、页脚与脚注）；"
+        "全半角与大小写已归一，繁简需一致。底模各节的开头是：\n{outline}\n"
+        "用 --cover-sections N 直接说明保留几节",
+        "\"{text}\" does not appear in the base. The search covers body paragraphs only (not "
+        "headers, footers or footnotes); full-width/half-width and case are normalised, "
+        "Traditional and Simplified must match. Its sections start with:\n{outline}\n"
         "Pass --cover-sections N to say how many to keep",
     ),
     "pipeline.base_until_ambiguous": (
@@ -599,11 +613,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "and pass --cover-sections N instead",
     ),
     "pipeline.blind_review_done": (
-        "已清理文档属性（盲审）：作者、单位、自定义属性、缩略图与批注作者不再随成品带出。"
+        "已清理文档属性（盲审）：作者、单位、自定义属性、缩略图、批注（含内容）与修订作者不再随成品带出。"
         "正文、封面与页眉里的姓名仍需作者自己替换。",
         "Document properties were stripped for blind review: author, company, custom properties, "
-        "thumbnail and comment authors no longer travel with the file. Names in the body, cover "
-        "and headers still need to be replaced by the author.",
+        "thumbnail, comments (including their content) and revision authors no longer travel with "
+        "the file. Names in the body, cover and headers still need to be replaced by the author.",
     ),
     "pipeline.blind_review_failed": (
         "清理文档属性失败：{reason}",
@@ -954,6 +968,20 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "# 字段名用中文词表（导出侧直接可用），样式名跟随参考文件",
         "# Field names use the Chinese format vocabulary (accepted as-is); style names follow "
         "the reference file.",
+    ),
+    "extractor.note.no_styles": (
+        "参考文件里没有可读的样式（格式可能写在直接格式里）。这份草稿只含页面设置，"
+        "不能当完整的要求文件；请手工编写样式行。",
+        "The reference file has no readable styles (its formatting may live in direct "
+        "formatting). This draft covers page setup only and is not a usable format file; "
+        "write the style rows by hand.",
+    ),
+    "extractor.note.section_roles": (
+        "参考文件有 {count} 节；稿件若用 {{{{< section >}}}}，需在格式文件里补"
+        "「分节：名字」（这里读到的页眉页脚按正文节取值）。",
+        "The reference file has {count} sections; if the manuscript uses "
+        "{{{{< section >}}}}, declare `Section: name` rows in the format file "
+        "(headers and footers here were read from the body section).",
     ),
     "extractor.note.header_row_prefix": (
         "表头行：{note}",
@@ -1596,6 +1624,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "打不开这个 .docx（不是有效的 Word 文件）",
         "This .docx cannot be opened (it is not a valid Word file).",
     ),
+    "base.inspect.encrypted": (
+        "打不开这个 .docx：它像是设置了打开密码的文档，或旧版 .doc。"
+        "请先在 Word 里解密并另存为 .docx。",
+        "This .docx cannot be opened: it looks like a password-protected document or an older "
+        ".doc. Decrypt it in Word and save it as .docx first.",
+    ),
     "base.inspect.macro": (
         "这是带宏的文档（vbaProject.bin），改不了也不该改",
         "This document carries macros (vbaProject.bin); it cannot be rewritten and should not be.",
@@ -1777,9 +1811,17 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "base.cut.too_few_sections": ("切不出前 {keep} 节", "Cannot keep {keep} sections."),
     "base.note.retained": (
-        "保留前 {sections} 节；切点之后第一段是「{head}」，确认没切错",
-        "Kept the first {sections} section(s); the first paragraph after the cut is {head!r} — "
-        "check that the cut is right.",
+        "保留前 {sections} 节；切点之后的内容**不会保留**，第一段是「{head}」。"
+        "如果这段仍属于前置件，请换一段更靠后的文字作切点。",
+        "Kept the first {sections} section(s); everything after the cut is **not kept**, "
+        "starting with {head!r}. If that paragraph still belongs to the front matter, "
+        "choose a later phrase as the cut point.",
+    ),
+    "base.note.layout_skipped_markup": (
+        "底模带批注或修订标记：它们会改变 Word 排版的占位，逐页比对不可靠，"
+        "已跳过版面验真；请在 Word 里人工核对封面。",
+        "The base carries comments or tracked changes; they shift Word's layout, so page-by-page "
+        "comparison is unreliable and layout verification was skipped. Check the cover in Word.",
     ),
     "base.note.layout_skipped": (
         "这台机器没有 Microsoft Word，只做了结构验真（封面内容逐节点一致）；"
@@ -1788,9 +1830,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "identical node by node); open both files in Word to compare the layout.",
     ),
     "base.cut.no_paragraph": (
-        "在底模的段落里找不到「{text}」：这段文字可能只出现在表格或页眉里。换一段正文里的文字。",
+        "在底模的正文段落里找不到「{text}」：这段文字可能只在表格、页眉或脚注里；"
+        "全半角与大小写已归一，繁简需一致。换一段正文里的文字。",
         "The text {text!r} does not appear in any body paragraph of the base (it may only be in a "
-        "table or header). Pick a phrase from the body text.",
+        "table, header or footnote). Full-width/half-width and case are normalised; Traditional "
+        "and Simplified must match. Pick a phrase from the body text.",
     ),
     "base.cut.ambiguous": (
         "「{text}」出现在 {count} 个段落里，切点不唯一：\n{spots}\n换一段更独特的文字。",
@@ -1801,6 +1845,13 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "底模正文末尾没有分节符，无法复制出前置件那一节的页面设置。请用 Word「另存为」一次再试。",
         "The base has no trailing section break, so the front matter's page setup cannot be "
         "copied. Save it once from Word and try again.",
+    ),
+    "base.cut.toc_hit": (
+        "「{text}」是底模的目录（或目录条目）。切点要写在目录之前，"
+        "例如封面/声明页最后一段的文字；目录由稿件自己用 {{{{< toc >}}}} 生成。",
+        "{text!r} is the base's contents page (or one of its entries). Put the cut point before "
+        "the contents page, e.g. the last paragraph of the cover/declaration page; the contents "
+        "are generated from the manuscript with {{{{< toc >}}}}.",
     ),
     "base.cut.toc_retained": (
         "底模的目录在「{text}」之前，切点之后目录会留在前置件里，和稿件自己的目录重复。"
@@ -1984,8 +2035,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     # ── 段落样式行 ──
     "gate.style.unknown_name": (
-        "不认识样式名「{name}」；请写词表里的名字（如 {examples}）",
-        "unknown style name \"{name}\"; use a name from the vocabulary (e.g. {examples})",
+        "不认识样式名「{name}」；请写词表里的名字（如 {examples}）。"
+        "正文内容可以写繁体，样式名要用简体或英文。",
+        "unknown style name \"{name}\"; use a name from the vocabulary (e.g. {examples}). "
+        "Body text may be Traditional Chinese, but style names are Simplified or English.",
     ),
     "gate.style.heading_style": (
         "「{name}」是标题类样式，章节层级请用 Markdown 的 # 写法（## 为二级，依此类推）",

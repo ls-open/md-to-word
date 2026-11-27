@@ -234,3 +234,11 @@ def test_every_literal_key_used_in_code_exists() -> None:
                     rel = path.relative_to(REPO_ROOT)
                     missing.append(f"{rel}:{node.lineno} → {first.value}")
     assert not missing, "这些 t() 的字面量键在 _MESSAGES 里不存在：\n" + "\n".join(missing)
+
+
+def test_common_simplified_tech_words_are_not_traditional() -> None:
+    """`处理 / 网络 / 硬件 / 方案` 是简体常用字，不能触发繁体预设提醒。"""
+    from md_to_word.config import looks_traditional
+
+    assert not looks_traditional("文件处理、网络、硬件、方案、理论与规范")
+    assert looks_traditional("學術確體這說與為來時會開關實應個們無發經對問題")

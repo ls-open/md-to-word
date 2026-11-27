@@ -13,6 +13,7 @@ from __future__ import annotations
 import copy
 import posixpath
 import re
+import unicodedata
 import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -119,7 +120,14 @@ def inspect_base(
             names = set(z.namelist())
             document = z.read("word/document.xml")
     except (OSError, KeyError, zipfile.BadZipFile):
-        report.blocking.append(t("base.inspect.unreadable", lang))
+        try:
+            with path.open("rb") as fh:
+                head = fh.read(8)
+        except OSError:
+            head = b""
+        # 设置了打开密码的 .docx 在外层是一个 OLE/CFB 容器，zip 打不开；旧版 .doc 也是。
+        key = "base.inspect.encrypted" if head.startswith(b"\xd0\xcf\x11\xe0") else "base.inspect.unreadable"
+        report.blocking.append(t(key, lang))
         return report
 
     if "word/vbaProject.bin" in names:
@@ -215,10 +223,13 @@ def _toc_section(root) -> int | None:
 
 
 _TOC_STYLE = re.compile(r"^toc\s*\d?$", re.I)
+# 手工排的目录：标题写成普通段落，条目用点线/省略号接页码（样式是 Normal，不是 TOC）。
+_TOC_WORDS = {"目录", "目錄", "contents", "tableofcontents", "toc"}
+_DOT_LEADER = re.compile(r"(?:\.{3,}|…{2,}|·{3,})\s*\d+$")
 
 
 def _is_toc_paragraph(p) -> bool:
-    """目录条目：域代码（Word 插的）或者目录样式（手工一条条排的）。"""
+    """目录条目：域代码（Word 插的）、目录样式，或手排的点线条目/「目录」标题。"""
     for el in p.iter():
         if el.tag == W + "instrText" and (el.text or "").strip().upper().startswith("TOC"):
             return True
@@ -226,7 +237,10 @@ def _is_toc_paragraph(p) -> bool:
                 and (el.get(W + "instr") or "").strip().upper().startswith("TOC"):
             return True
     style = p.find(f"{W}pPr/{W}pStyle")
-    return style is not None and bool(_TOC_STYLE.match(style.get(W + "val") or ""))
+    if style is not None and _TOC_STYLE.match(style.get(W + "val") or ""):
+        return True
+    text = _match_text("".join(t.text or "" for t in p.iter(W + "t")))
+    return text in _TOC_WORDS or bool(_DOT_LEADER.search(text))
 
 
 def _dangling_rels(path: Path) -> list[str]:
@@ -302,9 +316,17 @@ def _is_body_paragraph(p) -> bool:
     return False
 
 
+def _match_text(text: str) -> str:
+    """切点匹配用的归一形式：NFKC 折掉全半角（Ｖ１．０→V1.0），去空白，大小写不敏感。
+
+    繁简不转换：那需要一张对照表，猜错比报「找不到」更糟；错误信息里说清楚。
+    """
+    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", text or "")).casefold()
+
+
 def _paragraph_hits(root, needle: str) -> list[tuple[int, str, object]]:
     """命中文字的正文档落：[(节号, 摘要, 元素)]。目录节里的条目不算——那是模板的目录。"""
-    want = re.sub(r"\s+", "", needle or "")
+    want = _match_text(needle)
     if not want:
         return []
     body = root.find(W + "body")
@@ -319,10 +341,10 @@ def _paragraph_hits(root, needle: str) -> list[tuple[int, str, object]]:
         if el.tag != W + "p" or not _is_body_paragraph(el):
             continue
         sect = seen + 1
-        text = re.sub(r"\s+", "", "".join(t.text or "" for t in el.iter(W + "t")))
+        raw = "".join(t.text or "" for t in el.iter(W + "t"))
         # 目录条目不是内容：真找一个章名时，目录页会先命中一次。
-        if want in text and not _is_toc_paragraph(el):
-            hits.append((sect, text[:40], el))
+        if want in _match_text(raw) and not _is_toc_paragraph(el):
+            hits.append((sect, raw.strip()[:40], el))
         if el.find(f"{W}pPr/{W}sectPr") is not None:
             seen += 1
     return hits
@@ -358,6 +380,14 @@ def paragraph_cut(base: Path, needle: str, out: Path, lang: str = "zh") -> int:
         root = etree.fromstring(z.read("word/document.xml"))
     hits = _paragraph_hits(root, needle)
     if not hits:
+        # 切点恰好写在目录上（「目录」或某条目录条目）：说清楚这是目录，
+        # 而不是「找不到」——用户会以为打错字。
+        want = _match_text(needle)
+        for el in root.iter(W + "p"):
+            if _is_toc_paragraph(el) and want and want in _match_text(
+                "".join(t.text or "" for t in el.iter(W + "t"))
+            ):
+                raise BaseTemplateError(t("base.cut.toc_hit", lang, text=needle))
         raise BaseTemplateError(t("base.cut.no_paragraph", lang, text=needle))
     if len(hits) > 1:
         spots = "\n".join(
@@ -398,7 +428,7 @@ def sections_until_text(base: Path, needle: str) -> list[int]:
     人说的是内容——「留到版权使用授权书那一页」——机器要的是节数。这里把前者翻成后者。
     只看 XML 不看排版，所以在没装 Word 的机器上一样能用。
     """
-    want = re.sub(r"\s+", "", needle)
+    want = _match_text(needle)
     if not want:
         return []
     with zipfile.ZipFile(base) as z:
@@ -406,7 +436,7 @@ def sections_until_text(base: Path, needle: str) -> list[int]:
     hits: list[int] = []
     sect = 1
     for el in root.find(W + "body"):
-        text = re.sub(r"\s+", "", "".join(t.text or "" for t in el.iter(W + "t")))
+        text = _match_text("".join(t.text or "" for t in el.iter(W + "t")))
         if want in text and sect not in hits:
             hits.append(sect)
         if el.tag == W + "sectPr" or el.find(".//" + W + "sectPr") is not None:
@@ -970,6 +1000,21 @@ def _part(doc, member: str):
 # ── 验收一：封面一个字节都不许动（跨平台，永远跑） ──────────────────────
 
 
+def _has_layout_markup(path: Path) -> bool:
+    """底模是否带批注或修订标记——它们会改变 Word 的排版占位。"""
+    try:
+        with zipfile.ZipFile(path) as z:
+            names = set(z.namelist())
+            document = z.read("word/document.xml")
+    except (OSError, KeyError, zipfile.BadZipFile):
+        return False
+    return (
+        "word/comments.xml" in names
+        or b"<w:ins " in document
+        or b"<w:del " in document
+    )
+
+
 def verify_structure(
     base: Path, result: Path, cover_sections: int, lang: str = "zh"
 ) -> tuple[bool, str]:
@@ -1216,8 +1261,27 @@ def _part_bytes(path: Path, member: str) -> bytes | None:
 # ── 验收二：版面得和原件一样（要有 Word，macOS） ────────────────────────
 
 
+def _kept_front_text(base: Path, cover_sections: int) -> str:
+    """底模前 N 节的正文文字（用于判断一个哨兵是不是也在前置件里）。"""
+    with zipfile.ZipFile(base) as z:
+        root = etree.fromstring(z.read("word/document.xml"))
+    body = root.find(W + "body")
+    if body is None:
+        return ""
+    chunks: list[str] = []
+    seen = 0
+    for child in body:
+        chunks.append("".join(t.text or "" for t in child.iter(W + "t")))
+        if child.tag == W + "sectPr" or child.find(".//" + W + "sectPr") is not None:
+            seen += 1
+            if seen >= cover_sections:
+                break
+    return _match_text("".join(chunks))
+
+
 def verify_cover_pages(
-    base: Path, result: Path, sentinels: str | list[str], lang: str = "zh"
+    base: Path, result: Path, sentinels: str | list[str], lang: str = "zh",
+    cover_sections: int = 1,
 ) -> tuple[bool, str]:
     """拿原件和产物逐词比坐标，比到我们的正文出现为止。
 
@@ -1246,7 +1310,10 @@ def verify_cover_pages(
 
         candidates = [sentinels] if isinstance(sentinels, str) else list(sentinels)
         candidates = [c for c in candidates if c]
-        front_text = "".join(_page_texts(base_pdf))
+        # 只拿**保留的那几节**做「前置件里有没有这句话」的过滤。拿整份底模比的话，
+        # 底模旧正文/旧目录里的章名会把我们的正文哨兵全部剔掉，最后把稿件自己的目录页
+        # 当成前置件去比，报「第 3 页位置对不上」。
+        front_text = _kept_front_text(base, cover_sections)
         usable = [c for c in candidates if c not in front_text]
         if not usable:
             return False, t("base.layout.anchors_in_front", lang)
@@ -1435,12 +1502,16 @@ def resolve_sections_for_pages(
 
 def apply_base_template(
     base: Path, rendered: Path, cover_sections: int, out: Path,
-    sentinels: str | list[str], lang: str = "zh",
+    sentinels: str | list[str], lang: str = "zh", blind_review: bool = False,
 ) -> BaseOutcome:
     """体检 → 注入 → 验真。任何一步不过都抛 BaseTemplateError，**不写出 out**。"""
     report = inspect_base(base, cover_sections, lang)
     if not report.ok:
         raise BaseTemplateError(_join(report.blocking, lang), report.notes)
+    if blind_review:
+        # 盲审会把批注（含内容）整件删掉，这时再说「封面会带批注气泡」是反的。
+        comment_note = t("base.inspect.comments", lang)
+        report.notes = [n for n in report.notes if n != comment_note]
     head = dropped_head(base, cover_sections)
     if head:
         report.notes.append(t(
@@ -1459,11 +1530,20 @@ def apply_base_template(
         # 版面验真只有在装了 Word 的机器上才做得了。做不了不等于不做——
         # 结构那一关已经保证封面一个字节没动，剩下的"排出来一样不一样"只能请人看。
         layout_verified = word_pdf.can_render_word_pdf()[0]
+        skipped_for_markup = False
+        if layout_verified and _has_layout_markup(base):
+            # 批注气泡与修订标记会占版面：Word 排底模时会算进去，排产物时又可能不同，
+            # 逐页比坐标只会误报「封面位置对不上」。结构那一关已经证明封面节点没动，
+            # 这一层明确跳过，交给人工核对。
+            report.notes.append(t("base.note.layout_skipped_markup", lang))
+            layout_verified = False
+            skipped_for_markup = True
         if layout_verified:
-            ok, why = verify_cover_pages(base, staged, sentinels, lang)
+            ok, why = verify_cover_pages(
+                base, staged, sentinels, lang, cover_sections=cover_sections)
             if not ok:
                 raise BaseTemplateError(why, report.notes)
-        else:
+        elif not skipped_for_markup:
             report.notes.append(t("base.note.layout_skipped", lang))
         staged.replace(out)
     finally:
