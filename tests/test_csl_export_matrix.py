@@ -22,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PRESET = REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt"
 CSL_DIR = get_csl_dir()
 STYLES = sorted(path.name for path in CSL_DIR.glob("*.csl"))
+assert STYLES, "内置 CSL 目录为空：整组导出矩阵测试会静默消失"
 
 BIB = r"""
 @article{alpha,

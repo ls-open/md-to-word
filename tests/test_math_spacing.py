@@ -51,7 +51,9 @@ def test_negative_space_occupies_nothing():
 ])
 def test_reconciliation_does_not_fire_on_real_transformations(latex):
     """括号、求和号、重音都不是一对一落进 `m:t` 的，对账要认这些改写法。"""
-    latex_to_omml(latex)
+    omml = latex_to_omml(latex)
+    # 不抛异常只说明没被拦下；产物为空说明转换器把公式整个吞了，同样要红。
+    assert omml, f"公式没有转出任何元素：{latex}"
 
 
 def test_dropped_characters_are_reported(monkeypatch):

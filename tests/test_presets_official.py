@@ -67,6 +67,11 @@ def _cm_to_twips(value: float) -> int:
     return round(value / 2.54 * 1440)
 
 
+def test_builtin_presets_are_not_empty() -> None:
+    """预设目录为空时，下面两组参数化会各收集 0 条而不是失败。"""
+    assert list(get_presets_dir().glob("*.txt")), "预设目录为空"
+
+
 @pytest.mark.parametrize("name", sorted(p.stem for p in get_presets_dir().glob("*.txt")))
 def test_every_preset_exports_a_minimal_manuscript(name: str, tmp_path: Path) -> None:
     """每个内置预设都必须能独立完成一次导出，而不只是生成模板。

@@ -23,6 +23,7 @@ BIB = """@article{a, author={Smith, John and Doe, Jane}, title={A Study of Thing
 """
 
 STYLES = sorted(p.name for p in CSL_DIR.glob("*.csl"))
+assert STYLES, "内置 CSL 目录为空：整组矩阵测试会静默消失"
 
 
 @pytest.mark.parametrize("style", STYLES)

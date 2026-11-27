@@ -18,6 +18,7 @@ from md_to_word.transform.citations import CitationEngine
 
 CSL_DIR = get_csl_dir()
 ALL_STYLES = sorted(p.name for p in CSL_DIR.glob("*.csl"))
+assert ALL_STYLES, "内置 CSL 目录为空：整组引文矩阵测试会静默消失"
 
 MATRIX_BIB = r"""
 @string{mit = "MIT Press"}

@@ -28,7 +28,10 @@ def _engine(tmp_path: Path, style: str) -> CitationEngine:
 
 
 def test_every_bundled_style_passes_the_gate() -> None:
-    for path in sorted(get_csl_dir().glob("*.csl")):
+    styles = sorted(get_csl_dir().glob("*.csl"))
+    # 目录空了就是打包坏了；没有这一句，整条门禁会变成「零份被检查」而仍然全绿。
+    assert len(styles) >= 20, f"内置 CSL 数量异常：{len(styles)}"
+    for path in styles:
         check_style(path)
 
 

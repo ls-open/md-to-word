@@ -90,3 +90,13 @@ jobs:
               assert any(n.endswith(needed) for n in names), f"wheel 内缺少 {needed}"
           print(f"包内资源齐全（{len(names)} 个文件）")
           EOF
+      - name: wheel 装进干净环境后能跑通
+        # 只查文件名不等于装得上：源码检出跑测试会掩盖入口点、包内资源路径与依赖声明的问题。
+        # 这里用构建产物本身 init → 导出 → 读契约，走一遍用户第一次接触的三步。
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install -q dist/*.whl
+          "$RUNNER_TEMP/venv/bin/md-to-word" init "$RUNNER_TEMP/smoke"
+          "$RUNNER_TEMP/venv/bin/md-to-word" "$RUNNER_TEMP/smoke/hello.md" -o "$RUNNER_TEMP/smoke/hello.docx"
+          test -s "$RUNNER_TEMP/smoke/hello.docx"
+          "$RUNNER_TEMP/venv/bin/md-to-word" --contract --json > /dev/null

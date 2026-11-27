@@ -307,6 +307,7 @@ def test_real_templates_keep_the_body_identical(
     assert successes >= 5, f"真实模板成功注入太少：{successes}"
 
 
+@pytest.mark.word
 @pytest.mark.skipif(
     not __import__("md_to_word.visual_qa.word_pdf", fromlist=["can_render_word_pdf"])
     .can_render_word_pdf()[0],

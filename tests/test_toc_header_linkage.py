@@ -203,6 +203,10 @@ def test_extractor_round_trips_presets_with_valid_drafts(tmp_path: Path, preset_
     tpl = tmp_path / "tpl.docx"
     build_template(preset_text, tpl)
     draft = extract_spec_from_docx(tpl)
+    # 草稿不能只是「能解析」：正文样式与必填项都得真的被读出来，否则往返测试
+    # 对一份几乎空白的草稿也会放行。
+    assert "正文：" in draft or "Body Text:" in draft, draft[:400]
+    assert "首行缩进" in draft, draft[:400]
     # 抽出的草稿可直接解析并重新生成模板，不再因联动缺失挂掉
     parse_format(draft)
     build_template(draft, tmp_path / "rebuilt.docx")

@@ -82,6 +82,11 @@ md_to_word = [
 ]
 
 [tool.pytest.ini_options]
+# 裸 `pytest` 只收 tests/：仓库根下的临时脚本、构建副本不该混进同一份结果。
+testpaths = ["tests"]
+# marker 拼错（`wrod`）要当场报错：CI 用 `-m "not word"` 排除，拼错的测试会被当普通
+# 测试放进 CI，直到它真的去启动 Word 才红。
+addopts = "--strict-markers"
 markers = [
     "word: 需要本机 Microsoft Word 才能做的排版验真",
     "localdata: 需要 gitignore 的 testdata/base_templates 才能跑",
