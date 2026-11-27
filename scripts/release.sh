@@ -66,7 +66,7 @@ step "前置检查"
 git diff --quiet && git diff --cached --quiet || die "工作区不干净，先提交或 stash"
 command -v "$PYTHON" >/dev/null 2>&1 || die "找不到 Python 解释器：$PYTHON"
 "$PYTHON" -c 'import docx, lxml, yaml, latex2mathml, pypdfium2, pytest' >/dev/null 2>&1 \
-    || die "Python 缺少运行依赖：${PYTHON}；先 source .venv/bin/activate，或用 PYTHON=.venv/bin/python 重跑"
+    || die "Python 缺少运行依赖：${PYTHON}；先给该解释器安装 pip install -e '.[test]'，或用 PYTHON=/path/to/python 指定"
 
 CUR="$(grep -oE '__version__ = "[^"]+"' src/md_to_word/__init__.py | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
 [ -n "$CUR" ] || die "读不到当前版本号"
