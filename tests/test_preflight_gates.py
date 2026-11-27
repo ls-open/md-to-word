@@ -403,8 +403,8 @@ def test_toc_depth_overflow_errors_instead_of_crashing(tmp_path: Path) -> None:
     """`{{< toc 99 >}}` 以前会带着中文 traceback 崩掉；现在走正常的「写不出来」路径。"""
     from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
-    for lang, fragment in (("en", "the TOC depth must be between 1 and 9; got 99"),
-                           ("zh", "目录收录级数要在 1–9 之间，收到 99")):
+    for lang, fragment in (("en", "the TOC depth must be between 1 and 5; got 99"),
+                           ("zh", "目录收录级数要在 1–5 之间，收到 99")):
         manuscript = tmp_path / f"toc_{lang}.md"
         body = "# 1 Introduction\n\nBody.\n" if lang == "en" else "# 一 引言\n\n正文。\n"
         manuscript.write_text(

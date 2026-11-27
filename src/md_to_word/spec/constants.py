@@ -194,6 +194,10 @@ WRONG_KEY_HINTS: dict[str, str] = {
 # 高于本版本时明确拒绝（而不是让用户对着「不认识属性词」猜半天）。
 CURRENT_SCHEMA = 1
 
+# TOC 收录到第几级：Markdown 标题本身是 1–6 级，但格式词表只定义到目录五级，
+# 再深就只能落回 Word 内置样式——那不是「按要求排版」，所以直接拒绝。
+TOC_MAX_DEPTH = 5
+
 # ── 纸张尺寸（单位 cm）──
 PAGE_SIZES_CM: dict[str, tuple[float, float]] = {
     "a4": (21.0, 29.7),

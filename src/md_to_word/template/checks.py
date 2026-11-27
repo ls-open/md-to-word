@@ -163,6 +163,7 @@ def _row_label(row: str, lang: str) -> str:
 
 
 _LINKED_SECTION_TITLES = ('Abstract Title', 'References Title')
+_STYLEREF_STYLE_NAMES = {k.lower(): v for k, v in STYLE_MAP.items()}
 
 
 def _has_toc_styles(req_by_style: dict) -> bool:
@@ -188,6 +189,14 @@ def _check_linkage_fields(spec, lang: str = "zh") -> list[str]:
     has_toc = _has_toc_styles(req_by_style)
     has_header = _has_heading_styleref(spec)
     errors: list[str] = []
+    # 页眉/页脚里的 {样式标题:X} 必须是 Word 样式名；写成中文别名或笔误时，
+    # Word 会直接显示 `Error! No text of specified style`，预检先拦下来。
+    for name in collect_styleref_names(spec):
+        canonical = _STYLEREF_STYLE_NAMES.get(name.lower())
+        if canonical == name:
+            continue
+        errors.append(t('template.linkage.unknown_styleref', lang,
+                        name=name, canonical=canonical or 'Heading 1'))
     for style_name in _LINKED_SECTION_TITLES:
         req = req_by_style.get(style_name)
         if req is None:
@@ -323,8 +332,15 @@ def _check_required_fields(
                 missing_required.append((_row_label('表头', lang), fname))
 
     for style_name, (name, example) in CONDITIONAL_STYLE_ROWS.items():
-        written = any(kind == ('header' if style_name == 'Header' else 'footer')
-                      for kind, _ in spec.decor)
+        kind = 'header' if style_name == 'Header' else 'footer'
+        written = any(k == kind for k, _ in spec.decor)
+        if not written:
+            # 分节自己的页眉页脚也算：`正文页眉内容：…` 与全局内容一样，没有样式行
+            # 就会套底模自带样式——正是这条规则要防的静默回退。
+            written = any(
+                (role.header if kind == 'header' else role.footer)
+                for role in spec.section_roles.values()
+            )
         if written and style_name not in req_by_style:
             missing_rows.append((name, example))
 

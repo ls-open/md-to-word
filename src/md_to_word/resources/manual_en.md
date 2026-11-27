@@ -273,7 +273,7 @@ Only three are recognised, **each on its own line** and separated from body text
 | Marker | Effect |
 |:--|:--|
 | `{{< pagebreak >}}` | page break |
-| `{{< toc >}}` / `{{< toc 2 >}}` | table-of-contents field; the depth follows the `TOC 1/2/3` styles declared in the format file, or is given directly by the number |
+| `{{< toc >}}` / `{{< toc 2 >}}` | table-of-contents field; the depth follows the `TOC 1/2/3` styles declared in the format file, or is given directly by the number (1–5; writing N requires the matching `TOC N` style) |
 | `{{< section >}}` | plain section break; the section uses the format file's global settings |
 | `{{< section body >}}` | names **the section below it**; page numbering, header and footer come from that name's declarations in the format file |
 
@@ -557,7 +557,8 @@ show the full spelling in context.
   `Table` + `Table Header` + `Compact`; figures → `Figure` + `Image Caption`; TOC →
   `TOC Heading` + `TOC 1/2/3` (4 and 5 are optional but must be consecutive); abstract →
   `Abstract Title` + `Abstract`; references → `References Title` + `Bibliography` (when using
-  `.bib`); block quotes → `Block Text`; `Header Content` requires `Header` (same for the footer).
+  `.bib`); block quotes → `Block Text`; `Header Content` requires `Header` (same for the footer,
+  including section-level `… Header Content` rows).
 - **Linked requiredness**: `join-toc` / `no-toc` is required on declared `Abstract Title` /
   `References Title` **only when TOC styles are declared**; `join-header` / `no-header` is
   required on them **only when headers use `{style-title:Heading ...}`**. Plain documents that use

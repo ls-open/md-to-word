@@ -46,6 +46,7 @@ from md_to_word.utils.masking import (
     mask_code, mask_code_fences, mask_display_math, mask_html_comments,
 )
 from md_to_word.utils.skill_utils import (
+    TOC_MARKER_RE,
     block_marker_issues,
     soft_wrap_issues,
     bracketed_crossref_issues,
@@ -300,6 +301,30 @@ def required_style_issues(
             else t("gate.label.style_def", lang, cn=cn, en=en)
         )
         issues.append((line_no, t("gate.style.required_missing", lang, feat=feat, label=label)))
+
+    # 显式目录深度：`{{< toc 4 >}}` 就必须有目录四级；隐式 `{{< toc >}}` 的深度
+    # 由已声明的目录样式推出来，不需要这条。深度越界由 markers 门禁先拦。
+    toc_names = {1: '目录一级', 2: '目录二级', 3: '目录三级',
+                 4: '目录四级', 5: '目录五级'}
+    for line_no, line in enumerate(mask_code_fences(body).split('\n'), start_line):
+        match = TOC_MARKER_RE.match(line)
+        if not match or not match.group('depth'):
+            continue
+        depth = int(match.group('depth'))
+        if not 1 <= depth <= len(toc_names):
+            continue
+        for level in range(1, depth + 1):
+            style = f'TOC {level}'
+            if style in declared or style in reported:
+                continue
+            reported.add(style)
+            issues.append((
+                line_no,
+                t('gate.style.required_missing', lang,
+                  feat=t('gate.feat.toc', lang),
+                  label=t('gate.label.style_def', lang,
+                          cn=toc_names[level], en=style)),
+            ))
 
     # `%% 样式名 …` 是稿件真正使用的样式入口。`missing_styles_for_body` 只认标题、
     # 列表、表格、图片这些结构触发，样式行必须单独对一遍；否则格式文件漏写「摘要」

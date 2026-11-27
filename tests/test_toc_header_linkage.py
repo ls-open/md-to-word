@@ -347,3 +347,73 @@ def test_unlisted_heading_creates_unlisted_style_and_keeps_numbering(tmp_path: P
     full_text = "\n".join(para_texts)
     assert "（1-1）" in full_text
     assert "（A-1）" in full_text
+
+
+HEADER_ROW = "页眉：宋体/Times New Roman 小五 不加粗 不倾斜 右对齐 行距1.0倍 段前0磅 段后0磅 首行缩进0字符"
+
+
+def _section_header_format(with_style_row: bool) -> str:
+    text = ZH_ACADEMIC.replace(
+        "分节：正文\n正文页码：阿拉伯 起始1\n",
+        "分节：正文\n正文页码：阿拉伯 起始1\n正文页眉内容：{样式标题:Heading 1}\n",
+    )
+    if with_style_row:
+        text = text.replace("页脚内容：{页码}\n", "页脚内容：{页码}\n" + HEADER_ROW + "\n", 1)
+    return text
+
+
+def _run(tmp_path: Path, fmt_text: str, body: str = "# 一 引言\n\n正文。\n"):
+    fmt = tmp_path / "format.txt"
+    fmt.write_text(fmt_text, encoding="utf-8")
+    md = tmp_path / "m.md"
+    md.write_text(body, encoding="utf-8")
+    return run_export_pipeline(
+        ExportOptions(input_path=md, output_path=tmp_path / "out.docx", format_path=fmt)
+    )
+
+
+def test_section_header_content_requires_the_header_style_row(tmp_path: Path) -> None:
+    """分节的页眉内容与全局内容一视同仁：没有「页眉：」行就是必填行缺失。"""
+    res = _run(tmp_path, _section_header_format(with_style_row=False))
+    assert res.returncode == 1
+    assert "页眉" in " ".join(res.errors)
+
+
+def test_section_header_with_the_style_row_exports(tmp_path: Path) -> None:
+    res = _run(tmp_path, _section_header_format(with_style_row=True))
+    assert res.returncode == 0, res.errors
+
+
+def test_explicit_toc_depth_requires_the_matching_style(tmp_path: Path) -> None:
+    """`{{< toc 4 >}}` 必须有目录四级；隐式深度才由已声明样式推出来。"""
+    md = tmp_path / "m.md"
+    md.write_text("# 一 引言\n\n{{< toc 4 >}}\n\n正文。\n", encoding="utf-8")
+    fmt = tmp_path / "format.txt"
+    fmt.write_text(ZH_ACADEMIC, encoding="utf-8")
+    report = validate_manuscript(md, spec_path=fmt)
+    assert not report.valid
+    assert any("TOC 4" in e or "目录四级" in e for e in report.errors), report.errors
+
+
+def test_toc_depth_is_capped_at_the_five_styled_levels(tmp_path: Path) -> None:
+    md = tmp_path / "m.md"
+    md.write_text("# 一 引言\n\n{{< toc 6 >}}\n\n正文。\n", encoding="utf-8")
+    report = validate_manuscript(md)
+    assert not report.valid
+    assert any("1–5" in e or "5" in e for e in report.errors), report.errors
+
+
+def test_styleref_rejects_unknown_or_localized_style_names(tmp_path: Path) -> None:
+    """`{样式标题:…}` 只认 Word 样式名：笔误或中文别名会变成 Word 的 Error! 文本。"""
+    for bad, suggestion in (("Heading3", "Heading 1"), ("一级标题", "Heading 1")):
+        fmt = tmp_path / f"{bad}.txt"
+        fmt.write_text(ZH_REPORT.replace(
+            "页眉内容：{样式标题:Heading 1}",
+            f"页眉内容：{{样式标题:{bad}}}"), encoding="utf-8")
+        md = tmp_path / f"{bad}.md"
+        md.write_text("# 一 引言\n\n正文。\n", encoding="utf-8")
+        res = run_export_pipeline(ExportOptions(
+            input_path=md, output_path=tmp_path / f"{bad}.docx", format_path=fmt))
+        assert res.returncode == 1, bad
+        joined = " ".join(res.errors)
+        assert bad in joined and suggestion in joined, joined

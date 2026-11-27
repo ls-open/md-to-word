@@ -718,6 +718,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         " - {alias}（{style}）：页眉/页脚使用了「{{样式标题:Heading …}}」，须显式写明「加入页眉」或「不入页眉」",
         " - {style}: headers/footers use `{{styleref:Heading ...}}`, so add `join-header` or `no-header` explicitly",
     ),
+    "template.linkage.unknown_styleref": (
+        " - 页眉/页脚里的「样式标题:{name}」不是可用的 Word 样式名；"
+        "写「样式标题:{canonical}」这样的英文样式名（中文别名不认）",
+        " - header/footer `styleref:{name}` is not a Word style name; "
+        "write `styleref:{canonical}` (localized aliases are not accepted)",
+    ),
     "template.linkage.conflict_no_toc_join_header": (
         " - {alias}（{style}）：「不入目录」与「加入页眉」在标准 Word 目录域（TOC \\o \\u）下冲突"
         "（映射为 Heading 1 必然进入目录）；请改为「加入目录 加入页眉」或「不入目录 不入页眉」",
@@ -1366,7 +1372,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "gate.tag.citation_key": ("引文 key 缺失", "citation key missing"),
     "gate.tag.crossref_syntax": ("交叉引用写法", "cross-reference syntax"),
     "gate.tag.unsupported_syntax": ("写法不支持", "unsupported syntax"),
-    "gate.tag.block_marker": ("块级标记空行缺失", "blank line missing around a block marker"),
+    "gate.tag.block_marker": ("块级标记写法", "block marker syntax"),
     "gate.tag.unknown_shortcode": ("未知短代码", "unknown shortcode"),
     "gate.tag.section_marker": ("分节标记", "section marker"),
     "gate.tag.heading": ("标题/分级", "heading level"),

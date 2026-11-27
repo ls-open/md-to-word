@@ -18,6 +18,7 @@ from typing import Optional
 from lxml import etree
 
 from md_to_word.i18n import t
+from md_to_word.spec.constants import TOC_MAX_DEPTH
 from md_to_word.utils.masking import (
     mask_code_fences,
     mask_display_math,
@@ -221,8 +222,16 @@ def block_marker_issues(text: str, lang: str = "zh") -> list:
         elif (marker := _shortcode_marker(scan)) is not None:
             whole_line_re, label_key = _SHORTCODE_MARKERS[marker]
             label = t(label_key, lang)
-            if not whole_line_re.match(scan):
+            match = whole_line_re.match(scan)
+            if not match:
                 issues.append((no, t("gate.block.marker_not_alone", lang, label=label)))
+            elif marker == 'toc' and match.group("depth") and not (
+                    1 <= int(match.group("depth")) <= TOC_MAX_DEPTH):
+                # Word 的 TOC 域能收到 9 级，但格式词表只定义到目录五级；
+                # 再深的级数只能落回 Word 默认样式，等于没按格式排。
+                issues.append((no, t("markers.toc_depth", lang,
+                                     max=TOC_MAX_DEPTH,
+                                     depth=int(match.group("depth")))))
             elif after_glued(i):
                 issues.append((no, t("gate.block.marker_no_blank", lang, label=label)))
         elif _DIV_OPEN_RE.match(line):
