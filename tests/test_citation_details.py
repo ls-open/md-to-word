@@ -1140,3 +1140,145 @@ def test_sort_keys_ignore_the_et_al_term(tmp_path: Path) -> None:
     body = ('<names variable="author">'
             '<name et-al-min="2" et-al-use-first="1"/></names>')
     assert _sorted_titles(tmp_path, body, items, ["a", "b"]) == ["A", "B"]
+
+
+def test_name_form_count_respects_the_et_al_threshold(tmp_path: Path) -> None:
+    """`form="count"` 是「本来会印出几个名字」：没触发 et-al 时就是全部。"""
+    import json
+
+    style_text = '''<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>count</title><id>count</id><updated>2024-01-01T00:00:00+00:00</updated></info>
+  <citation><layout><names variable="author">
+    <name form="count" et-al-min="{min}" et-al-use-first="1"/>
+  </names></layout></citation>
+  <bibliography><layout><text variable="title"/></layout></bibliography>
+</style>'''
+    items = [{
+        "id": "a", "type": "book", "title": "A",
+        "author": [{"family": f"Name{i}"} for i in range(5)],
+    }]
+    for minimum, expected in (("6", "5"), ("3", "1")):
+        style = tmp_path / f"count{minimum}.csl"
+        style.write_text(style_text.replace("{min}", minimum), encoding="utf-8")
+        engine = CitationEngine(json.dumps(items), style, lang="en")
+        assert _text(engine, ("a", "")) == expected
+
+
+def test_initialize_false_only_marks_existing_initials(tmp_path: Path) -> None:
+    """`initialize="false"` + `initialize-with="."`：`James T Kirk` → `James T. Kirk`。"""
+    style_text = '''<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>init</title><id>init</id><updated>2024-01-01T00:00:00+00:00</updated></info>
+  <citation><layout><names variable="author">
+    <name initialize="false" initialize-with="."/>
+  </names></layout></citation>
+  <bibliography><layout><text variable="title"/></layout></bibliography>
+</style>'''
+    style = tmp_path / "init.csl"
+    style.write_text(style_text, encoding="utf-8")
+    engine = CitationEngine(
+        "@book{b, author={Kirk, James T}, title={A Book}, year={2020}}",
+        style, lang="en")
+    assert _text(engine, ("b", "")) == "James T. Kirk"
+
+
+DISAMBIG_HYPHEN_STYLE = '''<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>hyphen</title><id>hyphen</id><updated>2024-01-01T00:00:00+00:00</updated></info>
+  <citation disambiguate-add-givenname="true"
+            givenname-disambiguation-rule="primary-name-with-initials">
+    <layout prefix="(" suffix=")">
+      <names variable="author"><name form="short" initialize-with=". "/></names>
+      <date variable="issued" prefix=", "><date-part name="year"/></date>
+    </layout>
+  </citation>
+  <bibliography><layout><text variable="title"/></layout></bibliography>
+</style>'''
+
+
+def test_disambiguation_initials_respect_hyphens(tmp_path: Path) -> None:
+    """`Jean-Luc` 补首字母是 `J.-L.`，跟着样式的 `initialize-with`，不是固定的 `. `。"""
+    import json
+
+    style = tmp_path / "hyphen.csl"
+    style.write_text(DISAMBIG_HYPHEN_STYLE, encoding="utf-8")
+    items = [
+        {"id": "a", "type": "book", "title": "A",
+         "author": [{"family": "Dupont", "given": "Jean-Luc"}],
+         "issued": {"date-parts": [[2020]]}},
+        {"id": "b", "type": "book", "title": "B",
+         "author": [{"family": "Dupont", "given": "Jean-Paul"}],
+         "issued": {"date-parts": [[2020]]}},
+    ]
+    engine = CitationEngine(json.dumps(items), style, lang="en")
+    engine.reserve(["a", "b"])
+    assert _text(engine, ("a", "")) == "(J.-L. Dupont, 2020)"
+    assert _text(engine, ("b", "")) == "(J.-P. Dupont, 2020)"
+
+    no_hyphen = tmp_path / "space.csl"
+    no_hyphen.write_text(DISAMBIG_HYPHEN_STYLE.replace(
+        'initialize-with=". "',
+        'initialize-with=". " initialize-with-hyphen="false"'), encoding="utf-8")
+    engine = CitationEngine(json.dumps(items), no_hyphen, lang="en")
+    engine.reserve(["a", "b"])
+    assert _text(engine, ("a", "")) == "(J. L. Dupont, 2020)"
+
+
+def test_no_date_entries_collapse_like_citeproc_js() -> None:
+    """同作者两条无年份文献：`n.d.-a` / `n.d.-b`，合并引用折成 `(Smith, n.d.-a, n.d.-b)`。"""
+    import json
+
+    items = [
+        {"id": "a", "type": "book", "title": "Alpha",
+         "author": [{"family": "Smith", "given": "John"}], "publisher": "P"},
+        {"id": "b", "type": "book", "title": "Beta",
+         "author": [{"family": "Smith", "given": "John"}], "publisher": "P"},
+    ]
+    engine = CitationEngine(json.dumps(items), CSL / "apa.csl", lang="en")
+    engine.reserve(["a", "b"])
+    assert _text(engine, ("a", "")) == "(Smith, n.d.-a)"
+    assert _text(engine, ("a", ""), ("b", "")) == "(Smith, n.d.-a, n.d.-b)"
+
+
+SUBSTITUTE_STYLE = '''<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>sub</title><id>sub</id><updated>2024-01-01T00:00:00+00:00</updated></info>
+  <citation><layout prefix="(" suffix=")"><text variable="title"/></layout></citation>
+  <bibliography subsequent-author-substitute="">
+    <sort><key variable="author"/><key variable="issued"/></sort>
+    <layout suffix=".">
+      <group display="block"><names variable="author"><name name-as-sort-order="all"/></names></group>
+      <text variable="title"/>
+    </layout>
+  </bibliography>
+</style>'''
+
+
+def test_empty_subsequent_author_substitute_drops_the_block(tmp_path: Path) -> None:
+    """`subsequent-author-substitute=""` 是「重复作者整个不印」，不是「没设置」。"""
+    import json
+
+    style = tmp_path / "sub.csl"
+    style.write_text(SUBSTITUTE_STYLE, encoding="utf-8")
+    items = [
+        {"id": "a", "type": "book", "title": "Alpha",
+         "author": [{"family": "Smith", "given": "John"}],
+         "issued": {"date-parts": [[2020]]}},
+        {"id": "b", "type": "book", "title": "Beta",
+         "author": [{"family": "Smith", "given": "John"}],
+         "issued": {"date-parts": [[2021]]}},
+    ]
+    engine = CitationEngine(json.dumps(items), style, lang="en")
+    engine.cite([("a", "")])
+    engine.cite([("b", "")])
+    assert engine.bibliography() == ["Smith, John\nAlpha.", "Beta."]
+
+
+def test_empty_citation_does_not_leave_layout_affixes(tmp_path: Path) -> None:
+    """整条引用没有输出时，不能只印 layout 的前后缀（孤零零的 `()`）。"""
+    import json
+
+    style = tmp_path / "empty.csl"
+    style.write_text(SUBSTITUTE_STYLE, encoding="utf-8")
+    engine = CitationEngine(
+        json.dumps([{"id": "x", "type": "book",
+                     "author": [{"family": "Doe"}]}]),
+        style, lang="en")
+    assert _text(engine, ("x", "")) == ""

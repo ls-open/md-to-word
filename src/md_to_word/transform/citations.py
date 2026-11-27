@@ -52,6 +52,7 @@ from md_to_word.i18n import t
 from md_to_word.csl.model import (
     DISAMBIGUATE_KEYS as _DISAMBIGUATE_KEYS,
     FIRST_NAMES,
+    _script_language,
 )
 from md_to_word.csl.string import LINE_BREAK
 
@@ -122,10 +123,11 @@ class CitationEngine:
         citation = self._style.root.citation
         self._bib_sort = bibliography.sort if bibliography is not None else None
         self._bib_layout = bibliography.default_layout() if bibliography is not None else None
+        # 空串是规范里的一种写法（重复作者整个不印），不能和「没设置」混为一谈。
         self._substitute = (
             bibliography.get('subsequent-author-substitute')
             if bibliography is not None else None
-        ) or None
+        )
         self._cite_sort = citation.sort if citation is not None else None
         self._cite_layout = citation.default_layout() if citation is not None else None
         self._renders_citation_number = (
@@ -159,6 +161,14 @@ class CitationEngine:
         self._rule_names = rule != "by-cite"
         self._initials_all = rule.startswith("all-names")
         self._initials_only = rule.endswith("with-initials")
+        # 消歧补的首字母要跟样式一致（`.`/`. `/`""`，连字符缩写与否）。
+        match = re.search(
+            r"""initialize-with\s*=\s*["']([^"']*)["']""", style_text)
+        self._initialize_with = match.group(1) if match else ". "
+        match = re.search(
+            r"""initialize-with-hyphen\s*=\s*["']([^"']*)["']""", style_text)
+        self._initialize_with_hyphen = (
+            match.group(1).strip().lower() != "false" if match else True)
         # 数字制样式（29 份里 19 份）没有任何消歧设置：reserve() 的逐条探针渲染
         # 只为消歧服务，样式不用就可以整段跳过。
         self._needs_disambiguation = bool(
@@ -343,16 +353,48 @@ class CitationEngine:
 
     def _split_author(self, key: str, segments: list[tuple[str, dict]]):
         """把一条渲染好的引用拆成「作者部分」与「年份部分」，供 collapse 归并。"""
-        year = str((self._by_key.get(key, {}).get("issued") or {}).get("date-parts", [[None]])[0][0])
-        if not year or year == "None":
-            return None, ""
-        suffix = str(self._by_key.get(key, {}).get("year-suffix", ""))
-        token = year + suffix
+        entry = self._by_key.get(key, {})
+        year = str((entry.get("issued") or {}).get("date-parts", [[None]])[0][0])
         text = segments_text(segments)
+        if not year or year == "None":
+            # 无年份条目印的是「n.d.」/「日期不详」这类术语，collapse 也得能按它归并
+            # （`(Smith, n.d.-a, n.d.-b)`，与 citeproc-js 一致）。
+            return self._split_no_date(segments, text, entry)
+        suffix = str(entry.get("year-suffix", ""))
+        token = year + suffix
         index = text.rfind(token)
         if index <= 0:
             return None, ""
         return slice_segments(segments, 0, index), text[index:]
+
+    def _split_no_date(self, segments, text: str, entry: dict):
+        candidates = []
+        status = entry.get("status")
+        if status:
+            candidates.append(str(status).strip())
+        languages = [str(entry.get("language") or "")[:2] or None]
+        title = str(entry.get("title") or "")
+        languages.append(_script_language(title) if title else None)
+        languages.append(None)
+        for language in dict.fromkeys(languages):
+            for form in (None, "short"):
+                try:
+                    term = self._style.root.get_single_term(
+                        name="no date", form=form, language=language)
+                except Exception:
+                    continue
+                term = str(term or "").strip()
+                if term:
+                    candidates.append(term)
+        for token in dict.fromkeys(sorted(candidates, key=len, reverse=True)):
+            index = text.rfind(token)
+            if index <= 0:
+                continue
+            tail = text[index + len(token):]
+            # 术语后面只允许年份后缀（`-a` / `a` / `-aa`）。
+            if re.fullmatch(r"[\s\-–]*[a-z]{0,3}", tail):
+                return slice_segments(segments, 0, index), text[index:]
+        return None, ""
 
     def _render_single(self, key: str, variant: Variant = BASE) -> list[tuple[str, dict]]:
         """单独渲染一条引用（不带定位符），用于判断两条会不会撞。"""
@@ -405,7 +447,9 @@ class CitationEngine:
         source = self._name_sources.get(cache_key)
         if source is None:
             entries = with_names(
-                self.entries, key, initials_all=self._initials_all, full=variant.full_names,
+                self.entries, key, initials_all=self._initials_all,
+                full=variant.full_names, mark=self._initialize_with,
+                hyphen=self._initialize_with_hyphen,
             )
             source = self._name_sources[cache_key] = CiteProcJSON(entries)
         return source
@@ -560,6 +604,9 @@ class CitationEngine:
             segments = self._finish_bibliography_entry(entry, key, item.number)
             if names and names == previous_names:
                 segments = replace_first(segments, names, self._substitute)
+                if not self._substitute:
+                    # 替身是空串：作者块删掉后，它留下的那次块内换行也一起去掉。
+                    segments = _strip_leading_break(segments)
             previous_names = names
             output.append((key, segments))
         return output
@@ -623,6 +670,20 @@ def _number_affixes(style_text: str) -> tuple[str, str, bool]:
         return found.group(1) if found else ""
 
     return attr("prefix"), attr("suffix"), True
+
+
+def _strip_leading_break(segments: list[tuple[str, dict]]) -> list[tuple[str, dict]]:
+    """去掉条目开头的块内换行（`subsequent-author-substitute=""` 留下的空块）。"""
+    output = []
+    dropping = True
+    for text, fmt in segments:
+        if dropping:
+            text = text.lstrip(LINE_BREAK + " ")
+            if not text:
+                continue
+            dropping = False
+        output.append((text, fmt))
+    return output
 
 
 def cited_keys(model) -> list[str]:

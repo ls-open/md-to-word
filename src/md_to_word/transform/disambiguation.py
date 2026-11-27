@@ -76,10 +76,31 @@ def _set_attr(block: str, name: str, value: str, tag: str) -> str:
     return pattern.sub(repl, block, count=1)
 
 
-def initials(given: str, separator: str = ". ") -> str:
-    """`Mary Jane` → `M. J. `（CSL 的 `initialize-with`）。"""
-    parts = [word[0].upper() for word in re.split(r"[\s-]+", given.strip()) if word]
-    return "".join(part + separator for part in parts)
+def initials(given: str, mark: str = ". ", hyphen: bool = True) -> str:
+    """`Mary Jane` → `M. J. `，`Jean-Luc` → `J.-L. `（CSL 的 `initialize-with`）。
+
+    与引擎的 `Name.initialize` 同一套规则：首字母之间用 `mark` 连接；连字符
+    部件各自缩写，再用 `-` 接回（`initialize-with-hyphen` 关掉时当空格处理）；
+    小写的 particle 原样保留。返回值末尾留一个空格，好直接拼姓。
+    """
+    if not given.strip():
+        return given
+    chunks = given.split('-') if hyphen else [given.replace('-', ' ')]
+    results = []
+    for chunk in chunks:
+        words = chunk.replace('.', ' ').split()
+        text = ''
+        group = []
+        for word in words:
+            if word[0].isupper():
+                group.append(word[0])
+            else:
+                text += mark.join(group) + mark + ' ' + word + ' '
+                group = []
+        text += mark.join(group) + mark
+        results.append(' '.join(text.split()))
+    rendered = '-'.join(results)
+    return rendered if rendered.endswith(' ') else rendered + ' '
 
 
 
@@ -102,7 +123,8 @@ def _suffix_index(label: str) -> int:
 
 
 
-def with_names(entries, key: str, *, initials_all: bool, full: bool = False) -> list:
+def with_names(entries, key: str, *, initials_all: bool, full: bool = False,
+               mark: str = ". ", hyphen: bool = True) -> list:
     """这条引用的条目副本：按规则给首名（或全部名字）补首字母，或展开全名。"""
     decorated = []
     for entry in entries:
@@ -118,7 +140,9 @@ def with_names(entries, key: str, *, initials_all: bool, full: bool = False) -> 
                 given = person.get("given", "")
                 family = person.get("family")
                 if given and family:
-                    person["family"] = (given + " " if full else initials(given)) + family
+                    person["family"] = (
+                        (given + " " if full else initials(given, mark, hyphen))
+                        + family)
             copy[role] = people
         decorated.append(copy)
     return decorated

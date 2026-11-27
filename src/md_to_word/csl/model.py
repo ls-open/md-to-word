@@ -995,7 +995,11 @@ class Layout(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
         for item in bad_cites:
             callback_value = callback(item)
             out.append(callback_value or f'{item.key}?')
-        return self.format(self.wrap(self.join(out)))
+        joined = self.join(out)
+        # 没有任何内容时不要只印 layout 的前后缀（那会留下一个孤零零的 `()`）。
+        if not out or str(joined) == '':
+            return String('')
+        return self.format(self.wrap(joined))
 
     def render_bibliography(self, citation_items, layout_for=None):
         output_items = []
@@ -1702,7 +1706,15 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
         et_al = String('') if sorting else self.et_al(item)
         output = []
         if form == 'count':
-            count = min(len(names), et_al_use_first)
+            # 规范：count 是「本来会渲染出来的名字数」，所以没触发 et-al 时就是全部。
+            truncates = (len(names) > 1 and et_al_min and
+                         len(names) >= et_al_min)
+            if not truncates:
+                count = len(names)
+            elif et_al_use_last and et_al_use_first <= et_al_min - 2:
+                count = et_al_use_first + 1
+            else:
+                count = et_al_use_first
             output.append(count)
             return sum(output)
         else:
@@ -1797,7 +1809,18 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
                 except Exception:
                     init_opt = None
         if init_opt is not None and str(init_opt).lower() == "false":
-            return given
+            # 规范：initialize="false" 不缩写全名，但仍要在**已有的**首字母后补
+            # `initialize-with`（". “ + ”James T Kirk“ → ”James T. Kirk“）。
+            if mark is None:
+                return given
+            words = []
+            for word in given.split():
+                stem = word.rstrip('.')
+                if len(stem) == 1 and stem.isalpha() and stem.isupper():
+                    words.append(stem + mark)
+                else:
+                    words.append(word)
+            return ' '.join(words)
         # 空 given（中文作者常见：`{"family": "王伟伟", "given": ""}`）没有可缩写的
         # 词，不能凭一个 mark 造出孤立句点。
         if not given.strip():
