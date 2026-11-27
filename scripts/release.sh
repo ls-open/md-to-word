@@ -13,6 +13,9 @@
 # Python 默认用仓库 `.venv/bin/python`（存在时），否则用 `python3`；要换解释器就
 #   PYTHON=/path/to/python bash scripts/release.sh 3.6.1
 #
+# PyPI 发布默认按现有凭据选工具：有 UV_PUBLISH_TOKEN 用 uv；否则有 ~/.pypirc
+# 且装了 twine 就用 twine；都没有则试 uv。可 PUBLISHER=uv|twine 强制。
+#
 # 为什么必须重出样例：`docProps` 里记着版本号，升版之后仓库里提交的 `.docx` 与现场导出的
 # 对不上，`test_committed_docx_matches_a_fresh_export` 会当场红——它红得对。
 #
@@ -59,6 +62,25 @@ DEMOS=(
 die() { echo "✗ $*" >&2; exit 1; }
 step() { echo; echo "── $* ──"; }
 
+# PyPI 发布工具：显式 PUBLISHER 优先；否则按现有凭据选。
+if [ "$PUBLISH" = 1 ] && [ -z "${PUBLISHER:-}" ]; then
+    if [ -n "${UV_PUBLISH_TOKEN:-}" ]; then
+        PUBLISHER=uv
+    elif [ -n "${HOME:-}" ] && [ -f "$HOME/.pypirc" ] \
+        && grep -q '^\[pypi\]' "$HOME/.pypirc" \
+        && command -v twine >/dev/null 2>&1; then
+        PUBLISHER=twine
+    else
+        PUBLISHER=uv
+    fi
+fi
+if [ "$PUBLISH" = 1 ]; then
+    case "${PUBLISHER:-}" in
+        uv|twine) ;;
+        *) die "PUBLISHER 只能是 uv 或 twine，收到: ${PUBLISHER:-}" ;;
+    esac
+fi
+
 # ── 1. 前置检查 ────────────────────────────────────────────────────────────────
 step "前置检查"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "版本号要写成 x.y.z，收到: $VERSION"
@@ -92,7 +114,7 @@ if [ "$DRY_RUN" = 1 ]; then
     fi
     echo "  5. git commit「release: ${VERSION}」并打 tag v${VERSION}"
     if [ "$PUSH" = 1 ]; then echo "  6. git push origin main --tags"; fi
-    if [ "$PUBLISH" = 1 ]; then echo "  7. uv build && uv publish（传 PyPI）"; fi
+    if [ "$PUBLISH" = 1 ]; then echo "  7. 构建产物并用 ${PUBLISHER} 上传 PyPI"; fi
     echo
     echo "   没有落任何改动。"
     exit 0
@@ -176,14 +198,20 @@ if [ "$PUSH" = 1 ]; then
 fi
 
 if [ "$PUBLISH" = 1 ]; then
-    step "构建并上传 PyPI"
-    command -v uv >/dev/null || die "没装 uv；也可以用 python3 -m build && twine upload dist/*"
+    step "构建并上传 PyPI（${PUBLISHER}）"
+    command -v uv >/dev/null || die "构建产物需要 uv；没装 uv"
+    if [ "$PUBLISHER" = "twine" ]; then
+        command -v twine >/dev/null || die "PUBLISHER=twine 但没装 twine"
+    fi
     rm -rf dist
     uv build
-    uv publish   # 需要 UV_PUBLISH_TOKEN（或 keyring 里已有 PyPI 凭据）
+    case "$PUBLISHER" in
+        uv) uv publish ;;
+        twine) twine upload --non-interactive dist/* ;;
+    esac
 fi
 
 step "完成"
 echo "   v$VERSION 已在本地提交并打 tag。"
 [ "$PUSH" = 1 ] || echo "   还没推远端：git push origin main --tags"
-[ "$PUBLISH" = 1 ] || echo "   还没发 PyPI：uv build && uv publish"
+[ "$PUBLISH" = 1 ] || echo "   还没发 PyPI：构建后用 twine 或 uv 上传（下次发版可加 --publish）"
