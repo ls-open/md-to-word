@@ -242,6 +242,19 @@ def test_yaml_errors_carry_a_line_and_non_mapping_is_reported(tmp_path: Path) ->
     assert any(d.code == "gate.yaml.not_mapping" for d in report.diagnostics)
 
 
+def test_non_mapping_yaml_is_reported_even_without_preflight(tmp_path: Path, capsys) -> None:
+    """`--no-check` 关掉预检后，导出自己的 YAML 读取也要给同一条结论，
+    不能换一套措辞，更不能在列表上崩成内部错误。"""
+    listed = _md(tmp_path, "---\n- a\n- b\n---\n\n# 一\n\n正文。\n", "list.md")
+    code = main([str(listed), "--no-check", "--preset", "zh-academic", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    codes = [d["code"] for d in payload["diagnostics"]]
+    assert code == 1
+    assert "gate.yaml.not_mapping" in codes, codes
+    assert "cli.internal_error" not in codes, codes
+    assert any("键: 值" in error for error in payload["errors"]), payload["errors"]
+
+
 def test_duplicate_bibliography_keys_are_rejected(tmp_path: Path) -> None:
     (tmp_path / "r.bib").write_text(
         "@article{dup, author={A B}, title={First}, journal={J}, year={2020}}\n"

@@ -1443,11 +1443,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Could not parse the format file ({path}): {err}",
     ),
     "gate.yaml.parse_failed": ("YAML frontmatter 解析失败: {err}", "Could not parse the YAML frontmatter: {err}"),
-    "gate.yaml.top_level": (
-        "顶层必须是键值对（如 `bibliography: refs.bib`），不能是列表或单个值",
-        "the top level must be a mapping of keys to values (like `bibliography: refs.bib`), "
-        "not a list or a single value",
-    ),
     "gate.yaml.duplicate_key": (
         "行 {line}: YAML 键 `{key}` 重复（前一次在第 {first} 行）；解析只保留后一条。",
         "Line {line}: YAML key `{key}` is duplicated (first at line {first}); only the last one survives.",

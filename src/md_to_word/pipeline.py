@@ -831,9 +831,11 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                       t("gate.yaml.parse_failed", res.lang, err=exc), file=in_p)
                 return res
             if loaded is not None and not isinstance(loaded, dict):
-                _fail(res, "gate.yaml.parse_failed",
-                      t("gate.yaml.parse_failed", res.lang,
-                        err=t("gate.yaml.top_level", res.lang)), file=in_p)
+                # 与预检用同一条文案：`--no-check` 时这里是唯一的报错出口，
+                # 两套措辞会让同一个问题在不同开关下有不同说法。
+                _fail(res, "gate.yaml.not_mapping",
+                      t("gate.yaml.not_mapping", res.lang,
+                        kind=type(loaded).__name__), file=in_p)
                 return res
             fm_data = loaded or {}
 
