@@ -173,8 +173,6 @@ To style a paragraph, start the line with `%% Style Name content`:
 %% Keywords Keywords: alpha; beta; gamma
 ```
 
-- Use an **ASCII space** between `%%` and the style name; a full-width space (CJK input methods
-  produce them) is stopped by the pre-flight check with a message saying which one it is.
 - Symbol, style name and content on the same line; **one line is one paragraph and a blank line
   ends it**; there is no closing symbol — the same layout rule as `# Heading`.
 - Why headings can use a symbol and paragraphs cannot: there are only six heading levels, so the

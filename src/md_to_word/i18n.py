@@ -1840,12 +1840,6 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Line {line}: the `%%` style line has no space after the marker, so the whole line is printed "
         "as body text. Write `%% Style Name content`",
     ),
-    "gate.style_line.fullwidth_space": (
-        "行 {line}: `%%` 后面跟的是全角空格或制表符，只认半角空格。"
-        "把 `%%` 和样式名之间的空白删掉重打一个英文空格：`%% 样式名 内容`",
-        "Line {line}: the `%%` marker is followed by a full-width space or tab; only an ASCII space "
-        "works. Retype the gap with an English space: `%% Style Name content`",
-    ),
     "gate.yaml.unknown": (
         "YAML 里有认不出的键「{keys}」，会被忽略——它们不会让版面发生任何变化。"
         "只认 bibliography、csl、crossref、link-citations",
@@ -2155,8 +2149,8 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "nested blockquotes are not supported; turn the inner quote into a normal paragraph",
     ),
     "gate.dialect.wide_style_marker": (
-        "样式行的 `%%` 必须是半角；全角 `％％` 会被当成正文印出来",
-        "the `%%` of a style line must be half-width; the full-width `％％` is printed as body text",
+        "样式行开头是全角 `％％`，请改用半角 `%% 样式名 内容`",
+        "the style line starts with full-width `％％`; use the half-width `%% Style Name content`",
     ),
     "gate.dialect.indented_code": (
         "不支持四空格缩进的代码块；代码一律用 ``` 围栏包起来",

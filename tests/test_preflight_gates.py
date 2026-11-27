@@ -575,22 +575,37 @@ def test_syntax_demos_inside_code_do_not_block(
     assert report.valid, f"{why}被当成真内容拦下了：{report.errors}"
 
 
-def test_fullwidth_space_after_the_marker_is_not_reported_as_missing(tmp_path: Path) -> None:
-    """中文输入法打出的全角空格不是「少了空格」：对着一个空格喊少空格，
-    用户只会更困惑。两种写法各报各的。"""
+def test_any_whitespace_after_the_marker_is_accepted(tmp_path: Path) -> None:
+    """`%%` 后的空白不挑种类：全角空格、制表符与半角空格走同一套解析。
+
+    中文输入法打全角空格是常态，这里没有歧义；专门报一种「你以为你打了空格」的错，
+    只会让人对着一个空格发懵。真正的写法错误（一个空白都没有）仍然拦。
+    """
+    from md_to_word.preprocessor.blocks import split_style_line
+
+    assert split_style_line("%%　文档标题 标题") == ("文档标题", "标题")
+    assert split_style_line("%%\t文档标题 标题") == ("文档标题", "标题")
+    assert split_style_line("%%   文档标题 标题") == ("文档标题", "标题")
+
     manuscript = tmp_path / "manuscript.md"
     manuscript.write_text("%%　文档标题 标题\n\n正文。\n", encoding="utf-8")
     report = validate_manuscript(manuscript, spec_path=PRESET)
-    codes = [d.code for d in report.diagnostics]
-    assert "gate.style_line.fullwidth_space" in codes, report.errors
-    assert "gate.style_line.no_space" not in codes
-    assert any("全角空格" in e for e in report.errors), report.errors
+    assert report.valid, report.errors
 
     manuscript.write_text("%%文档标题 标题\n\n正文。\n", encoding="utf-8")
     report = validate_manuscript(manuscript, spec_path=PRESET)
     codes = [d.code for d in report.diagnostics]
     assert "gate.style_line.no_space" in codes, report.errors
-    assert "gate.style_line.fullwidth_space" not in codes
+
+
+def test_indented_style_line_without_space_is_still_blocked(tmp_path: Path) -> None:
+    """读取器接受行首缩进，预检也必须先去掉缩进再判断；
+    只看第 0 列时，`  %%文档标题` 会带着两个百分号原样印进正文。"""
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text("  %%文档标题 标题\n\n正文。\n", encoding="utf-8")
+    report = validate_manuscript(manuscript, spec_path=PRESET)
+    codes = [d.code for d in report.diagnostics]
+    assert "gate.style_line.no_space" in codes, report.errors
 
 
 def test_a_real_missing_image_is_still_blocked(tmp_path: Path) -> None:

@@ -16,8 +16,9 @@ import re
 from md_to_word.i18n import style_examples, t
 from md_to_word.spec.constants import STYLE_MAP
 
-# `%%` 后必须有一个空格，再接样式名与正文
-_STYLE_LINE_RE = re.compile(r"^(?P<indent>[ \t]*)%%[ \t]+(?P<rest>\S.*)$")
+# `%%` 后必须有空白，再接样式名与正文。空白不挑种类：半角空格、制表符、中文输入法
+# 打出的全角空格（U+3000）都收——这里没有歧义，样式名本身不含空白。
+_STYLE_LINE_RE = re.compile(r"^(?P<indent>\s*)%%\s+(?P<rest>\S.*)$")
 
 # 标题类由 `#` 的个数决定，不接受第二套入口
 _HEADING_STYLES = {"Heading 1", "Heading 2", "Heading 3", "Heading 4", "Heading 5", "Heading 6"}
