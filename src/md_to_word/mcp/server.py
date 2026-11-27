@@ -432,6 +432,10 @@ def create_mcp_server() -> Any:
                 "returncode": result.returncode,
                 "output_docx": str(out_docx) if success else None,
                 "output_pdf": pdf_str,
+                # `returncode == 3` 只说「PDF 没做成」，不说为什么。CLI 的 `--json`
+                # 已经把这个原因码交出去了（`no-word` / `word-error` / …），MCP 不能
+                # 只留一个状态码让 Agent 去猜——同一个引擎的两个出口要能对上。
+                "pdf_skip_reason": result.pdf_skip_reason or None,
                 "file_size_bytes": file_size,
                 "format_source": format_source,
                 "notice": notice,
@@ -452,6 +456,7 @@ def create_mcp_server() -> Any:
                 "returncode": 1,
                 "output_docx": None,
                 "output_pdf": None,
+                "pdf_skip_reason": None,
                 "file_size_bytes": None,
                 "format_source": "format" if fmt_path else "none",
                 "notice": "",

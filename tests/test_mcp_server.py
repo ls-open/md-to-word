@@ -152,6 +152,26 @@ def test_mcp_compile_markdown_success(tmp_path: Path):
     asyncio.run(_run())
 
 
+def test_mcp_reports_why_the_pdf_was_skipped(tmp_path: Path):
+    """PDF 没渲染时 CLI 给 `pdf_skip_reason`，MCP 也必须有：只有 `returncode=3`
+    的话，Agent 无法区分「本机没 Word」和「Word 渲染失败」，也就没法决定要不要重试。"""
+    async def _run():
+        server = create_mcp_server()
+        res = await server.call_tool("compile_markdown", {
+            "markdown": "# 一\n\n正文。\n",
+            "output_path": str(tmp_path / "o.docx"),
+            "preset": "zh-academic",
+            "generate_pdf": True,
+        })
+        assert not res.is_error
+        data = res.structured_content
+        assert data["success"] is True
+        assert data["returncode"] == 3
+        assert data["output_pdf"] is None
+        assert data["pdf_skip_reason"] == "disabled in unit tests"
+    asyncio.run(_run())
+
+
 def test_mcp_guide_is_the_packaged_guide():
     """MCP 不能再维护另一份契约；get_guide 必须原样返回包内 guide.md。"""
     async def _run():
