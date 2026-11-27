@@ -693,19 +693,20 @@ def create_mcp_server() -> Any:
             ))
         sections: list[str] = []
         count = None
-        if report.ok:
-            try:
-                from docx import Document
+        # 即使因兼容模式被判 blocking，只要文件还能打开，就把节数和文档级设置
+        # 一并返回，用户才能一次改齐；真正读不了的在这里兜底成 notes。
+        try:
+            from docx import Document
 
-                doc = Document(str(path))
-                count = section_count(path)
-                sections = section_outline(path, message_lang)
-                mirror = _effective_mirror(doc.settings.element)
-                punctuation = _effective_punctuation(doc.settings.element)
-                even = _effective_even(doc.settings.element)
-                proofing = _east_asia_lang(doc.styles.element)
-            except Exception as exc:  # 结构坏到读不出节：体检已经给过原因，这里不重复抛
-                report.notes.append(str(exc))
+            doc = Document(str(path))
+            count = section_count(path)
+            sections = section_outline(path, message_lang)
+            mirror = _effective_mirror(doc.settings.element)
+            punctuation = _effective_punctuation(doc.settings.element)
+            even = _effective_even(doc.settings.element)
+            proofing = _east_asia_lang(doc.styles.element)
+        except Exception as exc:  # 结构坏到读不出节：体检已经给过原因，这里不重复抛
+            report.notes.append(str(exc))
         return {
             "ok": report.ok,
             "path": str(path),

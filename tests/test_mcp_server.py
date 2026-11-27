@@ -119,6 +119,12 @@ def test_mcp_inspect_shows_a_compat_mismatch(tmp_path: Path) -> None:
         assert payload["compat_mode"] == "14"
         assert payload["ok"] is False
         assert any("compatibility" in b.lower() for b in payload["blocking"]), payload["blocking"]
+        # 文件本身可读：阻断归阻断，节数和文档级设置仍要返回，方便一次改齐。
+        assert payload["section_count"] == 1
+        assert len(payload["sections"]) == 1
+        assert payload["mirror_margins"] is False
+        assert payload["punctuation_compression"] == "doNotCompress"
+        assert payload["odd_even_headers"] is False
 
     asyncio.run(_run())
 
