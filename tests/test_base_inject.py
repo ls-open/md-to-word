@@ -78,6 +78,25 @@ def test_rejects_a_macro_document(tmp_path: Path) -> None:
     assert any("宏" in msg for msg in report.blocking)
 
 
+@pytest.mark.parametrize("part", ["word/document.xml", "word/styles.xml", "word/header1.xml"])
+def test_a_base_with_broken_xml_is_reported_not_crashed(tmp_path: Path, part: str) -> None:
+    """zip 能打开、某个 XML 部件截断：这是模板坏了，不是工具缺陷。
+    不拦的话，后面读 XML 的每一步都会抛 XMLSyntaxError，最后被报成 internal_error。"""
+    base = _school_base(tmp_path / "base.docx", sections=2)
+    with zipfile.ZipFile(base) as z:
+        members = {n: z.read(n) for n in z.namelist()}
+    assert part in members, f"测试底模里没有 {part}"
+    members[part] = members[part][:200]
+    with zipfile.ZipFile(base, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in members.items():
+            z.writestr(name, blob)
+
+    report = inspect_base(base, 1)
+
+    assert not report.ok
+    assert any("打不开" in msg for msg in report.blocking), report.blocking
+
+
 @pytest.mark.parametrize("suffix", [".docm", ".doc", ".rtf"])
 def test_rejects_a_suffix_it_cannot_handle(tmp_path: Path, suffix: str) -> None:
     """旧版 .doc 与宏文档都是真实会遇到的底模；拒绝时要说清“另存为 .docx”，

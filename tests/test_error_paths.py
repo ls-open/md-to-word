@@ -48,6 +48,33 @@ def test_input_pointing_at_a_directory_is_not_reported_as_missing(
     assert "不存在" not in payload["errors"][0]
 
 
+def test_a_corrupt_base_template_is_not_an_internal_error(workdir: Path, capsys) -> None:
+    """底模的 document.xml 坏了是“文件的问题”，不能报成“工具缺陷请报 traceback”。"""
+    import json
+    import zipfile
+
+    source = REPO_ROOT / "src/md_to_word/resources/pure_modern_base.docx"
+    corrupt = workdir / "base.docx"
+    with zipfile.ZipFile(source) as zin, zipfile.ZipFile(corrupt, "w") as zout:
+        for name in zin.namelist():
+            data = zin.read(name)
+            if name == "word/document.xml":
+                data = data[:200]
+            zout.writestr(name, data)
+
+    code = main([
+        str(workdir / "ok.md"),
+        "--base-template", str(corrupt),
+        "--keep-until", "版权使用授权书",
+        "--json",
+    ])
+    payload = json.loads(capsys.readouterr().out)
+    codes = [d["code"] for d in payload["diagnostics"]]
+    assert code == EXIT_ERROR
+    assert "pipeline.base_failed" in codes, codes
+    assert "cli.internal_error" not in codes, codes
+
+
 def test_output_pointing_at_a_directory_is_reported(workdir: Path, capsys) -> None:
     (workdir / "outdir").mkdir()
 
