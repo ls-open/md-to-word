@@ -139,6 +139,8 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
 
 ---
 
-### License
+### License and third-party notices
 
-[MIT License](LICENSE). Built-in CSL styles from [citation-style-language/styles](https://github.com/citation-style-language/styles) (CC BY-SA 3.0).
+This project is [MIT licensed](LICENSE).
+
+The bundled CSL citation engine is derived from [citeproc-py 0.12.2](https://github.com/brechtm/citeproc-py) and redistributed under the BSD-2-Clause-Views license; local changes live in `src/md_to_word/csl/`, and the upstream license text is in [src/md_to_word/csl/LICENSE](src/md_to_word/csl/LICENSE). Built-in CSL styles come from [citation-style-language/styles](https://github.com/citation-style-language/styles), and CSL locales from [citation-style-language/locales](https://github.com/citation-style-language/locales), both CC BY-SA 3.0. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the complete list and licenses.

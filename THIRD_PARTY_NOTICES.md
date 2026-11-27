@@ -4,6 +4,10 @@ This project is MIT-licensed. It redistributes the following third-party
 components; their licenses apply to those components, not to the project as a
 whole.
 
+Runtime dependencies installed separately from PyPI (python-docx, lxml, PyYAML,
+latex2mathml, pypdfium2, and the optional `mcp`) are not vendored; each keeps
+its own license.
+
 ## citeproc-py 0.12.2
 
 - Copyright 2011–2013 Brecht Machiels. All rights reserved.

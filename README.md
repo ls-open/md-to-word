@@ -144,6 +144,8 @@ npx skills add ls-open/md-to-word
 
 ---
 
-### 许可
+### 许可与第三方声明
 
-[MIT License](LICENSE)。内置 CSL 样式来自 [citation-style-language/styles](https://github.com/citation-style-language/styles)（CC BY-SA 3.0）。
+本项目采用 [MIT License](LICENSE)。
+
+内置 CSL 引文引擎派生自 [citeproc-py 0.12.2](https://github.com/brechtm/citeproc-py)，按 BSD-2-Clause-Views 许可再分发；本地改动已合入 `src/md_to_word/csl/`，上游许可全文见 [src/md_to_word/csl/LICENSE](src/md_to_word/csl/LICENSE)。内置 CSL 样式来自 [citation-style-language/styles](https://github.com/citation-style-language/styles)，CSL locale 来自 [citation-style-language/locales](https://github.com/citation-style-language/locales)，均为 CC BY-SA 3.0。完整清单与许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
