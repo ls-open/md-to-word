@@ -11,33 +11,10 @@ from xml.sax.saxutils import escape
 
 from lxml import etree
 from md_to_word.i18n import t
+from md_to_word.template.core import _SECTPR_ORDER
 
 _NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _W = "{" + _NS + "}"
-
-_SECTPR_ORDER = (
-    "headerReference",
-    "footerReference",
-    "footnotePr",
-    "endnotePr",
-    "type",
-    "pgSz",
-    "pgMar",
-    "paperSrc",
-    "pgBorders",
-    "lnNumType",
-    "pgNumType",
-    "cols",
-    "formProt",
-    "vAlign",
-    "noEndnote",
-    "titlePg",
-    "textDirection",
-    "bidi",
-    "rtlGutter",
-    "docGrid",
-    "printerSettings",
-)
 
 _MAX_TOC_DEPTH = 9
 

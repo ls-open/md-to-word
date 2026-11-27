@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 from docx.enum.style import WD_STYLE_TYPE
 from docx.shared import Pt
 from lxml import etree
@@ -19,19 +17,15 @@ from md_to_word.utils.skill_utils import (
 logger = get_logger(__name__)
 
 
+def join_reasons(parts, lang: str = "zh") -> str:
+    """把若干条原因拼成一句：分隔符跟着消息语言走。"""
+    return ("; " if lang == "en" else "；").join(parts)
+
+
 def page_size_twips(page_size: str) -> tuple:
     """纸张 → (宽, 高) twips（对账侧与写入侧共用，避免各写一份常量）。"""
     w_cm, h_cm = page_size_cm(page_size)
     return int(round(w_cm * TWIPS_PER_CM)), int(round(h_cm * TWIPS_PER_CM))
-
-
-# ── 页眉/页脚内容里可用的域标记（唯一写法；未知标记报错，不静默漏掉）──
-#   {页码}           → PAGE 域（当前页）
-#   {总页数}         → NUMPAGES 域
-#   {样式标题:S}     → STYLEREF 域，取当前页上第一个 S 样式段落的文字
-#                      （如 {样式标题:Heading 1} = 当前章标题）
-_RE_DECOR_TOKEN = re.compile(r'\{([^{}]*)\}')
-_RE_STYLEREF = re.compile(r'^样式标题\s*[:：]\s*(.+?)\s*$')
 
 
 def ensure_rpr(element):
@@ -66,7 +60,8 @@ _TBLPR_ORDER = ['tblStyle', 'tblpPr', 'tblOverlap', 'bidiVisual', 'tblStyleRowBa
                 'shd', 'tblLayout', 'tblCellMar', 'tblLook', 'tblCaption', 'tblDescription']
 _TCPR_ORDER = ['cnfStyle', 'tcW', 'gridSpan', 'hMerge', 'vMerge', 'tcBorders', 'shd', 'noWrap',
                'tcMar', 'textDirection', 'tcFitText', 'vAlign', 'hideMark']
-_SECTPR_ORDER = ['footnotePr', 'endnotePr', 'type', 'pgSz', 'pgMar', 'paperSrc', 'pgBorders',
+_SECTPR_ORDER = ['headerReference', 'footerReference',
+                 'footnotePr', 'endnotePr', 'type', 'pgSz', 'pgMar', 'paperSrc', 'pgBorders',
                  'lnNumType', 'pgNumType', 'cols', 'formProt', 'vAlign', 'noEndnote',
                  'titlePg', 'textDirection', 'bidi', 'rtlGutter', 'docGrid', 'printerSettings']
 _SETTINGS_ORDER = [
@@ -93,10 +88,19 @@ BOTTOM_BORDER_DEFAULT_PT = {'single': 0.5, 'double': 1.5, 'even': 0.5,
 # ── 版心宽度（twips）──
 # 目录的「点线制表位」要把页码顶到版心右边界，位置得由纸张与页边距算，不能写死：
 # 换纸张或改页边距后，写死的制表位会顶出边界或提前断线。
+def content_width(width, left, right, gutter=0):
+    """版心宽度：纸张宽 − 左边距 − 右边距 − 装订线。
+
+    只统一公式，单位与数据源由调用方负责（写入/读出侧是 twips，校验侧是 cm）。
+    """
+    return width - left - right - (gutter or 0)
+
+
 def _content_width_twips(page_size, margins, gutter_cm=None) -> int:
     """正文可用宽度（twips）：纸宽 - 左边距 - 右边距 - 原生装订线。"""
     width_cm = page_size_cm(page_size)[0]
-    return int(round((width_cm - margins['left'] - margins['right'] - (gutter_cm or 0)) * TWIPS_PER_CM))
+    return int(round(content_width(
+        width_cm, margins['left'], margins['right'], gutter_cm) * TWIPS_PER_CM))
 
 
 def body_line_spacing_multiple(styles) -> float:

@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from lxml import etree
 
+from md_to_word.utils.xml import local_name
+
 CSL_NS = "http://purl.org/net/xbiblio/csl"
 
 MODEL = {
@@ -59,14 +61,10 @@ class CslFeatureError(ValueError):
         super().__init__("; ".join(errors))
 
 
-def _local(element) -> str:
-    return etree.QName(element).localname
-
-
 def _ancestor(element, name: str) -> bool:
     return any(
         isinstance(node.tag, str)
-        and etree.QName(node).localname == name
+        and local_name(node) == name
         and etree.QName(node).namespace == CSL_NS
         for node in element.iterancestors()
     )
@@ -106,7 +104,7 @@ def check_style(style) -> None:
             errors.append(f"unsupported CSL element <{name}>")
 
         for attr, value in element.attrib.items():
-            attr_name = etree.QName(attr).localname
+            attr_name = local_name(attr)
             if attr_name in UNSUPPORTED_ATTRIBUTES:
                 errors.append(f"unsupported attribute {name}@{attr_name}={value!r}")
             elif (

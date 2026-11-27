@@ -12,6 +12,8 @@ LINE_BREAK = '\u2028'
 SEAM_PUNCTUATION = frozenset('.,;:!?')
 # Punctuation that already closes a clause or sentence. A period appended after
 # one of these is redundant: `2020;` + `. ` must not become `2020;.`.
+# 与后处理里的 `_TERMINAL_PUNCT` 不同：这里多一个 `;`，因为它在拼接时就吃掉布局
+# 补的句点（MDPI 的 `2020;` + `.`）；后处理只处理输出末尾的句末标点。
 TERMINAL_PUNCTUATION = frozenset('.!?:;')
 
 

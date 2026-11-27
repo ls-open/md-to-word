@@ -15,6 +15,7 @@ from collections import Counter
 from lxml import etree
 
 from md_to_word.i18n import t
+from md_to_word.utils.xml import local_name as _local
 
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -35,10 +36,6 @@ class UnsupportedMath(NotImplementedError):
 
 def _m(tag: str) -> str:
     return f"{{{M_NS}}}{tag}"
-
-
-def _local(element) -> str:
-    return etree.QName(element).localname
 
 
 def _el(tag: str, *children, **attrs):

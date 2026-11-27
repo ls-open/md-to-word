@@ -21,9 +21,8 @@ from pathlib import Path
 from lxml import etree
 
 from md_to_word.i18n import t
+from md_to_word.template.core import join_reasons as _join
 from md_to_word.visual_qa import word_pdf
-
-W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
@@ -66,11 +65,6 @@ _EMPTY = {
 # 比对封面时允许的坐标误差（磅）。Word 两次渲染同一份文件不会差，这里留一点余量
 # 吸收 PDF 坐标变换与浮点取整。
 _TOL = 0.5
-
-
-def _join(parts, lang: str = "zh") -> str:
-    """把若干条原因拼成一句：分隔符跟着消息语言走。"""
-    return ("; " if lang == "en" else "；").join(parts)
 
 
 class BaseTemplateError(Exception):

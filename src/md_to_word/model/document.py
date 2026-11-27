@@ -272,6 +272,3 @@ class Document:
 
     def headings(self) -> list[Heading]:
         return [b for b in self.blocks if isinstance(b, Heading)]
-
-    def styled(self, style: str) -> list[Paragraph]:
-        return [b for b in self.blocks if isinstance(b, Paragraph) and b.style == style]

@@ -30,7 +30,7 @@ from md_to_word.template.checks import _check_required_fields
 from md_to_word.template.core import (
     TemplateError, _SECTPR_ORDER, _props_from_req,
     apply_mirror_margins, apply_proofing_language, apply_punctuation_compression,
-    doc_grid_pitch, ensure_ordered_child, logger, modify_style,
+    content_width, doc_grid_pitch, ensure_ordered_child, logger, modify_style,
 )
 from md_to_word.template.decor import apply_page_decorations, write_header_styles_meta
 from md_to_word.template.footnotes import apply_footnote_format
@@ -237,7 +237,7 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
             grid.set(W('linePitch'), str(doc_grid_pitch(spec, margins)))
         w_cm = round(pg_w.inches * 2.54, 1)
         h_cm = round(pg_h.inches * 2.54, 1)
-        content_w = round(w_cm - margins['left'] - margins['right'] - (spec.gutter_cm or 0), 1)
+        content_w = round(content_width(w_cm, margins['left'], margins['right'], spec.gutter_cm), 1)
         decor_cm = ''
         if spec.header_distance is not None or spec.footer_distance is not None:
             decor_cm = (f'，页眉距边界 {spec.header_distance}cm 页脚距边界 {spec.footer_distance}cm')

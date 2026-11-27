@@ -14,6 +14,8 @@ from .string import (
     LINE_BREAK, SEAM_PUNCTUATION, MixedString, String, case_text, join,
     normalize_seam,
 )
+from ..utils.names import initialize_given
+from ..utils.pages import pad_expanded_page_end
 
 LANG_KEY = '{http://www.w3.org/XML/1998/namespace}lang'
 
@@ -1071,9 +1073,7 @@ class FormatNumber:
 
         if range_format == 'expanded':
             # `321-8` → `321-328`：把起始页的公共前缀补到末页。
-            if len(last) < len(first):
-                return first[:len(first) - len(last)] + last
-            return last
+            return pad_expanded_page_end(first, last)
         if range_format == 'minimal':
             if len(first) != len(last) or common == len(last):
                 return last
@@ -1826,27 +1826,8 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
         if not given.strip():
             return given
 
-        if self.get_option('initialize-with-hyphen', context):
-            hyphen_parts = given.split('-')
-        else:
-            hyphen_parts = [given.replace('-', ' ')]
-
-        result_parts = []
-        for hyphen_part in hyphen_parts:
-            parts = hyphen_part.replace('.', ' ').split()
-            hyphen_result = ''
-            group = []
-            for part in parts:
-                if part[0].isupper():
-                    group.append(part[0])
-                else:
-                    # don't initialize particles (which aren't capitalized)
-                    hyphen_result += mark.join(group) + mark + ' ' + part + ' '
-                    group = []
-            hyphen_result += mark.join(group) + mark
-            hyphen_result = ' '.join(hyphen_result.split())
-            result_parts.append(hyphen_result)
-        return '-'.join(result_parts)
+        return initialize_given(
+            given, mark, self.get_option('initialize-with-hyphen', context))
 
 
 class Name_Part(CitationStylesElement, Formatted, Affixed, TextCased):

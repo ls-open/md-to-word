@@ -37,7 +37,7 @@ from md_to_word.spec.parser import parse_format
 from md_to_word.preprocessor.blocks import split_style_line, style_line_issues, style_line_names
 from md_to_word.preprocessor.blocks import resolve_style_name
 from md_to_word.template.checks import _has_heading_styleref, missing_styles_for_body
-from md_to_word.template.core import max_doc_grid_lines
+from md_to_word.template.core import content_width, max_doc_grid_lines
 from md_to_word.utils.pdf_figure import PDF_SUFFIX, RASTER_SUFFIXES, PdfFigureError, page_count
 from md_to_word.utils.textio import TextDecodeError, read_text_file
 
@@ -269,7 +269,7 @@ def content_width_cm(spec: TemplateSpec) -> Optional[float]:
     if not spec.margins:
         return None
     width = page_size_cm(spec.page_size)[0]
-    return width - spec.margins["left"] - spec.margins["right"] - (spec.gutter_cm or 0)
+    return content_width(width, spec.margins["left"], spec.margins["right"], spec.gutter_cm)
 
 
 def required_style_issues(

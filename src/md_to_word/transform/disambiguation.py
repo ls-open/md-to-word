@@ -24,6 +24,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from md_to_word.utils.names import initialize_given
+
 
 @dataclass(frozen=True)
 class Variant:
@@ -85,21 +87,7 @@ def initials(given: str, mark: str = ". ", hyphen: bool = True) -> str:
     """
     if not given.strip():
         return given
-    chunks = given.split('-') if hyphen else [given.replace('-', ' ')]
-    results = []
-    for chunk in chunks:
-        words = chunk.replace('.', ' ').split()
-        text = ''
-        group = []
-        for word in words:
-            if word[0].isupper():
-                group.append(word[0])
-            else:
-                text += mark.join(group) + mark + ' ' + word + ' '
-                group = []
-        text += mark.join(group) + mark
-        results.append(' '.join(text.split()))
-    rendered = '-'.join(results)
+    rendered = initialize_given(given, mark, hyphen)
     return rendered if rendered.endswith(' ') else rendered + ' '
 
 

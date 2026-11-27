@@ -51,7 +51,7 @@ from md_to_word.template.checks import (
     TOC_STYLE_GROUP,
     _LINKED_SECTION_TITLES,
 )
-from md_to_word.template.core import doc_grid_lines_from_pitch
+from md_to_word.template.core import content_width, doc_grid_lines_from_pitch
 from md_to_word.template.decor import read_header_styles_meta
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
@@ -246,7 +246,7 @@ def _content_width_twips(ref: Ref):
     def tw(el, name, default=0):
         v = el.get(q(name))
         return int(v) if v is not None else default
-    return tw(sz, 'w') - tw(mar, 'left') - tw(mar, 'right') - tw(mar, 'gutter')
+    return content_width(tw(sz, 'w'), tw(mar, 'left'), tw(mar, 'right'), tw(mar, 'gutter'))
 
 
 def clauses_for(ref: Ref, sid: str) -> tuple:

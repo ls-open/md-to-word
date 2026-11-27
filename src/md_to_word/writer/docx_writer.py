@@ -55,6 +55,7 @@ from md_to_word.template.core import (
     _PPR_ORDER,
     _RPR_ORDER,
     _STYLE_ORDER,
+    content_width,
     ensure_ordered_child,
 )
 from md_to_word.template.decor import read_header_styles_meta, write_header_styles_meta
@@ -450,11 +451,11 @@ class _Writer:
         margins = sect.find(qn("w:pgMar"))
         try:
             width = int(size.get(qn("w:w")))
-            return (
-                width
-                - int(margins.get(qn("w:left")))
-                - int(margins.get(qn("w:right")))
-                - int(margins.get(qn("w:gutter")) or 0)
+            return content_width(
+                width,
+                int(margins.get(qn("w:left"))),
+                int(margins.get(qn("w:right"))),
+                int(margins.get(qn("w:gutter")) or 0),
             )
         except (AttributeError, TypeError, ValueError) as exc:
             raise ValueError("正文 w:sectPr 缺少纸张或页边距，无法计算版心宽度") from exc

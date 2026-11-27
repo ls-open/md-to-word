@@ -7,8 +7,8 @@ import re
 
 from lxml import etree
 
-from md_to_word.i18n import t
-from md_to_word.spec.constants import ROW_NAME_EN, STYLE_CN, STYLE_MAP, W
+from md_to_word.i18n import style_name as _style_name, t
+from md_to_word.spec.constants import ROW_NAME_EN, STYLE_MAP, W
 from md_to_word.template.core import _find_style, logger
 from md_to_word.utils.skill_utils import TOC_MARKER_RE
 
@@ -157,11 +157,6 @@ FIELD_KEYS = (
 )
 
 
-def _style_label(style_name: str, lang: str) -> str:
-    """样式在诊断里的称呼：中文用词表里的中文名（沿用既有写法），英文用正典名。"""
-    return style_name if lang == "en" else STYLE_CN.get(style_name, style_name)
-
-
 def _row_label(row: str, lang: str) -> str:
     """要求文件「行名」的英文回显：先查正典名（页眉 → Header），再查表格配置行（表格 → Table）。"""
     return row if lang != "en" else (STYLE_MAP.get(row) or ROW_NAME_EN.get(row) or row)
@@ -197,7 +192,7 @@ def _check_linkage_fields(spec, lang: str = "zh") -> list[str]:
         req = req_by_style.get(style_name)
         if req is None:
             continue
-        alias = req.get('alias') or _style_label(style_name, lang)
+        alias = req.get('alias') or _style_name(style_name, lang)
         if req.get('join_toc') is False and req.get('join_header') is True:
             errors.append(t('template.linkage.conflict_no_toc_join_header', lang,
                             alias=alias, style=style_name))
@@ -260,7 +255,7 @@ def _check_required_fields(
     # 检查用户声明了但非无条件必选的样式（如二~六级标题、摘要、参考文献、页眉页脚、目录等）：声明了就必须全字段显式覆盖
     for req in spec.styles:
         style_name = req['style_name']
-        alias = req.get('alias') or _style_label(style_name, lang)
+        alias = req.get('alias') or _style_name(style_name, lang)
         if style_name in REQUIRED_FIELDS_BY_STYLE and style_name not in REQUIRED_STYLES:
             required_fields = REQUIRED_FIELDS_BY_STYLE[style_name]
             for fname in required_fields:
@@ -275,7 +270,7 @@ def _check_required_fields(
         for s_name, s_alias in TOC_STYLE_GROUP.items():
             if s_name not in req_by_style:
                 missing_styles.append((s_name, t('template.style.toc_group', lang,
-                                                  name=_style_label(s_name, lang))))
+                                                  name=_style_name(s_name, lang))))
 
     # 条件成套必填 1b：目录四级/五级可选，但声明了第 n 级就得连着声明到第 n-1 级
     for level, (s_name, s_alias) in TOC_EXTRA_LEVELS.items():
@@ -285,7 +280,7 @@ def _check_required_fields(
                 missing_styles.append((prev_name, t(
                     'template.style.toc_prev_level', lang,
                     name=prev_name if lang == 'en' else prev_alias,
-                    this=_style_label(s_name, lang),
+                    this=_style_name(s_name, lang),
                 )))
 
     # 条件成套必填 2：若声明了「表格：」或「表头：」，则表格、表头、紧凑（单元格文字）三者必须配齐
@@ -296,26 +291,26 @@ def _check_required_fields(
             missing_rows.append(('表头', 'template.example.table_header'))
         if 'Compact' not in req_by_style:
             missing_styles.append(('Compact', t('template.style.compact_group', lang,
-                                                name=_style_label('Compact', lang))))
+                                                name=_style_name('Compact', lang))))
 
     # 条件成套必填 3：图片与图片题注成套配齐
     if ('Captioned Figure' in req_by_style) != ('Image Caption' in req_by_style):
         if 'Captioned Figure' not in req_by_style:
             missing_styles.append(('Captioned Figure', t(
                 'template.style.figure_group', lang,
-                name=_style_label('Captioned Figure', lang))))
+                name=_style_name('Captioned Figure', lang))))
         else:
             missing_styles.append(('Image Caption', t(
                 'template.style.image_caption_group', lang,
-                name=_style_label('Image Caption', lang))))
+                name=_style_name('Image Caption', lang))))
 
     # 条件成套必填 4：写了摘要标题须配摘要正文；写了参考文献标题须配参考文献条目
     if 'Abstract Title' in req_by_style and 'Abstract' not in req_by_style:
         missing_styles.append(('Abstract', t('template.style.abstract_group', lang,
-                                             name=_style_label('Abstract', lang))))
+                                             name=_style_name('Abstract', lang))))
     if 'References Title' in req_by_style and 'Bibliography' not in req_by_style:
         missing_styles.append(('Bibliography', t('template.style.bibliography_group', lang,
-                                                 name=_style_label('Bibliography', lang))))
+                                                 name=_style_name('Bibliography', lang))))
 
     # 表头行（firstRow）字段完整性校验
     if spec.table_header:

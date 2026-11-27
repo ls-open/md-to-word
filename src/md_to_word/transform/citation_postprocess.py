@@ -14,6 +14,7 @@ from md_to_word.csl.formatter.segments import (
     merge_segments, replace_first, segments_text, slice_segments, style_at,
     to_segments,
 )
+from md_to_word.utils.pages import pad_expanded_page_end
 
 
 _NUMERIC_CITE_RE = re.compile(r"\[(\d+(?:\s*[,\-–]\s*\d+)+)\]")
@@ -91,6 +92,8 @@ def _collapse_numeric_segments(segments: list[tuple[str, dict]],
     ])
 
 
+# 句末终止标点，不含 `;`：`;` + `.` 的拼接在引擎侧由 `TERMINAL_PUNCTUATION`
+# 处理（见 csl/string.py），这里只兜住输出末尾的句末标点。
 _TERMINAL_PUNCT = ".!?:"
 _CLOSING_QUOTES = "”’\"'"
 # 半角句点跟在终止标点后面、且后面是空白或结尾——CSL 追加的 `suffix="."` 就是这种。
@@ -229,8 +232,7 @@ def _expand_range(value: str) -> str:
     """`33-5` → `33-35`（CSL 的 `page-range-format="expanded"`）。"""
     def repl(m: re.Match) -> str:
         start, end = m.group(1), m.group(2)
-        if len(end) < len(start):
-            end = start[: len(start) - len(end)] + end
+        end = pad_expanded_page_end(start, end)
         return f"{start}–{end}"
 
     return re.sub(r"(?<![\d.])(\d+)\s*[-–]\s*(\d+)(?![\d.])", repl, value)

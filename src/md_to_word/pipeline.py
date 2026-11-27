@@ -33,7 +33,7 @@ from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
 from md_to_word.status import EXIT_ERROR, EXIT_OK, EXIT_PDF_SKIPPED
-from md_to_word.template.core import TemplateError
+from md_to_word.template.core import TemplateError, join_reasons as _join
 from md_to_word.validator.check import validate_manuscript
 from md_to_word.visual_qa.word_pdf import render_pdf_via_word
 from md_to_word.utils.metadata import identifying_metadata, scrub_metadata
@@ -83,11 +83,6 @@ class ExportResult:
     def ok(self) -> bool:
         """docx 是否已经写出来了（`--pdf` 跳过不算失败）。"""
         return self.returncode in (EXIT_OK, EXIT_PDF_SKIPPED)
-
-
-def _join(parts, lang: str) -> str:
-    """拼多条原因：分隔符跟着消息语言走。"""
-    return ("; " if lang == "en" else "；").join(parts)
 
 
 def _fail(
@@ -140,34 +135,32 @@ def _inline_text(inline) -> str:
     return "".join(_inline_text(child) for child in getattr(inline, "children", ()) or ())
 
 
-def _first_texts(blocks, limit: int = 5) -> list[str]:
+def _first_texts(blocks, limit: int = 5, min_len: int = 4) -> list[str]:
     """正文前几段的开头，按顺序给一串。
 
     只用第一段会有个坑：很多学校模板的前置件里放了一份示例目录，「第一章 绪论」正好也
     在上面，拿它去定位正文起点就会落在封面上。多给几个候选，让验真那边把在前置件里出现
     过的剔掉，剩下的才用来定位。
+
+    `min_len` 是「算一段有效开头」的最短长度：定位封面页数的哨兵（`_first_text`）需要
+    接受不足 4 字的短首段，所以由调用方指定。
     """
     heads: list[str] = []
     for block in blocks:
         text = re.sub(r"\s+", "", "".join(
             _inline_text(inline) for inline in getattr(block, "inlines", []) or []))
-        if len(text) >= 4 and text[:12] not in heads:
+        if len(text) >= min_len and text[:12] not in heads:
             heads.append(text[:12])
         if len(heads) >= limit:
             break
-    return heads or [""]
+    return heads
 
 
 def _first_text(blocks) -> str:
     """取正文第一段的前几个字：既要能在 PDF 里定位，又不能出现在封面上。"""
-    for block in blocks:
-        # 整段拼起来再截，不是取第一个有字的行内节点：拼出来的哨兵更长，误撞封面的机会更小
-        text = re.sub(r"\s+", "", "".join(
-            _inline_text(inline) for inline in getattr(block, "inlines", []) or []
-        ))
-        if text:
-            return text[:12]
-    return ""
+    # 整段拼起来再截，不是取第一个有字的行内节点：拼出来的哨兵更长，误撞封面的机会更小
+    texts = _first_texts(blocks, limit=1, min_len=1)
+    return texts[0] if texts else ""
 
 
 def _note_encoding(
