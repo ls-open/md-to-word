@@ -75,7 +75,10 @@ A footnote carries another citation.[^note]
 def test_every_csl_survives_all_citation_contexts(style: str, tmp_path: Path) -> None:
     (tmp_path / "refs.bib").write_text(BIB, encoding="utf-8")
     md = tmp_path / "paper.md"
-    md.write_text(MANUSCRIPT.format(csl=CSL_DIR / style), encoding="utf-8")
+    # YAML 双引号里的 Windows 反斜杠是转义符；路径统一用 /，否则 front matter 会失效。
+    md.write_text(
+        MANUSCRIPT.format(csl=(CSL_DIR / style).as_posix()), encoding="utf-8"
+    )
     out = tmp_path / "paper.docx"
 
     result = run_export_pipeline(ExportOptions(
