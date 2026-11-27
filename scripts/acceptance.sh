@@ -36,6 +36,9 @@ step "命令行入口"
 "$BIN/md-to-word" --contract >/dev/null && echo "   --contract ok"
 "$BIN/md-to-word" --guide | head -1 | grep -q "Markdown" && echo "   --guide ok"
 "$BIN/md-to-word-template" --help >/dev/null && echo "   md-to-word-template ok"
+# MCP 的 SDK 是可选依赖，这里只验入口点接线：参数表在 import SDK 之前建好，
+# 没装 `[mcp]` 时 `--help` 也应当可用。
+"$BIN/md-to-word-mcp" --help >/dev/null && echo "   md-to-word-mcp ok"
 
 step "包内文档"
 SITE=$("$TMP/venv/bin/python" -c "import md_to_word, pathlib; print(pathlib.Path(md_to_word.__file__).parent)")

@@ -565,14 +565,21 @@ def validate_manuscript(
 
         # 1c. 未写 csl 的提示（默认样式由格式的校对语言决定；格式没写才看正文）
         if fm_data.get("bibliography") and not fm_data.get("csl"):
-            from md_to_word.config import default_csl_path_for_lang, lang_from_proofing, looks_chinese
-
-            effective = (lang_from_proofing(spec.proofing_lang) if spec else None) or (
-                "zh" if looks_chinese(md_text) else "en"
+            from md_to_word.config import (
+                default_csl_path,
+                default_csl_path_for_lang,
+                lang_from_proofing,
             )
+
+            # 两段判断只有一处政策：格式声明了校对语言就用它，否则按正文判——
+            # 后半段就是 `default_csl_path` 本身，不在这里再写一遍。
+            declared = lang_from_proofing(spec.proofing_lang) if spec else None
+            csl_name = (
+                default_csl_path_for_lang(declared) if declared else default_csl_path(md_text)
+            ).name
             report.warning(
                 "gate.csl.default",
-                t("gate.csl.default", lang, name=default_csl_path_for_lang(effective).name),
+                t("gate.csl.default", lang, name=csl_name),
                 line=None,
             )
 

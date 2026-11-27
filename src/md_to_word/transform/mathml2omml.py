@@ -18,7 +18,6 @@ from md_to_word.i18n import t
 from md_to_word.utils.xml import local_name as _local
 
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
-W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 # latex2mathml 把 sin/cos/exp 这类函数名落成 `<mi>`，而 OMML 的 `<mi>` 默认斜体。
 # 这些名字是排版里的“直立词”，不转正就会出现 `exp` 斜体、`\det` 直立两套。

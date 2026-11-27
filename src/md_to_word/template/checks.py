@@ -276,13 +276,13 @@ def _check_required_fields(
 
     # 条件成套必填 1：若声明了目录样式组中的任意一个，必须成套写齐全部 4 项
     if any(s in req_by_style for s in TOC_STYLE_GROUP):
-        for s_name, s_alias in TOC_STYLE_GROUP.items():
+        for s_name in TOC_STYLE_GROUP:
             if s_name not in req_by_style:
                 missing_styles.append((s_name, t('template.style.toc_group', lang,
                                                   name=_style_name(s_name, lang))))
 
     # 条件成套必填 1b：目录四级/五级可选，但声明了第 n 级就得连着声明到第 n-1 级
-    for level, (s_name, s_alias) in TOC_EXTRA_LEVELS.items():
+    for level, (s_name, _alias) in TOC_EXTRA_LEVELS.items():
         if s_name in req_by_style:
             prev_name, prev_alias = (f'TOC {level - 1}', f'目录{["", "一", "二", "三", "四"][level - 1]}级')
             if prev_name not in req_by_style:

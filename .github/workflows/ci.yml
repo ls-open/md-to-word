@@ -70,15 +70,14 @@ jobs:
           python-version: "3.12"
       - run: pip install build
       - run: python -m build
-      - name: 预设与底模必须打进 wheel
+      - name: 预设与底模必须打进 wheel 与 sdist
         run: |
           python - <<'EOF'
           import glob
+          import tarfile
           import zipfile
 
-          wheel = glob.glob("dist/*.whl")[0]
-          names = zipfile.ZipFile(wheel).namelist()
-          for needed in (
+          needed = (
               "md_to_word/presets/zh-academic.txt",
               "md_to_word/presets/en-nature.txt",
               "md_to_word/resources/pure_modern_base.docx",
@@ -86,9 +85,19 @@ jobs:
               "md_to_word/csl/data/locales/locales.json",
               "md_to_word/csl/data/locales/locales-en-US.xml",
               "md_to_word/csl/LICENSE",
-          ):
-              assert any(n.endswith(needed) for n in names), f"wheel 内缺少 {needed}"
-          print(f"包内资源齐全（{len(names)} 个文件）")
+          )
+          wheel = glob.glob("dist/*.whl")[0]
+          names = zipfile.ZipFile(wheel).namelist()
+          for item in needed:
+              assert any(n.endswith(item) for n in names), f"wheel 内缺少 {item}"
+          print(f"wheel 资源齐全（{len(names)} 个文件）")
+
+          # sdist 也要带齐：MANIFEST 漏一行，从源码安装的用户就会拿到不完整的包。
+          sdist = glob.glob("dist/*.tar.gz")[0]
+          names = tarfile.open(sdist).getnames()
+          for item in needed:
+              assert any(n.endswith(item) for n in names), f"sdist 内缺少 {item}"
+          print(f"sdist 资源齐全（{len(names)} 个文件）")
           EOF
       - name: wheel 装进干净环境后能跑通
         # 只查文件名不等于装得上：源码检出跑测试会掩盖入口点、包内资源路径与依赖声明的问题。
@@ -100,3 +109,6 @@ jobs:
           "$RUNNER_TEMP/venv/bin/md-to-word" "$RUNNER_TEMP/smoke/hello.md" -o "$RUNNER_TEMP/smoke/hello.docx"
           test -s "$RUNNER_TEMP/smoke/hello.docx"
           "$RUNNER_TEMP/venv/bin/md-to-word" --contract --json > /dev/null
+          # 入口点三张脸都要连得上；MCP 的 --help 不需要安装可选 SDK。
+          "$RUNNER_TEMP/venv/bin/md-to-word-template" --help > /dev/null
+          "$RUNNER_TEMP/venv/bin/md-to-word-mcp" --help > /dev/null
