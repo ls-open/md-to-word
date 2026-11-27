@@ -23,19 +23,30 @@ One export combines **three input layers** (the third is optional):
 
 Rule of thumb: **write span-level tweaks (bolding two words, subscript) in `.md`; write paragraph/page rules (fonts, style-level colour, gutter, mirror margins, punctuation compression) in `format.txt`; preserve complex graphical covers via `--base-template`; complete only unsupported features (merged cells, inline per-word colour, multi-column, floating wrapped figures) in Word.**
 
+This manual has two layers: the **common path** is five chapters that take you to a finished
+export; the **reference** half is looked up when needed, not read through. First time: §1 install,
+§2 write, §3 adjust the format, §5 export; add §4 when there are references. Long-tail problems
+are named by pre-flight and export errors (with a line number and the expected form), so the
+manual does not list them one by one.
+
 ---
 
 ## Contents
+
+**Common path** (these five chapters take you to an export)
 
 1. Entry points and exit codes
 2. Manuscript contract
 3. The format file
 4. References (`.bib` / CSL-JSON)
 5. Export and gates
+
+**Reference** (look it up when needed)
+
 6. Capability limits
 7. Built-in CSL
 8. Error quick reference
-9. Theses
+9. Theses (a specialized path)
 
 ---
 
