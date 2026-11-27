@@ -265,14 +265,13 @@ def scrub_metadata(path: Path | str, lang: str = "zh") -> None:
                     data = _drop_relationships(data, doc_props=False)
                 elif name == "[Content_Types].xml":
                     data = _drop_content_type_overrides(data)
-                elif name.startswith("word/") and name.endswith(".xml") and (
-                    b"w:commentRange" in data or b"w:commentReference" in data
-                ):
-                    data = _strip_comment_anchors(data)
-                elif name.startswith("word/") and name.endswith(".xml") and (
-                    b"w:author=" in data or b"w:initials=" in data
-                ):
-                    data = _neutralize_authors(data)
+                elif name.startswith("word/") and name.endswith(".xml"):
+                    # 同一个部件可能既有批注锚点又有修订作者（如 document.xml）：
+                    # 两步都要做，不能写成互斥的 elif。
+                    if b"w:commentRange" in data or b"w:commentReference" in data:
+                        data = _strip_comment_anchors(data)
+                    if b"w:author=" in data or b"w:initials=" in data:
+                        data = _neutralize_authors(data)
                 # 用原 ZipInfo 写回：保留条目顺序与时间戳，同一输入产出同样的字节
                 sink.writestr(info, data)
         _verify_scrubbed(temp, lang)

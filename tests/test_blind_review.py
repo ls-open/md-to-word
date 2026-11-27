@@ -98,6 +98,26 @@ def _base_with_identity(tmp_path: Path) -> Path:
     return _compat15(path)
 
 
+def _add_comment_and_revision(path: Path) -> None:
+    """同一部件里同时放批注锚点和修订作者，覆盖 scrub_metadata 的组合分支。"""
+    with zipfile.ZipFile(path) as zin:
+        items = [(info, zin.read(info.filename)) for info in zin.infolist()]
+    with zipfile.ZipFile(path, "w") as zout:
+        for info, data in items:
+            if info.filename == "word/document.xml":
+                text = data.decode("utf-8")
+                anchor = (
+                    '<w:commentRangeStart w:id="0"/>'
+                    '<w:ins w:id="1" w:author="张三" w:initials="ZS" '
+                    'w:date="2026-01-01T00:00:00Z"><w:r><w:t>修订</w:t></w:r></w:ins>'
+                    '<w:commentRangeEnd w:id="0"/>'
+                    '<w:r><w:commentReference w:id="0"/></w:r>'
+                )
+                text = text.replace("</w:body>", anchor + "</w:body>")
+                data = text.encode("utf-8")
+            zout.writestr(info, data)
+
+
 def _codes(result) -> list[str]:
     return [d.code for d in result.diagnostics]
 
@@ -194,3 +214,23 @@ def test_scrub_is_atomic_and_neutralizes_revision_authors(tmp_path: Path) -> Non
     cleaned = _neutralize_authors(xml)
     assert b"\xe5\xbc\xa0\xe4\xb8\x89" not in cleaned
     assert b"Author" in cleaned and b"initials=\"A\"" in cleaned
+
+
+def test_scrub_handles_comments_and_revisions_in_the_same_part(tmp_path: Path) -> None:
+    """批注锚点和修订作者同时出现时，两步清理都要执行，不能互相 elif 掉。"""
+    base = _base_with_identity(tmp_path)
+    _add_comment_and_revision(base)
+
+    scrub_metadata(base)
+
+    with zipfile.ZipFile(base) as archive:
+        xml = archive.read("word/document.xml").decode("utf-8")
+    assert 'w:author="Author"' in xml
+    assert 'w:initials="A"' in xml
+    assert 'w:author="张三"' not in xml
+    assert 'w:initials="ZS"' not in xml
+    for tag in ("commentRangeStart", "commentRangeEnd", "commentReference"):
+        assert tag not in xml
+    # 只清身份，正文里的署名不动
+    assert "封面：某某大学 张三" in xml
+    assert identifying_metadata(base) == []
