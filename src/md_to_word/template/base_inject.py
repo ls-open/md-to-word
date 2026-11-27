@@ -101,18 +101,6 @@ class BaseReport:
         return not self.blocking
 
 
-def _injection_parsed_parts(names: set[str]) -> list[str]:
-    """注入过程中会被逐个解析的部件（样式、设置、编号、注释、页眉页脚）。"""
-    return [
-        name for name in sorted(names)
-        if name in (
-            "word/styles.xml", "word/settings.xml", "word/numbering.xml",
-            "word/footnotes.xml", "word/endnotes.xml",
-        )
-        or (name.startswith(("word/header", "word/footer")) and name.endswith(".xml"))
-    ]
-
-
 def inspect_base(
     path: Path, cover_sections: int | None = None, lang: str = "zh"
 ) -> BaseReport:
@@ -130,14 +118,6 @@ def inspect_base(
         with zipfile.ZipFile(path) as z:
             names = set(z.namelist())
             document = z.read("word/document.xml")
-            # 注入时会逐个解析的部件，这里先全部验一遍：任何一处截断/乱码，
-            # 都会在注入中途抛 XMLSyntaxError，被外层的兜底报成「工具缺陷」。
-            etree.fromstring(document)
-            for member in _injection_parsed_parts(names):
-                etree.fromstring(z.read(member))
-    except etree.XMLSyntaxError:
-        report.blocking.append(t("base.inspect.unreadable", lang))
-        return report
     except (OSError, KeyError, zipfile.BadZipFile):
         report.blocking.append(t("base.inspect.unreadable", lang))
         return report
@@ -150,6 +130,17 @@ def inspect_base(
     broken = _dangling_rels(path)
     if broken:
         report.blocking.append(t("base.inspect.dangling", lang, first=broken[0]))
+
+    try:
+        # 用 python-docx 把包里所有 XML 部件解析一遍。document.xml、styles、settings、
+        # 页眉页脚、docProps……任何一处截断或乱码都在这里暴露；不先验的话，注入中途
+        # 抛出的 XMLSyntaxError 会被外层兜底报成「工具缺陷，请报 traceback」。
+        from docx import Document
+
+        Document(str(path))
+    except Exception:  # noqa: BLE001 —— 这一步就是文件体检，任何解析失败都等于文件坏了
+        report.blocking.append(t("base.inspect.unreadable", lang))
+        return report
 
     root = etree.fromstring(document)
     sections = list(root.iter(W + "sectPr"))
