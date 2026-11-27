@@ -11,6 +11,9 @@ import json
 import zipfile
 from pathlib import Path
 
+from md_to_word.csl.formatter.segments import to_segments
+from md_to_word.csl.source.json import CiteProcJSON
+from md_to_word.csl.string import case_text
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
 from md_to_word.transform.biblio import (
     bibliography_keys,
@@ -151,3 +154,53 @@ def test_empty_csl_json_behaves_like_an_empty_bib(tmp_path: Path) -> None:
     ))
     assert bad.returncode == 1
     assert "gate.bib.empty" in [d.code for d in bad.diagnostics]
+
+
+def _rich_title(raw: str):
+    source = CiteProcJSON([{"id": "x", "type": "book", "title": raw}])
+    return source["x"]["title"]
+
+
+def test_zotero_rich_text_becomes_formatted_runs() -> None:
+    """Zotero 把斜体/粗体存在字段里；原样当标签输出会直接印到论文上。"""
+    assert to_segments(_rich_title(
+        "The <i>Origin</i> of <b>Species</b>")) == [
+        ("The ", {}), ("Origin", {"italic": True}), (" of ", {}),
+        ("Species", {"bold": True})]
+
+
+def test_rich_text_styles_nest_and_support_sup_sub() -> None:
+    assert to_segments(_rich_title(
+        "<i><b>both</b></i> and x<sup>2</sup>")) == [
+        ("both", {"italic": True, "bold": True}), (" and x", {}),
+        ("2", {"superscript": True})]
+
+
+def test_small_caps_and_nocase_tags_do_not_leak() -> None:
+    assert str(_rich_title(
+        '<span style="font-variant:small-caps;">abc</span>')) == "abc"
+    assert str(_rich_title(
+        'the <span class="nocase">iPhone</span> title')) == (
+        "the iPhone title")
+
+
+def test_nocase_survives_text_case_conversion() -> None:
+    value = _rich_title(
+        'the <span class="nocase">iPhone</span> of the sea')
+    assert str(case_text(value, "title")) == "The iPhone of the Sea"
+    assert str(case_text(value, "lowercase")) == "the iPhone of the sea"
+
+
+def test_malformed_rich_text_neither_duplicates_nor_leaks_tags() -> None:
+    """未闭合/错配的标签按就近收口：正文只出现一次，也不留下标签字符串。"""
+    assert str(_rich_title('A <span class="nocase">eBay title')) == (
+        "A eBay title")
+    stray = str(_rich_title("A </span> title"))
+    assert stray.count("title") == 1 and "</span>" not in stray
+    assert "</i>" not in str(_rich_title("a <i>crossed <b>tags</i> here</b>"))
+
+
+def test_unknown_tags_are_kept_verbatim() -> None:
+    raw = 'x <span class="unknown">y</span> z'
+    assert str(_rich_title(raw)) == raw
+    assert str(_rich_title("Reading < speed")) == "Reading < speed"

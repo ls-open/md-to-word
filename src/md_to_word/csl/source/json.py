@@ -1,4 +1,9 @@
+import re
+
 from .. import DATES, NAMES
+from ..formatter.segments import (
+    Bold, Italic, SmallCaps, Subscript, Superscript,
+)
 from ..string import MixedString, NoCase, String
 from . import BibliographySource, Date, DateRange, LiteralDate, Name, Reference
 
@@ -31,30 +36,88 @@ class CiteProcJSON(BibliographySource):
                 ref_data[python_key] = value
             self.add(Reference(ref_key, ref_type, **ref_data))
 
-    start_tag = '<span class="nocase">'
-    end_tag = '</span>'
+    # Zotero 把字段里的富文本存成这几个标签（CSL-JSON 的事实约定）。
+    # `<i>`/`<b>`/`<sup>`/`<sub>` 要成为格式 run，`nocase` 保护大小写；
+    # 不认识的标签原样保留，未闭合/错配的标签按就近原则收口，绝不复制正文。
+    tag_re = re.compile(
+        r'<(/?)(i|b|sup|sub|sc|span)\b([^<>]*)>', re.IGNORECASE)
 
     def parse_string(self, string):
-        string = str(string)
-        lower_string = string.lower()
-        end = 0
-        output = MixedString()
-        try:
-            while True:
-                start = lower_string.index(self.start_tag, end)
-                regular = string[end:start]
-                if regular:
-                    output += String(regular)
-                end = lower_string.index(self.end_tag, start + 1)
-                start += len(self.start_tag)
-                no_case = string[start:end]
-                output += NoCase(no_case)
-                end += len(self.end_tag)
-        except ValueError:
-            regular = string[end:]
-            if regular:
-                output += String(regular)
-        return output
+        text = str(string)
+        if '<' not in text:
+            return MixedString([String(text)]) if text else MixedString()
+
+        parts = []
+        # 每帧：(标签名, 包装类, 子片段)。标签名用于配对关闭标签—
+        # `</span>` 既可以关 nocase，也可以关 small-caps，得看开的是哪个。
+        frames = [(None, None, parts)]
+        buffer = []
+        # 不认识的标签原样留着；它的关闭标签也要留着，不能删一半。
+        literal = []
+
+        def flush():
+            if buffer:
+                frames[-1][2].append(String(''.join(buffer)))
+                buffer.clear()
+
+        position = 0
+        for match in self.tag_re.finditer(text):
+            if match.start() > position:
+                buffer.append(text[position:match.start()])
+            position = match.end()
+            closing, name, attrs = match.groups()
+            name = name.lower()
+            if not closing:
+                wrapper = self._rich_wrapper(name, attrs)
+                if wrapper is None:
+                    literal.append(name)
+                    buffer.append(match.group(0))
+                    continue
+                flush()
+                frames.append((name, wrapper, []))
+                continue
+            if literal and literal[-1] == name:
+                literal.pop()
+                buffer.append(match.group(0))
+                continue
+            flush()
+            for index in range(len(frames) - 1, 0, -1):
+                if frames[index][0] != name:
+                    continue
+                while len(frames) - 1 >= index:
+                    _name, inner_wrapper, inner_parts = frames.pop()
+                    frames[-1][2].append(
+                        self._wrap(inner_wrapper, inner_parts))
+                break
+        if position < len(text):
+            buffer.append(text[position:])
+        flush()
+        while len(frames) > 1:
+            _name, inner_wrapper, inner_parts = frames.pop()
+            frames[-1][2].append(self._wrap(inner_wrapper, inner_parts))
+        return MixedString(parts)
+
+    @staticmethod
+    def _rich_wrapper(name, attrs):
+        name = name.lower()
+        if name in ('i', 'b', 'sup', 'sub'):
+            return {'i': Italic, 'b': Bold, 'sup': Superscript,
+                    'sub': Subscript}[name]
+        if name == 'sc':
+            return SmallCaps
+        normalized = re.sub(r'\s+', '', (attrs or '').lower()).replace("'", '"')
+        if 'class="nocase"' in normalized or 'class="nodecor"' in normalized:
+            return NoCase
+        if 'font-variant:small-caps' in normalized:
+            return SmallCaps
+        return None
+
+    @staticmethod
+    def _wrap(wrapper, parts):
+        if not parts:
+            return wrapper('')
+        inner = parts[0] if len(parts) == 1 else MixedString(parts)
+        return wrapper(inner)
 
     def parse_names(self, json_data):
         names = []

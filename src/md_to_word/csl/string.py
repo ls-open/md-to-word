@@ -198,30 +198,46 @@ def _capitalise(word):
     return word
 
 
-def _segments(text):
-    """把 (Mixed)String 拆成可分段改写的片段列表。"""
-    if isinstance(text, MixedString):
-        return list(text)
-    return [text]
+def _collect_leaves(node, offset, leaves):
+    """把嵌套的 (Mixed)String / 格式对象展开成叶子文本，记录每片的起点。
+
+    格式对象（`formatter.Italic` 等）用 `.inner` 挂着真正的值；这里按值走，
+    所以斜体、粗体、`nocase` 无论嵌套几层都能被看见。返回总长度。
+    """
+    if isinstance(node, (MixedString, list, tuple)):
+        for child in node:
+            offset = _collect_leaves(child, offset, leaves)
+        return offset
+    inner = getattr(node, 'inner', None)
+    if inner is not None:
+        return _collect_leaves(inner, offset, leaves)
+    text = str(node)
+    leaves.append((node, offset, text))
+    return offset + len(text)
+
+
+def _rebuild_leaves(node, texts):
+    """按 `_collect_leaves` 的顺序，用 `texts` 里的新文本重建同样的结构。"""
+    if isinstance(node, (MixedString, list, tuple)):
+        return node.__class__([_rebuild_leaves(child, texts) for child in node])
+    inner = getattr(node, 'inner', None)
+    if inner is not None:
+        return node.__class__(_rebuild_leaves(inner, texts))
+    return node.__class__(next(texts))
 
 
 def case_text(text, text_case):
-    """按 `text_case` 转换文本，保留 MixedString 的分段与 `nocase` 片段。"""
-    segments = _segments(text)
-    pieces = [str(segment) for segment in segments]
-    offsets = []
-    position = 0
-    for piece in pieces:
-        offsets.append(position)
-        position += len(piece)
-    flat = ''.join(pieces)
+    """按 `text_case` 转换文本，保留分段、格式与 `nocase` 片段。"""
+    leaves = []
+    _collect_leaves(text, 0, leaves)
+    flat = ''.join(piece for _node, _start, piece in leaves)
+    if not flat:
+        return text
 
     protected = [False] * len(flat)
-    for index, segment in enumerate(segments):
-        if isinstance(segment, NoCase):
-            start = offsets[index]
-            protected[start:start + len(pieces[index])] = (
-                [True] * len(pieces[index]))
+    for node, start, piece in leaves:
+        if isinstance(node, NoCase):
+            protected[start:start + len(piece)] = [True] * len(piece)
 
     matches = list(_WORD_RE.finditer(flat))
     if not matches:
@@ -277,17 +293,16 @@ def case_text(text, text_case):
 
     if not edits:
         return text
-    output = []
-    for index, piece in enumerate(pieces):
-        start = offsets[index]
-        end = start + len(piece)
-        new_piece = piece
-        for edit_start, edit_end, new in reversed(edits):
-            if start <= edit_start and edit_end <= end:
-                new_piece = (new_piece[:edit_start - start] + new +
-                             new_piece[edit_end - start:])
-        output.append(segments[index].__class__(new_piece))
-    return MixedString(output) if isinstance(text, MixedString) else output[0]
+    texts = [piece for _node, _start, piece in leaves]
+    for start, end, new in reversed(edits):
+        for index in range(len(leaves) - 1, -1, -1):
+            leaf_start = leaves[index][1]
+            if leaf_start <= start and end <= leaf_start + len(texts[index]):
+                local = start - leaf_start
+                texts[index] = (texts[index][:local] + new +
+                                texts[index][local + end - start:])
+                break
+    return _rebuild_leaves(text, iter(texts))
 
 
 def join(items, delimiter=''):
