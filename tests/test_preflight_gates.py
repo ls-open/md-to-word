@@ -575,6 +575,24 @@ def test_syntax_demos_inside_code_do_not_block(
     assert report.valid, f"{why}被当成真内容拦下了：{report.errors}"
 
 
+def test_fullwidth_space_after_the_marker_is_not_reported_as_missing(tmp_path: Path) -> None:
+    """中文输入法打出的全角空格不是「少了空格」：对着一个空格喊少空格，
+    用户只会更困惑。两种写法各报各的。"""
+    manuscript = tmp_path / "manuscript.md"
+    manuscript.write_text("%%　文档标题 标题\n\n正文。\n", encoding="utf-8")
+    report = validate_manuscript(manuscript, spec_path=PRESET)
+    codes = [d.code for d in report.diagnostics]
+    assert "gate.style_line.fullwidth_space" in codes, report.errors
+    assert "gate.style_line.no_space" not in codes
+    assert any("全角空格" in e for e in report.errors), report.errors
+
+    manuscript.write_text("%%文档标题 标题\n\n正文。\n", encoding="utf-8")
+    report = validate_manuscript(manuscript, spec_path=PRESET)
+    codes = [d.code for d in report.diagnostics]
+    assert "gate.style_line.no_space" in codes, report.errors
+    assert "gate.style_line.fullwidth_space" not in codes
+
+
 def test_a_real_missing_image_is_still_blocked(tmp_path: Path) -> None:
     """遮罩不能把真问题一起遮掉。"""
     manuscript = tmp_path / "manuscript.md"

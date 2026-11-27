@@ -31,7 +31,7 @@ from typing import Optional
 
 from lxml import etree
 
-from md_to_word.i18n import t
+from md_to_word.i18n import join_terms, t
 from md_to_word.spec.constants import (
     PAGE_SIZES_CM,
     PAGE_SIZE_MAP,
@@ -302,7 +302,7 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         out.append('行距1.0倍')
         doubt.append(t('extractor.note.line_spacing_default', ref.lang))
 
-    def twips_to_pt(name, lines_name, label):
+    def twips_to_pt(name, lines_name, label, note_label):
         if sp is None:
             # 整条链上都没有 spacing：段距的生效值就是 0。**不能跳过不写**——少一个
             # 「段前」/「段后」就是必填字段缺失，这份草稿喂回去直接被生成器拒掉。
@@ -312,14 +312,18 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
             out.append(f'{label}{int(sp.get(q(name))) / 20:g}磅')
         elif sp.get(q(lines_name)) is not None:
             n = int(sp.get(q(lines_name))) / 100
-            doubt.append(t('extractor.note.line_unit_converted', ref.lang, label=label, lines=n))
+            doubt.append(t('extractor.note.line_unit_converted', ref.lang,
+                           label=note_label, lines=n))
             # `sz` 存在却没有 `@w:val` 是可能的（手改过的模板），别在这里抛 TypeError
             base = int(sz.get(q('val'))) / 2 if sz is not None and sz.get(q('val')) else 12
             out.append(f'{label}{n * base:g}磅')
         else:
             out.append(f'{label}0磅')
-    twips_to_pt('before', 'beforeLines', '段前')
-    twips_to_pt('after', 'afterLines', '段后')
+    # 草稿正文用中文词表（格式文件的正典写法），"需确认"是给人读的消息，跟着消息语言走。
+    twips_to_pt('before', 'beforeLines', '段前',
+                'space-before' if ref.lang == 'en' else '段前')
+    twips_to_pt('after', 'afterLines', '段后',
+                'space-after' if ref.lang == 'en' else '段后')
 
     ind = ref.eff(chain, 'pPr/ind')
     # **悬挂缩进要先判**。写悬挂缩进时会同时写 `firstLineChars="0"` 去中和继承来的首行缩进
@@ -389,10 +393,14 @@ def clauses_for(ref: Ref, sid: str) -> tuple:
         if canonical:
             out.append('点线制表位')
         else:
-            where = '、'.join(f"{stop.get(q('val')) or 'left'} "
-                              f"{int(stop.get(q('pos')) or 0) / TWIPS_PER_CM:.2f}cm"
-                              f"{'点线' if stop.get(q('leader')) == 'dot' else ''}"
-                              for stop in tab_list)
+            leader = ' dot' if ref.lang == 'en' else '点线'
+            where = join_terms(
+                [f"{stop.get(q('val')) or 'left'} "
+                 f"{int(stop.get(q('pos')) or 0) / TWIPS_PER_CM:.2f}cm"
+                 f"{leader if stop.get(q('leader')) == 'dot' else ''}"
+                 for stop in tab_list],
+                ref.lang,
+            )
             doubt.append(t('extractor.note.tabs_limited', ref.lang,
                            count=len(tab_list), where=where))
 
@@ -456,7 +464,11 @@ def read_limitations(ref: Ref) -> tuple:
                           and borders.find(q(tag)).get(q('val')) not in ('none', 'nil')]
                 if labels:
                     voted_sides.add(mark)
-                    sides.append(f'{_style_label(style)}（{"、".join(labels)}）')
+                    joined = join_terms(labels, ref.lang)
+                    sides.append(
+                        f'{_style_label(style)} ({joined})' if ref.lang == 'en'
+                        else f'{_style_label(style)}（{joined}）'
+                    )
             if mark not in voted_shading and _has_shading(style):
                 voted_shading.add(mark)
                 shaded.append(_style_label(style))
@@ -622,7 +634,7 @@ def read_table(ref: Ref) -> tuple:
                                                 if first_row[0].find(f'{q("rPr")}') is not None
                                                 and first_row[0].find(f'{q("trPr")}/{q("tblHeader")}') is not None
                                                 else ''))
-        doubt += [f'表头行：{d}' for d in hd]
+        doubt += [t('extractor.note.header_row_prefix', ref.lang, note=d) for d in hd]
         ref.by_id.pop('__firstrow__', None)     # 只在真的塞进去过时才清
     return out, doubt
 
@@ -882,7 +894,20 @@ def build_parser(lang: str = 'zh') -> argparse.ArgumentParser:
 
 
 def main(argv=None):
-    ap = build_parser('zh')
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # 帮助文本要先按 `--lang`（或参考文件的语种）选好：参数表是解析时才建的，
+    # 解析前不预扫一遍，`--lang en --help` 仍然给一份中文帮助。
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument('docx', nargs='?')
+    pre.add_argument('--lang', default='auto')
+    known, _ = pre.parse_known_args(argv)
+    if known.lang in ('zh', 'en'):
+        help_lang = known.lang
+    elif known.docx and Path(known.docx).is_file():
+        help_lang = _auto_lang(Path(known.docx))
+    else:
+        help_lang = 'zh'
+    ap = build_parser(help_lang)
     args = ap.parse_args(argv)
 
     lang = args.lang if args.lang in ('zh', 'en') else _auto_lang(Path(args.docx))
@@ -941,6 +966,10 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
             word_to_cn[word.replace(' ', '').lower()] = name
     lines = [t('extractor.draft.title', lang),
              t('extractor.draft.source', lang, name=ref.path.name)]
+    if lang == 'en':
+        # 字段名始终是中文词表（格式文件的正典写法），消息与样式名才跟着语种走。
+        # 不说这一句，英文用户会以为草稿读坏了。
+        lines.append(t('extractor.draft.vocabulary_note', lang))
     decor_lines, decor_doubt = read_decor(ref)
     for part in (read_page(ref, body_line_multiple(ref)), read_table(ref),
                  (decor_lines, decor_doubt), read_limitations(ref)):
@@ -975,7 +1004,8 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
             skipped.append(cn)
             continue
         emitted.append((canonical, cn, sid_norm, cs))
-        ref.notes += [f'{cn}：{d}' for d in doubt]
+        colon = ': ' if lang == 'en' else '：'
+        ref.notes += [f'{cn}{colon}{d}' for d in doubt]
 
     emitted_canonical = {canonical for canonical, _, _, _ in emitted}
     has_toc = any(s in emitted_canonical for s in TOC_STYLE_GROUP) or any(
@@ -1001,7 +1031,8 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
         lines.append(f'{cn}：' + ' '.join(cs))
         styled.append(cn)
     if skipped:
-        ref.notes.append(t('extractor.note.styles_skipped', ref.lang, names='、'.join(skipped)))
+        ref.notes.append(t('extractor.note.styles_skipped', ref.lang,
+                           names=join_terms(skipped, ref.lang)))
     used = {(st.get(q('val')) or '').replace(' ', '').lower()
             for st in ref.document.iter(q('pStyle'))}
     # 一个样式在 `by_id` 里可能有好几个键（ID、名称、别名），认出一个就算认出来了。
@@ -1011,7 +1042,7 @@ def _build_draft(ref: Ref, lang: str) -> tuple[str, int, int]:
                       and id(ref.by_id[k]) not in mapped)
     if leftover:
         ref.notes.append(t('extractor.note.styles_unmapped', ref.lang,
-                           names='、'.join(sorted(leftover))))
+                           names=join_terms(sorted(leftover), ref.lang)))
 
     if ref.notes:
         lines += ['', f'# ── {t("extractor.notes_header", lang)} ──'] + [f'# {n}' for n in ref.notes]

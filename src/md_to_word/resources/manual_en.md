@@ -405,7 +405,7 @@ the pre-flight check always stops them and gives an alternative:
 HTML tags and `<https://…>` autolinks, horizontal rules `---`, setext (`====`) headings,
 definition lists, task checkboxes `- [ ]`, tables without leading and trailing pipes, a block quote
 inside a block quote, full-width `％％`, four-space indented code blocks, inline maths spanning two lines, a second paragraph in a list item (blank line +
-indentation), a heading with no space after `#`, a heading with only `#` and no text, properties
+indentation), a fenced code block directly after a list item's text (no blank line, see §6), a heading with no space after `#`, a heading with only `#` and no text, properties
 other than `width` on an image line (such as `{align=right}`), image formats Word cannot hold
 (`.svg`, `.webp`, `.eps` — save them as PNG, or reference a PDF), `==highlight==`,
 `[text]{.class}` (other than `.underline`), `\(...\)` inline maths (write `$...$`), `\[...\]` display
@@ -793,7 +793,7 @@ covers in Word.
 | Merged cells, diagonal header cells, cell shading | Markdown tables are regular 2D grids; export the grid, then merge/shade in Word |
 | Multi-column layouts, floating figures with text wrapping | Single-column layout and standalone centred figures only; double-sided `Mirror Margins: on` and `Gutter` *are* supported |
 | Arbitrary tab stops | The format file recognises `dot-leader-tab` only (right-aligned with a dot leader); add other tab stops in Word |
-| Fenced code block inside a list item | A list item carries paragraphs only; the export stops and asks you to move the code block out of the list |
+| Fenced code block directly after a list item's text (no blank line) | A list item carries paragraphs only; the export stops and asks you to move the code block out of the list. Put a blank line before the indented fence instead: the block is then written as a standalone paragraph after the list (no longer part of the item) |
 | Equations inside footnotes | Footnotes support inline formatting, links and citations; an equation stops the export |
 | A style declaring both `no-toc` and `join-header` | Format validation fails: the two conflict. Change the declaration, or split sections with `{{< section >}}` to set that section's header |
 
@@ -834,9 +834,11 @@ bibliography. The language comes from the entry's `language` / `langid` field (C
 Chinese, kana Japanese, Cyrillic Russian, Latin is treated as English. Chinese journals often give
 an English title — add `language = {chinese}` to those entries or they will be treated as Western.
 
-**Not possible**: a fenced code block inside a list item. List items carry paragraphs only; the
-block would be written as a top-level paragraph and lose its place in the list, so the export stops
-with a message instead of moving it silently.
+**Not possible**: a fenced code block directly after a list item's text. List items carry
+paragraphs only; the block would be written as a top-level paragraph and lose its place in the
+list, so the export stops with a message instead of moving it silently. With a blank line before
+the indented fence, the block is written as a standalone paragraph after the list — visible and in
+order, but not part of the item.
 
 **Silent clamping**: an image wider than the text block is clamped to the text-block width (15.92
 cm on A4 with 2.54 cm margins, less any gutter). The pre-flight check computes the real text block

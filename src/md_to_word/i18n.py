@@ -17,7 +17,12 @@
 
 from __future__ import annotations
 
+import re
+
 from md_to_word.config import looks_chinese
+
+# 任意文种的字母（不含数字、下划线）。只用来判断「有没有可判定的文字」。
+_LETTER_RE = re.compile(r"[^\W\d_]", re.UNICODE)
 
 SUPPORTED = ("zh", "en")
 
@@ -161,6 +166,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Cannot read the {label} {path}: {err}",
     ),
     "pipeline.input_missing": ("输入稿件不存在: {path}", "Input manuscript not found: {path}"),
+    "pipeline.input_not_file": (
+        "输入稿件不是一个文件：{path}（如果指的是目录，请指到里面的 .md 文件）",
+        "The input manuscript is not a file: {path} (if this is a folder, point at the .md "
+        "file inside it)",
+    ),
     "pipeline.write_failed": (
         "写出 {path} 失败：{err}\n  目录只读、磁盘已满、或文件正被 Word 打开时都会这样。",
         "Could not write {path}: {err}\n  This happens when the directory is read-only, the disk is full, or Word has the file open.",
@@ -937,6 +947,15 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "line spacing is not set explicitly, so single is assumed (the default when no spacing is "
         "written; taller content will not be clipped)",
     ),
+    "extractor.draft.vocabulary_note": (
+        "# 字段名用中文词表（导出侧直接可用），样式名跟随参考文件",
+        "# Field names use the Chinese format vocabulary (accepted as-is); style names follow "
+        "the reference file.",
+    ),
+    "extractor.note.header_row_prefix": (
+        "表头行：{note}",
+        "Header row: {note}",
+    ),
     "extractor.note.line_unit_converted": (
         "{label}原文件用「行」为单位（{lines:g} 行），已折算为磅，请核对",
         "{label} the reference uses lines ({lines:g}), which was converted to points — please check",
@@ -1423,6 +1442,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Could not parse the format file ({path}): {err}",
     ),
     "gate.yaml.parse_failed": ("YAML frontmatter 解析失败: {err}", "Could not parse the YAML frontmatter: {err}"),
+    "gate.yaml.top_level": (
+        "顶层必须是键值对（如 `bibliography: refs.bib`），不能是列表或单个值",
+        "the top level must be a mapping of keys to values (like `bibliography: refs.bib`), "
+        "not a list or a single value",
+    ),
     "gate.yaml.duplicate_key": (
         "行 {line}: YAML 键 `{key}` 重复（前一次在第 {first} 行）；解析只保留后一条。",
         "Line {line}: YAML key `{key}` is duplicated (first at line {first}); only the last one survives.",
@@ -1513,7 +1537,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "「文档网格：每页{want}行」做不到：按正文的字号与行距，版心最多放 {limit} 行。"
         "Word 会把行高向上取整到网格整数倍，实际行数反而比不声明网格更少。"
         "要么把行距调小，要么把这个行数改成 {limit} 以内",
-        "「Document Grid: {want} lines per page」is unreachable: with the body font size and line "
+        "The requested document grid ({want} lines per page) is unreachable: with the body font size and line "
         "spacing the text block holds at most {limit} lines. Word rounds the line height up to whole "
         "grid units, so the result is worse than declaring no grid at all. Either reduce the line "
         "spacing or set this to {limit} or fewer",
@@ -1522,7 +1546,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "要求文件的「{name}」是 {fmt}，里面有 {{c}}（章号），"
         "但稿件 YAML 的 crossref 下没有 chapters: true。二选一："
         "在 `crossref:` 下加 `chapters: true`，或把格式改成不含 {{c}} 的写法（如 （{{n}}））",
-        "The 「{name}」 line in the format file is {fmt}, which contains "
+        "The {name} line in the format file is {fmt}, which contains "
         "{{c}} (chapter number), but the manuscript YAML has no chapters: true under crossref. Either add "
         "`chapters: true` under `crossref:`, or change the format to one without {{c}} (e.g. ({{n}}))",
     ),
@@ -1800,8 +1824,11 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "{arg!r} cannot be read. Section names are declared in the format file with a `Section: body` row.",
     ),
     "gate.section.role_unknown": (
-        "行 {line}: 格式文件没有声明节「{role}」。已声明：{roles}",
-        "Line {line}: the format file has no section named {role!r}. Declared: {roles}",
+        "行 {line}: 格式文件没有声明节「{role}」。已声明：{roles}。"
+        "在格式文件里补一行「分节：{role}」，再给这一节写页眉页脚与页码。",
+        "Line {line}: the format file has no section named {role!r}. Declared: {roles}. "
+        "Add a `Section: body` row to the format file (with the name used here), then give that "
+        "section its header, footer and page numbering.",
     ),
     "gate.table.row_unclosed": (
         "行 {line}: 表格行缺少行尾竖线——这一行会掉出表格变成正文，竖线原样印出来。补上结尾的 `|`",
@@ -1812,6 +1839,12 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "行 {line}: `%%` 后面少了空格，整行会原样印成正文。写成 `%% 样式名 内容`",
         "Line {line}: the `%%` style line has no space after the marker, so the whole line is printed "
         "as body text. Write `%% Style Name content`",
+    ),
+    "gate.style_line.fullwidth_space": (
+        "行 {line}: `%%` 后面跟的是全角空格或制表符，只认半角空格。"
+        "把 `%%` 和样式名之间的空白删掉重打一个英文空格：`%% 样式名 内容`",
+        "Line {line}: the `%%` marker is followed by a full-width space or tab; only an ASCII space "
+        "works. Retype the gap with an English space: `%% Style Name content`",
     ),
     "gate.yaml.unknown": (
         "YAML 里有认不出的键「{keys}」，会被忽略——它们不会让版面发生任何变化。"
@@ -2176,10 +2209,17 @@ _MESSAGES: dict[str, tuple[str, str]] = {
 
 
 def resolve_lang(manuscript: str | None = None, override: str | None = None) -> str:
-    """决定消息语言。`override` 是 `--lang` 的原值；`auto`/None 时按稿件语种。"""
+    """决定消息语言。`override` 是 `--lang` 的原值；`auto`/None 时按稿件语种。
+
+    稿件里一个字母都没有（空稿、纯空白、纯符号）时按项目主语言中文：这不是“英文稿”，
+    而是没有可判定的证据。CLI 在「文件读不到」时也兜底中文，两条路径要给出同一个答案。
+    """
     if override in SUPPORTED:
         return override
-    return "zh" if looks_chinese(manuscript or "") else "en"
+    text = manuscript or ""
+    if looks_chinese(text):
+        return "zh"
+    return "en" if _LETTER_RE.search(text) else "zh"
 
 
 def t(message_key: str, lang: str, **kwargs) -> str:
@@ -2191,6 +2231,15 @@ def t(message_key: str, lang: str, **kwargs) -> str:
     zh, en = _MESSAGES[message_key]
     text = en if lang == "en" else zh
     return text.format(**kwargs) if kwargs else text
+
+
+def join_terms(parts, lang: str = "zh") -> str:
+    """把若干名称/键拼成一项列表：分隔符跟着消息语言走（顿号 / 逗号）。
+
+    英文消息里出现 `a、b` 是同一类漏翻：不是文案，是标点。与 `template.core.join_reasons`
+    分工不同——那个拼的是句子（分号），这里拼的是列表项。
+    """
+    return t("gate.list_sep", lang).join(parts)
 
 
 # 报错里举例用的样式（中文名见 `STYLE_CN`，正典名见 `STYLE_EN`，都从 `STYLE_MAP` 反推）

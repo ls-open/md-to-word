@@ -28,7 +28,7 @@ from md_to_word.config import (
     lang_from_proofing, looks_traditional, resolve_preset_path,
 )
 from md_to_word.diagnostics import Diagnostic
-from md_to_word.i18n import resolve_lang, t
+from md_to_word.i18n import join_terms, resolve_lang, t
 from md_to_word.preprocessor.cleaner import strip_html_comments
 from md_to_word.spec.parser import parse_format
 from md_to_word.template.builder import build_template
@@ -198,8 +198,9 @@ def prepare_manuscript(options: ExportOptions) -> PreparedManuscript:
     res.lang = resolve_lang("", options.lang)
     in_p = Path(options.input_path).resolve()
     if not in_p.is_file():
-        _fail(res, "pipeline.input_missing",
-              t("pipeline.input_missing", res.lang, path=in_p), file=in_p)
+        # 目录确实存在、只是不是稿件：说「不存在」会让人对着一个看得见的文件夹发懵。
+        key = "pipeline.input_not_file" if in_p.exists() else "pipeline.input_missing"
+        _fail(res, key, t(key, res.lang, path=in_p), file=in_p)
         return PreparedManuscript(res, in_p, ok=False)
     try:
         text, encoding = read_text_file(in_p)
@@ -311,7 +312,7 @@ def resolve_format(
         else:
             others = sorted(p.name for p in in_p.parent.glob("*.txt") if p.is_file())
             if others:
-                shown = "、".join(others[:3]) + ("…" if len(others) > 3 else "")
+                shown = join_terms(others[:3], res.lang) + ("…" if len(others) > 3 else "")
                 # 这是「你以为在用、其实没用」：必须进 warnings，Agent 才会转述。
                 _warn(res, "pipeline.txt_ignored",
                       t("pipeline.txt_ignored", res.lang, names=shown))
@@ -448,7 +449,7 @@ def _prepare_base_plan(
             _fail(res, "pipeline.base_until_ambiguous",
                   t("pipeline.base_until_ambiguous", res.lang,
                     text=options.keep_until,
-                    sections="、".join(str(h) for h in hits)), file=base_p)
+                    sections=join_terms([str(h) for h in hits], res.lang)), file=base_p)
             return False, None
         sections = hits[0]
 
@@ -832,7 +833,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
             if loaded is not None and not isinstance(loaded, dict):
                 _fail(res, "gate.yaml.parse_failed",
                       t("gate.yaml.parse_failed", res.lang,
-                        err="frontmatter 顶层必须是映射"), file=in_p)
+                        err=t("gate.yaml.top_level", res.lang)), file=in_p)
                 return res
             fm_data = loaded or {}
 
@@ -911,7 +912,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
             if inherited:
                 _warn(res, "bib.crossref_not_inherited", t(
                     "bib.crossref_not_inherited", res.lang,
-                    keys="、".join(inherited[:5]),
+                    keys=join_terms(inherited[:5], res.lang),
                 ))
             try:
                 engine = CitationEngine(bib_text, csl_path, res.lang, citation_lang=doc_lang)
@@ -936,7 +937,7 @@ def _run_export_pipeline(options: ExportOptions) -> ExportResult:
                 if missing_keys:
                     _fail(res, "pipeline.citation_failed", t(
                         "pipeline.citation_failed", res.lang,
-                        reason="、".join(missing_keys[:5]),
+                        reason=join_terms(missing_keys[:5], res.lang),
                     ), file=in_p)
                     return res
             write_docx(

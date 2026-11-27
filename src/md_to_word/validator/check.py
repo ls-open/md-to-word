@@ -822,13 +822,18 @@ def validate_manuscript(
                 line=i,
             )
 
-    # 2e. 样式行 `%%` 后面必须有空格，否则整行原样印成正文
+    # 2e. 样式行 `%%` 后面必须有半角空格，否则整行原样印成正文。
+    #     中文输入法容易打出全角空格（U+3000）或制表符：那时说「少了空格」是错的，
+    #     用户会对着一个空格找不到问题。两种写法分开报，各给各的改法。
     for i, line in enumerate(visible.split("\n"), 1):
         if line.startswith("%%") and not line.startswith("%% "):
+            wrong_kind = len(line) > 2 and line[2].isspace()
             report.valid = False
             report.error(
-                "gate.style_line.no_space",
-                t("gate.style_line.no_space", lang, line=i),
+                "gate.style_line.fullwidth_space" if wrong_kind
+                else "gate.style_line.no_space",
+                t("gate.style_line.fullwidth_space" if wrong_kind
+                  else "gate.style_line.no_space", lang, line=i),
                 line=i,
             )
 

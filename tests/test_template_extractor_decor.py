@@ -101,6 +101,21 @@ def test_a_cached_field_result_is_not_read_as_content(tmp_path: Path) -> None:
     assert "18" not in footer_line[0], footer_line
 
 
+def test_help_follows_the_language_flag(capsys) -> None:
+    """`--lang en --help` 不能还打印一份中文帮助：参数表按语种现建，
+    建表前不预扫 `--lang`，这个入口的帮助就永远只有中文。"""
+    import pytest
+
+    from md_to_word.template.extractor import main
+
+    with pytest.raises(SystemExit) as exc:
+        main(["--help", "--lang", "en"])
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "Draft a format.txt" in out
+    assert "反推" not in out
+
+
 def test_draft_header_follows_the_message_language(tmp_path: Path) -> None:
     """草稿是给人核对的：英文请求拿到的抬头与来源行也是英文。"""
     from md_to_word.template.extractor import extract_spec_from_docx

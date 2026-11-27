@@ -95,6 +95,16 @@ def test_language_follows_the_manuscript() -> None:
     assert resolve_lang("%% 表题 Table 1\n\n# Introduction\n\nEnglish body.\n") == "en"
 
 
+def test_no_text_is_not_an_english_manuscript() -> None:
+    """空稿、纯空白、纯符号没有可判定的文字：按项目主语言中文，
+    与 CLI「文件读不到时兜底中文」给出同一个答案。"""
+    assert resolve_lang("") == "zh"
+    assert resolve_lang("   \n\t\n") == "zh"
+    assert resolve_lang("…… —— 2024") == "zh"
+    # 有字母就照常判：全英文仍然走英文
+    assert resolve_lang("Table 1") == "en"
+
+
 def test_language_override_wins() -> None:
     assert resolve_lang("中文正文", "en") == "en"
     assert resolve_lang("English body", "zh") == "zh"

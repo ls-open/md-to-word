@@ -5,7 +5,7 @@ from pathlib import Path
 import asyncio
 import re
 
-pytest.importorskip("mcp")
+pytest.importorskip("mcp", reason="MCP 是可选依赖：pip install 'md-to-word-docx[mcp]'")
 
 from md_to_word.mcp.server import (
     create_mcp_server,
@@ -320,13 +320,17 @@ def test_mcp_missing_markdown_path_is_an_error() -> None:
     """路径拼错不能当成正文导出成一份“内容是路径”的 docx。"""
     async def _run():
         server = create_mcp_server()
+        # 语种显式给：稿件不存在时没有正文可判语种，默认按项目主语言中文。
         res = await server.call_tool(
-            "compile_markdown", {"markdown": "/definitely/missing/paper.md"}
+            "compile_markdown",
+            {"markdown": "/definitely/missing/paper.md", "lang": "en"},
         )
         assert not res.is_error
         data = res.structured_content
         assert data["success"] is False
         assert any("not found" in error.lower() for error in data["errors"]), data["errors"]
+        codes = [d["code"] for d in data["diagnostics"]]
+        assert "pipeline.input_missing" in codes, codes
     asyncio.run(_run())
 
 

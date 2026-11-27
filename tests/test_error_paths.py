@@ -34,6 +34,20 @@ def _run(argv: list[str], capsys) -> tuple[int, str]:
     return code, captured.out + captured.err
 
 
+def test_input_pointing_at_a_directory_is_not_reported_as_missing(
+    workdir: Path, capsys
+) -> None:
+    """目录确实存在：报「不存在」会让人对着一个看得见的文件夹发懵。"""
+    import json
+
+    code = main([str(workdir), "--json"])
+    payload = json.loads(capsys.readouterr().out)
+    assert code == EXIT_ERROR
+    assert payload["diagnostics"][0]["code"] == "pipeline.input_not_file"
+    assert "不是一个文件" in payload["errors"][0]
+    assert "不存在" not in payload["errors"][0]
+
+
 def test_output_pointing_at_a_directory_is_reported(workdir: Path, capsys) -> None:
     (workdir / "outdir").mkdir()
 
