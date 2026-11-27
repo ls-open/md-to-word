@@ -1590,8 +1590,10 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "<{tag}> in {member} points to {rid}, which is a different kind of relationship.",
     ),
     "base.inspect.suffix": (
-        "只收 .docx，不收 {suffix}（宏文档会带 vbaProject.bin）",
-        "Only .docx is accepted; {suffix} files are refused (macro documents carry vbaProject.bin).",
+        "只收 .docx，不收 {suffix}。请在 Word 里另存为 .docx（旧版 .doc 也是）；"
+        "带宏的文档（vbaProject.bin）不处理",
+        "Only .docx is accepted; {suffix} files are refused. Save it as .docx in Word first "
+        "(older .doc included); macro documents (vbaProject.bin) are not handled.",
     ),
     "base.inspect.unreadable": (
         "打不开这个 .docx（不是有效的 Word 文件）",

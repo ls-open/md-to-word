@@ -78,14 +78,17 @@ def test_rejects_a_macro_document(tmp_path: Path) -> None:
     assert any("宏" in msg for msg in report.blocking)
 
 
-def test_rejects_a_suffix_it_cannot_handle(tmp_path: Path) -> None:
-    fake = tmp_path / "base.docm"
+@pytest.mark.parametrize("suffix", [".docm", ".doc", ".rtf"])
+def test_rejects_a_suffix_it_cannot_handle(tmp_path: Path, suffix: str) -> None:
+    """旧版 .doc 与宏文档都是真实会遇到的底模；拒绝时要说清“另存为 .docx”，
+    而不是拿宏当所有格式的理由。"""
+    fake = tmp_path / f"base{suffix}"
     fake.write_bytes(b"not a docx")
 
     report = inspect_base(fake, 1)
 
     assert not report.ok
-    assert any(".docx" in msg for msg in report.blocking)
+    assert any(".docx" in msg and "另存" in msg for msg in report.blocking), report.blocking
 
 
 def test_rejects_when_there_are_not_enough_sections(tmp_path: Path) -> None:

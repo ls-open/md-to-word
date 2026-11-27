@@ -798,6 +798,8 @@ covers in Word.
 | Arbitrary tab stops | The format file recognises `dot-leader-tab` only (right-aligned with a dot leader); add other tab stops in Word |
 | Fenced code block directly after a list item's text (no blank line) | A list item carries paragraphs only; the export stops and asks you to move the code block out of the list. Put a blank line before the indented fence instead: the block is then written as a standalone paragraph after the list (no longer part of the item) |
 | Equations inside footnotes | Footnotes support inline formatting, links and citations; an equation stops the export |
+| Automatic updates of citations and the bibliography (Word fields / Zotero plugin) | Citations and the bibliography are written as text at export time, not Word fields; edits in Word do not update them — re-export after changing the manuscript. Use the Zotero plugin if you need live updating inside Word |
+| Right-to-left scripts (Arabic, Hebrew) | Laid out left to right (no paragraph bidi): nothing is lost, but alignment and punctuation direction do not follow RTL convention; set paragraph direction in Word after export |
 | A style declaring both `no-toc` and `join-header` | Format validation fails: the two conflict. Change the declaration, or split sections with `{{< section >}}` to set that section's header |
 
 **Limits of Word / the format itself** (not something this tool can change):
