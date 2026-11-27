@@ -1073,3 +1073,18 @@ def test_if_variable_ignores_empty_values(tmp_path: Path) -> None:
     data = '[{"id": "x", "type": "book", "title": "", "author": [{"family": "A", "given": "B"}]}]'
     engine = CitationEngine(data, style, lang="en")
     assert _text(engine, ("x", "")) == "NONE"
+
+
+def test_names_label_without_an_explicit_name_follows_the_names() -> None:
+    """`<names>` 只有 `<label>`、没有 `<name>` 时，隐式 name 在前、label 在后。
+
+    AMA 的 `<names variable="editor"><label form="short" prefix=", "/></names>`
+    应出 `Smith A, Jones B, eds.`。citeproc-js 也是如此；pandoc 把 `eds.` 放到
+    名字前面，是它自己的偏差，不跟。
+    """
+    bib = ("@book{e1, editor={Smith, Ann and Jones, Bob}, title={Book Title},"
+           " publisher={Press}, year={2020}}")
+    ama = CitationEngine(bib, CSL / "american-medical-association.csl", lang="en")
+    ama.cite([("e1", "")])
+    assert ama.bibliography()[0].endswith(
+        "Smith A, Jones B, eds. Book Title. Press; 2020.")
