@@ -1088,3 +1088,55 @@ def test_names_label_without_an_explicit_name_follows_the_names() -> None:
     ama.cite([("e1", "")])
     assert ama.bibliography()[0].endswith(
         "Smith A, Jones B, eds. Book Title. Press; 2020.")
+
+
+SORT_STYLE = '''<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info><title>sort</title><id>sort</id><updated>2024-01-01T00:00:00+00:00</updated></info>
+  <macro name="keynames">{body}</macro>
+  <citation><layout><text variable="title"/></layout></citation>
+  <bibliography>
+    <sort><key macro="keynames"/></sort>
+    <layout><text variable="title"/></layout>
+  </bibliography>
+</style>'''
+
+
+def _sorted_titles(tmp_path: Path, body: str, items: list, order: list) -> list:
+    import json
+
+    style = tmp_path / "sort.csl"
+    style.write_text(SORT_STYLE.replace("{body}", body), encoding="utf-8")
+    engine = CitationEngine(json.dumps(items), style, lang="en")
+    for key in order:
+        engine.cite([(key, "")])
+    return engine.bibliography()
+
+
+def test_sort_keys_ignore_names_labels(tmp_path: Path) -> None:
+    """排序键只取姓名：`eds.` 这类 label 不参与比较，同姓时保持引用顺序。
+
+    citeproc-js 生成的排序键同样跳过 label。
+    """
+    items = [
+        {"id": "b", "type": "book", "title": "B",
+         "editor": [{"family": "Smith", "given": "J"}]},
+        {"id": "a", "type": "book", "title": "A",
+         "author": [{"family": "Smith", "given": "J"}]},
+    ]
+    body = ('<names variable="author editor">'
+            '<label form="short" prefix=", "/></names>')
+    assert _sorted_titles(tmp_path, body, items, ["b", "a"]) == ["B", "A"]
+
+
+def test_sort_keys_ignore_the_et_al_term(tmp_path: Path) -> None:
+    """截断后的 `et al.` 不写进排序键：两个键都是 `Smith, A`，按引用顺序。"""
+    items = [
+        {"id": "a", "type": "book", "title": "A",
+         "author": [{"family": "Smith", "given": "A"},
+                    {"family": "Zeta", "given": "B"}]},
+        {"id": "b", "type": "book", "title": "B",
+         "author": [{"family": "Smith", "given": "A"}]},
+    ]
+    body = ('<names variable="author">'
+            '<name et-al-min="2" et-al-use-first="1"/></names>')
+    assert _sorted_titles(tmp_path, body, items, ["a", "b"]) == ["A", "B"]

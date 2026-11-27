@@ -1578,18 +1578,22 @@ class Names(CitationStylesElement, Parent, Formatted, Affixed, Delimited):
                         names_context.insert(0, name_elem)
                     text = name_elem.render(item, role, context=context, **kwargs)
                     plural = len(item.reference[role]) > 1
-                    try:
-                        if ed_trans:
-                            role = 'editortranslator'
-                        label_element = names_context.label
-                        label = label_element.render(item, role, plural, **kwargs)
-                        if label is not None:
-                            if label_element is names_context.getchildren()[0]:
-                                text = label + text
-                            else:
-                                text = text + label
-                    except AttributeError:
-                        pass
+                    # 排序键只取姓名本身：`eds.` 之类的术语不参与比较
+                    # （citeproc-js 生成排序键时也跳过 label）。
+                    if kwargs.get('sort_options') is None:
+                        try:
+                            if ed_trans:
+                                role = 'editortranslator'
+                            label_element = names_context.label
+                            label = label_element.render(item, role, plural,
+                                                         **kwargs)
+                            if label is not None:
+                                if label_element is names_context.getchildren()[0]:
+                                    text = label + text
+                                else:
+                                    text = text + label
+                        except AttributeError:
+                            pass
                     output.append(text)
 
             if output:
@@ -1695,7 +1699,7 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
         elif and_ == 'symbol':
             and_term = self.preformat('&')
 
-        et_al = self.et_al(item)
+        et_al = String('') if sorting else self.et_al(item)
         output = []
         if form == 'count':
             count = min(len(names), et_al_use_first)
@@ -1744,7 +1748,11 @@ class Name(CitationStylesElement, Formatted, Affixed, Delimited):
 
                 output.append(text)
 
-            if et_al_truncate and et_al:
+            if sorting:
+                # 排序键里只按 name-delimiter 连姓名：不插 "and"，也不加 et-al 术语
+                # （citeproc-js 的 sort_key_flag 同样跳过这两样）。
+                text = self.join(output, delimiter)
+            elif et_al_truncate and et_al:
                 if et_al_last:
                     ellipsis = self.unicode_character('horizontal ellipsis')
                     output[-1] = ellipsis + ' ' + output[-1]
