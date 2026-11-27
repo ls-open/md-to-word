@@ -94,7 +94,6 @@ def _rendered(tmp_path: Path, manuscript: str) -> Path:
 def _with_mirror(path: Path) -> Path:
     """给 docx 的 settings.xml 打开 mirrorMargins（模拟学校模板的双面装订）。"""
     return set_on_off(path, "mirrorMargins", True)
-    return path
 
 
 def test_rejects_a_macro_document(tmp_path: Path) -> None:
