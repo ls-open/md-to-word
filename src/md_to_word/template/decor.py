@@ -106,11 +106,16 @@ def apply_page_decorations(doc, spec, lang: str = "zh"):
 _MDW_META_PART = "customXml/mdw_meta.xml"
 
 
-def write_header_styles_meta(doc, header_styles: set[str]) -> None:
-    """将声明加入页眉（join-header）的样式名集合以确定性 XML 写入 /customXml/mdw_meta.xml。"""
+def write_header_styles_meta(doc, header_styles: set[str], kind: str = "template") -> None:
+    """将声明加入页眉（join-header）的样式名集合以确定性 XML 写入 /customXml/mdw_meta.xml。
+
+    `kind` 区分这份文件是模板（`template`）还是导出的成品（`product`）。反推器靠它
+    拒绝成品：成品里的样式是我们自己写的，再反推只会把底模里同名的样式读错。
+    """
     payload = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-        f'<mdw-meta version="1"><header-styles>{json.dumps(sorted(header_styles), ensure_ascii=False)}'
+        f'<mdw-meta version="1" kind="{kind}">'
+        f'<header-styles>{json.dumps(sorted(header_styles), ensure_ascii=False)}'
         "</header-styles></mdw-meta>\n"
     ).encode("utf-8")
     for rel in doc.part.rels.values():
@@ -121,8 +126,8 @@ def write_header_styles_meta(doc, header_styles: set[str]) -> None:
     doc.part.relate_to(part, RT.CUSTOM_XML)
 
 
-def read_header_styles_meta(source) -> set[str] | None:
-    """从 docx（Path / str / ZipFile / parts dict）读取 header_styles 元数据；无元数据返回 None。"""
+def _read_meta_root(source):
+    """读 /customXml/mdw_meta.xml 的根节点；没有或坏了返回 None。"""
     raw: bytes | None = None
     if isinstance(source, dict):
         raw = source.get(_MDW_META_PART)
@@ -140,12 +145,28 @@ def read_header_styles_meta(source) -> set[str] | None:
     if not raw:
         return None
     try:
-        root = etree.fromstring(raw)
-        el = root.find("header-styles")
-        if el is None or not el.text:
-            return set()
+        return etree.fromstring(raw)
+    except etree.XMLSyntaxError:
+        return None
+
+
+def read_header_styles_meta(source) -> set[str] | None:
+    """从 docx（Path / str / ZipFile / parts dict）读取 header_styles 元数据；无元数据返回 None。"""
+    root = _read_meta_root(source)
+    if root is None:
+        return None
+    el = root.find("header-styles")
+    if el is None or not el.text:
+        return set()
+    try:
         data = json.loads(el.text)
         return {str(x) for x in data}
-    except (etree.XMLSyntaxError, ValueError, TypeError):
+    except (ValueError, TypeError):
         return None
+
+
+def read_meta_kind(source) -> str:
+    """读 mdw-meta 的 kind；没有元数据或没写 kind 时返回空串。"""
+    root = _read_meta_root(source)
+    return "" if root is None else (root.get("kind") or "")
 

@@ -359,8 +359,9 @@ def create_mcp_server() -> Any:
                 of `keep_until` / `cover_sections` / `keep_pages`.
             cover_sections: Keep the base's first N sections as front matter.
             keep_pages: Say it in pages instead; requires Word to convert pages to sections.
-            keep_until: Say it by content (recommended) — keep through the section containing
-                this text, e.g. "版权使用授权书".
+            keep_until: Say it by content (recommended) — name the last line you want kept
+                (inclusive), e.g. "作者签名". A multi-section base keeps through its section; a
+                single-section base keeps through its paragraph and drops the rest.
             blind_review: Strip identifying document properties (author, company, custom
                 properties, thumbnail, comment authors) from the final .docx. Cleans file
                 metadata only; names in the body/cover/headers are not anonymised.

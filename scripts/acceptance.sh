@@ -88,8 +88,24 @@ case "$PDF_CODE" in
     *) echo "   非预期退出码: $PDF_CODE"; exit 1 ;;
 esac
 
-step "从产物反推要求文件"
-"$BIN/md-to-word-template" hello.docx -o derived.txt >/dev/null
-grep -q "纸张\|Paper" derived.txt && echo "   反推可用"
+step "反推器的边界：成品拒绝，生成的模板可用"
+set +e
+"$BIN/md-to-word-template" hello.docx -o derived.txt >/dev/null 2>derived.err
+DERIVED_CODE=$?
+set -e
+[ "$DERIVED_CODE" -eq 1 ] || { echo "   成品本应被拒绝，退出码 $DERIVED_CODE"; exit 1; }
+grep -q "成品\|product" derived.err || {
+    echo "   成品被拒绝，但理由没说清："; cat derived.err; exit 1;
+}
+test ! -e derived.txt || { echo "   拒绝时不应写出草稿"; exit 1; }
+echo "   成品被拒绝，且没有写出假草稿"
+"$TMP/venv/bin/python" - <<'PY'
+from pathlib import Path
+from md_to_word.template.builder import build_template
+
+build_template(Path("format.txt").read_text(encoding="utf-8"), "template.docx")
+PY
+"$BIN/md-to-word-template" template.docx -o derived.txt >/dev/null
+grep -q "纸张\|Paper" derived.txt && echo "   生成的模板仍可反推"
 
 printf '\n验收通过。\n'

@@ -686,6 +686,12 @@ Properties are read at their **effective** value: whatever a style does not set 
 along the `basedOn` chain and in `docDefaults`, so the most common shape — a derived style whose
 properties live on the base style — is read correctly instead of falling back to empty or default.
 
+**It refuses md-to-word's own products**: an exported `.docx` or an injected product carries
+`customXml/mdw_meta.xml` with `kind="product"`, and the extractor stops there — the styles in a
+product are the ones we wrote, and a same-named `Heading 1` from the base can be read instead.
+Keep the `format.txt` used for the export, or reverse-engineer the original school/publisher
+template.
+
 **Where reverse-engineering stops** — two kinds, neither guessed. It reads the **styles part**:
 direct formatting on individual paragraphs cannot be detected and leaves no trace in the draft —
 check it against the original. Everything else it can detect but cannot express is listed at the
@@ -940,19 +946,21 @@ Three routes, ordered by how much can be guaranteed:
 ### 9.3 Pour the body into an existing cover template (`--base-template`)
 
 ```bash
-md-to-word manuscript.md -f format.txt --base-template base.docx --keep-until "copyright authorization" -o out.docx
+md-to-word manuscript.md -f format.txt --base-template base.docx --keep-until "author signature" -o out.docx
 ```
 
-`--keep-until <text>` keeps everything through the section containing that text and reports the number;
-when it is not found it lists how each section starts. `--cover-sections N` says it in sections.
-`--keep-pages P` says it in pages and needs macOS + Word, because the conversion takes a real layout.
-The resulting PDF is read with the bundled pypdfium2; poppler is not required.
+`--keep-until <text>`: on a multi-section base, keeps through the section containing that text
+(the whole section stays) and reports the number; when it is not found it lists how each section
+starts. On a single-section base (many real templates page with manual breaks, not section breaks),
+keeps through the matching paragraph (inclusive) and inserts a section break after it; everything
+after is dropped — so name the **last line you want kept**, and to keep a whole page name that
+page's last line (e.g. the signature or date), not its title. Pages only exist after Word lays the
+document out, so there is no "keep page N" at this cut point. `--cover-sections N` says it in
+sections. `--keep-pages P` says it in pages and needs macOS + Word, because the conversion takes a
+real layout. The resulting PDF is read with the bundled pypdfium2; poppler is not required.
 
-On a single-section base (many real templates page with manual breaks, not section breaks)
-`--keep-until` inserts a section break after the matching paragraph, splitting front matter from
-body; `--cover-sections` cannot cut such a template. The cut point is a **body paragraph**: text
-inside a table cannot be used (a section break cannot sit in a cell) — pick a phrase after the
-table, or make the cover its own section in Word first.
+The cut point is a **body paragraph**: text inside a table cannot be used (a section break cannot
+sit in a cell) — pick a phrase after the table, or make the cover its own section in Word first.
 
 **The contents page is never kept**: if the base has one (a field or entries typed by hand, either
 counts), the cut must stop before it — the manuscript writes `{{< toc >}}` to generate it. Cutting too

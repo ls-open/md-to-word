@@ -269,7 +269,8 @@ def generate_template(format_text, output_path, margins=None, lang="zh"):
     # 代码的换行位置本身就是作者写的，再拉伸只会让人以为是排版错了。
     code_style.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.LEFT
 
-    write_header_styles_meta(doc, {r['style_name'] for r in reqs if r.get('join_header')})
+    write_header_styles_meta(
+        doc, {r['style_name'] for r in reqs if r.get('join_header')}, kind="template")
     doc.save(output_path)
 
     # 保存后重新打包：只做一件事——清除 styles.xml 里的全部主题字体/颜色属性。

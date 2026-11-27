@@ -104,8 +104,9 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
   ```
 - **Inject manuscript into existing template**: Keep institutional covers and front matter untouched:
   ```bash
-  md-to-word paper.md -f format.txt --base-template template.docx --keep-until "Declaration" -o paper.docx
+  md-to-word paper.md -f format.txt --base-template template.docx --keep-until "Author signature" -o paper.docx
   ```
+  `--keep-until` names the **last line you want kept** (inclusive); on a single-section template the cut is after that paragraph, so to keep a whole page name that page's last line.
 
 ---
 

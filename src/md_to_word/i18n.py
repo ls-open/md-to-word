@@ -532,14 +532,18 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "Say it in pages instead: keep the first N pages (needs macOS + Word for a real layout; the tool tries a few cuts, slow, one-off)",
     ),
     "cli.keep_until": (
-        "按内容说：底模里出现这段文字的那一节为止，前面的原样保留（如 --keep-until 版权使用授权书）",
-        "Say it by content: keep through the section containing this text "
-        "(e.g. --keep-until \"copyright authorization\")",
+        "按内容说：多节底模保留到包含这段文字的那一节；单节底模保留到这一段（含），之后丢弃。"
+        "单节时要写你希望保留的最后一行（如 --keep-until 作者签名）",
+        "Say it by content: a multi-section base keeps through the section containing this text; a "
+        "single-section base keeps through this paragraph (inclusive) and drops the rest. On a "
+        "single-section base, name the last line you want kept (e.g. --keep-until \"author signature\")",
     ),
     "pipeline.base_paragraph_cut": (
-        "底模只有 1 节：在「{text}」这一段之后插入分节符，前置件保留在上面那一节",
-        "the base has a single section: a section break is inserted after the paragraph "
-        "containing {text!r}, keeping the front matter in that first section",
+        "底模只有 1 节：以「{text}」这一段为最后一行（含这一段），在它之后插入分节符；"
+        "之后的内容不会保留。想保留整页，请写成这一页的最后一行。",
+        "the base has a single section: {text!r} is the last kept paragraph (inclusive); a section "
+        "break is inserted after it and everything after is discarded. To keep a whole page, name "
+        "that page's last line.",
     ),
     "pipeline.section_line": (
         "  第 {index} 节：{text}",
@@ -914,6 +918,15 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "extractor.no_styles": (
         "{path} 里没有 word/styles.xml，读不出样式表。请换一份完整的 .docx。",
         "{path} has no word/styles.xml, so there is no style table to read. Use a complete .docx.",
+    ),
+    "extractor.own_product": (
+        "「{path}」是 md-to-word 导出的成品（或灌过底模的产物），不是学校/期刊下发的原始模板。"
+        "反推成品只会读回我们自己写进去的样式；底模里有同名 Heading 1 时还会读错那一条。"
+        "请沿用导出时用的 format.txt，或换原始模板反推。",
+        "{path} was exported by md-to-word (or is a product with a base template injected), not an "
+        "original school/publisher template. Reverse-engineering a product only reads back the styles "
+        "we wrote, and a same-named Heading 1 from the base can be read instead. Keep the format.txt "
+        "used for the export, or reverse-engineer the original template.",
     ),
     "extractor.cli.description": (
         "从参考 .docx 反推 format.txt 草稿（只读样式；手调的直接格式读不出，表达不了的列在末尾）",
@@ -1819,9 +1832,9 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     ),
     "base.cut.too_few_sections": ("切不出前 {keep} 节", "Cannot keep {keep} sections."),
     "base.note.retained": (
-        "保留前 {sections} 节；切点之后的内容**不会保留**，第一段是「{head}」。"
+        "前置件已保留；切点之后的内容**不会保留**，第一段是「{head}」。"
         "如果这段仍属于前置件，请换一段更靠后的文字作切点。",
-        "Kept the first {sections} section(s); everything after the cut is **not kept**, "
+        "The front matter is kept; everything after the cut is **not kept**, "
         "starting with {head!r}. If that paragraph still belongs to the front matter, "
         "choose a later phrase as the cut point.",
     ),

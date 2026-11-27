@@ -10,9 +10,11 @@ from pathlib import Path
 import pytest
 from docx import Document
 from docx.enum.section import WD_SECTION
+from docx.enum.text import WD_BREAK
 
 from md_to_word.model.reader import read_markdown
-from md_to_word.template.base_inject import apply_base_template
+from md_to_word.pipeline import ExportOptions, run_export_pipeline
+from md_to_word.template.base_inject import _page_texts, apply_base_template
 from md_to_word.template.builder import build_template
 from md_to_word.visual_qa.word_pdf import can_render_word_pdf
 from md_to_word.writer import write_docx
@@ -48,6 +50,44 @@ def test_cover_pages_survive_page_by_page(tmp_path: Path) -> None:
     apply_base_template(base, rendered, 2, out, "第一章绪论")
 
     assert out.is_file()
+
+
+def test_single_section_cut_starts_the_body_on_a_new_page(tmp_path: Path) -> None:
+    """单节模板切在半页时，正文从下一页开始——不能挤回同一页，也不能多出空白页。
+
+    结构上分节符是 nextPage；这条用 Word 排一次版，直接看 PDF 的页边界。
+    """
+    base = tmp_path / "base.docx"
+    doc = Document()
+    doc.add_paragraph("某某大学硕士学位论文")
+    doc.add_paragraph("作者：张三")
+    doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
+    doc.add_paragraph("版权使用授权书")
+    doc.add_paragraph("本人郑重声明，本论文是在导师指导下独立完成的研究成果。")
+    signature = doc.add_paragraph("作者签名：________    导师签名：________")
+    # 真实模板里 Ctrl+Enter 往往就落在这一段的末尾，而不是单独一段；
+    # 分页符和切点同段时最容易多出空白页，所以这里按这种写法验。
+    signature.add_run().add_break(WD_BREAK.PAGE)
+    doc.add_paragraph("这里是被丢弃的旧正文。")
+    doc.save(base)
+
+    md = tmp_path / "m.md"
+    md.write_text("# 第一章 引言\n\n正文第一段。\n", encoding="utf-8")
+    fmt = tmp_path / "f.txt"
+    fmt.write_text(PRESET, encoding="utf-8")
+
+    result = run_export_pipeline(ExportOptions(
+        input_path=md, output_path=tmp_path / "out.docx", format_path=fmt,
+        base_template=base, keep_until="作者签名", make_pdf=True,
+    ))
+
+    assert result.ok, result.errors
+    pages = _page_texts(result.output_pdf)
+    assert len(pages) == 3, [p[:30] for p in pages]
+    assert "作者签名" in pages[1]
+    assert "第一章" not in pages[1], "正文不能挤回授权书的半页"
+    assert "第一章" in pages[2]
+    assert "旧正文" not in "".join(pages), "切点之后的内容不应保留"
 
 
 def test_word_opens_a_body_with_links_and_footnote_links(tmp_path: Path) -> None:

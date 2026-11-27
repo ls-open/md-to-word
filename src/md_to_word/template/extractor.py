@@ -53,7 +53,7 @@ from md_to_word.template.checks import (
     _LINKED_SECTION_TITLES,
 )
 from md_to_word.template.core import content_width, doc_grid_lines_from_pitch
-from md_to_word.template.decor import read_header_styles_meta
+from md_to_word.template.decor import read_header_styles_meta, read_meta_kind
 
 W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
@@ -101,6 +101,10 @@ class Ref:
                 if exc.__class__ is zipfile.BadZipFile
                 else t("extractor.no_styles", lang, path=path.name)
             ) from exc
+        # 成品里的样式是我们自己写进去的，不是参考模板。反推它只会把预设原样读回来；
+        # 灌过底模的成品还会有两套同名样式，容易读错那一条。直接拒绝，别给假草稿。
+        if read_meta_kind(self.parts) == "product":
+            raise ValueError(t("extractor.own_product", lang, path=path.name))
         self.doc_defaults = self.styles.find(q('docDefaults'))
         self.by_id = {}
         for st in self.styles.findall(q('style')):

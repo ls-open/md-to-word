@@ -374,6 +374,10 @@ def paragraph_cut(base: Path, needle: str, out: Path, lang: str = "zh") -> int:
     **单节模板**上兜底：命中唯一一段，就把文末 sectPr 克隆一份挂到那一段的 pPr 里，
     前置件的版式、页眉页脚、页面设置原样留在上面那一节。
 
+    分节符默认是 nextPage（正文节 sectPr 不写 `w:type` 就是 nextPage），所以前置页只排了
+    半页，正文也从下一页开始；不要再补分页符——分节符已经保证下一页开始，多补一个只会
+    在某些排版下多出空白页。
+
     返回切出来的前置件节数（永远是 1）。
     """
     with zipfile.ZipFile(base) as z:
@@ -1514,8 +1518,7 @@ def apply_base_template(
         report.notes = [n for n in report.notes if n != comment_note]
     head = dropped_head(base, cover_sections)
     if head:
-        report.notes.append(t(
-            "base.note.retained", lang, sections=cover_sections, head=head))
+        report.notes.append(t("base.note.retained", lang, head=head))
 
     staged = out.with_suffix(".base-staged.docx")
     try:

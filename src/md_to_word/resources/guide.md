@@ -151,7 +151,7 @@ md-to-word manuscript.md --validate-only                       # pre-flight only
 md-to-word --guide --lang en                                   # this agent guide (pip-only entry)
 md-to-word manuscript.md --contract                            # contract + guide, manual and preset paths
 md-to-word --contract --json                                   # the same facts, machine-readable
-md-to-word thesis.md --base-template base.docx --keep-until "目录" --blind-review
+md-to-word thesis.md --base-template base.docx --keep-until "Author signature" --blind-review
                                                                # keep the cover, strip identifying metadata
 ```
 

@@ -653,10 +653,11 @@ def test_a_style_reference_left_dangling_is_caught(tmp_path: Path) -> None:
 def test_header_styles_metadata_survives_injection(tmp_path: Path) -> None:
     """灌入后产物要带着自己的 `customXml/mdw_meta.xml`。
 
-    不搬这个部件的话，产物丢掉「哪些样式加入了页眉」——再拿它去反推时，
-    只能保守地说「有 STYLEREF 但不知道谁进页眉」。自描述信息不该在合并时丢掉。
+    不搬这个部件的话，产物丢掉「哪些样式加入了页眉」，对账/审计读不到自描述信息。
+    这份元数据同时写着 `kind="product"`：反推器靠它拒绝成品，避免把底模里同名的
+    Heading 1 当成正文样式读走。
     """
-    from md_to_word.template.decor import read_header_styles_meta
+    from md_to_word.template.decor import read_header_styles_meta, read_meta_kind
 
     base = _school_base(tmp_path / "base.docx", sections=3)
     template = tmp_path / "t.docx"
@@ -671,6 +672,11 @@ def test_header_styles_metadata_survives_injection(tmp_path: Path) -> None:
     apply_base_template(base, rendered, 2, out, "第一章")
 
     assert read_header_styles_meta(out) == {"References Title"}
+    assert read_meta_kind(out) == "product"
+    from md_to_word.template.extractor import Ref
+
+    with pytest.raises(ValueError, match="成品"):
+        Ref(out)
 
 
 def test_injected_package_keeps_the_doc_level_settings_we_declare(tmp_path: Path) -> None:
@@ -780,7 +786,7 @@ def _single_section_base(path: Path) -> Path:
 
 
 def test_single_section_template_cuts_after_the_matched_paragraph(tmp_path: Path) -> None:
-    """`--keep-until` 在单节模板上兜底：命中段落之后插入分节符，前置件留在上面。"""
+    """`--keep-until` 在单节模板上兜底：命中这一段落**本身保留**，之后插入分节符。"""
     from md_to_word.pipeline import ExportOptions, run_export_pipeline
 
     base = _single_section_base(tmp_path / "base.docx")
@@ -791,14 +797,29 @@ def test_single_section_template_cuts_after_the_matched_paragraph(tmp_path: Path
 
     result = run_export_pipeline(ExportOptions(
         input_path=md, output_path=tmp_path / "o.docx", format_path=fmt,
-        base_template=base, keep_until="论文题目",
+        base_template=base, keep_until="摘  要",
     ))
 
     assert result.ok, result.errors
     with zipfile.ZipFile(result.output_docx) as z:
-        xml = z.read("word/document.xml").decode("utf-8")
-    assert xml.count("<w:sectPr") == 2, "切出来的前置件一节 + 灌入后的正文一节"
-    assert any("插入分节符" in m for m in result.messages), result.messages
+        root = etree.fromstring(z.read("word/document.xml"))
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    front, cutting = [], False
+    for child in root.find(w + "body"):
+        front.append("".join(t.text or "" for t in child.iter(w + "t")))
+        if child.find(f"{w}pPr/{w}sectPr") is not None:
+            cutting = True
+            break
+    assert cutting, "应在前置件末尾找到一个分节符"
+    kept = "\n".join(front)
+    assert "论文题目" in kept and "摘  要" in kept, kept
+    assert "本文研究了一种方法" not in kept, "切点之后的段落不应留在前置件里"
+    assert any("最后一行" in m and "插入分节符" in m for m in result.messages), result.messages
+    # 正文节（文末 sectPr）从下一页开始：type 缺省就是 nextPage，不能是 continuous。
+    body_sect = root.find(f"{w}body/{w}sectPr")
+    assert body_sect is not None
+    type_el = body_sect.find(w + "type")
+    assert type_el is None or type_el.get(w + "val") == "nextPage"
 
 
 def test_single_section_template_still_blocks_a_bad_cut(tmp_path: Path) -> None:

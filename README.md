@@ -107,8 +107,9 @@ npx skills add ls-open/md-to-word
   ```
 - **正文灌入底模**：原样保留学校或单位模板的封面与授权书：
   ```bash
-  md-to-word 论文.md -f format.txt --base-template 模板.docx --keep-until 版权使用授权书 -o 论文.docx
+  md-to-word 论文.md -f format.txt --base-template 模板.docx --keep-until 作者签名 -o 论文.docx
   ```
+  `--keep-until` 写你想保留的**最后一行**（含这一行）；单节模板会在这一段之后切开，想留整页就写这一页的最后一行。
 
 ---
 

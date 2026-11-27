@@ -227,16 +227,13 @@ def test_library_and_cli_reverse_engineer_identically(tmp_path: Path, capsys) ->
     from contextlib import redirect_stdout
 
     from md_to_word.template import extract_spec_from_docx
+    from md_to_word.template.builder import build_template
     from md_to_word.template.extractor import main as extract_main
 
     source = tmp_path / "seed.docx"
-    assert run_export_pipeline(
-        ExportOptions(
-            input_path=_write_manuscript(tmp_path),
-            output_path=source,
-            preset="zh-academic",
-        )
-    ).returncode == 0
+    preset = (Path(__file__).resolve().parents[1]
+              / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
+    build_template(preset, source)
 
     from_library = extract_spec_from_docx(source)
     buffer = io.StringIO()
@@ -245,6 +242,24 @@ def test_library_and_cli_reverse_engineer_identically(tmp_path: Path, capsys) ->
     from_cli = buffer.getvalue()
 
     assert from_cli == from_library
+
+
+def test_reverse_engineering_refuses_an_exported_product(tmp_path: Path) -> None:
+    """成品带 kind=product：反推器直接拒绝，不给一份读错样式的草稿。"""
+    from md_to_word.template.extractor import Ref, main as extract_main
+
+    product = tmp_path / "product.docx"
+    assert run_export_pipeline(
+        ExportOptions(
+            input_path=_write_manuscript(tmp_path),
+            output_path=product,
+            preset="zh-academic",
+        )
+    ).returncode == 0
+
+    with pytest.raises(ValueError, match="成品"):
+        Ref(product)
+    assert extract_main([str(product)]) == 1
 
 
 def _write_manuscript(tmp_path: Path) -> Path:

@@ -46,8 +46,9 @@ md-to-word hello.md -o hello.docx
 - **只要一个通用的规范**：`--preset zh-academic`（中文期刊）、`zh-tw-academic`（繁體）、
   `zh-report`（技术报告）、`zh-gb9704`（党政机关公文正文版式，不含红头/版记）、
   `en-nature`（英文期刊）、`en-apa-student`（APA 7 学生论文）。
-- **手上有学校给的 `.docx`**：`--base-template 学校模板.docx --keep-until "版权使用授权书"`
-  按内容指定保留到哪一页，前置件原样留下，正文换成我们排的。这条路是实验性的，
+- **手上有学校给的 `.docx`**：`--base-template 学校模板.docx --keep-until "作者签名"`
+  多节模板写该节里的任意一行；单节模板写你希望保留的最后一行（含这一行）。
+  前置件原样留下，正文换成我们排的。这条路是实验性的，
   不同学校的模板差异很大，导出后务必用 Word 打开核对一遍。
 
 ## 5. 出问题了看哪

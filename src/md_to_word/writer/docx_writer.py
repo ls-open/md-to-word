@@ -1688,7 +1688,7 @@ def write_docx(
     )
     writer.write()
     if header_styles is not None:
-        write_header_styles_meta(docx, effective_header_styles)
+        write_header_styles_meta(docx, effective_header_styles, kind="product")
     if provenance:
         # 产物要能自证出处：版本与用的是哪份格式文件。只写固定字符串，不写时间戳，
         # 否则同一份稿件重复导出就不再逐字节一致了。
