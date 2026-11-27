@@ -130,6 +130,7 @@ Add to your `mcpServers` configuration (`uvx` runs in an isolated virtual enviro
 - **Unsupported layouts**: Markdown and the single-column document model do not support merged cells, diagonal table headers, multi-column mixing, or text-wrapped floating shapes.
 - **PDF rendering**: The `--pdf` flag requires Word on macOS to expand Word fields; without Word, the `.docx` is produced and PDF is skipped.
 - **Fonts and office suites**: a `.docx` records font names, not the fonts themselves; if the opening machine lacks one, Word substitutes it and pagination can shift. WPS opens the file, but does not expand the TOC field and may show an error in a `STYLEREF` chapter header. Microsoft Word is the acceptance target.
+- **Citations**: citations and the bibliography are static text written at export time, not Word fields; re-export after editing, and use a Zotero plugin if you need live updates inside Word. CSL `class="note"` (footnote/ibid) styles and a few advanced constructs are refused with a clear error; Chinese author-date names sort by code point, not pinyin. See manual §4/§6 for details.
 
 ### Ecosystem
 

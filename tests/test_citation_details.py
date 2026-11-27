@@ -419,23 +419,26 @@ BLOCK_STYLE = '''<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" cl
 
 
 def test_block_display_starts_a_new_line(tmp_path: Path) -> None:
-    """`display="block"`（以及 `indent`）让文献条目内部换行，而不是挤成一段。"""
+    """`display="block"` 让文献条目内部换行，而不是挤成一段。
+
+    `display="indent"` 不在这里：它要求缩进量，而引擎只换行会静默丢掉缩进，所以
+    `check_style` 直接拒绝（见 test_csl_feature_gate.py）。
+    """
     from md_to_word.csl.string import LINE_BREAK
 
-    for display in ("block", "indent"):
-        style = tmp_path / f"{display}.csl"
-        style.write_text(BLOCK_STYLE.replace("{display}", display), encoding="utf-8")
-        engine = CitationEngine(
-            "@book{b, author={Smith, John}, title={A Book}, publisher={Acme Press}, "
-            "address={London}, year={2020}}",
-            style, lang="en",
-        )
-        engine.reserve(["b"])
-        engine.cite([("b", "")])
-        assert engine.bibliography()[0] == "A Book\nAcme Press\nLondon, 2020."
+    style = tmp_path / "block.csl"
+    style.write_text(BLOCK_STYLE.replace("{display}", "block"), encoding="utf-8")
+    engine = CitationEngine(
+        "@book{b, author={Smith, John}, title={A Book}, publisher={Acme Press}, "
+        "address={London}, year={2020}}",
+        style, lang="en",
+    )
+    engine.reserve(["b"])
+    engine.cite([("b", "")])
+    assert engine.bibliography()[0] == "A Book\nAcme Press\nLondon, 2020."
 
-        segments = engine.bibliography_segments()[0][1]
-        assert LINE_BREAK in "".join(text for text, _ in segments)
+    segments = engine.bibliography_segments()[0][1]
+    assert LINE_BREAK in "".join(text for text, _ in segments)
 
 
 def test_block_join_keeps_the_seam_normalization() -> None:

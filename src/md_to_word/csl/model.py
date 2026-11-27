@@ -327,7 +327,7 @@ class CitationStylesElement(SomewhatObjectifiedElement):
             value is not None
             and BLOCK_MODE.get()
             and not isinstance(value, Block)
-            and str(self.get('display', '')).lower() in ('block', 'indent')
+            and str(self.get('display', '')).lower() == 'block'
         ):
             return Block(value if isinstance(value, MixedString) else [value])
         return value

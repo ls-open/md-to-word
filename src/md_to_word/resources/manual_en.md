@@ -616,9 +616,13 @@ compliant `.docx` first, then fine-tune from feedback.
   is normalised automatically**: `hanging-indent` and `line-spacing` are removed from
   `<bibliography>`, and one line says so — direct formatting outranks the style.
 - **Unsupported CSL constructs stop the export**: if a style uses an element or attribute this
-  tool does not implement (for example `institution`, `class="note"`, `et-al-subsequent-min`),
-  pre-flight names the construct and stops; it will not silently drop content. All 29 bundled
-  styles pass this check.
+  tool does not implement, pre-flight names the construct and stops; it will not silently drop
+  content. Current hard boundaries are `class="note"` (note/ibid styles), `institution`,
+  `suppress-author` (style-level; the body's `[-@key]` is unaffected), `et-al-subsequent-*`,
+  `gender` / `gender-form`, `display="indent"`,
+  `givenname-disambiguation-rule="all-names"`, and
+  `subsequent-author-substitute-rule` rules other than `complete-all`. All 29 bundled styles
+  pass this check.
 - **Numeric styles**: the engine puts a tab after `[n]`, which lands on the `Bibliography`
   hanging indent and lines the entry text up in a column.
 - **Without `csl:`**: Chinese manuscripts default to GB/T 7714-2015 numeric, everything else to
@@ -832,15 +836,16 @@ covers in Word.
 Pre-flight computes the real text block from the format file and warns when an absolute width or a
 percentage above 100% will overflow (a warning, not a stop).
 
-**CSL typesetting differences** (choices made by the citation engine: the content is complete, it is just
-laid out slightly differently from the reference implementation — check here when something looks off):
+**Known CSL differences (not hard boundaries)**:
 
 | What you will see | What to do instead |
 |:--|:--|
-| Chinese author-date bibliographies are grouped by language (Chinese, Japanese, Western, Russian, other), then sorted by code point rather than pinyin (observed: 吴, 周, 张, 王, 赵, 陈) | Reorder in Word if pinyin or stroke order is required, or use a numeric style |
-| Full-name-level disambiguation (`all-names`) compares first authors only: when the clash is in the second author, in-text citations are told apart by the year suffix alone (`(Roe & Doe, 2020a)` / `2020b`) and the second author's name is not added; the bibliography still prints full names | Tell them apart with page numbers, or spell out the authors in the text |
-| A narrative citation is rewritten as `Smith (2020)` only when it is a single reference and the style prints one pair of parentheses; with several references, a prefix, or a numeric style it stays parenthetical or numeric | Write several references as separate sentences; a single `@key` is unaffected |
-| `display="block"` / `"indent"` only mean "start a new line"; the indentation amount of `indent` is not applied. `left-margin` / `right-inline` drive the number column of numeric styles and otherwise flow inline | Adjust indentation in Word, or edit the style |
+| Chinese author-date bibliographies are grouped by language (Chinese, Japanese, Western, Russian, other), then sorted by code point rather than pinyin (observed: 吴, 周, 张, 王, 赵, 陈) | Reorder in Word if pinyin or stroke order is required, or use a numeric style. CSL itself does not define pinyin sorting; this is our collation choice, not an "impossible" boundary |
+| `left-margin` / `right-inline` drive the number column of numeric styles; other layouts flow inline | Adjust the layout in Word, or edit the style |
+
+A narrative citation accepts a **single `@key`** (`@a [p. 33]`); `[@a; @b]` is a parenthetical
+multi-reference citation, not a narrative one. That is the syntax definition, not a degraded
+fallback or a boundary.
 
 **Per-entry language**: Chinese entries print 等 and Western entries print et al. in the same
 bibliography. The language comes from the entry's `language` / `langid` field (CSL-JSON:

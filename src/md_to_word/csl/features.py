@@ -8,10 +8,10 @@ or an unimplemented attribute silently change the output.
 It is deliberately capability-based, not schema-only: attributes that change
 nothing when ignored (`entry-spacing`, `line-spacing`, …) are accepted.
 
-`display="block"` and `"indent"` are rendered as line breaks inside the entry
-(the indentation amount of `indent` is not applied); `left-margin` /
-`right-inline` drive the number column of numeric styles. Both are accepted,
-and the manual lists the exact behaviour under CSL typesetting differences.
+`display="block"` is rendered as a line break inside the entry; `left-margin` /
+`right-inline` drive the number column of numeric styles. `display="indent"`
+is rejected: applying only its line break would silently drop the indentation
+the style asks for.
 """
 
 from __future__ import annotations
@@ -107,6 +107,16 @@ def check_style(style) -> None:
             attr_name = local_name(attr)
             if attr_name in UNSUPPORTED_ATTRIBUTES:
                 errors.append(f"unsupported attribute {name}@{attr_name}={value!r}")
+            elif attr_name == "display" and value.strip().lower() == "indent":
+                errors.append('display="indent" is not implemented')
+            elif (
+                attr_name == "givenname-disambiguation-rule"
+                and value.strip().lower() == "all-names"
+            ):
+                errors.append(
+                    'givenname-disambiguation-rule="all-names" is not implemented; '
+                    "use primary-name or primary-name-with-initials"
+                )
             elif (
                 attr_name == "subsequent-author-substitute-rule"
                 and value not in SUPPORTED_SUBSTITUTE_RULES

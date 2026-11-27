@@ -56,6 +56,25 @@ def test_unimplemented_attribute_is_rejected(tmp_path: Path) -> None:
     assert "et-al-subsequent-min" in str(caught.value)
 
 
+def test_display_indent_is_rejected_instead_of_silently_dropping_indent(
+    tmp_path: Path,
+) -> None:
+    """只换行不加缩进，和样式要求的 `display="indent"` 不是一回事。"""
+    style = _style('<group display="indent"><text variable="title"/></group>')
+    with pytest.raises(CitationError) as caught:
+        _engine(tmp_path, style)
+    assert 'display="indent"' in str(caught.value)
+
+
+def test_all_names_disambiguation_is_rejected_until_implemented(tmp_path: Path) -> None:
+    """内置样式用 primary-name；all-names 需要给所有作者判重，当前没有实现。"""
+    style = _style('<text variable="title"/>').replace(
+        "<citation>", '<citation givenname-disambiguation-rule="all-names">')
+    with pytest.raises(CitationError) as caught:
+        _engine(tmp_path, style)
+    assert "all-names" in str(caught.value)
+
+
 def test_only_complete_all_substitute_rule_is_accepted(tmp_path: Path) -> None:
     """`subsequent-author-substitute` 只实现了默认规则；其它规则会只替换部分姓名。"""
     unsupported = _style('<text variable="title"/>').replace(
