@@ -967,16 +967,20 @@ counts), the cut must stop before it — the manuscript writes `{{< toc >}}` to 
 deep is refused, and the message names the most you may keep.
 
 What the base contributes: the front-matter sections verbatim (their page setup, headers, footers, page
-numbering), the document-level settings (theme, compatibility mode, punctuation compression, mirror
-margins), and any style you did not declare. The body's paper size, margins, gutter, page numbering,
-and declared styles come from the format file.
+numbering), its theme and default font/size, and any style you did not declare. The body's paper
+size, margins, gutter, page numbering, mirroring, punctuation compression, proofing language, and
+declared styles come from the format file.
 
-Document-level settings exist once per `.docx`: in a standalone export, `Mirror Margins` and
-`Punctuation Compression` come from your format file; **with `--base-template`, the base's
-`settings.xml` applies globally** (punctuation compression, compatibility mode, mirrored margins for
-double-sided binding, default font and size). So the body's line breaks — and, when the base mirrors
-margins, the left/right margins on facing pages — may differ from a standalone export, while our
-font, size, line-spacing, indent, and margin *values* remain intact.
+Document-level settings exist once per `.docx`: `Mirror Margins`, `Punctuation Compression` and the
+proofing language come from your format file even with `--base-template` — a base setting the format
+does not declare is turned off (the export says so; even pages in the front matter may change).
+Compatibility mode is also document-wide and cannot differ per section: if the base and the
+generated body use different modes (common with older school templates, e.g. Word 2010 mode), the
+export is refused and asks you to open the base in Word and save it once, which usually upgrades the
+mode. When the modes match, body pagination matches a standalone export (page text and word
+positions were identical in a long test document). Theme and default font/size still follow the
+base; body styles set font and size explicitly, but paragraphs without an explicit style (table
+cells, empty paragraphs) inherit the base defaults and may differ slightly from a standalone export.
 
 **No file is produced unless it verifies.** The structural check runs everywhere: front matter
 node-for-node identical, none of the original's styles/numbering/theme missing, and every style the body

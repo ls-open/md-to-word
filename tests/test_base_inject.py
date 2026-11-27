@@ -24,7 +24,9 @@ from md_to_word.template.base_inject import (
     _merge_styles,
     apply_base_template,
     dropped_head,
+    inject_into_base,
     inspect_base,
+    verify_doc_level_settings,
 )
 from md_to_word.template.builder import build_template
 from md_to_word.writer import write_docx
@@ -46,6 +48,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PRESET = (REPO_ROOT / "src" / "md_to_word" / "presets" / "zh-academic.txt").read_text(encoding="utf-8")
 
 
+def _set_compat_mode(path: Path, value: str) -> Path:
+    """改 settings.xml 的 Word 兼容模式（python-docx 默认建出来是 14）。"""
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(path) as z:
+        parts = {n: z.read(n) for n in z.namelist()}
+    root = etree.fromstring(parts["word/settings.xml"])
+    for el in root.iter(w + "compatSetting"):
+        if el.get(w + "name") == "compatibilityMode":
+            el.set(w + "val", value)
+    parts["word/settings.xml"] = etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in parts.items():
+            z.writestr(name, blob)
+    return path
+
+
 def _school_base(path: Path, sections: int = 2) -> Path:
     """一份"学校模板"：几节、每节有点内容、带页眉。"""
     doc = Document()
@@ -57,13 +76,29 @@ def _school_base(path: Path, sections: int = 2) -> Path:
         if i < sections - 1:
             doc.add_section(WD_SECTION.NEW_PAGE)
     doc.save(path)
-    return path
+    return _set_compat_mode(path, "15")
 
 
 def _rendered(tmp_path: Path, manuscript: str) -> Path:
     template = tmp_path / "tpl.docx"
     build_template(PRESET, template)
     return write_docx(read_markdown(manuscript), template, tmp_path / "rendered.docx")
+
+
+def _with_mirror(path: Path) -> Path:
+    """给 docx 的 settings.xml 打开 mirrorMargins（模拟学校模板的双面装订）。"""
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(path) as z:
+        parts = {n: z.read(n) for n in z.namelist()}
+    root = etree.fromstring(parts["word/settings.xml"])
+    if root.find(w + "mirrorMargins") is None:
+        etree.SubElement(root, w + "mirrorMargins")
+    parts["word/settings.xml"] = etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in parts.items():
+            z.writestr(name, blob)
+    return path
 
 
 def test_rejects_a_macro_document(tmp_path: Path) -> None:
@@ -725,6 +760,52 @@ def test_injected_package_keeps_the_doc_level_settings_we_declare(tmp_path: Path
         )
 
 
+def test_mirror_margins_follow_the_format_not_the_base(tmp_path: Path) -> None:
+    """底模的 mirrorMargins 不能漏进正文：格式没声明就关掉，声明了就打开。
+
+    底模开着镜像、格式没开时，正文偶数页会跟着镜像；如果正文又从第 1 页重新编号，
+    Word 为了让第 1 页落在右手页会插一张空白页——和单独导出不一样。
+    """
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+    def mirror_of(path: Path) -> bool:
+        with zipfile.ZipFile(path) as z:
+            root = etree.fromstring(z.read("word/settings.xml"))
+        return root.find(w + "mirrorMargins") is not None
+
+    # 底模开、格式没开：注入后必须关掉
+    base = _with_mirror(_school_base(tmp_path / "base.docx", sections=3))
+    rendered = _rendered(tmp_path, "# 一 引言\n\n正文。\n")
+    out = tmp_path / "out.docx"
+    inject_into_base(base, rendered, 2, out)
+    assert not mirror_of(out), "格式没声明镜像，底模的 mirrorMargins 不该留下"
+    verify_doc_level_settings(rendered, out)
+
+    # 底模没开、格式开了：注入后必须打开
+    mirror_format = PRESET.rstrip() + "\n对称页边距：开\n"
+    template = tmp_path / "mirror-tpl.docx"
+    build_template(mirror_format, template)
+    rendered_mirror = write_docx(
+        read_markdown("# 一 引言\n\n正文。\n"), template, tmp_path / "rendered-mirror.docx")
+    base2 = _school_base(tmp_path / "base2.docx", sections=3)
+    out2 = tmp_path / "out2.docx"
+    inject_into_base(base2, rendered_mirror, 2, out2)
+    assert mirror_of(out2), "格式声明了镜像，注入后要打开"
+    verify_doc_level_settings(rendered_mirror, out2)
+
+
+def test_a_base_with_a_different_compat_mode_is_refused(tmp_path: Path) -> None:
+    """兼容模式是文档级的：留底模的会改正文分页，换格式的会移封面，只能拒绝。
+
+    修法是一步：用 Word 打开底模另存一次，模式通常就升到当前版本。
+    """
+    base = _set_compat_mode(_school_base(tmp_path / "base.docx", sections=3), "14")
+
+    rendered = _rendered(tmp_path, "# 一 引言\n\n正文。\n")
+    with pytest.raises(BaseTemplateError, match="兼容模式"):
+        apply_base_template(base, rendered, 2, tmp_path / "out.docx", "一 引言")
+
+
 def test_a_base_without_body_level_section_break_is_rejected_up_front(tmp_path: Path) -> None:
     """末节 sectPr 挂在段落上时，注入会抛一个裸 ValueError 冒成「内部错误」。
 
@@ -782,7 +863,7 @@ def _single_section_base(path: Path) -> Path:
     doc.add_paragraph("摘  要")
     doc.add_paragraph("本文研究了一种方法。")
     doc.save(path)
-    return path
+    return _set_compat_mode(path, "15")
 
 
 def test_single_section_template_cuts_after_the_matched_paragraph(tmp_path: Path) -> None:

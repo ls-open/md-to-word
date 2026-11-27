@@ -37,6 +37,24 @@ def _no_live_word(monkeypatch):
                         lambda: (False, "disabled in unit tests"))
 
 
+def _compat15(path: Path) -> Path:
+    from lxml import etree
+
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(path) as z:
+        parts = {n: z.read(n) for n in z.namelist()}
+    root = etree.fromstring(parts["word/settings.xml"])
+    for el in root.iter(w + "compatSetting"):
+        if el.get(w + "name") == "compatibilityMode":
+            el.set(w + "val", "15")
+    parts["word/settings.xml"] = etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in parts.items():
+            z.writestr(name, blob)
+    return path
+
+
 def _base_with_identity(tmp_path: Path) -> Path:
     """两节底模：封面一节 + 待替换正文一节，docProps 里塞满身份信息。"""
     doc = Document()
@@ -89,7 +107,7 @@ def _base_with_identity(tmp_path: Path) -> Path:
             '<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="学号">'
             "<vt:lpwstr>2023001</vt:lpwstr></property></Properties>",
         )
-    return path
+    return _compat15(path)
 
 
 def _codes(result) -> list[str]:

@@ -14,6 +14,27 @@ from md_to_word.mcp.server import (
 )
 
 
+def _compat15(path: Path) -> Path:
+    """python-docx 默认兼容模式 14；与本工具正文（15）一致才能灌入。"""
+    import zipfile
+
+    from lxml import etree
+
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(path) as z:
+        parts = {n: z.read(n) for n in z.namelist()}
+    root = etree.fromstring(parts["word/settings.xml"])
+    for el in root.iter(w + "compatSetting"):
+        if el.get(w + "name") == "compatibilityMode":
+            el.set(w + "val", "15")
+    parts["word/settings.xml"] = etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in parts.items():
+            z.writestr(name, blob)
+    return path
+
+
 @pytest.fixture(autouse=True)
 def _no_live_word(monkeypatch):
     """底模导出会顺带做版面验真；MCP 单测不启动 Word，真验真另有专门文件。"""
@@ -415,6 +436,7 @@ def test_mcp_compile_can_pour_into_a_school_template(tmp_path: Path) -> None:
     doc.add_section(WD_SECTION.NEW_PAGE)
     doc.add_paragraph("正文占位")
     doc.save(base)
+    _compat15(base)
 
     async def _run():
         server = create_mcp_server()

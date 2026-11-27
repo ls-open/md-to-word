@@ -757,9 +757,15 @@ def verify_doc_level_settings(rendered: Path, injected: Path, lang: str = "zh") 
     for tag, label_key in (("characterSpacingControl", "base.settings.label.punctuation"),
                            ("mirrorMargins", "base.settings.label.mirror")):
         source = want_s.find(W + tag)
-        if source is None:
-            continue
         actual = got_s.find(W + tag)
+        if source is None:
+            # 格式文件没声明 = 关；底模的旧值不能留。
+            if actual is not None:
+                raise BaseTemplateError(t(
+                    "base.settings.option", lang, label=t(label_key, lang),
+                    want=t("base.common.off", lang), got=t("base.common.on", lang),
+                ))
+            continue
         if actual is None or actual.get(W + "val") != source.get(W + "val"):
             raise BaseTemplateError(t(
                 "base.settings.option", lang, label=t(label_key, lang),
@@ -768,20 +774,31 @@ def verify_doc_level_settings(rendered: Path, injected: Path, lang: str = "zh") 
             ))
 
 
+# 这两项必须跟格式文件走：`mirrorMargins` 开着会让正文偶数页镜像，正文从第 1 页重新
+# 编号时还可能多一张空白页；标点压缩直接影响断行。底模里没有、格式里没有时一律删掉。
+_FORMAT_SETTINGS = (
+    "mirrorMargins",
+    "characterSpacingControl",
+)
+
+
 def _merge_doc_level_settings(src, dst, qn) -> None:
-    """把**我们声明的**文档级设置搬进底模：校对语言、标点压缩、对称页边距。
+    """把必须跟格式文件走的文档级设置搬进底模：校对语言、标点压缩、对称页边距。
 
-    只搬 `w:style` 是不够的。`docDefaults` 里的校对语言与 `settings.xml` 里的标点压缩
-    都不属于任何一条样式，灌完之后底模的旧值还在，而生成器专门写这两项的理由（不写中文
-    语言，Word 就拿英文词典查中文，整篇标红）恰恰在底模这条路上失效。声明了却不起作用，
-    比没声明更坏——用户以为自己设过了。
+    只搬 `w:style` 是不够的：`docDefaults` 里的校对语言与 `settings.xml` 里的标点压缩
+    都不属于任何一条样式，底模的旧值留下就会静默生效。`mirrorMargins` 还会改变正文
+    偶数页边距，并在正文从第 1 页重新编号时让 Word 插一张空白页（实测）。
 
-    `format.txt` 为准：底模的前置件有自己的样式，正文的排版仍然按我们的声明来。
-    底模独有的设置（`evenAndOddHeaders`、`titlePg`、`compat` 等）一律不碰。
+    兼容模式、主题与默认字体等底模独有的全局设置不在这里搬：它们整份文档只有一份，
+    无法分节。兼容模式不一致时 `apply_base_template` 会直接拒绝（见 `_compat_mode`）；
+    默认字体字号不一致时正文里没有显式 pStyle 的段落（表格单元格、空段落）可能略有
+    出入，导出会给出提示。
     """
     from copy import deepcopy
 
-    # 1. 校对语言走 docDefaults：只覆盖 eastAsia 槽，西文槽保持底模的值
+    # 1. 校对语言走 docDefaults：只覆盖 eastAsia 槽，西文槽与默认字体字号保持底模的值。
+    # 整块替换会把前置件的默认字体也换掉（实测能把封面文字整体移 10pt），所以只搬
+    # 这一项；正文样式都显式写了字体字号，未显式设字体的表格单元格/空段落仍跟底模。
     src_lang = None
     node = src.styles.element.find(qn("w:docDefaults"))
     for tag in ("w:rPrDefault", "w:rPr", "w:lang"):
@@ -805,19 +822,24 @@ def _merge_doc_level_settings(src, dst, qn) -> None:
             lang = etree.SubElement(rpr, qn("w:lang"))
         lang.set(qn("w:eastAsia"), east_asia)
 
-    # 2. settings.xml 里的几项：有就搬，没有就按 schema 顺序插
+    # 2. settings.xml：格式有就整项替换，没有就删掉底模的旧值
     from md_to_word.template.core import _SETTINGS_ORDER, ensure_ordered_child
 
     src_settings = src.settings.element
     dst_settings = dst.settings.element
-    for tag in ("characterSpacingControl", "mirrorMargins"):
+    for tag in _FORMAT_SETTINGS:
         source = src_settings.find(qn(f"w:{tag}"))
+        target = dst_settings.find(qn(f"w:{tag}"))
         if source is None:
+            if target is not None:
+                dst_settings.remove(target)
             continue
-        target = ensure_ordered_child(dst_settings, tag, _SETTINGS_ORDER)
-        for attr in list(target.attrib):
-            del target.attrib[attr]
-        target.attrib.update(source.attrib)
+        clone = deepcopy(source)
+        if target is not None:
+            dst_settings.replace(target, clone)
+        else:
+            placeholder = ensure_ordered_child(dst_settings, tag, _SETTINGS_ORDER)
+            dst_settings.replace(placeholder, clone)
 
 
 def _canon(el) -> bytes:
@@ -1504,6 +1526,28 @@ def resolve_sections_for_pages(
         pdf.unlink(missing_ok=True)
 
 
+def _has_mirror(path: Path) -> bool:
+    try:
+        with zipfile.ZipFile(path) as z:
+            root = etree.fromstring(z.read("word/settings.xml"))
+    except (OSError, KeyError, zipfile.BadZipFile, etree.XMLSyntaxError):
+        return False
+    return root.find(W + "mirrorMargins") is not None
+
+
+def _compat_mode(path: Path) -> str:
+    """settings.xml 里的 Word 兼容模式（compatSetting compatibilityMode）；读不到返回空串。"""
+    try:
+        with zipfile.ZipFile(path) as z:
+            root = etree.fromstring(z.read("word/settings.xml"))
+    except (OSError, KeyError, zipfile.BadZipFile, etree.XMLSyntaxError):
+        return ""
+    for el in root.iter(W + "compatSetting"):
+        if el.get(W + "name") == "compatibilityMode":
+            return el.get(W + "val") or ""
+    return ""
+
+
 def apply_base_template(
     base: Path, rendered: Path, cover_sections: int, out: Path,
     sentinels: str | list[str], lang: str = "zh", blind_review: bool = False,
@@ -1516,9 +1560,17 @@ def apply_base_template(
         # 盲审会把批注（含内容）整件删掉，这时再说「封面会带批注气泡」是反的。
         comment_note = t("base.inspect.comments", lang)
         report.notes = [n for n in report.notes if n != comment_note]
+    base_mode, body_mode = _compat_mode(base), _compat_mode(rendered)
+    if base_mode and body_mode and base_mode != body_mode:
+        # 兼容模式是文档级的，没法只给正文换：留底模的模式，正文分页会和单独导出不同；
+        # 换成正文的模式，封面位置会变。两条都不能保证，就直接拒绝并给出一步可做的修法。
+        raise BaseTemplateError(t(
+            "base.compat_mismatch", lang, base=base_mode, body=body_mode), report.notes)
     head = dropped_head(base, cover_sections)
     if head:
         report.notes.append(t("base.note.retained", lang, head=head))
+    if _has_mirror(base) and not _has_mirror(rendered):
+        report.notes.append(t("base.note.mirror_removed", lang))
 
     staged = out.with_suffix(".base-staged.docx")
     try:

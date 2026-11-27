@@ -5,12 +5,14 @@
 
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
 import pytest
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_BREAK
+from lxml import etree
 
 from md_to_word.model.reader import read_markdown
 from md_to_word.pipeline import ExportOptions, run_export_pipeline
@@ -28,6 +30,23 @@ pytestmark = [
 ]
 
 
+def _compat15(path: Path) -> Path:
+    """python-docx 默认兼容模式 14；与本工具正文（15）一致才能一起验。"""
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(path) as z:
+        parts = {n: z.read(n) for n in z.namelist()}
+    root = etree.fromstring(parts["word/settings.xml"])
+    for el in root.iter(w + "compatSetting"):
+        if el.get(w + "name") == "compatibilityMode":
+            el.set(w + "val", "15")
+    parts["word/settings.xml"] = etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in parts.items():
+            z.writestr(name, blob)
+    return path
+
+
 def test_cover_pages_survive_page_by_page(tmp_path: Path) -> None:
     base = tmp_path / "base.docx"
     doc = Document()
@@ -39,6 +58,7 @@ def test_cover_pages_survive_page_by_page(tmp_path: Path) -> None:
         if i < 2:
             doc.add_section(WD_SECTION.NEW_PAGE)
     doc.save(base)
+    _compat15(base)
 
     template = tmp_path / "tpl.docx"
     build_template(PRESET, template)
@@ -56,6 +76,8 @@ def test_single_section_cut_starts_the_body_on_a_new_page(tmp_path: Path) -> Non
     """单节模板切在半页时，正文从下一页开始——不能挤回同一页，也不能多出空白页。
 
     结构上分节符是 nextPage；这条用 Word 排一次版，直接看 PDF 的页边界。
+    底模还开了对称页边距：格式没声明时它必须被关掉，否则正文从第 1 页重新编号时，
+    Word 会把第 1 页推到右手页，在授权书和正文之间插一张空白页。
     """
     base = tmp_path / "base.docx"
     doc = Document()
@@ -70,6 +92,21 @@ def test_single_section_cut_starts_the_body_on_a_new_page(tmp_path: Path) -> Non
     signature.add_run().add_break(WD_BREAK.PAGE)
     doc.add_paragraph("这里是被丢弃的旧正文。")
     doc.save(base)
+
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(base) as z:
+        parts = {n: z.read(n) for n in z.namelist()}
+    settings = etree.fromstring(parts["word/settings.xml"])
+    etree.SubElement(settings, w + "mirrorMargins")
+    # python-docx 建出来是兼容模式 14；和本工具的正文（15）一致才能一起验。
+    for el in settings.iter(w + "compatSetting"):
+        if el.get(w + "name") == "compatibilityMode":
+            el.set(w + "val", "15")
+    parts["word/settings.xml"] = etree.tostring(
+        settings, xml_declaration=True, encoding="UTF-8", standalone=True)
+    with zipfile.ZipFile(base, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in parts.items():
+            z.writestr(name, blob)
 
     md = tmp_path / "m.md"
     md.write_text("# 第一章 引言\n\n正文第一段。\n", encoding="utf-8")
@@ -105,6 +142,7 @@ def test_word_opens_a_body_with_links_and_footnote_links(tmp_path: Path) -> None
         if i == 0:
             doc.add_section(WD_SECTION.NEW_PAGE)
     doc.save(base)
+    _compat15(base)
 
     template = tmp_path / "tpl.docx"
     build_template(PRESET, template)

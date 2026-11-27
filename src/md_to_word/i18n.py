@@ -1629,6 +1629,7 @@ _MESSAGES: dict[str, tuple[str, str]] = {
     "common.none": ("（无）", "(none)"),
     "base.common.unset": ("未设置", "unset"),
     "base.common.on": ("开", "on"),
+    "base.common.off": ("关", "off"),
     "base.common.empty": ("（空）", "(empty)"),
     "base.cut.spot": ("  第 {section} 节：{text}…", "  section {section}: {text}…"),
     "base.verify.rel_wrong_type": (
@@ -1725,8 +1726,24 @@ _MESSAGES: dict[str, tuple[str, str]] = {
         "{label}没搬进底模：要求 {want}，产物 {got}",
         "{label} did not carry into the base: expected {want}, got {got}.",
     ),
+    "base.compat_mismatch": (
+        "底模的 Word 兼容模式是 {base}，本工具排出的正文是 {body}。兼容模式是文档级设置，"
+        "没法只给正文换：留着 {base}，正文分页会和单独导出不同；换成 {body}，封面位置会变。"
+        "请用 Word 打开底模、原样另存一次（通常会升级到当前模式）再灌入。",
+        "The base uses Word compatibility mode {base}, while the body is laid out in mode {body}. "
+        "Compatibility mode is document-wide: keeping {base} changes body pagination versus a "
+        "standalone export; switching to {body} shifts the cover. Open the base in Word and save "
+        "it once (this usually upgrades it), then inject again.",
+    ),
     "base.settings.label.punctuation": ("标点压缩", "Punctuation compression"),
     "base.settings.label.mirror": ("对称页边距", "Mirror margins"),
+    "base.note.mirror_removed": (
+        "底模开了对称页边距，格式文件没声明：已按格式关掉，前置件的偶数页边距可能因此变化。"
+        "要保留镜像，请在格式文件写「对称页边距：是」。",
+        "The base has mirror margins but the format file does not: they were turned off to match "
+        "the format, so even-page margins in the front matter may change. To keep mirroring, add "
+        "`Mirror Margins: on` to the format file.",
+    ),
     "base.verify.unreadable": ("打不开文件：{err}", "The file cannot be opened: {err}"),
     "base.verify.node_count": (
         "前置件的节点数变了：原件 {want}，产物 {got}",

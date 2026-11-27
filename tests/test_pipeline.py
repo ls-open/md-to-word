@@ -430,8 +430,11 @@ def test_theme_attrs_are_stripped_for_fonts_colors_and_fills() -> None:
 
 
 def _two_section_base(path: Path) -> Path:
+    import zipfile
+
     from docx import Document
     from docx.enum.section import WD_SECTION
+    from lxml import etree
 
     doc = Document()
     for i in range(2):
@@ -440,6 +443,19 @@ def _two_section_base(path: Path) -> Path:
         if i == 0:
             doc.add_section(WD_SECTION.NEW_PAGE)
     doc.save(path)
+    # python-docx 建出来是兼容模式 14；本工具正文是 15，底模要先对齐
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(path) as z:
+        parts = {n: z.read(n) for n in z.namelist()}
+    root = etree.fromstring(parts["word/settings.xml"])
+    for el in root.iter(w + "compatSetting"):
+        if el.get(w + "name") == "compatibilityMode":
+            el.set(w + "val", "15")
+    parts["word/settings.xml"] = etree.tostring(
+        root, xml_declaration=True, encoding="UTF-8", standalone=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in parts.items():
+            z.writestr(name, blob)
     return path
 
 
