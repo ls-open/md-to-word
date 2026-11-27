@@ -17,6 +17,22 @@ from .string import (
 
 LANG_KEY = '{http://www.w3.org/XML/1998/namespace}lang'
 
+# 查术语性数变体时的“不限”——样例：locale 只有 `1ʳᵉ`/`1ᵉʳ`、没有中性变体。
+_ANY_GENDER = object()
+
+# CSL 1.0.2：请求的 form 在 locale 里没有时逐级回退，最后才是 long。
+_TERM_FORM_FALLBACK = {
+    'verb-short': ('verb-short', 'verb', None),
+    'verb': ('verb', None),
+    'symbol': ('symbol', 'short', None),
+    'short': ('short', None),
+    'long': (None,),
+}
+
+
+def _term_forms(form):
+    return _TERM_FORM_FALLBACK.get(form, (form,))
+
 CSL_NAMESPACE = 'http://purl.org/net/xbiblio/csl'
 
 
@@ -382,9 +398,10 @@ class CitationStylesElement(SomewhatObjectifiedElement):
         return locale
 
     def get_term(self, name, form=None, fallback_locale=True, zero_padded=False,
-                 language=None):
+                 language=None, gender=None):
         if isinstance(self.get_root(), Locale):
-            return self.get_root().get_term(name, form)
+            return self.get_root().get_term(
+                name, form, zero_padded=zero_padded, gender=gender)
         else:
             locales = (self._locales_for(language) if language
                        else self.get_root().locales)
@@ -397,11 +414,14 @@ class CitationStylesElement(SomewhatObjectifiedElement):
                         if locale.get(LANG_KEY, main_lg) == main_lg:
                             new_locales.append(locale)
                     locales = new_locales
-            for locale in locales:
-                try:
-                    return locale.get_term(name, form, zero_padded=zero_padded)
-                except IndexError:
-                    continue
+            for candidate in _term_forms(form):
+                for locale in locales:
+                    try:
+                        return locale.get_term(
+                            name, candidate, zero_padded=zero_padded,
+                            gender=gender)
+                    except IndexError:
+                        continue
 
     def get_plural_term(self, name, *args, **kwargs):
         """
@@ -485,20 +505,35 @@ class Locale(CitationStylesElement):
     _default_options = {'limit-day-ordinals-to-day-1': 'false',
                         'punctuation-in-quote': 'false'}
 
-    def get_term(self, name, form=None, zero_padded=False):
+    def get_term(self, name, form=None, zero_padded=False, gender=None):
+        # 序数按名词的性数取变体（法语 `1ᵉʳ` / `1ʳᵉ`）：先精确匹配，再退回中性。
+        if gender in ('feminine', 'masculine'):
+            attempts = [gender, None, _ANY_GENDER]
+        else:
+            attempts = [None, _ANY_GENDER]
+        for attempt in attempts:
+            expr = self._term_expr(name, form, zero_padded, attempt)
+            try:
+                return self.terms.xpath_search(expr)[0]
+            except (AttributeError, IndexError):
+                continue
+        raise IndexError
+
+    def _term_expr(self, name, form, zero_padded, gender):
         attributes = f"@name='{name}'"
         if form is not None:
             attributes += f" and @form='{form}'"
         else:
             attributes += ' and not(@form)'
         if zero_padded:
-            attributes += "and not(@match='whole-number')"
-            attributes += "and not(@match='last-two-digits')"
-        expr = f'./cs:term[{attributes}]'
-        try:
-            return self.terms.xpath_search(expr)[0]
-        except AttributeError:
-            raise IndexError from None
+            attributes += " and not(@match='whole-number')"
+            attributes += " and not(@match='last-two-digits')"
+        if gender is not _ANY_GENDER:
+            if gender is None:
+                attributes += ' and not(@gender-form)'
+            else:
+                attributes += f" and @gender-form='{gender}'"
+        return f'./cs:term[{attributes}]'
 
     def get_date(self, form):
         expr = f"./cs:date[@form='{form}']"
@@ -1334,7 +1369,17 @@ class Date_Part(CitationStylesElement, Formatted, Affixed, TextCased,
             elif form == 'numeric-leading-zeros':
                 text = f'{date.day:02}'
             elif form == 'ordinal':
-                text = to_ordinal(date.day, context)
+                # 日期序数的性数跟月份术语走（法语 `1ᵉʳ janvier`）。
+                gender = None
+                try:
+                    month = date.month
+                except VariableError:
+                    month = None
+                if month:
+                    term = context.get_term(f'month-{month:02}')
+                    if term is not None:
+                        gender = term.get('gender')
+                text = to_ordinal(date.day, context, gender=gender)
         elif name == 'month':
             form = self.get('form', 'long')
             try:
@@ -1383,16 +1428,34 @@ class Number(CitationStylesElement, FormatNumber, Formatted, Affixed,
             number = int(number)
         except ValueError:
             return number
+        gender = (self._noun_gender(language)
+                  if form in ('ordinal', 'long-ordinal') else None)
         if form == 'numeric':
             text = str(number)
         elif form == 'ordinal' or form == 'long-ordinal' and number > 10:
-            text = to_ordinal(number, self, language=language)
+            text = to_ordinal(number, self, language=language, gender=gender)
         elif form == 'long-ordinal':
-            text = self.get_single_term(name=f'long-ordinal-{number:02}',
-                                        language=language)
+            text = self.get_single_term(
+                name=f'long-ordinal-{number:02}', language=language,
+                gender=gender)
+            # `long-ordinal-01`..`10` 缺项时按规范退回普通序数。
+            if not text:
+                text = to_ordinal(number, self, language=language,
+                                  gender=gender)
         elif form == 'roman':
             text = romanize(number).lower()
         return text
+
+    def _noun_gender(self, language):
+        """数字变量的名词性别（locale 术语上的 `gender`），用于序数变体。"""
+        variable = self.get('variable')
+        if not variable:
+            return None
+        try:
+            term = self.get_term(variable, language=language)
+        except (AttributeError, IndexError):
+            return None
+        return term.get('gender') if term is not None else None
 
     def markup(self, text):
         if text:
@@ -2135,7 +2198,7 @@ class Else(CitationStylesElement, Parent):
 
 # utility functions
 
-def to_ordinal(number, context, language=None):
+def to_ordinal(number, context, language=None, gender=None):
     lg_key = "{http://www.w3.org/XML/1998/namespace}lang"
 
     def _find(fallback_locale: bool):
@@ -2161,7 +2224,8 @@ def to_ordinal(number, context, language=None):
         for term_name, zp in keys:
             for loc in candidates:
                 try:
-                    t_el = loc.get_term(term_name, zero_padded=zp)
+                    t_el = loc.get_term(term_name, zero_padded=zp,
+                                        gender=gender)
                 except IndexError:
                     continue
                 if t_el is not None:
